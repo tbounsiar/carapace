@@ -4,6 +4,8 @@ services:
     container_name: carapace-e2e-sshd
     ports:
       - '127.0.0.1:2222:22'
+      # UI e2e only: a port no personal ~/.ssh/known_hosts should list, since the app also reads that file.
+      - '127.0.0.1:2223:22'
     environment:
       CARAPACE_PASSWORD: ${CARAPACE_PASSWORD:?run setup.mjs up}
     volumes:

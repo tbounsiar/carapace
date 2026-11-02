@@ -53,6 +53,13 @@ export const config: WebdriverIO.Config = {
     await new Promise((r) => setTimeout(r, 1500));
   },
 
+  afterTest: async (test, _context, { passed }) => {
+    if (passed) return;
+    const { screenshot } = await import('./helpers/screenshot');
+    const name = `FAIL-${test.parent}-${test.title}`.replace(/[^\w-]+/g, '_');
+    console.log('failure screenshot', await screenshot(name));
+  },
+
   beforeSession: emptyHome,
   afterSession: emptyHome,
 
