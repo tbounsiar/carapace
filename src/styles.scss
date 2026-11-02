@@ -2,3 +2,8 @@
   /* Taiga ships no monospace token; technical text (hostnames, fingerprints, paths) uses this one. */
   --app-font-mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
 }
+
+/* Created by TerminalSessions outside any component view, so it can't be styled from the panel. */
+.terminal-host {
+  block-size: 100%;
+}

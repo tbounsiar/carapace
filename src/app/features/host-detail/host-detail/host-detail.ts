@@ -10,6 +10,7 @@ import { connectionStatus } from '../../../shared/connection-status';
 import { environmentMarker } from '../../../shared/environment-kind';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../../project-tree/project-actions';
+import { TerminalPanel } from '../../terminal/terminal-panel/terminal-panel';
 import type { TreeNode } from '../../project-tree/tree-node';
 
 type HostNode = Extract<TreeNode, { kind: 'host' }>;
@@ -23,6 +24,7 @@ type HostNode = Extract<TreeNode, { kind: 'host' }>;
     TuiButtonLoading,
     TuiCardLarge,
     TuiHeader,
+    TerminalPanel,
     TuiStatus,
     TuiTitle,
   ],

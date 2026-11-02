@@ -1,0 +1,45 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tabs {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.close {
+  margin-inline-start: 0.25rem;
+  font-size: 1rem;
+}
+
+.ended {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.view {
+  /* xterm's fit addon needs a definite height; the detail page has no fixed-height ancestor. */
+  --app-terminal-offset: 22rem;
+  block-size: clamp(16rem, calc(100dvh - var(--app-terminal-offset)), 60rem);
+  padding: 0.5rem;
+  border: 1px solid var(--tui-border-normal);
+  border-radius: var(--tui-radius-m);
+  background: var(--tui-background-base);
+  overflow: hidden;
+}
+
+/* The ended banner (2.25rem + gap) sits above the view. */
+.ended + .view {
+  --app-terminal-offset: 24.75rem;
+}

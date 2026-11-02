@@ -17,6 +17,8 @@ const KNOWN_CODES: readonly string[] = [
   'secret_required',
   'invalid_passphrase',
   'keychain_unavailable',
+  'not_connected',
+  'busy',
 ];
 
 export class IpcError extends Error {

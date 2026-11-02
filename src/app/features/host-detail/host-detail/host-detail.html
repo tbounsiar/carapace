@@ -76,6 +76,7 @@
       </dd>
     </dl>
   </section>
+  <app-terminal-panel class="terminals" [hostId]="node.id" />
 } @else {
   <tui-block-status size="m" data-testid="host-not-found">
     <h2>Host not found</h2>

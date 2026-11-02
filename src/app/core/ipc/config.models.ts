@@ -40,7 +40,9 @@ export type CommandErrorCode =
   | 'host_key_revoked'
   | 'secret_required'
   | 'invalid_passphrase'
-  | 'keychain_unavailable';
+  | 'keychain_unavailable'
+  | 'not_connected'
+  | 'busy';
 
 export type IpcErrorCode = CommandErrorCode | 'unknown';
 
