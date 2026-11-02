@@ -1,9 +1,11 @@
 mod home;
 pub(crate) mod model;
 mod store;
-mod validate;
+pub(crate) mod validate;
 
 pub use home::resolve_home;
-pub use model::{Environment, Host, HostInput, Project};
+pub use model::{
+    ConfigFile, Environment, Host, HostInput, Project, Variable, VariableKind, VariableScope,
+};
 pub use store::{ConfigError, ConfigStore};
 pub(crate) use validate::is_local_absolute;

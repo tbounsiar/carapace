@@ -1,8 +1,11 @@
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use secrecy::{ExposeSecret, SecretString};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use crate::vars::is_valid_name;
 
 pub const SERVICE: &str = "org.tbounsiar.carapace";
 
@@ -14,14 +17,6 @@ pub enum SecretKind {
 
 impl SecretKind {
     pub const ALL: [SecretKind; 2] = [SecretKind::Password, SecretKind::Passphrase];
-
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "password" => Some(Self::Password),
-            "passphrase" => Some(Self::Passphrase),
-            _ => None,
-        }
-    }
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -44,36 +39,76 @@ pub fn fits_keychain(value: &SecretString) -> bool {
     value.expose_secret().encode_utf16().count() <= MAX_SECRET_UTF16_UNITS
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SecretScope {
-    project_id: String,
-    environment_id: String,
-    host_id: String,
+/// Canonical form only (lowercase, hyphenated), as the app generates them: on a keychain with
+/// case-insensitive names, `ABC...` and `abc...` would otherwise be two ids for one account.
+fn is_uuid(id: &str) -> bool {
+    uuid::Uuid::try_parse(id).is_ok_and(|u| u.hyphenated().to_string() == id)
 }
 
-impl SecretScope {
-    /// IDs must be UUIDs so an account name can never be forged with `/` or other separators.
-    pub fn new(project_id: &str, environment_id: &str, host_id: &str) -> Result<Self, SecretError> {
-        for id in [project_id, environment_id, host_id] {
-            if uuid::Uuid::try_parse(id).is_err() {
-                return Err(SecretError::InvalidScope);
-            }
+/// The keychain entry of a secret variable. Ids must be UUIDs and names valid variable names,
+/// so an account can never be forged with `/`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VarKey {
+    account: String,
+}
+
+impl VarKey {
+    fn checked(ids: &[&str], name: &str, account: String) -> Result<Self, SecretError> {
+        if !is_valid_name(name) || !ids.iter().all(|id| is_uuid(id)) {
+            return Err(SecretError::InvalidScope);
         }
-        Ok(Self {
-            project_id: project_id.into(),
-            environment_id: environment_id.into(),
-            host_id: host_id.into(),
-        })
+        Ok(Self { account })
     }
 
-    pub fn host_id(&self) -> &str {
-        &self.host_id
+    pub fn global(name: &str) -> Result<Self, SecretError> {
+        Self::checked(&[], name, format!("var/global/{name}"))
+    }
+
+    pub fn project(project_id: &str, name: &str) -> Result<Self, SecretError> {
+        Self::checked(
+            &[project_id],
+            name,
+            format!("var/project/{project_id}/{name}"),
+        )
+    }
+
+    pub fn environment(environment_id: &str, name: &str) -> Result<Self, SecretError> {
+        Self::checked(
+            &[environment_id],
+            name,
+            format!("var/env/{environment_id}/{name}"),
+        )
+    }
+
+    pub fn account(&self) -> &str {
+        &self.account
+    }
+}
+
+/// The keychain entries of secrets remembered from the credential prompt for one connection
+/// (host, environment or none).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SavedKey {
+    host_id: String,
+    environment_id: Option<String>,
+}
+
+impl SavedKey {
+    pub fn new(host_id: &str, environment_id: Option<&str>) -> Result<Self, SecretError> {
+        if !is_uuid(host_id) || !environment_id.is_none_or(is_uuid) {
+            return Err(SecretError::InvalidScope);
+        }
+        Ok(Self {
+            host_id: host_id.into(),
+            environment_id: environment_id.map(str::to_owned),
+        })
     }
 
     pub fn account(&self, kind: SecretKind) -> String {
         format!(
-            "{}/{}/{}/{}",
-            self.project_id, self.environment_id, self.host_id, kind
+            "conn/{}/{}/{kind}",
+            self.host_id,
+            self.environment_id.as_deref().unwrap_or("none")
         )
     }
 }
@@ -85,7 +120,7 @@ pub enum SecretError {
     Unavailable,
     #[error("the secret is too long for the system keychain")]
     TooLong,
-    #[error("invalid project, environment or host identifier")]
+    #[error("invalid identifier or variable name")]
     InvalidScope,
 }
 
@@ -105,46 +140,167 @@ pub trait SecretBackend: Send + Sync {
     fn delete(&self, account: &str) -> Result<(), SecretError>;
 }
 
+/// A saved connection secret is only valid for the target it was typed for: `user@host:port`
+/// for a password, the resolved key path for a passphrase.
+#[derive(Serialize)]
+struct SavedOut<'a> {
+    target: &'a str,
+    secret: &'a str,
+}
+
+#[derive(Deserialize)]
+struct SavedIn {
+    target: String,
+    secret: SecretString,
+}
+
+fn encode_saved(target: &str, value: &SecretString) -> Option<SecretString> {
+    serde_json::to_string(&SavedOut {
+        target,
+        secret: value.expose_secret(),
+    })
+    .ok()
+    .map(SecretString::from)
+}
+
+/// Whether `value`, bound to `target`, fits in one keychain entry.
+pub fn fits_saved(target: &str, value: &SecretString) -> bool {
+    encode_saved(target, value).is_some_and(|e| fits_keychain(&e))
+}
+
 #[derive(Clone)]
 pub struct SecretStore {
     backend: Arc<dyn SecretBackend>,
+    lifecycle: Arc<Mutex<()>>,
 }
 
 impl SecretStore {
     pub fn new(backend: Arc<dyn SecretBackend>) -> Self {
-        Self { backend }
+        Self {
+            backend,
+            lifecycle: Arc::default(),
+        }
+    }
+
+    /// Held across a config change and the keychain writes or deletes that follow it, and
+    /// across the remember step of a connect (check the target, then save). Without it a
+    /// delete running in between could leave an entry nothing references any more.
+    /// Lock order: this lock first, then the config store's.
+    pub fn lifecycle(&self) -> MutexGuard<'_, ()> {
+        self.lifecycle.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Deletes both secrets of a host from the iteration-2 layout
+    /// (`{projectId}/{environmentId}/{hostId}/{kind}`); non-canonical ids are skipped.
+    pub fn delete_legacy(
+        &self,
+        project_id: &str,
+        environment_id: &str,
+        host_id: &str,
+    ) -> Result<(), SecretError> {
+        if ![project_id, environment_id, host_id]
+            .iter()
+            .all(|id| is_uuid(id))
+        {
+            return Err(SecretError::InvalidScope);
+        }
+        for kind in SecretKind::ALL {
+            self.backend
+                .delete(&format!("{project_id}/{environment_id}/{host_id}/{kind}"))?;
+        }
+        Ok(())
     }
 
     pub fn keychain() -> Self {
         Self::new(Arc::new(keychain::KeychainBackend))
     }
 
-    pub fn get(
-        &self,
-        scope: &SecretScope,
-        kind: SecretKind,
-    ) -> Result<Option<SecretString>, SecretError> {
-        self.backend.get(&scope.account(kind))
+    pub fn get_var(&self, key: &VarKey) -> Result<Option<SecretString>, SecretError> {
+        self.backend.get(key.account())
     }
 
-    pub fn set(
-        &self,
-        scope: &SecretScope,
-        kind: SecretKind,
-        value: &SecretString,
-    ) -> Result<(), SecretError> {
+    pub fn has_var(&self, key: &VarKey) -> Result<bool, SecretError> {
+        Ok(self.get_var(key)?.is_some())
+    }
+
+    pub fn set_var(&self, key: &VarKey, value: &SecretString) -> Result<(), SecretError> {
         if !fits_keychain(value) {
             return Err(SecretError::TooLong);
         }
-        self.backend.set(&scope.account(kind), value)
+        self.backend.set(key.account(), value)
     }
 
-    pub fn delete(&self, scope: &SecretScope, kind: SecretKind) -> Result<(), SecretError> {
-        self.backend.delete(&scope.account(kind))
+    pub fn delete_var(&self, key: &VarKey) -> Result<(), SecretError> {
+        self.backend.delete(key.account())
     }
 
-    pub fn has(&self, scope: &SecretScope, kind: SecretKind) -> Result<bool, SecretError> {
-        Ok(self.get(scope, kind)?.is_some())
+    fn read_saved(&self, key: &SavedKey, kind: SecretKind) -> Result<Option<SavedIn>, SecretError> {
+        let account = key.account(kind);
+        let Some(raw) = self.backend.get(&account)? else {
+            return Ok(None);
+        };
+        match serde_json::from_str::<SavedIn>(raw.expose_secret()) {
+            Ok(saved) => Ok(Some(saved)),
+            Err(_) => {
+                self.backend.delete(&account)?;
+                Ok(None)
+            }
+        }
+    }
+
+    /// An entry bound to another target (the host or its variables changed since it was
+    /// saved) counts as absent and is deleted.
+    pub fn get_saved(
+        &self,
+        key: &SavedKey,
+        kind: SecretKind,
+        target: &str,
+    ) -> Result<Option<SecretString>, SecretError> {
+        match self.read_saved(key, kind)? {
+            Some(saved) if saved.target == target => Ok(Some(saved.secret)),
+            Some(_) => {
+                self.backend.delete(&key.account(kind))?;
+                Ok(None)
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub fn set_saved(
+        &self,
+        key: &SavedKey,
+        kind: SecretKind,
+        target: &str,
+        value: &SecretString,
+    ) -> Result<(), SecretError> {
+        let encoded = encode_saved(target, value).ok_or(SecretError::TooLong)?;
+        if !fits_keychain(&encoded) {
+            return Err(SecretError::TooLong);
+        }
+        self.backend.set(&key.account(kind), &encoded)
+    }
+
+    pub fn delete_saved(&self, key: &SavedKey, kind: SecretKind) -> Result<(), SecretError> {
+        self.backend.delete(&key.account(kind))
+    }
+
+    /// Drops a saved secret the server or the key file rejected, unless it was replaced
+    /// meanwhile (another connect may have saved a working one).
+    pub fn forget_saved_if_unchanged(
+        &self,
+        key: &SavedKey,
+        kind: SecretKind,
+        target: &str,
+        rejected: &SecretString,
+    ) -> Result<(), SecretError> {
+        let unchanged = matches!(
+            self.read_saved(key, kind)?,
+            Some(s) if s.target == target && s.secret.expose_secret() == rejected.expose_secret()
+        );
+        if unchanged {
+            self.delete_saved(key, kind)?;
+        }
+        Ok(())
     }
 }
 
@@ -227,6 +383,21 @@ mod memory {
             out
         }
 
+        pub fn raw(&self, account: &str) -> Option<String> {
+            self.entries
+                .lock()
+                .unwrap()
+                .get(account)
+                .map(|v| v.expose_secret().to_owned())
+        }
+
+        pub fn put_raw(&self, account: &str, value: &str) {
+            self.entries
+                .lock()
+                .unwrap()
+                .insert(account.into(), SecretString::from(value));
+        }
+
         fn entries(&self) -> Result<MutexGuard<'_, HashMap<String, SecretString>>, SecretError> {
             if self.failing.load(Ordering::SeqCst) {
                 return Err(SecretError::Unavailable);
@@ -262,115 +433,173 @@ mod tests {
 
     const P: &str = "00000000-0000-4000-8000-000000000001";
     const E: &str = "00000000-0000-4000-8000-000000000002";
-    const A: &str = "00000000-0000-4000-8000-00000000000a";
-    const B: &str = "00000000-0000-4000-8000-00000000000b";
+    const H: &str = "00000000-0000-4000-8000-00000000000a";
 
-    fn scope(h: &str) -> SecretScope {
-        SecretScope::new(P, E, h).unwrap()
+    fn s(v: &str) -> SecretString {
+        SecretString::from(v)
     }
 
-    fn read(store: &SecretStore, s: &SecretScope, kind: SecretKind) -> String {
-        store
-            .get(s, kind)
-            .unwrap()
-            .unwrap()
-            .expose_secret()
-            .to_owned()
+    fn expose(v: Option<SecretString>) -> Option<String> {
+        v.map(|v| v.expose_secret().to_owned())
     }
 
     #[test]
-    fn account_is_scoped_by_project_environment_host_and_kind() {
-        let s = scope(A);
+    fn variable_accounts() {
+        assert_eq!(VarKey::global("pw").unwrap().account(), "var/global/pw");
         assert_eq!(
-            s.account(SecretKind::Password),
-            format!("{P}/{E}/{A}/password")
+            VarKey::project(P, "pw").unwrap().account(),
+            format!("var/project/{P}/pw")
         );
         assert_eq!(
-            s.account(SecretKind::Passphrase),
-            format!("{P}/{E}/{A}/passphrase")
-        );
-        assert_ne!(
-            SecretScope::new(B, E, A)
-                .unwrap()
-                .account(SecretKind::Password),
-            s.account(SecretKind::Password)
+            VarKey::environment(E, "a.b-c").unwrap().account(),
+            format!("var/env/{E}/a.b-c")
         );
     }
 
     #[test]
-    fn scope_rejects_ids_that_are_not_uuids() {
-        for (p, e, h) in [
-            ("p", E, A),
-            (P, "a/b", A),
-            (P, E, ""),
-            (P, E, "00000000-0000-4000-8000-00000000000a/password"),
-        ] {
-            assert_eq!(SecretScope::new(p, e, h), Err(SecretError::InvalidScope));
+    fn variable_keys_reject_bad_ids_and_names() {
+        for bad in ["", "a/b", "9x", "a b", "../x"] {
+            assert_eq!(VarKey::global(bad), Err(SecretError::InvalidScope), "{bad}");
         }
+        assert_eq!(VarKey::project("p", "x"), Err(SecretError::InvalidScope));
+        assert_eq!(
+            VarKey::environment(&format!("{E}/x"), "x"),
+            Err(SecretError::InvalidScope)
+        );
         assert_eq!(SecretError::InvalidScope.code(), "invalid_input");
     }
 
     #[test]
-    fn set_refuses_values_over_the_windows_limit_without_touching_the_backend() {
-        let (store, mem) = MemoryBackend::store();
-        let max = "a".repeat(MAX_SECRET_UTF16_UNITS);
-        store
-            .set(&scope(A), SecretKind::Password, &SecretString::from(max))
-            .unwrap();
-        let over = "a".repeat(MAX_SECRET_UTF16_UNITS + 1);
+    fn saved_accounts() {
         assert_eq!(
-            store.set(&scope(B), SecretKind::Password, &SecretString::from(over)),
+            SavedKey::new(H, Some(E))
+                .unwrap()
+                .account(SecretKind::Password),
+            format!("conn/{H}/{E}/password")
+        );
+        assert_eq!(
+            SavedKey::new(H, None)
+                .unwrap()
+                .account(SecretKind::Passphrase),
+            format!("conn/{H}/none/passphrase")
+        );
+        assert_eq!(SavedKey::new("h", None), Err(SecretError::InvalidScope));
+        assert_eq!(
+            SavedKey::new(H, Some("none")),
+            Err(SecretError::InvalidScope)
+        );
+    }
+
+    #[test]
+    fn variable_round_trip_and_limit() {
+        let (store, mem) = MemoryBackend::store();
+        let k = VarKey::global("pw").unwrap();
+        assert!(!store.has_var(&k).unwrap());
+        store.set_var(&k, &s("hunter2")).unwrap();
+        assert!(store.has_var(&k).unwrap());
+        assert_eq!(
+            expose(store.get_var(&k).unwrap()).as_deref(),
+            Some("hunter2")
+        );
+        assert_eq!(mem.raw("var/global/pw").as_deref(), Some("hunter2"));
+        store
+            .set_var(&k, &s(&"a".repeat(MAX_SECRET_UTF16_UNITS)))
+            .unwrap();
+        assert_eq!(
+            store.set_var(&k, &s(&"a".repeat(MAX_SECRET_UTF16_UNITS + 1))),
             Err(SecretError::TooLong)
         );
         let astral = "😀".repeat(MAX_SECRET_UTF16_UNITS / 2 + 1);
-        assert!(!fits_keychain(&SecretString::from(astral)));
-        assert_eq!(mem.accounts().len(), 1);
+        assert!(!fits_keychain(&s(&astral)));
+        store.delete_var(&k).unwrap();
+        store.delete_var(&k).unwrap();
+        assert!(mem.accounts().is_empty());
     }
 
     #[test]
-    fn kind_parses_only_known_names() {
-        assert_eq!(SecretKind::parse("password"), Some(SecretKind::Password));
+    fn saved_secret_is_bound_to_its_target() {
+        let (store, mem) = MemoryBackend::store();
+        let k = SavedKey::new(H, Some(E)).unwrap();
+        let pw = SecretKind::Password;
+        store.set_saved(&k, pw, "me@a:22", &s("hunter2")).unwrap();
+        let raw: serde_json::Value =
+            serde_json::from_str(&mem.raw(&k.account(pw)).unwrap()).unwrap();
         assert_eq!(
-            SecretKind::parse("passphrase"),
-            Some(SecretKind::Passphrase)
+            raw,
+            serde_json::json!({"target":"me@a:22","secret":"hunter2"})
         );
-        assert_eq!(SecretKind::parse("Password"), None);
-        assert_eq!(SecretKind::parse(""), None);
+        assert_eq!(
+            expose(store.get_saved(&k, pw, "me@a:22").unwrap()).as_deref(),
+            Some("hunter2")
+        );
+        assert!(
+            store
+                .get_saved(&k, SecretKind::Passphrase, "me@a:22")
+                .unwrap()
+                .is_none()
+        );
+        assert!(store.get_saved(&k, pw, "me@b:22").unwrap().is_none());
+        assert!(mem.accounts().is_empty());
     }
 
     #[test]
-    fn set_get_has_delete_round_trip() {
+    fn malformed_saved_entry_is_absent_and_deleted() {
+        let (store, mem) = MemoryBackend::store();
+        let k = SavedKey::new(H, None).unwrap();
+        mem.put_raw(&k.account(SecretKind::Password), "plain old secret");
+        assert!(
+            store
+                .get_saved(&k, SecretKind::Password, "t")
+                .unwrap()
+                .is_none()
+        );
+        assert!(mem.accounts().is_empty());
+    }
+
+    #[test]
+    fn saved_size_counts_the_encoding() {
+        let (store, mem) = MemoryBackend::store();
+        let k = SavedKey::new(H, None).unwrap();
+        let quotes = s(&"\"".repeat(700));
+        assert!(fits_keychain(&quotes));
+        assert!(!fits_saved("t", &quotes));
+        assert_eq!(
+            store.set_saved(&k, SecretKind::Password, "t", &quotes),
+            Err(SecretError::TooLong)
+        );
+        assert!(fits_saved("t", &s("short")));
+        assert!(!fits_saved(&"k".repeat(1300), &s("short")));
+        assert!(mem.accounts().is_empty());
+    }
+
+    #[test]
+    fn forget_saved_only_if_unchanged() {
         let (store, _) = MemoryBackend::store();
-        let a = scope(A);
-        assert!(!store.has(&a, SecretKind::Password).unwrap());
+        let k = SavedKey::new(H, None).unwrap();
+        let pw = SecretKind::Password;
+        store.set_saved(&k, pw, "t", &s("new")).unwrap();
         store
-            .set(&a, SecretKind::Password, &SecretString::from("pw"))
+            .forget_saved_if_unchanged(&k, pw, "t", &s("old"))
             .unwrap();
-        assert!(store.has(&a, SecretKind::Password).unwrap());
-        assert!(!store.has(&a, SecretKind::Passphrase).unwrap());
-        assert!(!store.has(&scope(B), SecretKind::Password).unwrap());
-        assert_eq!(read(&store, &a, SecretKind::Password), "pw");
+        assert!(store.get_saved(&k, pw, "t").unwrap().is_some());
         store
-            .set(&a, SecretKind::Password, &SecretString::from("pw2"))
+            .forget_saved_if_unchanged(&k, pw, "t", &s("new"))
             .unwrap();
-        assert_eq!(read(&store, &a, SecretKind::Password), "pw2");
-        store.delete(&a, SecretKind::Password).unwrap();
-        assert!(!store.has(&a, SecretKind::Password).unwrap());
-        store.delete(&a, SecretKind::Password).unwrap();
+        assert!(store.get_saved(&k, pw, "t").unwrap().is_none());
     }
 
     #[test]
     fn unavailable_backend_reports_a_safe_error() {
         let (store, mem) = MemoryBackend::store();
         mem.set_failing(true);
-        let err = store.has(&scope(A), SecretKind::Password).unwrap_err();
+        let k = VarKey::global("pw").unwrap();
+        let err = store.has_var(&k).unwrap_err();
         assert_eq!(err, SecretError::Unavailable);
         assert_eq!(err.code(), "keychain_unavailable");
+        let saved = SavedKey::new(H, None).unwrap();
         assert_eq!(
-            store
-                .set(&scope(A), SecretKind::Password, &SecretString::from("x"))
-                .unwrap_err(),
-            SecretError::Unavailable
+            store.set_saved(&saved, SecretKind::Password, "t", &s("x")),
+            Err(SecretError::Unavailable)
         );
     }
 
@@ -388,7 +617,49 @@ mod tests {
 
     #[test]
     fn secret_debug_is_redacted() {
-        let s = SecretString::from("hunter2");
-        assert!(!format!("{s:?}").contains("hunter2"));
+        assert!(!format!("{:?}", s("hunter2")).contains("hunter2"));
+    }
+
+    #[test]
+    fn only_canonical_uuids_are_accepted() {
+        assert_eq!(
+            SavedKey::new(&H.to_uppercase(), None),
+            Err(SecretError::InvalidScope)
+        );
+        assert_eq!(
+            VarKey::project("00000000000040008000000000000001", "x"),
+            Err(SecretError::InvalidScope)
+        );
+        assert_eq!(
+            VarKey::project(&format!("{{{P}}}"), "x"),
+            Err(SecretError::InvalidScope)
+        );
+        assert_eq!(
+            VarKey::project(&format!("urn:uuid:{P}"), "x"),
+            Err(SecretError::InvalidScope)
+        );
+        assert!(VarKey::project(P, "x").is_ok());
+    }
+
+    #[test]
+    fn legacy_accounts_are_deleted() {
+        let (store, mem) = MemoryBackend::store();
+        for kind in ["password", "passphrase"] {
+            mem.put_raw(&format!("{P}/{E}/{H}/{kind}"), "old");
+        }
+        mem.put_raw("var/global/keep", "x");
+        store.delete_legacy(P, E, H).unwrap();
+        assert_eq!(mem.accounts(), vec!["var/global/keep".to_string()]);
+        assert_eq!(
+            store.delete_legacy("p", E, H),
+            Err(SecretError::InvalidScope)
+        );
+    }
+
+    #[test]
+    fn project_ids_are_distinct_accounts() {
+        let a = VarKey::project(P, "x").unwrap();
+        let b = VarKey::project(E, "x").unwrap();
+        assert_ne!(a.account(), b.account());
     }
 }

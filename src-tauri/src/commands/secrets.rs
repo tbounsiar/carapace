@@ -2,35 +2,17 @@ use secrecy::{ExposeSecret, SecretString};
 use tauri::State;
 
 use super::error::CommandError;
-use crate::config::model::AuthMethod;
-use crate::config::{ConfigStore, Host};
-use crate::secrets::{SecretKind, SecretScope, SecretStore, fits_keychain};
+use super::resolve::required;
+use crate::config::{ConfigFile, ConfigStore, Variable, VariableKind};
+use crate::secrets::{SavedKey, SecretKind, SecretStore, VarKey};
 
 type Res<T> = Result<T, CommandError>;
 
-/// Upper bound for a typed one-shot credential; storing one is further limited by `fits_keychain`.
+/// Upper bound for a typed secret; storing one is further limited by the keychain.
 const MAX_SECRET_CHARS: usize = 4096;
 
 fn invalid(message: &str) -> CommandError {
     CommandError::new("invalid_input", message)
-}
-
-pub(super) fn locate_host(store: &ConfigStore, host_id: &str) -> Res<(SecretScope, Host)> {
-    if host_id.trim().is_empty() {
-        return Err(invalid("hostId is required"));
-    }
-    for project in store.list_projects()? {
-        for env in project.environments {
-            if let Some(host) = env.hosts.into_iter().find(|h| h.id == host_id) {
-                return Ok((SecretScope::new(&project.id, &env.id, &host.id)?, host));
-            }
-        }
-    }
-    Err(CommandError::new("not_found", "host not found"))
-}
-
-fn parse_kind(kind: &str) -> Res<SecretKind> {
-    SecretKind::parse(kind).ok_or_else(|| invalid("kind must be \"password\" or \"passphrase\""))
 }
 
 /// Checked before the value is used; the message never includes it.
@@ -45,274 +27,110 @@ pub(super) fn check_secret(value: &SecretString) -> Res<()> {
     Ok(())
 }
 
-/// Same remote account: a stored password is only valid for this triple.
-pub(super) fn same_endpoint(a: &Host, b: &Host) -> bool {
-    a.hostname == b.hostname && a.port == b.port && a.username == b.username
-}
-
-/// True if `host_id` still resolves to `scope` with the same endpoint and authentication as `host`.
-pub(super) fn still_current(
-    store: &ConfigStore,
-    host_id: &str,
-    scope: &SecretScope,
-    host: &Host,
-) -> bool {
-    matches!(
-        locate_host(store, host_id),
-        Ok((s, h)) if s == *scope && same_endpoint(&h, host) && h.auth == host.auth
-    )
-}
-
-fn kind_fits_auth(kind: SecretKind, auth: &AuthMethod) -> bool {
-    matches!(
-        (kind, auth),
-        (SecretKind::Password, AuthMethod::Password)
-            | (SecretKind::Passphrase, AuthMethod::Key { .. })
-    )
-}
-
-fn set_secret(
-    store: &ConfigStore,
-    secrets: &SecretStore,
-    host_id: &str,
-    kind: &str,
-    value: &SecretString,
-) -> Res<()> {
-    let kind = parse_kind(kind)?;
-    check_secret(value)?;
-    if !fits_keychain(value) {
-        return Err(invalid("the secret is too long for the system keychain"));
-    }
-    let (scope, host) = locate_host(store, host_id)?;
-    if !kind_fits_auth(kind, &host.auth) {
-        return Err(invalid(
-            "this kind of secret does not match the host authentication",
-        ));
-    }
-    Ok(secrets.set(&scope, kind, value)?)
-}
-
-fn delete_secret(store: &ConfigStore, secrets: &SecretStore, host_id: &str, kind: &str) -> Res<()> {
-    let kind = parse_kind(kind)?;
-    let (scope, _) = locate_host(store, host_id)?;
-    Ok(secrets.delete(&scope, kind)?)
-}
-
-fn has_secret(store: &ConfigStore, secrets: &SecretStore, host_id: &str, kind: &str) -> Res<bool> {
-    let kind = parse_kind(kind)?;
-    let (scope, _) = locate_host(store, host_id)?;
-    Ok(secrets.has(&scope, kind)?)
+/// Secret variable keys of a list; `key` builds the account for the list's level.
+pub(super) fn secret_keys(
+    variables: &[Variable],
+    key: impl Fn(&str) -> Option<VarKey>,
+) -> Vec<VarKey> {
+    variables
+        .iter()
+        .filter(|v| v.kind == VariableKind::Secret)
+        .filter_map(|v| key(&v.name))
+        .collect()
 }
 
 /// Best effort: a keychain failure must not undo a config change that already happened.
-pub(super) fn forget(secrets: &SecretStore, scope: &SecretScope, kinds: &[SecretKind]) {
-    for &kind in kinds {
-        if secrets.delete(scope, kind).is_err() {
+/// Logged by scope id only.
+pub(super) fn forget_variables(secrets: &SecretStore, scope_id: &str, keys: &[VarKey]) {
+    for key in keys {
+        if secrets.delete_var(key).is_err() {
+            log::warn!("could not delete a secret variable of {scope_id} from the keychain");
+        }
+    }
+}
+
+/// Deletes the iteration-2 keychain entries of hosts whose version 1 config was moved aside.
+/// Best effort, logged by host id only.
+pub fn forget_legacy(store: &ConfigStore, secrets: &SecretStore) {
+    for h in store.take_legacy_hosts() {
+        if secrets
+            .delete_legacy(&h.project_id, &h.environment_id, &h.host_id)
+            .is_err()
+        {
             log::warn!(
-                "could not delete the {kind} of host {} from the keychain",
-                scope.host_id()
+                "could not delete the legacy secrets of host {} from the keychain",
+                h.host_id
             );
         }
     }
 }
 
-#[tauri::command]
-pub async fn set_host_secret(
-    store: State<'_, ConfigStore>,
-    secrets: State<'_, SecretStore>,
-    host_id: String,
-    kind: String,
-    value: SecretString,
+/// Deletes the saved connection secrets of `host_id` for each environment (None: no environment).
+pub(super) fn forget_saved(secrets: &SecretStore, host_id: &str, environments: &[Option<&str>]) {
+    for env in environments {
+        // A non-UUID id can never have a keychain entry.
+        let Ok(key) = SavedKey::new(host_id, *env) else {
+            continue;
+        };
+        for kind in SecretKind::ALL {
+            if secrets.delete_saved(&key, kind).is_err() {
+                log::warn!("could not delete the saved {kind} of host {host_id} from the keychain");
+            }
+        }
+    }
+}
+
+fn forget_saved_of(
+    store: &ConfigStore,
+    secrets: &SecretStore,
+    host_id: &str,
+    environment_id: Option<&str>,
 ) -> Res<()> {
-    set_secret(&store, &secrets, &host_id, &kind, &value)
+    required("hostId", host_id)?;
+    let config: ConfigFile = store.snapshot()?;
+    let project = config
+        .projects
+        .iter()
+        .find(|p| p.host(host_id).is_some())
+        .ok_or_else(|| CommandError::new("not_found", "host not found"))?;
+    if let Some(env) = environment_id
+        && project.environment(env).is_none()
+    {
+        return Err(CommandError::new("not_found", "environment not found"));
+    }
+    let key = SavedKey::new(host_id, environment_id)?;
+    let _lifecycle = secrets.lifecycle();
+    for kind in SecretKind::ALL {
+        secrets.delete_saved(&key, kind)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn delete_host_secret(
+pub async fn forget_saved_secrets(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
     host_id: String,
-    kind: String,
+    environment_id: Option<String>,
 ) -> Res<()> {
-    delete_secret(&store, &secrets, &host_id, &kind)
-}
-
-#[tauri::command]
-pub async fn has_host_secret(
-    store: State<'_, ConfigStore>,
-    secrets: State<'_, SecretStore>,
-    host_id: String,
-    kind: String,
-) -> Res<bool> {
-    has_secret(&store, &secrets, &host_id, &kind)
+    forget_saved_of(&store, &secrets, &host_id, environment_id.as_deref())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::HostInput;
-    use crate::secrets::{MAX_SECRET_UTF16_UNITS, MemoryBackend};
-
-    struct Fixture {
-        _dir: tempfile::TempDir,
-        store: ConfigStore,
-        secrets: SecretStore,
-        mem: std::sync::Arc<MemoryBackend>,
-        password_host: String,
-        key_host: String,
-        agent_host: String,
-    }
-
-    fn fixture() -> Fixture {
-        let dir = tempfile::tempdir().unwrap();
-        let store = ConfigStore::new(dir.path().to_path_buf());
-        let p = store.create_project("p").unwrap();
-        let e = store.create_environment(&p.id, "dev").unwrap();
-        let host = |name: &str, auth: AuthMethod| {
-            store
-                .create_host(
-                    &p.id,
-                    &e.id,
-                    &HostInput {
-                        name: name.into(),
-                        hostname: "web.example".into(),
-                        port: 22,
-                        username: "me".into(),
-                        auth,
-                    },
-                )
-                .unwrap()
-                .id
-        };
-        let password_host = host("pw", AuthMethod::Password);
-        let key_host = host(
-            "key",
-            AuthMethod::Key {
-                key_path: "~/.ssh/id_ed25519".into(),
-            },
-        );
-        let agent_host = host("agent", AuthMethod::Agent);
-        let (secrets, mem) = MemoryBackend::store();
-        Fixture {
-            _dir: dir,
-            store,
-            secrets,
-            mem,
-            password_host,
-            key_host,
-            agent_host,
-        }
-    }
-
-    fn secret(s: &str) -> SecretString {
-        SecretString::from(s)
-    }
+    use crate::config::model::AuthMethod;
+    use crate::secrets::MemoryBackend;
 
     #[test]
-    fn set_has_delete_for_matching_kinds() {
-        let f = fixture();
-        let (s, st) = (&f.secrets, &f.store);
-        assert!(!has_secret(st, s, &f.password_host, "password").unwrap());
-        set_secret(st, s, &f.password_host, "password", &secret("pw")).unwrap();
-        set_secret(st, s, &f.key_host, "passphrase", &secret("pp")).unwrap();
-        assert!(has_secret(st, s, &f.password_host, "password").unwrap());
-        assert!(has_secret(st, s, &f.key_host, "passphrase").unwrap());
-        assert!(!has_secret(st, s, &f.key_host, "password").unwrap());
-        assert_eq!(f.mem.accounts().len(), 2);
-        let (scope, _) = locate_host(st, &f.key_host).unwrap();
-        assert!(
-            f.mem
-                .accounts()
-                .contains(&scope.account(SecretKind::Passphrase))
-        );
-        delete_secret(st, s, &f.password_host, "password").unwrap();
-        delete_secret(st, s, &f.password_host, "password").unwrap();
-        assert!(!has_secret(st, s, &f.password_host, "password").unwrap());
-    }
-
-    #[test]
-    fn rejects_mismatched_kind_unknown_kind_and_unknown_host() {
-        let f = fixture();
-        let (s, st) = (&f.secrets, &f.store);
-        let code = |r: Res<()>| r.unwrap_err().code;
-        assert_eq!(
-            code(set_secret(
-                st,
-                s,
-                &f.password_host,
-                "passphrase",
-                &secret("x")
-            )),
-            "invalid_input"
-        );
-        assert_eq!(
-            code(set_secret(st, s, &f.key_host, "password", &secret("x"))),
-            "invalid_input"
-        );
-        assert_eq!(
-            code(set_secret(st, s, &f.agent_host, "password", &secret("x"))),
-            "invalid_input"
-        );
-        assert_eq!(
-            code(set_secret(st, s, &f.agent_host, "passphrase", &secret("x"))),
-            "invalid_input"
-        );
-        assert_eq!(
-            code(set_secret(st, s, &f.password_host, "token", &secret("x"))),
-            "invalid_input"
-        );
-        assert_eq!(
-            code(set_secret(st, s, "nope", "password", &secret("x"))),
-            "not_found"
-        );
-        assert_eq!(
-            code(set_secret(st, s, " ", "password", &secret("x"))),
-            "invalid_input"
-        );
-        assert_eq!(code(delete_secret(st, s, "nope", "password")), "not_found");
-        assert_eq!(
-            has_secret(st, s, &f.key_host, "other").unwrap_err().code,
-            "invalid_input"
-        );
-        assert!(f.mem.accounts().is_empty());
-    }
-
-    #[test]
-    fn validates_value_without_echoing_it() {
-        let f = fixture();
-        let (s, st) = (&f.secrets, &f.store);
-        let empty = set_secret(st, s, &f.password_host, "password", &secret("")).unwrap_err();
+    fn typed_secret_is_validated_without_echoing_it() {
+        let empty = check_secret(&SecretString::from("")).unwrap_err();
         assert_eq!(empty.code, "invalid_input");
-        let long = "é".repeat(MAX_SECRET_UTF16_UNITS + 1);
-        let err = set_secret(st, s, &f.password_host, "password", &secret(&long)).unwrap_err();
-        assert_eq!(err.code, "invalid_input");
+        assert!(check_secret(&SecretString::from("a".repeat(MAX_SECRET_CHARS))).is_ok());
+        let long = "é".repeat(MAX_SECRET_CHARS + 1);
+        let err = check_secret(&SecretString::from(long)).unwrap_err();
         assert!(!err.message.contains('é'));
-        let max = "é".repeat(MAX_SECRET_UTF16_UNITS);
-        set_secret(st, s, &f.password_host, "password", &secret(&max)).unwrap();
-        assert!(check_secret(&secret(&"a".repeat(MAX_SECRET_CHARS))).is_ok());
-        assert!(check_secret(&secret(&"a".repeat(MAX_SECRET_CHARS + 1))).is_err());
-    }
-
-    #[test]
-    fn keychain_failure_maps_to_keychain_unavailable() {
-        let f = fixture();
-        f.mem.set_failing(true);
-        let err = set_secret(
-            &f.store,
-            &f.secrets,
-            &f.password_host,
-            "password",
-            &secret("hunter2"),
-        )
-        .unwrap_err();
-        assert_eq!(err.code, "keychain_unavailable");
-        assert!(!err.message.contains("hunter2"));
-        assert_eq!(
-            has_secret(&f.store, &f.secrets, &f.password_host, "password")
-                .unwrap_err()
-                .code,
-            "keychain_unavailable"
-        );
     }
 
     #[test]
@@ -320,5 +138,64 @@ mod tests {
         let v: SecretString = serde_json::from_str("\"hunter2\"").unwrap();
         assert_eq!(v.expose_secret(), "hunter2");
         assert!(!format!("{v:?}").contains("hunter2"));
+    }
+
+    #[test]
+    fn forget_saved_secrets_of_one_connection() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ConfigStore::new(dir.path().to_path_buf());
+        let (secrets, mem) = MemoryBackend::store();
+        let p = store.create_project("p").unwrap();
+        let e = store.create_environment(&p.id, "dev").unwrap();
+        let other = store.create_project("q").unwrap();
+        let other_env = store.create_environment(&other.id, "dev").unwrap();
+        let h = store
+            .create_host(
+                &p.id,
+                &HostInput {
+                    name: "h".into(),
+                    hostname: "a".into(),
+                    port: "22".into(),
+                    username: "u".into(),
+                    auth: AuthMethod::Password { password: None },
+                },
+            )
+            .unwrap();
+        let s = SecretString::from("x");
+        for env in [None, Some(e.id.as_str())] {
+            let key = SavedKey::new(&h.id, env).unwrap();
+            for kind in SecretKind::ALL {
+                secrets.set_saved(&key, kind, "t", &s).unwrap();
+            }
+        }
+        forget_saved_of(&store, &secrets, &h.id, Some(&e.id)).unwrap();
+        assert_eq!(mem.accounts().len(), 2);
+        assert!(mem.accounts().iter().all(|a| a.contains("/none/")));
+        forget_saved_of(&store, &secrets, &h.id, None).unwrap();
+        assert!(mem.accounts().is_empty());
+
+        let code = |r: Res<()>| r.unwrap_err().code;
+        assert_eq!(
+            code(forget_saved_of(&store, &secrets, "nope", None)),
+            "not_found"
+        );
+        assert_eq!(
+            code(forget_saved_of(&store, &secrets, " ", None)),
+            "invalid_input"
+        );
+        assert_eq!(
+            code(forget_saved_of(
+                &store,
+                &secrets,
+                &h.id,
+                Some(&other_env.id)
+            )),
+            "not_found"
+        );
+        mem.set_failing(true);
+        assert_eq!(
+            code(forget_saved_of(&store, &secrets, &h.id, None)),
+            "keychain_unavailable"
+        );
     }
 }

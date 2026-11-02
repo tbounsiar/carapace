@@ -5,6 +5,7 @@ use crate::files::FsError;
 use crate::secrets::SecretError;
 use crate::ssh::SshError;
 use crate::terminal::TerminalError;
+use crate::vars::ResolveError;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CommandError {
@@ -29,6 +30,16 @@ impl From<ConfigError> for CommandError {
             ConfigError::Conflict(_) => "conflict",
             ConfigError::Io => "io",
             ConfigError::Corrupt => "corrupt_config",
+        };
+        Self::new(code, e.to_string())
+    }
+}
+
+impl From<ResolveError> for CommandError {
+    fn from(e: ResolveError) -> Self {
+        let code = match e {
+            ResolveError::Missing(_) => "missing_variables",
+            ResolveError::Invalid(_) => "invalid_input",
         };
         Self::new(code, e.to_string())
     }
@@ -131,6 +142,16 @@ mod tests {
         for (err, code) in cases {
             assert_eq!(CommandError::from(err).code, code);
         }
+    }
+
+    #[test]
+    fn maps_resolve_codes() {
+        let missing = CommandError::from(ResolveError::Missing(vec!["a".into(), "b".into()]));
+        assert_eq!(missing.code, "missing_variables");
+        assert_eq!(missing.message, "missing variables: a, b");
+        let invalid = CommandError::from(ResolveError::Invalid(vec!["x".into(), "y".into()]));
+        assert_eq!(invalid.code, "invalid_input");
+        assert_eq!(invalid.message, "x; y");
     }
 
     #[test]

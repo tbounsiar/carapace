@@ -16,10 +16,25 @@ use russh::{Channel, ChannelId};
 use super::known_hosts::KnownHosts;
 use super::manager::{Emit, Timeouts};
 use super::test_sftp::{MemFs, MemSftp};
-use super::{SshError, SshManager};
-use crate::config::Host;
-use crate::config::model::AuthMethod;
-use crate::secrets::{MemoryBackend, SecretScope};
+use super::{SshError, SshManager, Target, TargetAuth};
+use crate::secrets::{MemoryBackend, SavedKey};
+
+pub const TEST_HOST_ID: &str = "00000000-0000-4000-8000-0000000000a1";
+
+/// A target whose saved secrets live under `TEST_HOST_ID` without environment; the
+/// connection id is free so tests can name connections as they like.
+pub fn target(connection_id: &str, port: u16, username: &str, auth: TargetAuth) -> Target {
+    Target {
+        connection_id: connection_id.into(),
+        host_id: TEST_HOST_ID.into(),
+        environment_id: None,
+        saved: SavedKey::new(TEST_HOST_ID, None).unwrap(),
+        hostname: "127.0.0.1".into(),
+        port,
+        username: username.into(),
+        auth,
+    }
+}
 
 pub struct TestServer {
     pub key: PrivateKey,
@@ -274,24 +289,18 @@ pub async fn start_server(seed: u8) -> TestServer {
     TestServer { key, port, shared }
 }
 
-/// An `SshManager` that trusts `server`, with a key-authenticated host `host_id` pointing at it.
+/// An `SshManager` that trusts `server`, with a key-authenticated target `connection_id`.
 pub struct Connected {
     pub _dir: tempfile::TempDir,
     pub manager: SshManager,
-    pub host: Host,
+    pub target: Target,
 }
 
 impl Connected {
     pub async fn connect(&self) -> Result<(), SshError> {
         let emit: Emit = Arc::new(|_| {});
-        let scope = SecretScope::new(
-            "00000000-0000-4000-8000-000000000001",
-            "00000000-0000-4000-8000-000000000002",
-            "00000000-0000-4000-8000-000000000003",
-        )
-        .unwrap();
         self.manager
-            .connect(&scope, &self.host, None, &|| true, emit)
+            .connect(&self.target, None, &|| true, emit)
             .await
             .map(|_| ())
     }
@@ -303,7 +312,10 @@ pub static E2E_SERVER: std::sync::LazyLock<tokio::sync::RwLock<()>> =
 
 /// A manager whose known_hosts files (app and user) live in `dir` and start empty.
 pub fn isolated_manager(dir: &Path) -> SshManager {
-    let (secrets, _) = MemoryBackend::store();
+    isolated_manager_with(dir, MemoryBackend::store().0)
+}
+
+pub fn isolated_manager_with(dir: &Path, secrets: crate::secrets::SecretStore) -> SshManager {
     SshManager::with_parts(
         KnownHosts::new(dir.join("known_hosts"), Some(dir.join("user_known_hosts"))),
         Timeouts {
@@ -314,32 +326,26 @@ pub fn isolated_manager(dir: &Path) -> SshManager {
     )
 }
 
-pub fn manager_for(server: &TestServer, host_id: &str) -> Connected {
+pub fn manager_for(server: &TestServer, connection_id: &str) -> Connected {
     let dir = tempfile::tempdir().unwrap();
     KnownHosts::new(dir.path().join("known_hosts"), None)
         .trust("127.0.0.1", server.port, server.key.public_key())
         .unwrap();
     let manager = isolated_manager(dir.path());
-    let host = Host {
-        id: host_id.into(),
-        name: host_id.into(),
-        hostname: "127.0.0.1".into(),
-        port: server.port,
-        username: "me".into(),
-        auth: key_file(dir.path()),
-    };
+    let target = target(connection_id, server.port, "me", key_file(dir.path()));
     Connected {
         _dir: dir,
         manager,
-        host,
+        target,
     }
 }
 
-fn key_file(dir: &Path) -> AuthMethod {
+fn key_file(dir: &Path) -> TargetAuth {
     let path = dir.join("id_ed25519");
     let pem = ed25519(9).to_openssh(LineEnding::LF).unwrap();
     std::fs::write(&path, pem.as_bytes()).unwrap();
-    AuthMethod::Key {
+    TargetAuth::Key {
         key_path: path.to_string_lossy().into_owned(),
+        passphrase: None,
     }
 }

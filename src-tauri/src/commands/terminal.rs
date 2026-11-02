@@ -20,14 +20,16 @@ fn required(name: &str, value: &str) -> Res<()> {
 pub async fn open_terminal(
     ssh: State<'_, SshManager>,
     terminals: State<'_, TerminalManager>,
-    host_id: String,
+    connection_id: String,
     cols: u32,
     rows: u32,
     on_event: Channel<TerminalEvent>,
 ) -> Res<String> {
-    required("hostId", &host_id)?;
+    required("connectionId", &connection_id)?;
     let emit = Arc::new(move |event| on_event.send(event).is_ok());
-    Ok(terminals.open(&ssh, &host_id, cols, rows, emit).await?)
+    Ok(terminals
+        .open(&ssh, &connection_id, cols, rows, emit)
+        .await?)
 }
 
 // Synchronous commands run on the main thread in arrival order, which keeps keystrokes ordered.

@@ -1,10 +1,18 @@
 use std::path::{Component, Path, Prefix};
 
-use super::model::{AuthMethod, HostInput};
+use super::model::{AuthMethod, HostInput, Template, Variable, VariableKind};
 use super::store::ConfigError;
+use crate::vars::{self, Segment};
 
-fn invalid(msg: &str) -> ConfigError {
-    ConfigError::InvalidInput(msg.to_string())
+pub const MAX_VARIABLES: usize = 200;
+pub const MAX_PLAIN_VALUE_CHARS: usize = 4096;
+
+fn invalid(msg: impl Into<String>) -> ConfigError {
+    ConfigError::InvalidInput(msg.into())
+}
+
+pub(super) fn same_name(a: &str, b: &str) -> bool {
+    a.to_lowercase() == b.to_lowercase()
 }
 
 pub(super) fn name(raw: &str) -> Result<String, ConfigError> {
@@ -16,19 +24,17 @@ pub(super) fn name(raw: &str) -> Result<String, ConfigError> {
     Ok(trimmed.to_string())
 }
 
-fn token(value: &str, max: usize, label: &str) -> Result<String, ConfigError> {
+fn token(value: &str, max: usize, label: &str) -> Result<(), String> {
     let len = value.chars().count();
     if len == 0 || len > max {
-        return Err(ConfigError::InvalidInput(format!(
-            "{label} must be 1 to {max} characters"
-        )));
+        return Err(format!("{label} must be 1 to {max} characters"));
     }
     if value.chars().any(|c| c.is_whitespace() || c.is_control()) {
-        return Err(ConfigError::InvalidInput(format!(
+        return Err(format!(
             "{label} must not contain whitespace or control characters"
-        )));
+        ));
     }
-    Ok(value.to_string())
+    Ok(())
 }
 
 pub(crate) fn is_local_absolute(path: &str) -> bool {
@@ -44,43 +50,149 @@ pub(crate) fn is_local_absolute(path: &str) -> bool {
     p.is_absolute()
 }
 
+/// The checks below apply to resolved values; messages never quote the value.
+pub(crate) fn hostname(value: &str) -> Result<(), String> {
+    token(value, 253, "hostname")?;
+    if !value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':'))
+    {
+        return Err("hostname may only contain letters, digits, '.', '-' and ':'".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn port(value: &str) -> Result<u16, String> {
+    let digits = !value.is_empty() && value.len() <= 5 && value.bytes().all(|b| b.is_ascii_digit());
+    digits
+        .then(|| value.parse::<u16>().ok())
+        .flatten()
+        .filter(|p| *p != 0)
+        .ok_or_else(|| "port must be between 1 and 65535".into())
+}
+
+pub(crate) fn username(value: &str) -> Result<(), String> {
+    token(value, 64, "username")
+}
+
+pub(crate) fn key_path(value: &str) -> Result<(), String> {
+    if value.chars().count() > 4096 || value.chars().any(char::is_control) {
+        return Err("key path is invalid".into());
+    }
+    if !value.starts_with("~/") && !is_local_absolute(value) {
+        return Err("key path must be absolute or start with ~/".into());
+    }
+    Ok(())
+}
+
+/// Parses a plain-field template; without references it must already be a valid value.
+fn plain_field(
+    template: &str,
+    label: &str,
+    check: impl Fn(&str) -> Result<(), String>,
+) -> Result<(), ConfigError> {
+    let segments = vars::parse(template).map_err(|e| invalid(format!("{label} {e}")))?;
+    if vars::has_references(&segments) {
+        return Ok(());
+    }
+    let literal: String = segments
+        .iter()
+        .map(|s| match s {
+            Segment::Literal(l) => l.as_str(),
+            Segment::Reference(_) => "",
+        })
+        .collect();
+    check(&literal).map_err(invalid)
+}
+
+fn secret_field(template: &Option<Template>, label: &str) -> Result<(), ConfigError> {
+    match template {
+        Some(t) if vars::single_reference(t).is_none() => Err(invalid(format!(
+            "{label} must be empty or a single ${{name}} reference to a secret variable"
+        ))),
+        _ => Ok(()),
+    }
+}
+
 pub(super) struct ValidHost {
     pub name: String,
-    pub hostname: String,
-    pub port: u16,
-    pub username: String,
+    pub hostname: Template,
+    pub port: Template,
+    pub username: Template,
     pub auth: AuthMethod,
 }
 
 pub(super) fn host(input: &HostInput) -> Result<ValidHost, ConfigError> {
     let name = name(&input.name)?;
-    let hostname = token(&input.hostname, 253, "hostname")?;
-    if !hostname
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':'))
-    {
-        return Err(invalid(
-            "hostname may only contain letters, digits, '.', '-' and ':'",
-        ));
-    }
-    let port = u16::try_from(input.port)
-        .ok()
-        .filter(|p| *p != 0)
-        .ok_or_else(|| invalid("port must be between 1 and 65535"))?;
-    let username = token(&input.username, 64, "username")?;
-    if let AuthMethod::Key { key_path } = &input.auth {
-        if key_path.chars().count() > 4096 || key_path.chars().any(char::is_control) {
-            return Err(invalid("key path is invalid"));
+    plain_field(&input.hostname, "hostname", hostname)?;
+    plain_field(&input.port, "port", |v| port(v).map(|_| ()))?;
+    plain_field(&input.username, "username", username)?;
+    match &input.auth {
+        AuthMethod::Password { password } => secret_field(password, "password")?,
+        AuthMethod::Key {
+            key_path: path,
+            passphrase,
+        } => {
+            plain_field(path, "key path", key_path)?;
+            secret_field(passphrase, "passphrase")?;
         }
-        if !key_path.starts_with("~/") && !is_local_absolute(key_path) {
-            return Err(invalid("key path must be absolute or start with ~/"));
-        }
+        AuthMethod::Agent => {}
     }
     Ok(ValidHost {
         name,
-        hostname,
-        port,
-        username,
+        hostname: input.hostname.clone(),
+        port: input.port.clone(),
+        username: input.username.clone(),
         auth: input.auth.clone(),
     })
+}
+
+/// Normalizes a whole scope: plain values default to "", secrets never carry a value.
+pub(super) fn variables(list: &[Variable]) -> Result<Vec<Variable>, ConfigError> {
+    if list.len() > MAX_VARIABLES {
+        return Err(invalid(format!(
+            "a scope holds at most {MAX_VARIABLES} variables"
+        )));
+    }
+    let mut out: Vec<Variable> = Vec::with_capacity(list.len());
+    for v in list {
+        if !vars::is_valid_name(&v.name) {
+            return Err(invalid(
+                "variable names start with a letter or '_' and contain only letters, digits, '_', '.' and '-' (64 characters at most)",
+            ));
+        }
+        if out.iter().any(|o| same_name(&o.name, &v.name)) {
+            return Err(ConfigError::InvalidInput(format!(
+                "variable {} is defined twice",
+                v.name
+            )));
+        }
+        let value = match v.kind {
+            VariableKind::Plain => {
+                let value = v.value.clone().unwrap_or_default();
+                if value.chars().count() > MAX_PLAIN_VALUE_CHARS {
+                    return Err(ConfigError::InvalidInput(format!(
+                        "the value of {} is longer than {MAX_PLAIN_VALUE_CHARS} characters",
+                        v.name
+                    )));
+                }
+                Some(value)
+            }
+            VariableKind::Secret => {
+                if v.value.is_some() {
+                    return Err(ConfigError::InvalidInput(format!(
+                        "secret variable {} cannot have a plain value",
+                        v.name
+                    )));
+                }
+                None
+            }
+        };
+        out.push(Variable {
+            name: v.name.clone(),
+            kind: v.kind,
+            value,
+        });
+    }
+    Ok(out)
 }

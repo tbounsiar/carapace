@@ -1,59 +1,253 @@
+use secrecy::SecretString;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::error::CommandError;
-use super::secrets::{forget, same_endpoint};
-use crate::config::model::AuthMethod;
-use crate::config::{ConfigStore, Environment, Host, HostInput, Project};
-use crate::secrets::{SecretKind, SecretScope, SecretStore};
+use super::resolve::{self, ResolvedView, required};
+use super::secrets::{check_secret, forget_legacy, forget_saved, forget_variables, secret_keys};
+use crate::config::{
+    ConfigStore, Environment, Host, HostInput, Project, Variable, VariableKind, VariableScope,
+};
+use crate::secrets::{SecretError, SecretStore, VarKey, fits_keychain};
 
 type Res<T> = Result<T, CommandError>;
 
-#[tauri::command]
-pub async fn list_projects(store: State<'_, ConfigStore>) -> Res<Vec<Project>> {
-    Ok(store.list_projects()?)
+/// `value` is null for a secret; `hasValue` tells whether the keychain holds one.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VariableView {
+    pub name: String,
+    pub kind: VariableKind,
+    pub value: Option<String>,
+    pub has_value: bool,
 }
 
-#[tauri::command]
-pub async fn create_project(store: State<'_, ConfigStore>, name: String) -> Res<Project> {
-    Ok(store.create_project(&name)?)
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvironmentView {
+    pub id: String,
+    pub name: String,
+    pub variables: Vec<VariableView>,
 }
 
-#[tauri::command]
-pub async fn rename_project(
-    store: State<'_, ConfigStore>,
-    project_id: String,
-    name: String,
-) -> Res<Project> {
-    Ok(store.rename_project(&project_id, &name)?)
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectView {
+    pub id: String,
+    pub name: String,
+    pub variables: Vec<VariableView>,
+    pub environments: Vec<EnvironmentView>,
+    pub hosts: Vec<Host>,
+    pub active_environment_id: Option<String>,
 }
 
-fn scopes_where(store: &ConfigStore, keep: impl Fn(&str, &str) -> bool) -> Res<Vec<SecretScope>> {
-    let mut out = Vec::new();
-    for p in store.list_projects()? {
-        for e in &p.environments {
-            if keep(&p.id, &e.id) {
-                // A non-UUID id can never have a keychain entry.
-                out.extend(
-                    e.hosts
-                        .iter()
-                        .filter_map(|h| SecretScope::new(&p.id, &e.id, &h.id).ok()),
-                );
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigView {
+    pub variables: Vec<VariableView>,
+    pub projects: Vec<ProjectView>,
+}
+
+/// `secretValue` sets a secret's value; null or absent keeps the stored one (by exact name).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VariableInput {
+    pub name: String,
+    pub kind: VariableKind,
+    #[serde(default)]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub secret_value: Option<SecretString>,
+}
+
+fn views(
+    secrets: &SecretStore,
+    variables: &[Variable],
+    key: impl Fn(&str) -> Result<VarKey, SecretError>,
+) -> Vec<VariableView> {
+    variables
+        .iter()
+        .map(|v| {
+            let has_value = match v.kind {
+                VariableKind::Plain => true,
+                VariableKind::Secret => key(&v.name)
+                    .and_then(|k| secrets.has_var(&k))
+                    .unwrap_or_else(|_| {
+                        log::warn!("could not check a secret variable in the keychain");
+                        false
+                    }),
+            };
+            VariableView {
+                name: v.name.clone(),
+                kind: v.kind,
+                value: v.value.clone(),
+                has_value,
             }
+        })
+        .collect()
+}
+
+fn env_view(secrets: &SecretStore, e: &Environment) -> EnvironmentView {
+    EnvironmentView {
+        id: e.id.clone(),
+        name: e.name.clone(),
+        variables: views(secrets, &e.variables, |n| VarKey::environment(&e.id, n)),
+    }
+}
+
+fn project_view(secrets: &SecretStore, p: &Project) -> ProjectView {
+    ProjectView {
+        id: p.id.clone(),
+        name: p.name.clone(),
+        variables: views(secrets, &p.variables, |n| VarKey::project(&p.id, n)),
+        environments: p
+            .environments
+            .iter()
+            .map(|e| env_view(secrets, e))
+            .collect(),
+        hosts: p.hosts.clone(),
+        active_environment_id: p.active_environment_id.clone(),
+    }
+}
+
+fn config_view(store: &ConfigStore, secrets: &SecretStore) -> Res<ConfigView> {
+    let cfg = store.snapshot()?;
+    Ok(ConfigView {
+        variables: views(secrets, &cfg.variables, VarKey::global),
+        projects: cfg
+            .projects
+            .iter()
+            .map(|p| project_view(secrets, p))
+            .collect(),
+    })
+}
+
+fn scope_key(scope: &VariableScope, name: &str) -> Result<VarKey, SecretError> {
+    match scope {
+        VariableScope::Global => VarKey::global(name),
+        VariableScope::Project { project_id } => VarKey::project(project_id, name),
+        VariableScope::Environment { environment_id, .. } => {
+            VarKey::environment(environment_id, name)
         }
     }
-    Ok(out)
 }
 
-fn forget_all(secrets: &SecretStore, scopes: &[SecretScope]) {
-    for scope in scopes {
-        forget(secrets, scope, &SecretKind::ALL);
+fn scope_id(scope: &VariableScope) -> &str {
+    match scope {
+        VariableScope::Global => "global",
+        VariableScope::Project { project_id } => project_id,
+        VariableScope::Environment { environment_id, .. } => environment_id,
     }
+}
+
+fn is_secret_named(list: &[Variable], name: &str) -> bool {
+    list.iter()
+        .any(|v| v.kind == VariableKind::Secret && v.name == name)
+}
+
+/// Saves the config first, then deletes the keychain values that no longer belong to a secret
+/// of that name, then stores the new values. Deleting first matters where account names are
+/// case-insensitive (Windows): a case-only rename would otherwise delete the value just set.
+fn save_variables(
+    store: &ConfigStore,
+    secrets: &SecretStore,
+    scope: &VariableScope,
+    inputs: Vec<VariableInput>,
+) -> Res<Vec<VariableView>> {
+    let mut values = Vec::new();
+    let mut list = Vec::with_capacity(inputs.len());
+    for input in inputs {
+        // Names are quoted in the messages below, so they are checked first.
+        if !crate::vars::is_valid_name(&input.name) {
+            return Err(CommandError::new(
+                "invalid_input",
+                "variable names start with a letter or '_' and contain only letters, digits, '_', '.' and '-' (64 characters at most)",
+            ));
+        }
+        match (input.kind, input.secret_value) {
+            (VariableKind::Plain, Some(_)) => {
+                return Err(CommandError::new(
+                    "invalid_input",
+                    format!("plain variable {} cannot take a secret value", input.name),
+                ));
+            }
+            (VariableKind::Secret, Some(value)) => {
+                check_secret(&value)?;
+                if !fits_keychain(&value) {
+                    return Err(CommandError::new(
+                        "invalid_input",
+                        format!(
+                            "the value of {} is too long for the system keychain",
+                            input.name
+                        ),
+                    ));
+                }
+                values.push((input.name.clone(), value));
+            }
+            _ => {}
+        }
+        list.push(Variable {
+            name: input.name,
+            kind: input.kind,
+            value: input.value,
+        });
+    }
+    let given_names: Vec<String> = values.iter().map(|(n, _)| n.clone()).collect();
+    // Validated before saving, so a scope id that cannot hold keychain entries changes nothing.
+    let keyed: Vec<(VarKey, SecretString)> = values
+        .into_iter()
+        .map(|(name, v)| scope_key(scope, &name).map(|k| (k, v)))
+        .collect::<Result<_, _>>()?;
+    let _lifecycle = secrets.lifecycle();
+    let (old, new) = store.set_variables(scope, &list)?;
+
+    let mut stale: Vec<VarKey> = Vec::new();
+    for v in old.iter().chain(new.iter()) {
+        let (was, is) = (
+            is_secret_named(&old, &v.name),
+            is_secret_named(&new, &v.name),
+        );
+        let given = given_names.contains(&v.name);
+        // Removed, made plain or renamed; or a new secret without value whose account may
+        // still hold a leftover from a failed cleanup.
+        if (was || is)
+            && !(was && is)
+            && !given
+            && let Ok(key) = scope_key(scope, &v.name)
+            && !stale.contains(&key)
+        {
+            stale.push(key);
+        }
+    }
+    forget_variables(secrets, scope_id(scope), &stale);
+    for (key, value) in &keyed {
+        secrets.set_var(key, value)?;
+    }
+    Ok(views(secrets, &new, |n| scope_key(scope, n)))
 }
 
 fn remove_project(store: &ConfigStore, secrets: &SecretStore, project_id: &str) -> Res<()> {
-    let scopes = scopes_where(store, |p, _| p == project_id)?;
-    store.delete_project(project_id)?;
-    forget_all(secrets, &scopes);
+    required("projectId", project_id)?;
+    let _lifecycle = secrets.lifecycle();
+    let p = store.delete_project(project_id)?;
+    forget_variables(
+        secrets,
+        &p.id,
+        &secret_keys(&p.variables, |n| VarKey::project(&p.id, n).ok()),
+    );
+    for e in &p.environments {
+        forget_variables(
+            secrets,
+            &e.id,
+            &secret_keys(&e.variables, |n| VarKey::environment(&e.id, n).ok()),
+        );
+    }
+    let envs: Vec<Option<&str>> = std::iter::once(None)
+        .chain(p.environments.iter().map(|e| Some(e.id.as_str())))
+        .collect();
+    for h in &p.hosts {
+        forget_saved(secrets, &h.id, &envs);
+    }
     Ok(())
 }
 
@@ -63,9 +257,18 @@ fn remove_environment(
     project_id: &str,
     environment_id: &str,
 ) -> Res<()> {
-    let scopes = scopes_where(store, |p, e| p == project_id && e == environment_id)?;
-    store.delete_environment(project_id, environment_id)?;
-    forget_all(secrets, &scopes);
+    required("projectId", project_id)?;
+    required("environmentId", environment_id)?;
+    let _lifecycle = secrets.lifecycle();
+    let (e, hosts) = store.delete_environment(project_id, environment_id)?;
+    forget_variables(
+        secrets,
+        &e.id,
+        &secret_keys(&e.variables, |n| VarKey::environment(&e.id, n).ok()),
+    );
+    for h in &hosts {
+        forget_saved(secrets, h, &[Some(&e.id)]);
+    }
     Ok(())
 }
 
@@ -73,56 +276,49 @@ fn remove_host(
     store: &ConfigStore,
     secrets: &SecretStore,
     project_id: &str,
-    environment_id: &str,
     host_id: &str,
 ) -> Res<()> {
-    store.delete_host(project_id, environment_id, host_id)?;
-    if let Ok(scope) = SecretScope::new(project_id, environment_id, host_id) {
-        forget_all(secrets, &[scope]);
-    }
+    required("projectId", project_id)?;
+    required("hostId", host_id)?;
+    let _lifecycle = secrets.lifecycle();
+    let (h, envs) = store.delete_host(project_id, host_id)?;
+    let envs: Vec<Option<&str>> = std::iter::once(None)
+        .chain(envs.iter().map(|e| Some(e.as_str())))
+        .collect();
+    forget_saved(secrets, &h.id, &envs);
     Ok(())
 }
 
-/// Secrets that no longer fit the host once the update is saved: a password belongs to one
-/// remote account, a passphrase to one key file.
-fn obsolete_secrets(old: Option<&Host>, new: &Host) -> Vec<SecretKind> {
-    let mut out = Vec::new();
-    let same_account = old.is_some_and(|o| same_endpoint(o, new));
-    if !matches!(new.auth, AuthMethod::Password) || !same_account {
-        out.push(SecretKind::Password);
-    }
-    let same_key = matches!(
-        (old.map(|o| &o.auth), &new.auth),
-        (Some(AuthMethod::Key { key_path: a }), AuthMethod::Key { key_path: b }) if a == b
-    );
-    if !same_key {
-        out.push(SecretKind::Passphrase);
-    }
-    out
+#[tauri::command]
+pub async fn get_config(
+    store: State<'_, ConfigStore>,
+    secrets: State<'_, SecretStore>,
+) -> Res<ConfigView> {
+    let view = config_view(&store, &secrets);
+    forget_legacy(&store, &secrets);
+    view
 }
 
-fn change_host(
-    store: &ConfigStore,
-    secrets: &SecretStore,
-    project_id: &str,
-    environment_id: &str,
-    host_id: &str,
-    input: &HostInput,
-) -> Res<Host> {
-    let old = store
-        .list_projects()?
-        .into_iter()
-        .filter(|p| p.id == project_id)
-        .flat_map(|p| p.environments)
-        .filter(|e| e.id == environment_id)
-        .flat_map(|e| e.hosts)
-        .find(|h| h.id == host_id);
-    let host = store.update_host(project_id, environment_id, host_id, input)?;
-    let kinds = obsolete_secrets(old.as_ref(), &host);
-    if let Ok(scope) = SecretScope::new(project_id, environment_id, host_id) {
-        forget(secrets, &scope, &kinds);
-    }
-    Ok(host)
+#[tauri::command]
+pub async fn create_project(
+    store: State<'_, ConfigStore>,
+    secrets: State<'_, SecretStore>,
+    name: String,
+) -> Res<ProjectView> {
+    Ok(project_view(&secrets, &store.create_project(&name)?))
+}
+
+#[tauri::command]
+pub async fn rename_project(
+    store: State<'_, ConfigStore>,
+    secrets: State<'_, SecretStore>,
+    project_id: String,
+    name: String,
+) -> Res<ProjectView> {
+    Ok(project_view(
+        &secrets,
+        &store.rename_project(&project_id, &name)?,
+    ))
 }
 
 #[tauri::command]
@@ -137,20 +333,28 @@ pub async fn delete_project(
 #[tauri::command]
 pub async fn create_environment(
     store: State<'_, ConfigStore>,
+    secrets: State<'_, SecretStore>,
     project_id: String,
     name: String,
-) -> Res<Environment> {
-    Ok(store.create_environment(&project_id, &name)?)
+) -> Res<EnvironmentView> {
+    Ok(env_view(
+        &secrets,
+        &store.create_environment(&project_id, &name)?,
+    ))
 }
 
 #[tauri::command]
 pub async fn rename_environment(
     store: State<'_, ConfigStore>,
+    secrets: State<'_, SecretStore>,
     project_id: String,
     environment_id: String,
     name: String,
-) -> Res<Environment> {
-    Ok(store.rename_environment(&project_id, &environment_id, &name)?)
+) -> Res<EnvironmentView> {
+    Ok(env_view(
+        &secrets,
+        &store.rename_environment(&project_id, &environment_id, &name)?,
+    ))
 }
 
 #[tauri::command]
@@ -164,32 +368,49 @@ pub async fn delete_environment(
 }
 
 #[tauri::command]
+pub async fn set_active_environment(
+    store: State<'_, ConfigStore>,
+    secrets: State<'_, SecretStore>,
+    project_id: String,
+    environment_id: Option<String>,
+) -> Res<ProjectView> {
+    Ok(project_view(
+        &secrets,
+        &store.set_active_environment(&project_id, environment_id.as_deref())?,
+    ))
+}
+
+#[tauri::command]
+pub async fn set_variables(
+    store: State<'_, ConfigStore>,
+    secrets: State<'_, SecretStore>,
+    scope: VariableScope,
+    variables: Vec<VariableInput>,
+) -> Res<Vec<VariableView>> {
+    save_variables(&store, &secrets, &scope, variables)
+}
+
+#[tauri::command]
 pub async fn create_host(
     store: State<'_, ConfigStore>,
     project_id: String,
-    environment_id: String,
     host: HostInput,
 ) -> Res<Host> {
-    Ok(store.create_host(&project_id, &environment_id, &host)?)
+    Ok(store.create_host(&project_id, &host)?)
 }
 
+/// Saved connection secrets are bound to their resolved target, so an edit that changes the
+/// endpoint or key path invalidates them without explicit cleanup.
 #[tauri::command]
 pub async fn update_host(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
     project_id: String,
-    environment_id: String,
     host_id: String,
     host: HostInput,
 ) -> Res<Host> {
-    change_host(
-        &store,
-        &secrets,
-        &project_id,
-        &environment_id,
-        &host_id,
-        &host,
-    )
+    let _lifecycle = secrets.lifecycle();
+    Ok(store.update_host(&project_id, &host_id, &host)?)
 }
 
 #[tauri::command]
@@ -197,308 +418,20 @@ pub async fn delete_host(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
     project_id: String,
-    environment_id: String,
     host_id: String,
 ) -> Res<()> {
-    remove_host(&store, &secrets, &project_id, &environment_id, &host_id)
+    remove_host(&store, &secrets, &project_id, &host_id)
+}
+
+#[tauri::command]
+pub async fn resolve_host(
+    store: State<'_, ConfigStore>,
+    project_id: String,
+    host_id: String,
+    environment_id: Option<String>,
+) -> Res<ResolvedView> {
+    resolve::view(&store, &project_id, &host_id, environment_id.as_deref())
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn store() -> (tempfile::TempDir, ConfigStore) {
-        let dir = tempfile::tempdir().unwrap();
-        let s = ConfigStore::new(dir.path().to_path_buf());
-        (dir, s)
-    }
-
-    #[test]
-    fn store_errors_map_to_contract_codes() {
-        let (_d, s) = store();
-        s.create_project("A").unwrap();
-        let code = |r: Result<_, crate::config::ConfigError>| -> &'static str {
-            let r: Res<()> = r.map(|_: Project| ()).map_err(CommandError::from);
-            r.unwrap_err().code
-        };
-        assert_eq!(code(s.create_project("a")), "conflict");
-        assert_eq!(code(s.create_project(" ")), "invalid_input");
-        assert_eq!(code(s.rename_project("nope", "x")), "not_found");
-    }
-
-    #[test]
-    fn corrupt_file_maps_to_corrupt_config() {
-        let (d, s) = store();
-        std::fs::write(d.path().join("config.json"), "garbage").unwrap();
-        let err = s.list_projects().map_err(CommandError::from).unwrap_err();
-        assert_eq!(err.code, "corrupt_config");
-        assert!(!err.message.contains("garbage"));
-    }
-
-    mod lifecycle {
-        use super::super::*;
-        use crate::secrets::MemoryBackend;
-        use secrecy::SecretString;
-        use std::sync::Arc;
-
-        struct World {
-            _dir: tempfile::TempDir,
-            store: ConfigStore,
-            secrets: SecretStore,
-            mem: Arc<MemoryBackend>,
-        }
-
-        fn world() -> World {
-            let dir = tempfile::tempdir().unwrap();
-            let store = ConfigStore::new(dir.path().to_path_buf());
-            let (secrets, mem) = MemoryBackend::store();
-            World {
-                _dir: dir,
-                store,
-                secrets,
-                mem,
-            }
-        }
-
-        fn input(name: &str, auth: AuthMethod) -> HostInput {
-            HostInput {
-                name: name.into(),
-                hostname: "web.example".into(),
-                port: 22,
-                username: "me".into(),
-                auth,
-            }
-        }
-
-        fn key(path: &str) -> AuthMethod {
-            AuthMethod::Key {
-                key_path: path.into(),
-            }
-        }
-
-        fn seed(w: &World, p: &str, e: &str, h: &str) -> SecretScope {
-            let scope = SecretScope::new(p, e, h).unwrap();
-            for kind in SecretKind::ALL {
-                w.secrets
-                    .set(&scope, kind, &SecretString::from("s"))
-                    .unwrap();
-            }
-            scope
-        }
-
-        fn kinds(w: &World, scope: &SecretScope) -> Vec<SecretKind> {
-            SecretKind::ALL
-                .into_iter()
-                .filter(|k| w.secrets.has(scope, *k).unwrap())
-                .collect()
-        }
-
-        struct Tree {
-            p1: String,
-            e1: String,
-            e2: String,
-            p2: String,
-            e3: String,
-            h1: String,
-            h2: String,
-            h3: String,
-            h4: String,
-        }
-
-        fn tree(w: &World) -> Tree {
-            let s = &w.store;
-            let p1 = s.create_project("p1").unwrap().id;
-            let p2 = s.create_project("p2").unwrap().id;
-            let e1 = s.create_environment(&p1, "dev").unwrap().id;
-            let e2 = s.create_environment(&p1, "prod").unwrap().id;
-            let e3 = s.create_environment(&p2, "dev").unwrap().id;
-            let host = |p: &str, e: &str, n: &str| {
-                s.create_host(p, e, &input(n, AuthMethod::Password))
-                    .unwrap()
-                    .id
-            };
-            let h1 = host(&p1, &e1, "a");
-            let h2 = host(&p1, &e1, "b");
-            let h3 = host(&p1, &e2, "c");
-            let h4 = host(&p2, &e3, "d");
-            Tree {
-                p1,
-                e1,
-                e2,
-                p2,
-                e3,
-                h1,
-                h2,
-                h3,
-                h4,
-            }
-        }
-
-        #[test]
-        fn delete_host_removes_only_its_secrets() {
-            let w = world();
-            let t = tree(&w);
-            let a = seed(&w, &t.p1, &t.e1, &t.h1);
-            let b = seed(&w, &t.p1, &t.e1, &t.h2);
-            remove_host(&w.store, &w.secrets, &t.p1, &t.e1, &t.h1).unwrap();
-            assert!(kinds(&w, &a).is_empty());
-            assert_eq!(kinds(&w, &b).len(), 2);
-        }
-
-        #[test]
-        fn delete_environment_and_project_remove_their_hosts_secrets() {
-            let w = world();
-            let t = tree(&w);
-            let a = seed(&w, &t.p1, &t.e1, &t.h1);
-            let b = seed(&w, &t.p1, &t.e1, &t.h2);
-            let c = seed(&w, &t.p1, &t.e2, &t.h3);
-            let d = seed(&w, &t.p2, &t.e3, &t.h4);
-            remove_environment(&w.store, &w.secrets, &t.p1, &t.e1).unwrap();
-            assert!(kinds(&w, &a).is_empty() && kinds(&w, &b).is_empty());
-            assert_eq!(kinds(&w, &c).len(), 2);
-            remove_project(&w.store, &w.secrets, &t.p1).unwrap();
-            assert!(kinds(&w, &c).is_empty());
-            assert_eq!(kinds(&w, &d).len(), 2);
-            assert_eq!(w.mem.accounts().len(), 2);
-        }
-
-        #[test]
-        fn failed_delete_keeps_secrets() {
-            let w = world();
-            let t = tree(&w);
-            let a = seed(&w, &t.p1, &t.e1, &t.h1);
-            assert!(remove_host(&w.store, &w.secrets, &t.p2, &t.e3, &t.h1).is_err());
-            assert!(remove_environment(&w.store, &w.secrets, &t.p2, &t.e1).is_err());
-            assert!(remove_project(&w.store, &w.secrets, "nope").is_err());
-            assert_eq!(kinds(&w, &a).len(), 2);
-        }
-
-        #[test]
-        fn keychain_failure_does_not_fail_the_delete() {
-            let w = world();
-            let t = tree(&w);
-            w.mem.set_failing(true);
-            remove_host(&w.store, &w.secrets, &t.p1, &t.e1, &t.h1).unwrap();
-            remove_project(&w.store, &w.secrets, &t.p2).unwrap();
-            assert_eq!(w.store.list_projects().unwrap().len(), 1);
-        }
-
-        #[test]
-        fn update_host_drops_secrets_that_no_longer_fit() {
-            let w = world();
-            let t = tree(&w);
-            let upd = |auth: AuthMethod| {
-                change_host(&w.store, &w.secrets, &t.p1, &t.e1, &t.h1, &input("a", auth)).unwrap()
-            };
-            let a = seed(&w, &t.p1, &t.e1, &t.h1);
-            upd(AuthMethod::Password);
-            assert_eq!(kinds(&w, &a), vec![SecretKind::Password]);
-
-            seed(&w, &t.p1, &t.e1, &t.h1);
-            upd(key("~/.ssh/id_a"));
-            assert!(kinds(&w, &a).is_empty());
-
-            seed(&w, &t.p1, &t.e1, &t.h1);
-            upd(key("~/.ssh/id_a"));
-            assert_eq!(kinds(&w, &a), vec![SecretKind::Passphrase]);
-
-            upd(key("~/.ssh/id_b"));
-            assert!(kinds(&w, &a).is_empty());
-
-            seed(&w, &t.p1, &t.e1, &t.h1);
-            upd(AuthMethod::Agent);
-            assert!(kinds(&w, &a).is_empty());
-        }
-
-        #[test]
-        fn failed_update_keeps_secrets() {
-            let w = world();
-            let t = tree(&w);
-            let a = seed(&w, &t.p1, &t.e1, &t.h1);
-            let bad = input(" ", AuthMethod::Agent);
-            assert!(change_host(&w.store, &w.secrets, &t.p1, &t.e1, &t.h1, &bad).is_err());
-            assert_eq!(kinds(&w, &a).len(), 2);
-        }
-
-        fn host(auth: AuthMethod) -> Host {
-            Host {
-                id: "h".into(),
-                name: "h".into(),
-                hostname: "web.example".into(),
-                port: 22,
-                username: "me".into(),
-                auth,
-            }
-        }
-
-        #[test]
-        fn obsolete_secret_rules() {
-            use SecretKind::*;
-            let k = host(key("~/k"));
-            let pw = host(AuthMethod::Password);
-            assert_eq!(obsolete_secrets(Some(&k), &pw), vec![Passphrase]);
-            assert_eq!(obsolete_secrets(Some(&pw), &pw), vec![Passphrase]);
-            assert_eq!(obsolete_secrets(Some(&k), &k), vec![Password]);
-            assert_eq!(
-                obsolete_secrets(Some(&k), &host(key("~/other"))),
-                vec![Password, Passphrase]
-            );
-            assert_eq!(obsolete_secrets(Some(&pw), &k), vec![Password, Passphrase]);
-            assert_eq!(obsolete_secrets(None, &k), vec![Password, Passphrase]);
-            assert_eq!(obsolete_secrets(None, &pw), vec![Password, Passphrase]);
-            let agent = host(AuthMethod::Agent);
-            assert_eq!(
-                obsolete_secrets(Some(&agent), &agent),
-                vec![Password, Passphrase]
-            );
-            let renamed = Host {
-                name: "other".into(),
-                ..pw.clone()
-            };
-            assert_eq!(obsolete_secrets(Some(&pw), &renamed), vec![Passphrase]);
-            for moved in [
-                Host {
-                    hostname: "db.example".into(),
-                    ..pw.clone()
-                },
-                Host {
-                    port: 2222,
-                    ..pw.clone()
-                },
-                Host {
-                    username: "root".into(),
-                    ..pw.clone()
-                },
-            ] {
-                assert_eq!(
-                    obsolete_secrets(Some(&pw), &moved),
-                    vec![Password, Passphrase]
-                );
-            }
-            let k_moved = Host {
-                hostname: "db.example".into(),
-                ..k.clone()
-            };
-            assert_eq!(obsolete_secrets(Some(&k), &k_moved), vec![Password]);
-        }
-
-        #[test]
-        fn update_host_drops_the_password_when_the_endpoint_changes() {
-            let w = world();
-            let t = tree(&w);
-            let a = seed(&w, &t.p1, &t.e1, &t.h1);
-            let mut moved = input("a", AuthMethod::Password);
-            moved.port = 2222;
-            change_host(&w.store, &w.secrets, &t.p1, &t.e1, &t.h1, &moved).unwrap();
-            assert!(kinds(&w, &a).is_empty());
-
-            seed(&w, &t.p1, &t.e1, &t.h1);
-            let renamed = HostInput {
-                name: "renamed".into(),
-                ..moved
-            };
-            change_host(&w.store, &w.secrets, &t.p1, &t.e1, &t.h1, &renamed).unwrap();
-            assert_eq!(kinds(&w, &a), vec![SecretKind::Password]);
-        }
-    }
-}
+mod tests;

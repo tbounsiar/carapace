@@ -176,7 +176,7 @@ async fn host_without_a_live_session_is_not_connected() {
 async fn at_most_32_terminals_per_host() {
     let w = world(44).await;
     let mut open = Vec::new();
-    for _ in 0..MAX_PER_HOST {
+    for _ in 0..MAX_PER_CONNECTION {
         open.push(w.open().await);
     }
     let (emit, _rx) = collector();
@@ -192,7 +192,7 @@ async fn at_most_32_terminals_per_host() {
     w.terminals.close(&id).unwrap();
     assert_eq!(closed(&mut rx).await, CloseReason::Closed);
     let (_id, _rx) = w.open().await;
-    assert_eq!(w.terminals.count("h1"), MAX_PER_HOST);
+    assert_eq!(w.terminals.count("h1"), MAX_PER_CONNECTION);
 }
 
 #[tokio::test]

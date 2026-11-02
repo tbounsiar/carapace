@@ -6,6 +6,7 @@ mod secrets;
 mod sftp;
 mod ssh;
 mod terminal;
+mod vars;
 
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, WindowEvent};
@@ -26,8 +27,12 @@ pub fn run() {
             app.manage(ssh::SshManager::new(&home, secrets.clone()));
             app.manage(terminal::TerminalManager::default());
             app.manage(sftp::SftpManager::default());
+            let store = config::ConfigStore::new(home);
+            // Loading moves a version 1 file aside; its keychain entries go with it.
+            let _ = store.snapshot();
+            commands::secrets::forget_legacy(&store, &secrets);
             app.manage(secrets);
-            app.manage(config::ConfigStore::new(home));
+            app.manage(store);
             Ok(())
         })
         // Terminal events are bound to the page that opened them; a reload or a closed window
@@ -47,16 +52,19 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            commands::config::list_projects,
+            commands::config::get_config,
             commands::config::create_project,
             commands::config::rename_project,
             commands::config::delete_project,
             commands::config::create_environment,
             commands::config::rename_environment,
             commands::config::delete_environment,
+            commands::config::set_active_environment,
+            commands::config::set_variables,
             commands::config::create_host,
             commands::config::update_host,
             commands::config::delete_host,
+            commands::config::resolve_host,
             commands::ssh::connect_host,
             commands::ssh::answer_host_key,
             commands::ssh::replace_host_key,
@@ -75,9 +83,7 @@ pub fn run() {
             commands::localfs::local_mkdir,
             commands::localfs::local_rename,
             commands::localfs::local_delete,
-            commands::secrets::set_host_secret,
-            commands::secrets::delete_host_secret,
-            commands::secrets::has_host_secret,
+            commands::secrets::forget_saved_secrets,
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

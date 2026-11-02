@@ -22,7 +22,7 @@ const REQUEST_TIMEOUT_SECS: u64 = 30;
 type Slot = Arc<tokio::sync::Mutex<Option<Arc<Remote>>>>;
 type Entries = Vec<(String, FileAttributes)>;
 
-/// One SFTP subsystem channel per host, opened on first use on the host's existing connection.
+/// One SFTP subsystem channel per connection, opened on first use on that connection.
 #[derive(Default)]
 pub struct SftpManager {
     slots: Mutex<HashMap<String, Slot>>,
@@ -290,15 +290,18 @@ async fn open(session: SessionRef) -> Result<(Remote, oneshot::Receiver<()>), Fs
 }
 
 impl SftpManager {
-    fn slot(&self, host_id: &str) -> Slot {
+    fn slot(&self, connection_id: &str) -> Slot {
         let mut slots = self.slots.lock().unwrap_or_else(|e| e.into_inner());
-        slots.entry(host_id.to_owned()).or_default().clone()
+        slots.entry(connection_id.to_owned()).or_default().clone()
     }
 
-    async fn remote(&self, ssh: &SshManager, host_id: &str) -> Result<Arc<Remote>, FsError> {
-        // Checked before `slot` so unknown or disconnected hostIds never get a map entry.
-        let session = ssh.session(host_id).await.ok_or(FsError::NotConnected)?;
-        let slot = self.slot(host_id);
+    async fn remote(&self, ssh: &SshManager, connection_id: &str) -> Result<Arc<Remote>, FsError> {
+        // Checked before `slot` so unknown or disconnected connection ids never get a map entry.
+        let session = ssh
+            .session(connection_id)
+            .await
+            .ok_or(FsError::NotConnected)?;
+        let slot = self.slot(connection_id);
         let mut current = slot.lock().await;
         if let Some(r) = current.as_ref().filter(|r| r.usable()) {
             return Ok(r.clone());
@@ -312,8 +315,8 @@ impl SftpManager {
     }
 
     #[cfg(test)]
-    async fn is_open(&self, host_id: &str) -> bool {
-        let slot = self.slots.lock().unwrap().get(host_id).cloned();
+    async fn is_open(&self, connection_id: &str) -> bool {
+        let slot = self.slots.lock().unwrap().get(connection_id).cloned();
         match slot {
             Some(s) => s.lock().await.is_some(),
             None => false,
@@ -328,10 +331,10 @@ impl SftpManager {
     pub async fn list(
         &self,
         ssh: &SshManager,
-        host_id: &str,
+        connection_id: &str,
         path: &str,
     ) -> Result<Listing, FsError> {
-        let r = self.remote(ssh, host_id).await?;
+        let r = self.remote(ssh, connection_id).await?;
         let target = r.resolve(path)?;
         let canonical = r.realpath(&target).await?;
         if r.lstat(&canonical).await.map(|a| kind(&a))? != Some(EntryKind::Dir) {
@@ -353,12 +356,12 @@ impl SftpManager {
     pub async fn mkdir(
         &self,
         ssh: &SshManager,
-        host_id: &str,
+        connection_id: &str,
         parent_dir: &str,
         name: &str,
     ) -> Result<FileEntry, FsError> {
         files::name(name)?;
-        let r = self.remote(ssh, host_id).await?;
+        let r = self.remote(ssh, connection_id).await?;
         let path = join(&r.resolve(parent_dir)?, name);
         if r.exists(&path).await? {
             return Err(FsError::AlreadyExists(path));
@@ -376,14 +379,14 @@ impl SftpManager {
     pub async fn rename(
         &self,
         ssh: &SshManager,
-        host_id: &str,
+        connection_id: &str,
         path: &str,
         new_name: &str,
     ) -> Result<FileEntry, FsError> {
         files::name(new_name)?;
         let source = normalize(path)?.ok_or_else(|| FsError::invalid("path is required"))?;
         let dir = parent(&source).ok_or_else(|| FsError::invalid("cannot rename /"))?;
-        let r = self.remote(ssh, host_id).await?;
+        let r = self.remote(ssh, connection_id).await?;
         let target = join(&dir, new_name);
         if target == source {
             return r.entry_at(&source).await;
@@ -405,7 +408,7 @@ impl SftpManager {
     pub async fn delete(
         &self,
         ssh: &SshManager,
-        host_id: &str,
+        connection_id: &str,
         path: &str,
         recursive: bool,
     ) -> Result<(), FsError> {
@@ -414,7 +417,7 @@ impl SftpManager {
         if target == "/" {
             return Err(FsError::invalid("refusing to delete /"));
         }
-        let r = self.remote(ssh, host_id).await?;
+        let r = self.remote(ssh, connection_id).await?;
         let attrs = r.lstat(&target).await?;
         if r.kind_of(&target, &attrs).await? != EntryKind::Dir {
             return r.remove_file(&target).await;

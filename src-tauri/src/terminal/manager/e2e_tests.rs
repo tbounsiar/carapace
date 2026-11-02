@@ -5,10 +5,8 @@ use std::path::Path;
 
 use super::tests::{Events, closed, collector, next, read_until};
 use super::*;
-use crate::config::Host;
-use crate::config::model::AuthMethod;
-use crate::secrets::SecretScope;
-use crate::ssh::test_server::{E2E_SERVER, isolated_manager};
+use crate::ssh::TargetAuth;
+use crate::ssh::test_server::{E2E_SERVER, isolated_manager, target};
 use crate::ssh::{ConnectEvent, SshManager};
 
 const HOST_ID: &str = "e2e-terminal";
@@ -39,30 +37,21 @@ struct World {
 async fn connected() -> World {
     let dir = tempfile::tempdir().unwrap();
     let ssh = Arc::new(isolated_manager(dir.path()));
-    let host = Host {
-        id: HOST_ID.into(),
-        name: HOST_ID.into(),
-        hostname: "127.0.0.1".into(),
-        port: 2222,
-        username: "carapace".into(),
-        auth: AuthMethod::Key {
+    let target = target(
+        HOST_ID,
+        2222,
+        "carapace",
+        TargetAuth::Key {
             key_path: key_path(),
+            passphrase: None,
         },
-    };
+    );
     let (tx, mut rx) = mpsc::unbounded_channel();
     let emit: Arc<dyn Fn(ConnectEvent) + Send + Sync> = Arc::new(move |e| {
         let _ = tx.send(e);
     });
     let manager = ssh.clone();
-    let task = tokio::spawn(async move {
-        let scope = SecretScope::new(
-            "00000000-0000-4000-8000-0000000000f1",
-            "00000000-0000-4000-8000-0000000000f2",
-            "00000000-0000-4000-8000-0000000000f3",
-        )
-        .unwrap();
-        manager.connect(&scope, &host, None, &|| true, emit).await
-    });
+    let task = tokio::spawn(async move { manager.connect(&target, None, &|| true, emit).await });
     loop {
         match rx.recv().await.expect("connect ended without a prompt") {
             ConnectEvent::HostKeyPrompt { request_id, .. } => {

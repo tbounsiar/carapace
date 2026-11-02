@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::secrets::MemoryBackend;
-use crate::ssh::test_server::E2E_SERVER as SERVER;
+use crate::ssh::test_server::{E2E_SERVER as SERVER, target};
 use std::process::Command;
 use tokio::sync::mpsc;
 
@@ -49,12 +49,12 @@ fn rotate_host_key() {
 struct Env {
     _dir: tempfile::TempDir,
     manager: Arc<SshManager>,
-    host: Host,
+    target: Target,
     app_known_hosts: PathBuf,
     secrets: SecretStore,
 }
 
-fn env_for(hostname: &str, port: u16, connect: Duration, auth: AuthMethod) -> Env {
+fn env_for(hostname: &str, port: u16, connect: Duration, auth: TargetAuth) -> Env {
     let dir = tempfile::tempdir().unwrap();
     let app_known_hosts = dir.path().join("known_hosts");
     let user_file = dir.path().join("user_known_hosts");
@@ -67,35 +67,21 @@ fn env_for(hostname: &str, port: u16, connect: Duration, auth: AuthMethod) -> En
         },
         secrets.clone(),
     ));
-    let host = Host {
-        id: "e2e".into(),
-        name: "e2e".into(),
-        hostname: hostname.into(),
-        port,
-        username: "carapace".into(),
-        auth,
-    };
+    let mut target = target("e2e", port, "carapace", auth);
+    target.hostname = hostname.into();
     Env {
         _dir: dir,
         manager,
-        host,
+        target,
         app_known_hosts,
         secrets,
     }
 }
 
-fn scope() -> SecretScope {
-    SecretScope::new(
-        "00000000-0000-4000-8000-0000000000e1",
-        "00000000-0000-4000-8000-0000000000e2",
-        "00000000-0000-4000-8000-0000000000e3",
-    )
-    .unwrap()
-}
-
-fn key_auth(name: &str) -> AuthMethod {
-    AuthMethod::Key {
+fn key_auth(name: &str) -> TargetAuth {
+    TargetAuth::Key {
         key_path: key_path(name),
+        passphrase: None,
     }
 }
 
@@ -116,13 +102,11 @@ fn start_connect_with(env: &Env, credential: Option<Credential>) -> (ConnectTask
         let _ = tx.send(e);
     });
     let manager = env.manager.clone();
-    let host = env.host.clone();
+    let target = env.target.clone();
     (
         tokio::spawn(async move {
             let current = || true;
-            manager
-                .connect(&scope(), &host, credential, &current, emit)
-                .await
+            manager.connect(&target, credential, &current, emit).await
         }),
         rx,
     )
@@ -369,7 +353,7 @@ async fn agent_auth_when_the_agent_holds_the_e2e_key() {
         "127.0.0.1",
         PORT,
         Duration::from_secs(10),
-        AuthMethod::Agent,
+        TargetAuth::Agent,
     );
     trust_first_use(&env).await;
     let (task, _rx) = start_connect(&env);
@@ -388,7 +372,7 @@ fn password_env() -> Env {
         "127.0.0.1",
         PORT,
         Duration::from_secs(10),
-        AuthMethod::Password,
+        TargetAuth::Password { variable: None },
     )
 }
 
@@ -402,9 +386,10 @@ async fn password_auth_with_the_right_password() {
     let password = work_file("password");
     trust_first_use_with(&env, typed(&password)).await;
     env.secrets
-        .set(
-            &scope(),
+        .set_saved(
+            &env.target.saved,
             SecretKind::Password,
+            &env.target.bound_to(SecretKind::Password),
             &SecretString::from(password),
         )
         .unwrap();
@@ -463,4 +448,23 @@ async fn encrypted_key_without_a_passphrase_is_secret_required() {
     let (task, mut rx) = start_connect(&env);
     assert_eq!(task.await.unwrap().unwrap_err(), SshError::SecretRequired);
     assert!(drain(&mut rx).is_empty());
+}
+
+#[tokio::test]
+async fn password_from_a_secret_variable() {
+    if !enabled() {
+        return;
+    }
+    let _g = SERVER.read().await;
+    let mut env = password_env();
+    let key = VarKey::global("carapace_password").unwrap();
+    env.target.auth = TargetAuth::Password {
+        variable: Some(key.clone()),
+    };
+    env.secrets
+        .set_var(&key, &SecretString::from(work_file("password")))
+        .unwrap();
+    trust_first_use(&env).await;
+    let (task, _rx) = start_connect(&env);
+    assert_eq!(task.await.unwrap().unwrap().state, ConnectState::Connected);
 }

@@ -1,7 +1,7 @@
 [[permission]]
-identifier = "allow-list-projects"
-description = "Allows the list_projects command."
-commands.allow = ["list_projects"]
+identifier = "allow-get-config"
+description = "Allows the get_config command."
+commands.allow = ["get_config"]
 
 [[permission]]
 identifier = "allow-create-project"
@@ -34,6 +34,16 @@ description = "Allows the delete_environment command."
 commands.allow = ["delete_environment"]
 
 [[permission]]
+identifier = "allow-set-active-environment"
+description = "Allows the set_active_environment command."
+commands.allow = ["set_active_environment"]
+
+[[permission]]
+identifier = "allow-set-variables"
+description = "Allows the set_variables command."
+commands.allow = ["set_variables"]
+
+[[permission]]
 identifier = "allow-create-host"
 description = "Allows the create_host command."
 commands.allow = ["create_host"]
@@ -48,3 +58,7 @@ identifier = "allow-delete-host"
 description = "Allows the delete_host command."
 commands.allow = ["delete_host"]
 
+[[permission]]
+identifier = "allow-resolve-host"
+description = "Allows the resolve_host command."
+commands.allow = ["resolve_host"]

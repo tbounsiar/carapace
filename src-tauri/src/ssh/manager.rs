@@ -19,9 +19,7 @@ use zeroize::Zeroizing;
 
 use super::error::SshError;
 use super::known_hosts::{HostKeyStatus, KnownHosts, fingerprint};
-use crate::config::Host;
-use crate::config::model::AuthMethod;
-use crate::secrets::{SecretKind, SecretScope, SecretStore, fits_keychain};
+use crate::secrets::{SavedKey, SecretKind, SecretStore, VarKey, fits_saved};
 
 pub type Emit = Arc<dyn Fn(ConnectEvent) + Send + Sync>;
 
@@ -72,8 +70,61 @@ pub enum ConnectEvent {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionInfo {
+    pub connection_id: String,
     pub host_id: String,
+    pub environment_id: Option<String>,
     pub state: ConnectState,
+}
+
+/// Where a password or passphrase comes from when none is typed: the secret variable the host
+/// field references (if any), then the secret saved for this connection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetAuth {
+    Password {
+        variable: Option<VarKey>,
+    },
+    Key {
+        key_path: String,
+        passphrase: Option<VarKey>,
+    },
+    Agent,
+}
+
+/// A host resolved for one environment (or none): what a connection is made from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Target {
+    pub connection_id: String,
+    pub host_id: String,
+    pub environment_id: Option<String>,
+    pub saved: SavedKey,
+    pub hostname: String,
+    pub port: u16,
+    pub username: String,
+    pub auth: TargetAuth,
+}
+
+impl Target {
+    pub fn connection_id_of(host_id: &str, environment_id: Option<&str>) -> String {
+        format!("{host_id}@{}", environment_id.unwrap_or("none"))
+    }
+
+    /// What a saved secret of `kind` is bound to: a password to one remote account, a
+    /// passphrase to one key file.
+    pub fn bound_to(&self, kind: SecretKind) -> String {
+        match (kind, &self.auth) {
+            (SecretKind::Passphrase, TargetAuth::Key { key_path, .. }) => key_path.clone(),
+            _ => format!("{}@{}:{}", self.username, self.hostname, self.port),
+        }
+    }
+
+    fn info(&self) -> ConnectionInfo {
+        ConnectionInfo {
+            connection_id: self.connection_id.clone(),
+            host_id: self.host_id.clone(),
+            environment_id: self.environment_id.clone(),
+            state: ConnectState::Connected,
+        }
+    }
 }
 
 /// A password or passphrase typed by the user for one connect attempt.
@@ -220,7 +271,7 @@ pub struct SessionRef {
 
 pub struct ClientHandler {
     ended: EndSignal,
-    host_id: String,
+    connection_id: String,
     hostname: String,
     port: u16,
     known_hosts: Arc<KnownHosts>,
@@ -273,7 +324,7 @@ impl client::Handler for ClientHandler {
                 match self.changed.lock() {
                     Ok(mut map) => {
                         map.insert(
-                            self.host_id.clone(),
+                            self.connection_id.clone(),
                             ChangedKey {
                                 hostname: self.hostname.clone(),
                                 port: self.port,
@@ -361,16 +412,23 @@ enum Credentials {
     Agent,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Source {
+    Typed,
+    Variable,
+    Saved,
+}
+
 struct Loaded {
     credentials: Credentials,
     remember: Option<(SecretKind, SecretString)>,
-    from_keychain: bool,
+    source: Source,
 }
 
 struct Resolved {
     value: SecretString,
     remember: Option<(SecretKind, SecretString)>,
-    from_keychain: bool,
+    source: Source,
 }
 
 pub type Session = Arc<Handle<ClientHandler>>;
@@ -378,6 +436,7 @@ pub type Session = Arc<Handle<ClientHandler>>;
 struct Connection {
     handle: Session,
     ended: EndSignal,
+    info: ConnectionInfo,
 }
 
 impl Connection {
@@ -424,9 +483,11 @@ impl SshManager {
     }
 
     /// Trusts the key presented in the last `host_key_changed` failure, if `fingerprint` matches it.
-    pub fn replace_host_key(&self, host_id: &str, fingerprint: &str) -> Result<(), SshError> {
+    pub fn replace_host_key(&self, connection_id: &str, fingerprint: &str) -> Result<(), SshError> {
         let mut map = self.changed.lock().map_err(|_| SshError::Io)?;
-        let entry = map.get(host_id).ok_or(SshError::NotFound("host key"))?;
+        let entry = map
+            .get(connection_id)
+            .ok_or(SshError::NotFound("host key"))?;
         if self::fingerprint(&entry.key) != fingerprint {
             return Err(SshError::InvalidInput(
                 "the fingerprint does not match the presented host key".into(),
@@ -434,7 +495,7 @@ impl SshManager {
         }
         self.known_hosts
             .trust(&entry.hostname, entry.port, &entry.key)?;
-        map.remove(host_id);
+        map.remove(connection_id);
         Ok(())
     }
 
@@ -449,8 +510,8 @@ impl SshManager {
         Ok(())
     }
 
-    pub async fn disconnect(&self, host_id: &str) -> Result<(), SshError> {
-        let conn = self.sessions.lock().await.remove(host_id);
+    pub async fn disconnect(&self, connection_id: &str) -> Result<(), SshError> {
+        let conn = self.sessions.lock().await.remove(connection_id);
         if let Some(conn) = conn {
             // Marked before the disconnect so channel users see why their channels end.
             mark_ended(&conn.ended, SessionEnd::Disconnected);
@@ -462,16 +523,16 @@ impl SshManager {
         Ok(())
     }
 
-    /// The live session of `host_id`, shared by every terminal and SFTP pane of the host.
-    pub async fn session(&self, host_id: &str) -> Option<SessionRef> {
+    /// The live session of `connection_id`, shared by every terminal and SFTP pane of it.
+    pub async fn session(&self, connection_id: &str) -> Option<SessionRef> {
         let mut sessions = self.sessions.lock().await;
-        match sessions.get(host_id) {
+        match sessions.get(connection_id) {
             Some(c) if c.is_live() => Some(SessionRef {
                 handle: c.handle.clone(),
                 ended: c.ended.subscribe(),
             }),
             Some(_) => {
-                if let Some(c) = sessions.remove(host_id) {
+                if let Some(c) = sessions.remove(connection_id) {
                     forget_connection(c);
                 }
                 None
@@ -492,42 +553,35 @@ impl SshManager {
                 forget_connection(c);
             }
         }
-        let mut out: Vec<ConnectionInfo> = sessions
-            .keys()
-            .map(|id| ConnectionInfo {
-                host_id: id.clone(),
-                state: ConnectState::Connected,
-            })
-            .collect();
-        out.sort_by(|a, b| a.host_id.cmp(&b.host_id));
+        let mut out: Vec<ConnectionInfo> = sessions.values().map(|c| c.info.clone()).collect();
+        out.sort_by(|a, b| a.connection_id.cmp(&b.connection_id));
         out
     }
 
-    /// `scope` locates the host's keychain entries; `credential` overrides the stored secret.
+    /// `credential` overrides any stored secret.
     pub async fn connect(
         &self,
-        scope: &SecretScope,
-        host: &Host,
+        target: &Target,
         credential: Option<Credential>,
         still_current: StillCurrent<'_>,
         emit: Emit,
     ) -> Result<ConnectionInfo, SshError> {
         let lock = {
             let mut locks = self.host_locks.lock().map_err(|_| SshError::Io)?;
-            locks.entry(host.id.clone()).or_default().clone()
+            locks
+                .entry(target.connection_id.clone())
+                .or_default()
+                .clone()
         };
         let _serial = lock.lock().await;
 
-        let info = ConnectionInfo {
-            host_id: host.id.clone(),
-            state: ConnectState::Connected,
-        };
+        let info = target.info();
         {
             let mut sessions = self.sessions.lock().await;
-            match sessions.get(&host.id) {
+            match sessions.get(&target.connection_id) {
                 Some(c) if c.is_live() => return Ok(info),
                 Some(_) => {
-                    if let Some(c) = sessions.remove(&host.id) {
+                    if let Some(c) = sessions.remove(&target.connection_id) {
                         forget_connection(c);
                     }
                 }
@@ -538,10 +592,10 @@ impl SshManager {
         let Loaded {
             credentials,
             remember,
-            from_keychain,
-        } = load_credentials(&self.secrets, scope, &host.auth, credential)?;
+            source,
+        } = load_credentials(&self.secrets, target, credential)?;
         if let Ok(mut map) = self.changed.lock() {
-            map.remove(&host.id);
+            map.remove(&target.connection_id);
         }
         emit(ConnectEvent::Status {
             state: ConnectState::Connecting,
@@ -549,7 +603,7 @@ impl SshManager {
 
         let stream = timeout(
             self.timeouts.connect,
-            TcpStream::connect((host.hostname.as_str(), host.port)),
+            TcpStream::connect((target.hostname.as_str(), target.port)),
         )
         .await
         .map_err(|_| SshError::Timeout)?
@@ -563,9 +617,9 @@ impl SshManager {
         };
         let handler = ClientHandler {
             ended: ended.clone(),
-            host_id: host.id.clone(),
-            hostname: host.hostname.clone(),
-            port: host.port,
+            connection_id: target.connection_id.clone(),
+            hostname: target.hostname.clone(),
+            port: target.port,
             known_hosts: self.known_hosts.clone(),
             pending: self.pending.clone(),
             changed: self.changed.clone(),
@@ -595,7 +649,7 @@ impl SshManager {
         });
         let auth = timeout(
             self.timeouts.connect,
-            authenticate(&mut handle, &host.username, &credentials),
+            authenticate(&mut handle, &target.username, &credentials),
         )
         .await;
         let outcome = match auth {
@@ -606,31 +660,38 @@ impl SshManager {
             let _ = handle
                 .disconnect(russh::Disconnect::ByApplication, "", "en")
                 .await;
-            if let (SshError::AuthFailed(_), true, Credentials::Password(p)) =
-                (&e, from_keychain, &credentials)
+            if let (SshError::AuthFailed(_), Source::Saved, Credentials::Password(p)) =
+                (&e, source, &credentials)
             {
-                forget_if_unchanged(&self.secrets, scope, SecretKind::Password, p);
+                forget_if_unchanged(&self.secrets, target, SecretKind::Password, p);
             }
             return Err(e);
         }
 
         // The host-key prompt can last minutes; the host may have been edited or deleted meanwhile.
-        if let Some((kind, secret)) = remember
-            && fits_keychain(&secret)
-            && still_current()
-            && self.secrets.set(scope, kind, &secret).is_err()
-        {
-            log::warn!(
-                "could not store the {kind} of host {} in the keychain",
-                host.id
-            );
+        if let Some((kind, secret)) = remember {
+            let bound = target.bound_to(kind);
+            let _lifecycle = self.secrets.lifecycle();
+            if fits_saved(&bound, &secret)
+                && still_current()
+                && self
+                    .secrets
+                    .set_saved(&target.saved, kind, &bound, &secret)
+                    .is_err()
+            {
+                log::warn!(
+                    "could not store the {kind} of connection {} in the keychain",
+                    target.connection_id
+                );
+            }
         }
 
         self.sessions.lock().await.insert(
-            host.id.clone(),
+            target.connection_id.clone(),
             Connection {
                 handle: Arc::new(handle),
                 ended,
+                info: info.clone(),
             },
         );
         emit(ConnectEvent::Status {
@@ -651,8 +712,9 @@ fn expand_home(path: &str) -> PathBuf {
 
 fn provided_or_stored(
     secrets: &SecretStore,
-    scope: &SecretScope,
+    target: &Target,
     kind: SecretKind,
+    variable: Option<&VarKey>,
     credential: Option<Credential>,
 ) -> Result<Resolved, SshError> {
     if let Some(c) = credential {
@@ -662,34 +724,44 @@ fn provided_or_stored(
         return Ok(Resolved {
             value: c.secret,
             remember,
-            from_keychain: false,
+            source: Source::Typed,
         });
     }
-    match secrets.get(scope, kind)? {
+    if let Some(key) = variable
+        && let Some(value) = secrets.get_var(key)?
+    {
+        return Ok(Resolved {
+            value,
+            remember: None,
+            source: Source::Variable,
+        });
+    }
+    match secrets.get_saved(&target.saved, kind, &target.bound_to(kind))? {
         Some(value) => Ok(Resolved {
             value,
             remember: None,
-            from_keychain: true,
+            source: Source::Saved,
         }),
         None => Err(SshError::SecretRequired),
     }
 }
 
-/// Drops a stored secret the server or the key file rejected, unless it was replaced meanwhile.
+/// Drops a saved secret the server or the key file rejected, unless it was replaced meanwhile.
+/// Secret variables are never dropped: the user manages them and other hosts may share them.
 fn forget_if_unchanged(
     secrets: &SecretStore,
-    scope: &SecretScope,
+    target: &Target,
     kind: SecretKind,
     rejected: &SecretString,
 ) {
-    let unchanged = matches!(
-        secrets.get(scope, kind),
-        Ok(Some(current)) if current.expose_secret() == rejected.expose_secret()
-    );
-    if unchanged && secrets.delete(scope, kind).is_err() {
+    let bound = target.bound_to(kind);
+    if secrets
+        .forget_saved_if_unchanged(&target.saved, kind, &bound, rejected)
+        .is_err()
+    {
         log::warn!(
-            "could not delete the rejected {kind} of host {} from the keychain",
-            scope.host_id()
+            "could not delete the rejected {kind} of connection {} from the keychain",
+            target.connection_id
         );
     }
 }
@@ -709,39 +781,53 @@ fn unparseable_key() -> SshError {
 /// Resolves everything authentication needs before any network traffic.
 fn load_credentials(
     secrets: &SecretStore,
-    scope: &SecretScope,
-    auth: &AuthMethod,
+    target: &Target,
     credential: Option<Credential>,
 ) -> Result<Loaded, SshError> {
     use russh::keys::Error as KeyError;
-    match auth {
-        AuthMethod::Agent => Ok(Loaded {
+    match &target.auth {
+        TargetAuth::Agent => Ok(Loaded {
             credentials: Credentials::Agent,
             remember: None,
-            from_keychain: false,
+            source: Source::Typed,
         }),
-        AuthMethod::Password => {
-            let r = provided_or_stored(secrets, scope, SecretKind::Password, credential)?;
+        TargetAuth::Password { variable } => {
+            let r = provided_or_stored(
+                secrets,
+                target,
+                SecretKind::Password,
+                variable.as_ref(),
+                credential,
+            )?;
             Ok(Loaded {
                 credentials: Credentials::Password(r.value),
                 remember: r.remember,
-                from_keychain: r.from_keychain,
+                source: r.source,
             })
         }
-        AuthMethod::Key { key_path } => {
+        TargetAuth::Key {
+            key_path,
+            passphrase,
+        } => {
             let text = read_key_file(key_path)?;
             let (key, remember) = match russh::keys::decode_secret_key(&text, None) {
                 Ok(key) => (key, None),
                 Err(KeyError::KeyIsEncrypted) => {
-                    let r = provided_or_stored(secrets, scope, SecretKind::Passphrase, credential)?;
+                    let r = provided_or_stored(
+                        secrets,
+                        target,
+                        SecretKind::Passphrase,
+                        passphrase.as_ref(),
+                        credential,
+                    )?;
                     match russh::keys::decode_secret_key(&text, Some(r.value.expose_secret())) {
                         Ok(key) => (key, r.remember),
                         Err(KeyError::IO(_)) => return Err(SshError::Io),
                         Err(_) => {
-                            if r.from_keychain {
+                            if r.source == Source::Saved {
                                 forget_if_unchanged(
                                     secrets,
-                                    scope,
+                                    target,
                                     SecretKind::Passphrase,
                                     &r.value,
                                 );
@@ -756,7 +842,7 @@ fn load_credentials(
             Ok(Loaded {
                 credentials: Credentials::Key(Arc::new(key)),
                 remember,
-                from_keychain: false,
+                source: Source::Typed,
             })
         }
     }

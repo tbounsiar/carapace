@@ -7,4 +7,7 @@ pub mod test_server;
 pub mod test_sftp;
 
 pub use error::SshError;
-pub use manager::{ConnectEvent, ConnectionInfo, Credential, SessionEnd, SessionRef, SshManager};
+pub use manager::{
+    ConnectEvent, ConnectionInfo, Credential, SessionEnd, SessionRef, SshManager, Target,
+    TargetAuth,
+};

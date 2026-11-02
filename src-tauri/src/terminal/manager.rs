@@ -16,7 +16,7 @@ use crate::ssh::{SessionEnd, SessionRef, SshManager};
 pub const MAX_COLS: u32 = 1000;
 pub const MAX_ROWS: u32 = 500;
 pub const MAX_WRITE_BYTES: usize = 64 * 1024;
-pub const MAX_PER_HOST: usize = 32;
+pub const MAX_PER_CONNECTION: usize = 32;
 /// Input bytes queued per terminal and not yet handed to the SSH channel.
 pub const INPUT_BUDGET: usize = 1024 * 1024;
 /// Output bytes read from the SSH channel and not yet handed to the emitter.
@@ -75,7 +75,7 @@ enum Output {
 }
 
 struct Entry {
-    host_id: String,
+    connection_id: String,
     input: mpsc::UnboundedSender<Input>,
     input_budget: Arc<Semaphore>,
     close: oneshot::Sender<()>,
@@ -105,19 +105,19 @@ pub fn check_size(cols: u32, rows: u32) -> Result<(), TerminalError> {
     Ok(())
 }
 
-/// Counts an open in progress against the per-host limit until the terminal is registered.
+/// Counts an open in progress against the per-connection limit until the terminal is registered.
 struct Reservation {
     registry: Shared,
-    host_id: String,
+    connection_id: String,
 }
 
 impl Drop for Reservation {
     fn drop(&mut self) {
         let mut reg = lock(&self.registry);
-        if let Some(n) = reg.opening.get_mut(&self.host_id) {
+        if let Some(n) = reg.opening.get_mut(&self.connection_id) {
             *n -= 1;
             if *n == 0 {
-                reg.opening.remove(&self.host_id);
+                reg.opening.remove(&self.connection_id);
             }
         }
     }
@@ -129,19 +129,19 @@ pub struct TerminalManager {
 }
 
 impl TerminalManager {
-    /// Opens a PTY shell channel on the host's existing connection and returns its terminal id.
+    /// Opens a PTY shell channel on an existing connection and returns its terminal id.
     pub async fn open(
         &self,
         ssh: &SshManager,
-        host_id: &str,
+        connection_id: &str,
         cols: u32,
         rows: u32,
         emit: Emit,
     ) -> Result<String, TerminalError> {
         check_size(cols, rows)?;
-        let reservation = self.reserve(host_id)?;
+        let reservation = self.reserve(connection_id)?;
         let session = ssh
-            .session(host_id)
+            .session(connection_id)
             .await
             .ok_or(TerminalError::NotConnected)?;
         let (channel, early) = start_shell(&session, cols, rows).await?;
@@ -155,7 +155,7 @@ impl TerminalManager {
         lock(&self.registry).terminals.insert(
             id.clone(),
             Entry {
-                host_id: host_id.to_owned(),
+                connection_id: connection_id.to_owned(),
                 input,
                 input_budget,
                 close,
@@ -242,11 +242,11 @@ impl TerminalManager {
     }
 
     #[cfg(test)]
-    pub fn count(&self, host_id: &str) -> usize {
+    pub fn count(&self, connection_id: &str) -> usize {
         lock(&self.registry)
             .terminals
             .values()
-            .filter(|e| e.host_id == host_id)
+            .filter(|e| e.connection_id == connection_id)
             .count()
     }
 
@@ -258,23 +258,23 @@ impl TerminalManager {
             .map(|e| OUTPUT_BUDGET - e.output_budget.available_permits())
     }
 
-    fn reserve(&self, host_id: &str) -> Result<Reservation, TerminalError> {
+    fn reserve(&self, connection_id: &str) -> Result<Reservation, TerminalError> {
         let mut reg = lock(&self.registry);
         let open = reg
             .terminals
             .values()
-            .filter(|e| e.host_id == host_id)
+            .filter(|e| e.connection_id == connection_id)
             .count();
-        let opening = reg.opening.get(host_id).copied().unwrap_or(0);
-        if open + opening >= MAX_PER_HOST {
+        let opening = reg.opening.get(connection_id).copied().unwrap_or(0);
+        if open + opening >= MAX_PER_CONNECTION {
             return Err(TerminalError::InvalidInput(format!(
-                "at most {MAX_PER_HOST} terminals can be open on a host"
+                "at most {MAX_PER_CONNECTION} terminals can be open on a connection"
             )));
         }
-        *reg.opening.entry(host_id.to_owned()).or_default() += 1;
+        *reg.opening.entry(connection_id.to_owned()).or_default() += 1;
         Ok(Reservation {
             registry: self.registry.clone(),
-            host_id: host_id.to_owned(),
+            connection_id: connection_id.to_owned(),
         })
     }
 
