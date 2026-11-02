@@ -1,6 +1,6 @@
-tui-root {
-  /* Documented TuiNavigation customization token (header and aside chrome color). */
-  --tui-theme-color: var(--tui-background-neutral-1-on-base);
+/* TuiNavigation paints header and aside with --tui-theme-color (default #000, kept in dark). */
+tui-root[tuiTheme='light'] {
+  --tui-theme-color: var(--tui-background-base-alt);
 }
 
 .body {

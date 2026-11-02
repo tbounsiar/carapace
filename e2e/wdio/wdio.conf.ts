@@ -5,7 +5,11 @@ import { join, resolve } from 'node:path';
 
 const root = resolve(__dirname, '..', '..');
 const application = resolve(root, 'src-tauri', 'target', 'debug', 'carapace.exe');
-const driverBin = join(process.env['CARGO_HOME'] ?? join(homedir(), '.cargo'), 'bin', 'tauri-driver.exe');
+const driverBin = join(
+  process.env['CARGO_HOME'] ?? join(homedir(), '.cargo'),
+  'bin',
+  'tauri-driver.exe',
+);
 // Created by `npm run e2e:driver`; must match the installed WebView2 version.
 const nativeDriver = resolve(root, 'e2e', '.work', 'driver', 'msedgedriver.exe');
 
@@ -14,7 +18,8 @@ let home = '';
 
 function emptyHome(): void {
   if (!home) return;
-  for (const entry of readdirSync(home)) rmSync(join(home, entry), { recursive: true, force: true });
+  for (const entry of readdirSync(home))
+    rmSync(join(home, entry), { recursive: true, force: true });
 }
 
 export const config: WebdriverIO.Config = {
@@ -35,8 +40,10 @@ export const config: WebdriverIO.Config = {
   logLevel: 'warn',
 
   onPrepare: async () => {
-    if (!existsSync(application)) throw new Error(`Missing ${application}; run "npm run e2e:build"`);
-    if (!existsSync(nativeDriver)) throw new Error(`Missing ${nativeDriver}; run "npm run e2e:driver"`);
+    if (!existsSync(application))
+      throw new Error(`Missing ${application}; run "npm run e2e:build"`);
+    if (!existsSync(nativeDriver))
+      throw new Error(`Missing ${nativeDriver}; run "npm run e2e:driver"`);
     home = mkdtempSync(join(tmpdir(), 'carapace-e2e-'));
     const bin = existsSync(driverBin) ? driverBin : 'tauri-driver';
     driver = spawn(bin, ['--native-driver', nativeDriver], {

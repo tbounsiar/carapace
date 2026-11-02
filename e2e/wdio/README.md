@@ -3,6 +3,7 @@
 WebdriverIO drives the real desktop app through `tauri-driver` and `msedgedriver` (WebView2).
 
 ## Prerequisites
+
 - `tauri-driver` and `msedgedriver` on the cargo bin directory (or `PATH`).
 - `msedgedriver` major version must equal the installed WebView2 runtime major. Check both:
   `msedgedriver --version` and the `pv` value of
@@ -10,6 +11,7 @@ WebdriverIO drives the real desktop app through `tauri-driver` and `msedgedriver
   Use `msedgedriver-tool` (see the Tauri WebDriver docs) to fetch the matching driver from Microsoft.
 
 ## Run
+
 ```
 npm run e2e:build   # debug binary, no bundle
 npm run e2e:ui      # runs e2e/wdio/specs/*.e2e.ts
