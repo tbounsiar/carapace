@@ -67,7 +67,8 @@ export interface HostInput {
   hostname: string;
   port: string;
   username: string;
-  keyPath: string;
+  keyPath?: string;
+  auth?: 'password' | 'key';
 }
 
 export async function createHost(env: string, host: HostInput = HOST): Promise<void> {
@@ -76,8 +77,12 @@ export async function createHost(env: string, host: HostInput = HOST): Promise<v
   await typeInto('host-hostname', host.hostname);
   await typeInto('host-port', host.port);
   await typeInto('host-username', host.username);
-  await byId('host-auth').$('label=Private key file').click();
-  await typeInto('host-key-path', host.keyPath);
+  if (host.auth === 'password') {
+    await byId('host-auth').$('label=Password').click();
+  } else {
+    await byId('host-auth').$('label=Private key file').click();
+    await typeInto('host-key-path', host.keyPath ?? '');
+  }
   await clickId('dialog-save');
   await waitGone('host-name');
   await byId(`tree-host-${host.name}`).waitForExist({ timeout: 10000 });

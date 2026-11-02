@@ -14,9 +14,10 @@ const driverBin = join(
 const nativeDriver = resolve(root, 'e2e', '.work', 'driver', 'msedgedriver.exe');
 
 let driver: ChildProcess | undefined;
-let home = '';
+const homeDir = () => process.env['E2E_CARAPACE_HOME'] ?? '';
 
 function emptyHome(): void {
+  const home = homeDir();
   if (!home) return;
   for (const entry of readdirSync(home))
     rmSync(join(home, entry), { recursive: true, force: true });
@@ -44,7 +45,8 @@ export const config: WebdriverIO.Config = {
       throw new Error(`Missing ${application}; run "npm run e2e:build"`);
     if (!existsSync(nativeDriver))
       throw new Error(`Missing ${nativeDriver}; run "npm run e2e:driver"`);
-    home = mkdtempSync(join(tmpdir(), 'carapace-e2e-'));
+    const home = mkdtempSync(join(tmpdir(), 'carapace-e2e-'));
+    process.env['E2E_CARAPACE_HOME'] = home;
     const bin = existsSync(driverBin) ? driverBin : 'tauri-driver';
     driver = spawn(bin, ['--native-driver', nativeDriver], {
       stdio: [null, process.stdout, process.stderr],
@@ -65,6 +67,7 @@ export const config: WebdriverIO.Config = {
 
   onComplete: () => {
     driver?.kill();
+    const home = homeDir();
     if (home) rmSync(home, { recursive: true, force: true });
   },
 };

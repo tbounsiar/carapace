@@ -31,7 +31,11 @@ const selectMode = (mode: Mode) =>
   }, mode);
 
 async function settle(): Promise<void> {
-  await browser.execute(() => (document.activeElement as HTMLElement | null)?.blur());
+  // Blurring an empty input would mark it touched and show its validation error.
+  await browser.execute(() => {
+    const active = document.activeElement as HTMLElement | null;
+    if (!active?.matches('input, textarea')) active?.blur();
+  });
   await browser.action('pointer').move({ x: 1, y: 1, origin: 'viewport' }).perform();
   await browser.pause(400);
 }
