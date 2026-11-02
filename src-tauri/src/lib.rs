@@ -15,9 +15,9 @@ pub fn run() {
                         .build(),
                 )?;
             }
-            let config_dir = app.path().app_config_dir()?;
-            app.manage(ssh::SshManager::new(&config_dir));
-            app.manage(config::ConfigStore::new(config_dir));
+            let home = config::resolve_home()?;
+            app.manage(ssh::SshManager::new(&home));
+            app.manage(config::ConfigStore::new(home));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
