@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 const root = resolve(__dirname, '..', '..', '..');
 
 export const PROJECT = 'E2E Project';
-export const ENV = 'staging';
 export const HOST = {
   name: 'sshd',
   hostname: '127.0.0.1',

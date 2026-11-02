@@ -1,12 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { ENV, HOST, PROJECT } from '../helpers/fixture';
+import { HOST, PROJECT } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
   byId,
   clickId,
   connect,
-  createEnv,
   createHost,
   createProject,
   disconnect,
@@ -51,8 +50,7 @@ describe('credentials', () => {
 
   it('creates a password host without storing a secret', async () => {
     await createProject(PROJECT);
-    await createEnv(PROJECT, ENV);
-    await createHost(ENV, {
+    await createHost(PROJECT, {
       name: PW_HOST,
       hostname: HOST.hostname,
       port: HOST.port,
@@ -78,7 +76,7 @@ describe('credentials', () => {
   });
 
   it('prompts for the passphrase of an encrypted key', async () => {
-    await createHost(ENV, {
+    await createHost(PROJECT, {
       name: ENC_HOST,
       hostname: HOST.hostname,
       port: HOST.port,

@@ -1,10 +1,9 @@
-import { ENV, HOST, PROJECT, rotateHostKey } from '../helpers/fixture';
+import { HOST, PROJECT, rotateHostKey } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
   byId,
   clickId,
   connect,
-  createEnv,
   createHost,
   createProject,
   deleteNode,
@@ -20,11 +19,10 @@ const shot = async (name: string) => console.log('screenshots', await screenshot
 describe('ssh flow', () => {
   before(waitForApp);
 
-  it('creates a project, an environment and a host', async () => {
+  it('creates a project and a host', async () => {
     await createProject(PROJECT);
-    await createEnv(PROJECT, ENV);
     await shot('flow-01-tree');
-    await createHost(ENV);
+    await createHost(PROJECT);
     await waitStatus(HOST.name, 'Not connected');
     await shot('flow-02-host-created');
   });
@@ -84,14 +82,12 @@ describe('ssh flow', () => {
     await browser.reloadSession();
     await waitForApp();
     await byId(`tree-project-${PROJECT}`).waitForExist({ timeout: 10000 });
-    await byId(`tree-env-${ENV}`).waitForExist({ timeout: 10000 });
     await byId(`tree-host-${HOST.name}`).waitForExist({ timeout: 10000 });
     await shot('flow-07-restarted');
   });
 
-  it('deletes the host, the environment and the project', async () => {
+  it('deletes the host and the project', async () => {
     await deleteNode('host', HOST.name);
-    await deleteNode('env', ENV);
     await deleteNode('project', PROJECT);
     await byId('new-project').waitForExist({ timeout: 10000 });
     await expect($('app-project-tree')).toHaveText(expect.stringContaining('No projects yet'));

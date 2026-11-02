@@ -1,9 +1,8 @@
-import { ENV, HOST, PROJECT } from '../helpers/fixture';
+import { HOST, PROJECT } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
   byId,
   clickId,
-  createEnv,
   createHost,
   createProject,
   tid,
@@ -73,8 +72,7 @@ describe('terminal tabs', () => {
 
   it('opens the first tab on a disconnected host after the host key prompt', async () => {
     await createProject(PROJECT);
-    await createEnv(PROJECT, ENV);
-    await createHost(ENV);
+    await createHost(PROJECT);
     await clickId(`open-host-${HOST.name}`);
     await byId('host-detail').waitForDisplayed({ timeout: 10000 });
     await byId('terminal-empty').waitForDisplayed({ timeout: 10000 });

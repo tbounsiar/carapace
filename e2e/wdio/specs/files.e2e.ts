@@ -2,13 +2,12 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
-import { ENV, HOST, PROJECT } from '../helpers/fixture';
+import { HOST, PROJECT } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
   byId,
   clickId,
   confirmDelete,
-  createEnv,
   createHost,
   createProject,
   tid,
@@ -132,8 +131,7 @@ describe('file explorer', () => {
 
   it('opens the Files view and connects the remote pane', async () => {
     await createProject(PROJECT);
-    await createEnv(PROJECT, ENV);
-    await createHost(ENV);
+    await createHost(PROJECT);
     await clickId(`open-host-${HOST.name}`);
     await byId('host-detail').waitForDisplayed({ timeout: 10000 });
     await clickId('host-view-files');
