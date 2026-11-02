@@ -36,6 +36,9 @@ module.exports = defineConfig([
   {
     files: ['**/*.html'],
     extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
-    rules: {},
+    rules: {
+      // Taiga associates `label[tuiLabel]` with the control through `tui-textfield`.
+      '@angular-eslint/template/label-has-associated-control': 'off',
+    },
   },
 ]);

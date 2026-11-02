@@ -1,0 +1,26 @@
+<p class="intro">
+  The authenticity of {{ prompt.hostname }}:{{ prompt.port }} cannot be established. Verify the
+  fingerprint before connecting.
+</p>
+
+<dl>
+  <dt>Host</dt>
+  <dd>{{ prompt.hostname }}:{{ prompt.port }}</dd>
+  <dt>Algorithm</dt>
+  <dd>{{ prompt.algorithm }}</dd>
+  <dt>Fingerprint</dt>
+  <dd class="fingerprint" data-testid="fingerprint">{{ prompt.fingerprint }}</dd>
+</dl>
+
+<footer>
+  <button
+    tuiButton
+    tuiAutoFocus
+    appearance="secondary"
+    type="button"
+    (click)="context.completeWith(false)"
+  >
+    Reject
+  </button>
+  <button tuiButton type="button" (click)="context.completeWith(true)">Accept and connect</button>
+</footer>

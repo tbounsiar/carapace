@@ -1,0 +1,81 @@
+@if (loading()) {
+  <tui-loader class="loader" />
+} @else if (nodes().length === 0) {
+  <p class="empty">No projects yet</p>
+  <button tuiButton size="s" iconStart="@tui.plus" type="button" (click)="createProject()">
+    New project
+  </button>
+} @else {
+  <div class="toolbar">
+    <button
+      tuiButton
+      appearance="flat"
+      size="s"
+      iconStart="@tui.plus"
+      type="button"
+      (click)="createProject()"
+    >
+      New project
+    </button>
+  </div>
+  @for (node of nodes(); track node.id) {
+    <tui-tree
+      [tuiTreeController]="true"
+      [value]="node"
+      [childrenHandler]="childrenHandler"
+      [trackBy]="trackBy"
+      [content]="content"
+    />
+  }
+}
+
+<ng-template #content let-node="node" let-value>
+  <span class="node">
+    <tui-icon [icon]="icon(value)" />
+    <span class="label">{{ label(value) }}</span>
+    @if (value.kind === 'host' && stateLabel(value)) {
+      <span tuiBadge tuiStatus size="s" [appearance]="stateAppearance(value)">
+        {{ stateLabel(value) }}
+      </span>
+    }
+    <button
+      tuiIconButton
+      appearance="flat"
+      size="xs"
+      iconStart="@tui.ellipsis"
+      type="button"
+      tuiDropdownAuto
+      [attr.aria-label]="'Actions for ' + label(value)"
+      [tuiDropdown]="menu"
+    >
+      Actions
+    </button>
+    <ng-template #menu let-close>
+      <tui-data-list size="s">
+        @if (value.kind !== 'host') {
+          <button tuiOption type="button" (click)="close(); addChild(value)">
+            {{ value.kind === 'project' ? 'Add environment' : 'Add host' }}
+          </button>
+        }
+        @if (value.kind === 'host') {
+          @if (stateOf(value) === 'connected') {
+            <button tuiOption type="button" (click)="close(); disconnect(value)">Disconnect</button>
+          } @else {
+            <button
+              tuiOption
+              type="button"
+              [disabled]="isBusy(value)"
+              (click)="close(); connect(value)"
+            >
+              Connect
+            </button>
+          }
+        }
+        <button tuiOption type="button" (click)="close(); edit(value)">
+          {{ value.kind === 'host' ? 'Edit' : 'Rename' }}
+        </button>
+        <button tuiOption type="button" (click)="close(); remove(value)">Delete</button>
+      </tui-data-list>
+    </ng-template>
+  </span>
+</ng-template>

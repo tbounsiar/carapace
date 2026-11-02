@@ -1,0 +1,29 @@
+:host {
+  display: block;
+  color: var(--tui-text-primary);
+}
+
+.empty {
+  margin: 0 0 var(--tui-padding-s);
+  color: var(--tui-text-secondary);
+  font: var(--tui-typography-body-s);
+}
+
+.toolbar {
+  margin-block-end: var(--tui-padding-s);
+}
+
+.node {
+  display: flex;
+  align-items: center;
+  gap: var(--tui-padding-s);
+  min-inline-size: 0;
+}
+
+.label {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

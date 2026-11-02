@@ -1,3 +1,27 @@
-<tui-root>
-  <router-outlet />
+<tui-root [attr.tuiTheme]="effective()">
+  <header tuiNavigationHeader>
+    <span tuiNavigationLogo>
+      <tui-icon icon="@tui.terminal" />
+      Carapace
+    </span>
+    <span class="spacer"></span>
+    <tui-segmented
+      size="s"
+      aria-label="Theme"
+      [activeItemIndex]="activeIndex()"
+      (activeItemIndexChange)="selectIndex($event)"
+    >
+      <button type="button" aria-label="System theme"><tui-icon icon="@tui.monitor" /></button>
+      <button type="button" aria-label="Light theme"><tui-icon icon="@tui.sun" /></button>
+      <button type="button" aria-label="Dark theme"><tui-icon icon="@tui.moon" /></button>
+    </tui-segmented>
+  </header>
+  <div class="body">
+    <aside [tuiNavigationAside]="true">
+      <app-project-tree />
+    </aside>
+    <main tuiNavigationMain>
+      <router-outlet />
+    </main>
+  </div>
 </tui-root>

@@ -1,0 +1,32 @@
+<div tuiNotification appearance="negative" size="m">
+  The key presented by {{ event.hostname }}:{{ event.port }} does not match the stored one. Someone
+  may be intercepting the connection (man-in-the-middle), or the server was reinstalled. The
+  connection was not made.
+</div>
+
+<dl>
+  <dt>Host</dt>
+  <dd>{{ event.hostname }}:{{ event.port }}</dd>
+  <dt>Algorithm</dt>
+  <dd>{{ event.algorithm }}</dd>
+  <dt>Known</dt>
+  <dd data-testid="known">
+    @for (fingerprint of event.knownFingerprints; track fingerprint) {
+      <div class="fingerprint">{{ fingerprint }}</div>
+    }
+  </dd>
+  <dt>Presented</dt>
+  <dd class="fingerprint" data-testid="presented">{{ event.fingerprint }}</dd>
+</dl>
+
+<footer>
+  <button
+    tuiButton
+    appearance="flat-destructive"
+    type="button"
+    (click)="context.completeWith(true)"
+  >
+    Replace stored key
+  </button>
+  <button tuiButton tuiAutoFocus type="button" (click)="context.completeWith(false)">Close</button>
+</footer>

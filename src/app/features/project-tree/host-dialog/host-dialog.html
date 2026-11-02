@@ -1,0 +1,43 @@
+<form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
+  <tui-textfield>
+    <label tuiLabel>Name</label>
+    <input tuiAutoFocus tuiInput formControlName="name" />
+  </tui-textfield>
+  <tui-error formControlName="name" />
+
+  <tui-textfield>
+    <label tuiLabel>Hostname</label>
+    <input tuiInput formControlName="hostname" />
+  </tui-textfield>
+  <tui-error formControlName="hostname" />
+
+  <tui-textfield>
+    <label tuiLabel>Port</label>
+    <input tuiInputNumber formControlName="port" [min]="1" [max]="65535" />
+  </tui-textfield>
+  <tui-error formControlName="port" />
+
+  <tui-textfield>
+    <label tuiLabel>Username</label>
+    <input tuiInput formControlName="username" />
+  </tui-textfield>
+  <tui-error formControlName="username" />
+
+  <tui-radio-list formControlName="authKind" [items]="authKinds" [itemContent]="authLabel" />
+  <ng-template #authLabel let-kind>{{ label(kind) }}</ng-template>
+
+  @if (isKey()) {
+    <tui-textfield>
+      <label tuiLabel>Key path</label>
+      <input tuiInput formControlName="keyPath" />
+    </tui-textfield>
+    <tui-error formControlName="keyPath" />
+  }
+
+  <footer>
+    <button tuiButton appearance="secondary" type="button" (click)="context.$implicit.complete()">
+      Cancel
+    </button>
+    <button tuiButton type="submit" [disabled]="saving()">Save</button>
+  </footer>
+</form>

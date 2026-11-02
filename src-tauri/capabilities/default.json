@@ -5,5 +5,21 @@
   "windows": [
     "main"
   ],
-  "permissions": []
+  "permissions": [
+    "allow-list-projects",
+    "allow-create-project",
+    "allow-rename-project",
+    "allow-delete-project",
+    "allow-create-environment",
+    "allow-rename-environment",
+    "allow-delete-environment",
+    "allow-create-host",
+    "allow-update-host",
+    "allow-delete-host",
+    "allow-connect-host",
+    "allow-answer-host-key",
+    "allow-replace-host-key",
+    "allow-disconnect-host",
+    "allow-list-connections"
+  ]
 }

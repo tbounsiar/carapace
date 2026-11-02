@@ -1,0 +1,50 @@
+[[permission]]
+identifier = "allow-list-projects"
+description = "Allows the list_projects command."
+commands.allow = ["list_projects"]
+
+[[permission]]
+identifier = "allow-create-project"
+description = "Allows the create_project command."
+commands.allow = ["create_project"]
+
+[[permission]]
+identifier = "allow-rename-project"
+description = "Allows the rename_project command."
+commands.allow = ["rename_project"]
+
+[[permission]]
+identifier = "allow-delete-project"
+description = "Allows the delete_project command."
+commands.allow = ["delete_project"]
+
+[[permission]]
+identifier = "allow-create-environment"
+description = "Allows the create_environment command."
+commands.allow = ["create_environment"]
+
+[[permission]]
+identifier = "allow-rename-environment"
+description = "Allows the rename_environment command."
+commands.allow = ["rename_environment"]
+
+[[permission]]
+identifier = "allow-delete-environment"
+description = "Allows the delete_environment command."
+commands.allow = ["delete_environment"]
+
+[[permission]]
+identifier = "allow-create-host"
+description = "Allows the create_host command."
+commands.allow = ["create_host"]
+
+[[permission]]
+identifier = "allow-update-host"
+description = "Allows the update_host command."
+commands.allow = ["update_host"]
+
+[[permission]]
+identifier = "allow-delete-host"
+description = "Allows the delete_host command."
+commands.allow = ["delete_host"]
+
