@@ -1,23 +1,31 @@
 <tui-root [attr.tuiTheme]="effective()">
-  <header tuiNavigationHeader>
-    <span tuiNavigationLogo>
+  <header tuiNavigationHeader [attr.tuiTheme]="effective()">
+    <a tuiNavigationLogo routerLink="/" data-testid="home-link">
       <tui-icon icon="@tui.terminal" />
       Carapace
-    </span>
-    <span class="spacer"></span>
+    </a>
+    <hr />
     <tui-segmented
       size="s"
       aria-label="Theme"
+      data-testid="theme-toggle"
       [activeItemIndex]="activeIndex()"
       (activeItemIndexChange)="selectIndex($event)"
     >
-      <button type="button" aria-label="System theme"><tui-icon icon="@tui.monitor" /></button>
-      <button type="button" aria-label="Light theme"><tui-icon icon="@tui.sun" /></button>
-      <button type="button" aria-label="Dark theme"><tui-icon icon="@tui.moon" /></button>
+      @for (option of themeOptions; track option.mode) {
+        <button
+          type="button"
+          [attr.aria-label]="option.label"
+          [attr.data-testid]="'theme-' + option.mode"
+          [tuiHint]="option.label"
+        >
+          <tui-icon [icon]="option.icon" />
+        </button>
+      }
     </tui-segmented>
   </header>
   <div class="body">
-    <aside [tuiNavigationAside]="true">
+    <aside aria-label="Projects" [tuiNavigationAside]="true" [attr.tuiTheme]="effective()">
       <app-project-tree />
     </aside>
     <main tuiNavigationMain>

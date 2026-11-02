@@ -9,6 +9,7 @@ import {
   TuiTextfield,
   type TuiDialogContext,
 } from '@taiga-ui/core';
+import { TuiButtonLoading } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
 import { handleSaveError } from '../save-error';
@@ -25,6 +26,7 @@ export interface NameDialogData {
     ReactiveFormsModule,
     TuiAutoFocus,
     TuiButton,
+    TuiButtonLoading,
     TuiError,
     TuiForm,
     TuiInput,

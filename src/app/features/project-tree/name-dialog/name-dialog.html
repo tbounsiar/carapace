@@ -1,13 +1,19 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
   <tui-textfield>
     <label tuiLabel>Name</label>
-    <input tuiAutoFocus tuiInput formControlName="name" />
+    <input tuiAutoFocus tuiInput formControlName="name" data-testid="name-input" />
   </tui-textfield>
   <tui-error formControlName="name" />
   <footer>
-    <button tuiButton appearance="secondary" type="button" (click)="context.$implicit.complete()">
+    <button
+      tuiButton
+      appearance="secondary"
+      type="button"
+      data-testid="dialog-cancel"
+      (click)="context.$implicit.complete()"
+    >
       Cancel
     </button>
-    <button tuiButton type="submit" [disabled]="saving()">Save</button>
+    <button tuiButton type="submit" data-testid="dialog-save" [loading]="saving()">Save</button>
   </footer>
 </form>

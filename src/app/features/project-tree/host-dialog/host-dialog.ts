@@ -10,10 +10,11 @@ import {
   TuiTextfield,
   type TuiDialogContext,
 } from '@taiga-ui/core';
-import { TuiInputNumber, TuiRadioList } from '@taiga-ui/kit';
+import { TuiButtonLoading, TuiInputNumber, TuiRadioList } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
 import type { AuthMethod, HostInput } from '../../../core/ipc/config.models';
+import { AUTH_LABELS } from '../../../shared/auth-method';
 import { handleSaveError } from '../save-error';
 import {
   hostnameValidator,
@@ -35,6 +36,7 @@ export type AuthKind = AuthMethod['kind'];
     ReactiveFormsModule,
     TuiAutoFocus,
     TuiButton,
+    TuiButtonLoading,
     TuiError,
     TuiForm,
     TuiInput,
@@ -43,6 +45,7 @@ export type AuthKind = AuthMethod['kind'];
     TuiTextfield,
   ],
   selector: 'app-host-dialog',
+  styleUrl: './host-dialog.scss',
   templateUrl: './host-dialog.html',
 })
 export class HostDialog {
@@ -50,11 +53,6 @@ export class HostDialog {
   protected readonly context = injectContext<TuiDialogContext<void, HostDialogData>>();
 
   protected readonly authKinds: readonly AuthKind[] = ['password', 'key', 'agent'];
-  protected readonly authLabels: Record<AuthKind, string> = {
-    password: 'Password',
-    key: 'Private key file',
-    agent: 'SSH agent',
-  };
 
   protected readonly saving = signal(false);
   private readonly initial = this.context.data.initial;
@@ -81,7 +79,7 @@ export class HostDialog {
   }
 
   protected label(kind: AuthKind): string {
-    return this.authLabels[kind];
+    return AUTH_LABELS[kind];
   }
 
   protected async submit(): Promise<void> {

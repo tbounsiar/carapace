@@ -42,4 +42,15 @@ describe('App', () => {
     expect(TestBed.inject(ThemeService).mode()).toBe('dark');
     expect(el.querySelector('tui-root')?.getAttribute('tuiTheme')).toBe('dark');
   });
+
+  it('re-themes the navigation header and aside with the app theme', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    el.querySelector<HTMLButtonElement>('[data-testid="theme-light"]')!.click();
+    await fixture.whenStable();
+    expect(el.querySelector('header[tuiNavigationHeader]')?.getAttribute('tuiTheme')).toBe('light');
+    expect(el.querySelector('aside[tuiNavigationAside]')?.getAttribute('tuiTheme')).toBe('light');
+    expect(el.querySelector('[data-testid="theme-toggle"]')).not.toBeNull();
+  });
 });

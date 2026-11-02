@@ -1,43 +1,81 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
-  <tui-textfield>
-    <label tuiLabel>Name</label>
-    <input tuiAutoFocus tuiInput formControlName="name" />
-  </tui-textfield>
-  <tui-error formControlName="name" />
+  <div>
+    <tui-textfield>
+      <label tuiLabel>Name</label>
+      <input tuiAutoFocus tuiInput formControlName="name" data-testid="host-name" />
+    </tui-textfield>
+    <tui-error formControlName="name" />
+  </div>
 
-  <tui-textfield>
-    <label tuiLabel>Hostname</label>
-    <input tuiInput formControlName="hostname" />
-  </tui-textfield>
-  <tui-error formControlName="hostname" />
+  <div class="address">
+    <div>
+      <tui-textfield>
+        <label tuiLabel>Hostname</label>
+        <input tuiInput class="mono" formControlName="hostname" data-testid="host-hostname" />
+      </tui-textfield>
+      <tui-error formControlName="hostname" />
+    </div>
+    <div>
+      <tui-textfield>
+        <label tuiLabel>Port</label>
+        <input
+          tuiInputNumber
+          class="mono"
+          formControlName="port"
+          data-testid="host-port"
+          [min]="1"
+          [max]="65535"
+        />
+      </tui-textfield>
+      <tui-error formControlName="port" />
+    </div>
+  </div>
 
-  <tui-textfield>
-    <label tuiLabel>Port</label>
-    <input tuiInputNumber formControlName="port" [min]="1" [max]="65535" />
-  </tui-textfield>
-  <tui-error formControlName="port" />
+  <div>
+    <tui-textfield>
+      <label tuiLabel>Username</label>
+      <input tuiInput class="mono" formControlName="username" data-testid="host-username" />
+    </tui-textfield>
+    <tui-error formControlName="username" />
+  </div>
 
-  <tui-textfield>
-    <label tuiLabel>Username</label>
-    <input tuiInput formControlName="username" />
-  </tui-textfield>
-  <tui-error formControlName="username" />
-
-  <tui-radio-list formControlName="authKind" [items]="authKinds" [itemContent]="authLabel" />
-  <ng-template #authLabel let-kind>{{ label(kind) }}</ng-template>
+  <fieldset class="auth">
+    <legend>Authentication</legend>
+    <tui-radio-list
+      formControlName="authKind"
+      data-testid="host-auth"
+      [items]="authKinds"
+      [itemContent]="authLabel"
+    />
+    <ng-template #authLabel let-kind>{{ label(kind) }}</ng-template>
+  </fieldset>
 
   @if (isKey()) {
-    <tui-textfield>
-      <label tuiLabel>Key path</label>
-      <input tuiInput formControlName="keyPath" />
-    </tui-textfield>
-    <tui-error formControlName="keyPath" />
+    <div>
+      <tui-textfield>
+        <label tuiLabel>Key path</label>
+        <input
+          tuiInput
+          class="mono"
+          formControlName="keyPath"
+          placeholder="~/.ssh/id_ed25519"
+          data-testid="host-key-path"
+        />
+      </tui-textfield>
+      <tui-error formControlName="keyPath" />
+    </div>
   }
 
   <footer>
-    <button tuiButton appearance="secondary" type="button" (click)="context.$implicit.complete()">
+    <button
+      tuiButton
+      appearance="secondary"
+      type="button"
+      data-testid="dialog-cancel"
+      (click)="context.$implicit.complete()"
+    >
       Cancel
     </button>
-    <button tuiButton type="submit" [disabled]="saving()">Save</button>
+    <button tuiButton type="submit" data-testid="dialog-save" [loading]="saving()">Save</button>
   </footer>
 </form>

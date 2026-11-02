@@ -1,0 +1,19 @@
+<tui-block-status size="m" data-testid="welcome">
+  <span tuiAvatar="@tui.terminal" size="xl" tuiSlot="top"></span>
+  <h1>Carapace</h1>
+  <p class="line">SSH and SFTP, organized by project and environment.</p>
+  @if (hasProjects()) {
+    <p class="line">Select a host in the sidebar to see its details and connect.</p>
+  } @else {
+    <button
+      tuiButton
+      size="m"
+      iconStart="@tui.plus"
+      type="button"
+      data-testid="welcome-new-project"
+      (click)="createProject()"
+    >
+      New project
+    </button>
+  }
+</tui-block-status>

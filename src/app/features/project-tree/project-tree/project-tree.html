@@ -1,18 +1,33 @@
 @if (loading()) {
   <tui-loader class="loader" />
 } @else if (nodes().length === 0) {
-  <p class="empty">No projects yet</p>
-  <button tuiButton size="s" iconStart="@tui.plus" type="button" (click)="createProject()">
-    New project
-  </button>
-} @else {
-  <div class="toolbar">
+  <tui-block-status size="m" class="empty">
+    <h2>No projects yet</h2>
+    Projects group your environments and hosts.
     <button
       tuiButton
-      appearance="flat"
+      appearance="primary"
       size="s"
       iconStart="@tui.plus"
       type="button"
+      data-testid="new-project"
+      (click)="createProject()"
+    >
+      New project
+    </button>
+  </tui-block-status>
+} @else {
+  <div class="toolbar">
+    <span class="heading">Projects</span>
+    <button
+      tuiIconButton
+      appearance="flat-grayscale"
+      size="xs"
+      iconStart="@tui.plus"
+      type="button"
+      tuiHint="New project"
+      aria-label="New project"
+      data-testid="new-project"
       (click)="createProject()"
     >
       New project
@@ -20,6 +35,8 @@
   </div>
   @for (node of nodes(); track node.id) {
     <tui-tree
+      class="tree"
+      [attr.data-testid]="'tree-' + label(node)"
       [tuiTreeController]="true"
       [value]="node"
       [childrenHandler]="childrenHandler"
@@ -29,53 +46,178 @@
   }
 }
 
-<ng-template #content let-node="node" let-value>
-  <span class="node">
-    <tui-icon [icon]="icon(value)" />
-    <span class="label">{{ label(value) }}</span>
-    @if (value.kind === 'host' && stateLabel(value)) {
-      <span tuiBadge tuiStatus size="s" [appearance]="stateAppearance(value)">
-        {{ stateLabel(value) }}
-      </span>
+<ng-template #content let-value>
+  <div
+    class="row"
+    [attr.data-kind]="value.kind"
+    [attr.data-testid]="testId('tree', value)"
+    [class._menu]="openMenu() === key(value)"
+    [style.--app-env-color]="marker(value)?.color"
+  >
+    @if (value.kind === 'host') {
+      @let state = status(value);
+      @if (state.loading) {
+        <tui-loader
+          size="xs"
+          class="status"
+          role="img"
+          [attr.aria-label]="state.label"
+          [attr.data-testid]="testId('status', value)"
+          [tuiHint]="state.label"
+        />
+      } @else {
+        <span
+          class="status"
+          role="img"
+          [tuiStatus]="state.color"
+          [attr.aria-label]="state.label"
+          [attr.data-testid]="testId('status', value)"
+          [tuiHint]="state.label"
+        ></span>
+      }
+      <a
+        class="label link"
+        routerLinkActive="_selected"
+        ariaCurrentWhenActive="page"
+        [routerLink]="['/hosts', value.id]"
+        [attr.data-testid]="testId('open', value)"
+      >
+        {{ label(value) }}
+      </a>
+    } @else {
+      <tui-icon class="icon" [icon]="icon(value)" />
+      <span class="label" [class.strong]="value.kind === 'project'">{{ label(value) }}</span>
+      @let envMarker = marker(value);
+      @if (envMarker?.label) {
+        <span
+          tuiBadge
+          size="s"
+          [appearance]="envMarker!.appearance"
+          [attr.data-testid]="testId('env-kind', value)"
+        >
+          {{ envMarker!.label }}
+        </span>
+      }
     }
-    <button
-      tuiIconButton
-      appearance="flat"
-      size="xs"
-      iconStart="@tui.ellipsis"
-      type="button"
-      tuiDropdownAuto
-      [attr.aria-label]="'Actions for ' + label(value)"
-      [tuiDropdown]="menu"
-    >
-      Actions
-    </button>
+
+    <span class="actions">
+      @if (value.kind === 'host') {
+        @if (isConnected(value)) {
+          <button
+            tuiIconButton
+            appearance="flat-grayscale"
+            size="xs"
+            iconStart="@tui.unplug"
+            type="button"
+            tuiHint="Disconnect"
+            [attr.aria-label]="'Disconnect ' + label(value)"
+            [attr.data-testid]="testId('disconnect', value)"
+            (click)="disconnect(value)"
+          >
+            Disconnect
+          </button>
+        } @else {
+          <button
+            tuiIconButton
+            appearance="flat-grayscale"
+            size="xs"
+            iconStart="@tui.plug"
+            type="button"
+            tuiHint="Connect"
+            [disabled]="status(value).busy"
+            [attr.aria-label]="'Connect ' + label(value)"
+            [attr.data-testid]="testId('connect', value)"
+            (click)="connect(value)"
+          >
+            Connect
+          </button>
+        }
+      } @else {
+        <button
+          tuiIconButton
+          appearance="flat-grayscale"
+          size="xs"
+          iconStart="@tui.plus"
+          type="button"
+          [tuiHint]="addLabel(value)"
+          [attr.aria-label]="addLabel(value) + ' to ' + label(value)"
+          [attr.data-testid]="testId('add', value)"
+          (click)="addChild(value)"
+        >
+          {{ addLabel(value) }}
+        </button>
+      }
+      <button
+        tuiIconButton
+        appearance="flat-grayscale"
+        size="xs"
+        iconStart="@tui.ellipsis"
+        type="button"
+        tuiDropdownAppearance=""
+        [attr.aria-label]="'Actions for ' + label(value)"
+        [attr.data-testid]="testId('menu', value)"
+        [tuiDropdown]="menu"
+        [tuiDropdownOpen]="openMenu() === key(value)"
+        (tuiDropdownOpenChange)="setMenu(value, $event)"
+      >
+        Actions
+      </button>
+    </span>
+
     <ng-template #menu let-close>
       <tui-data-list size="s">
         @if (value.kind !== 'host') {
-          <button tuiOption type="button" (click)="close(); addChild(value)">
-            {{ value.kind === 'project' ? 'Add environment' : 'Add host' }}
+          <button
+            tuiOption
+            iconStart="@tui.plus"
+            type="button"
+            data-testid="menu-add"
+            (click)="close(); addChild(value)"
+          >
+            {{ addLabel(value) }}
+          </button>
+        } @else if (isConnected(value)) {
+          <button
+            tuiOption
+            iconStart="@tui.unplug"
+            type="button"
+            data-testid="menu-disconnect"
+            (click)="close(); disconnect(value)"
+          >
+            Disconnect
+          </button>
+        } @else {
+          <button
+            tuiOption
+            iconStart="@tui.plug"
+            type="button"
+            data-testid="menu-connect"
+            [disabled]="status(value).busy"
+            (click)="close(); connect(value)"
+          >
+            Connect
           </button>
         }
-        @if (value.kind === 'host') {
-          @if (stateOf(value) === 'connected') {
-            <button tuiOption type="button" (click)="close(); disconnect(value)">Disconnect</button>
-          } @else {
-            <button
-              tuiOption
-              type="button"
-              [disabled]="isBusy(value)"
-              (click)="close(); connect(value)"
-            >
-              Connect
-            </button>
-          }
-        }
-        <button tuiOption type="button" (click)="close(); edit(value)">
+        <button
+          tuiOption
+          iconStart="@tui.pencil"
+          type="button"
+          data-testid="menu-edit"
+          (click)="close(); edit(value)"
+        >
           {{ value.kind === 'host' ? 'Edit' : 'Rename' }}
         </button>
-        <button tuiOption type="button" (click)="close(); remove(value)">Delete</button>
+        <hr />
+        <button
+          tuiOption
+          iconStart="@tui.trash"
+          type="button"
+          data-testid="menu-delete"
+          (click)="close(); remove(value)"
+        >
+          Delete
+        </button>
       </tui-data-list>
     </ng-template>
-  </span>
+  </div>
 </ng-template>

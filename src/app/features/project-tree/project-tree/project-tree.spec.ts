@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Project } from '../../../core/ipc/config.models';
@@ -68,6 +69,8 @@ describe('ProjectTree', () => {
     (button as HTMLElement).click();
     await settle();
   };
+  const byTestId = (id: string): HTMLElement | null =>
+    el().querySelector<HTMLElement>(`[data-testid="${id}"]`);
   const byText = (selector: string, text: string): HTMLElement | undefined =>
     Array.from(document.body.querySelectorAll<HTMLElement>(selector)).find((n) =>
       n.textContent?.includes(text),
@@ -81,6 +84,7 @@ describe('ProjectTree', () => {
     await TestBed.configureTestingModule({
       imports: [Host],
       providers: [
+        provideRouter([]),
         provideTaiga(),
         { provide: ConfigService, useValue: config },
         { provide: SshService, useValue: ssh },
@@ -162,15 +166,47 @@ describe('ProjectTree', () => {
     });
   });
 
-  it('shows a badge and offers Disconnect when connected', async () => {
+  it('shows the status as a dot with a word and offers Disconnect when connected', async () => {
     projects.set(PROJECTS);
     states.set({ h1: 'connected' });
     await settle();
-    expect(el().querySelector('[tuiBadge]')?.textContent).toContain('Connected');
+    expect(byTestId('status-host-web-1')?.getAttribute('aria-label')).toBe('Connected');
+    expect(byTestId('connect-host-web-1')).toBeNull();
     await click(el().querySelector('button[aria-label="Actions for web-1"]'));
     expect(byText('button[tuiOption]', 'Connect')).toBeUndefined();
     await click(byText('button[tuiOption]', 'Disconnect'));
     expect(ssh.disconnect).toHaveBeenCalledWith('h1');
+  });
+
+  it('shows a neutral status for idle hosts and connects from the row action', async () => {
+    projects.set(PROJECTS);
+    await settle();
+    expect(byTestId('status-host-web-1')?.getAttribute('aria-label')).toBe('Not connected');
+    await click(byTestId('connect-host-web-1'));
+    expect(ssh.connect).toHaveBeenCalledWith('h1', expect.anything());
+  });
+
+  it('disables the row connect action while connecting', async () => {
+    projects.set(PROJECTS);
+    states.set({ h1: 'connecting' });
+    await settle();
+    expect(byTestId('connect-host-web-1')?.hasAttribute('disabled')).toBe(true);
+    expect(byTestId('status-host-web-1')?.tagName.toLowerCase()).toBe('tui-loader');
+  });
+
+  it('marks environments by kind and links hosts to their detail route', async () => {
+    projects.set(PROJECTS);
+    await settle();
+    expect(byTestId('env-kind-env-staging')?.textContent).toContain('staging');
+    expect(byTestId('open-host-web-1')?.getAttribute('href')).toBe('/hosts/h1');
+    expect(byTestId('tree-host-web-1')?.getAttribute('style')).toContain('--tui-status-warning');
+  });
+
+  it('adds a host from the environment row action', async () => {
+    projects.set(PROJECTS);
+    await settle();
+    await click(byTestId('add-env-staging'));
+    expect(document.body.querySelector('app-host-dialog')).not.toBeNull();
   });
 
   it('shows the safe message when connecting fails', async () => {

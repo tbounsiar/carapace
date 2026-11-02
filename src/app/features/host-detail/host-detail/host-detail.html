@@ -1,0 +1,85 @@
+@if (node(); as node) {
+  <section tuiCardLarge="compact" appearance="outline-grayscale" data-testid="host-detail">
+    <header tuiHeader="body-l">
+      <hgroup tuiTitle>
+        <h1 class="name">
+          <span data-testid="host-detail-name">{{ node.host.name }}</span>
+          @if (marker()?.label) {
+            <span
+              tuiBadge
+              size="m"
+              [appearance]="marker()!.appearance"
+              data-testid="host-detail-env-kind"
+            >
+              {{ marker()!.label }}
+            </span>
+          }
+        </h1>
+        <p tuiSubtitle class="mono" data-testid="host-detail-address">{{ address() }}</p>
+      </hgroup>
+      <div tuiAccessories>
+        <button
+          tuiButton
+          appearance="secondary"
+          size="s"
+          iconStart="@tui.pencil"
+          type="button"
+          data-testid="host-edit"
+          (click)="edit()"
+        >
+          Edit
+        </button>
+        @if (connected()) {
+          <button
+            tuiButton
+            appearance="secondary-destructive"
+            size="s"
+            iconStart="@tui.unplug"
+            type="button"
+            data-testid="host-disconnect"
+            (click)="disconnect()"
+          >
+            Disconnect
+          </button>
+        } @else {
+          <button
+            tuiButton
+            appearance="primary"
+            size="s"
+            iconStart="@tui.plug"
+            type="button"
+            data-testid="host-connect"
+            [loading]="status().busy"
+            (click)="connect()"
+          >
+            Connect
+          </button>
+        }
+      </div>
+    </header>
+
+    <dl class="facts">
+      <dt>Status</dt>
+      <dd>
+        <span data-testid="host-detail-status" [tuiStatus]="status().color">
+          {{ status().label }}
+        </span>
+      </dd>
+      <dt>Environment</dt>
+      <dd data-testid="host-detail-env">{{ node.project.name }} / {{ node.environment.name }}</dd>
+      <dt>Authentication</dt>
+      <dd data-testid="host-detail-auth">
+        {{ authLabel() }}
+        @if (keyPath(); as path) {
+          <span class="mono path">{{ path }}</span>
+        }
+      </dd>
+    </dl>
+  </section>
+} @else {
+  <tui-block-status size="m" data-testid="host-not-found">
+    <h2>Host not found</h2>
+    It may have been deleted or moved.
+    <a tuiButton appearance="secondary" size="s" routerLink="/">Back to start</a>
+  </tui-block-status>
+}

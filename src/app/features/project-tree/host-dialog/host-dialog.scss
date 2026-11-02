@@ -1,0 +1,25 @@
+.address {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7rem;
+  gap: var(--tui-padding-m);
+}
+
+.mono {
+  font-family: var(--app-font-mono);
+}
+
+.auth {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+legend {
+  padding: 0;
+  margin-block-end: 0.5rem;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+}

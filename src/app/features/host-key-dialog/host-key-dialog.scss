@@ -1,19 +1,15 @@
 :host {
   display: flex;
   flex-direction: column;
-  gap: var(--tui-padding-m);
-}
-
-.intro {
-  margin: 0;
-  color: var(--tui-text-secondary);
+  gap: var(--tui-padding-l);
 }
 
 dl {
   display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--tui-padding-s) var(--tui-padding-m);
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.5rem var(--tui-padding-l);
   margin: 0;
+  font: var(--tui-typography-body-s);
 }
 
 dt {
@@ -25,13 +21,24 @@ dd {
   min-inline-size: 0;
 }
 
+.mono {
+  font-family: var(--app-font-mono);
+}
+
 .fingerprint {
-  font-family: monospace;
   overflow-wrap: anywhere;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--tui-radius-xs);
+  background: var(--tui-background-neutral-1);
+  color: var(--tui-text-primary);
+
+  & + & {
+    margin-block-start: 0.25rem;
+  }
 }
 
 footer {
   display: flex;
   justify-content: flex-end;
-  gap: var(--tui-padding-s);
+  gap: 0.5rem;
 }
