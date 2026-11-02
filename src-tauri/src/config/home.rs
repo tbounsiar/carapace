@@ -11,7 +11,7 @@ pub enum HomeError {
     NoUserHome,
 }
 
-/// Resolves the app home: `$CARAPACE_HOME` when set and non-empty, `~/carapace` otherwise.
+/// Resolves the app home: `$CARAPACE_HOME` when set and non-empty, `~/.carapace` otherwise.
 pub fn resolve_home() -> Result<PathBuf, HomeError> {
     resolve(std::env::var_os(HOME_ENV), std::env::home_dir())
 }
@@ -19,7 +19,7 @@ pub fn resolve_home() -> Result<PathBuf, HomeError> {
 fn resolve(var: Option<OsString>, user_home: Option<PathBuf>) -> Result<PathBuf, HomeError> {
     let Some(value) = var.filter(|v| !v.is_empty()) else {
         return user_home
-            .map(|h| h.join("carapace"))
+            .map(|h| h.join(".carapace"))
             .ok_or(HomeError::NoUserHome);
     };
     let value = PathBuf::from(value);
@@ -53,10 +53,10 @@ mod tests {
     }
 
     #[test]
-    fn defaults_to_carapace_in_user_home() {
+    fn defaults_to_dot_carapace_in_user_home() {
         assert_eq!(
             resolve(None, Some(user_home())),
-            Ok(user_home().join("carapace"))
+            Ok(user_home().join(".carapace"))
         );
     }
 
@@ -64,7 +64,7 @@ mod tests {
     fn empty_variable_uses_default() {
         assert_eq!(
             resolve(Some(OsString::new()), Some(user_home())),
-            Ok(user_home().join("carapace"))
+            Ok(user_home().join(".carapace"))
         );
     }
 
