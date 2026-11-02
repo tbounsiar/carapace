@@ -1,0 +1,35 @@
+<app-file-pane
+  label="Local"
+  data-testid="pane-local"
+  [source]="local"
+  [startPath]="startPath('local')"
+  (pathChange)="remember('local', $event)"
+/>
+@if (connected()) {
+  <app-file-pane
+    label="Remote"
+    data-testid="pane-remote"
+    [source]="remote()"
+    [startPath]="startPath('remote')"
+    (pathChange)="remember('remote', $event)"
+  />
+} @else {
+  <section class="disconnected" data-testid="pane-remote">
+    <tui-block-status size="m">
+      <span tuiAvatar="@tui.unplug" size="l" tuiSlot="top"></span>
+      <h2>Not connected</h2>
+      <p>Connect to browse the files on this host.</p>
+      <button
+        tuiButton
+        size="s"
+        iconStart="@tui.plug"
+        type="button"
+        data-testid="pane-connect"
+        [loading]="busy()"
+        (click)="connect()"
+      >
+        Connect
+      </button>
+    </tui-block-status>
+  </section>
+}

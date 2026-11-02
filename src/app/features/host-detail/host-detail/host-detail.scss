@@ -36,6 +36,6 @@ dd {
   color: var(--tui-text-secondary);
 }
 
-.terminals {
-  margin-block-start: var(--tui-padding-l);
+.views {
+  margin-block: var(--tui-padding-l) 0.5rem;
 }

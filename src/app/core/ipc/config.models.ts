@@ -42,7 +42,11 @@ export type CommandErrorCode =
   | 'invalid_passphrase'
   | 'keychain_unavailable'
   | 'not_connected'
-  | 'busy';
+  | 'busy'
+  | 'permission_denied'
+  | 'already_exists'
+  | 'not_empty'
+  | 'too_large';
 
 export type IpcErrorCode = CommandErrorCode | 'unknown';
 

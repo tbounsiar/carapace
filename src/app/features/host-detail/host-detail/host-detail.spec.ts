@@ -3,11 +3,13 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
+import { FileSources } from '../../../core/ipc/files';
 import type { Project } from '../../../core/ipc/config.models';
 import { SshService } from '../../../core/ipc/ssh';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../../project-tree/project-actions';
+import { HostViews } from '../host-view';
 import { HostDetail } from './host-detail';
 
 const PROJECTS: Project[] = [
@@ -38,6 +40,11 @@ describe('HostDetail', () => {
   const states = signal<Record<string, ConnectionState>>({});
   const connector = { connect: vi.fn(() => Promise.resolve()), disconnect: vi.fn() };
   const actions = { edit: vi.fn() };
+  const local = {
+    side: 'local',
+    home: () => Promise.resolve('/home/me'),
+    list: () => Promise.resolve({ path: '/home/me', parent: '/home', entries: [] }),
+  };
   let fixture: ComponentFixture<HostDetail>;
 
   const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
@@ -62,6 +69,7 @@ describe('HostDetail', () => {
         { provide: SshService, useValue: { states } },
         { provide: HostConnector, useValue: connector },
         { provide: ProjectActions, useValue: actions },
+        { provide: FileSources, useValue: { local, remote: () => local } },
       ],
     }).compileComponents();
   });
@@ -109,5 +117,27 @@ describe('HostDetail', () => {
     await setup('missing');
     expect(byId('host-detail')).toBeNull();
     expect(byId('host-not-found')?.textContent).toContain('Host not found');
+  });
+
+  it('switches between terminal and files and remembers the view per host', async () => {
+    await setup();
+    expect(byId('terminal-panel')).toBeTruthy();
+    expect(byId('files-panel')).toBeNull();
+    expect(byId('host-view-terminal')?.getAttribute('aria-pressed')).toBe('true');
+
+    byId('host-view-files')!.click();
+    await fixture.whenStable();
+    expect(byId('files-panel')).toBeTruthy();
+    expect(byId('terminal-panel')).toBeNull();
+    expect(byId('host-view-files')?.getAttribute('aria-pressed')).toBe('true');
+    expect(TestBed.inject(HostViews).of('h1')).toBe('files');
+
+    fixture.destroy();
+    await setup();
+    expect(byId('files-panel')).toBeTruthy();
+
+    byId('host-view-terminal')!.click();
+    await fixture.whenStable();
+    expect(byId('terminal-panel')).toBeTruthy();
   });
 });

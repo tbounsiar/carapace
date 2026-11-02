@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { NonNullableFormBuilder, ReactiveFormsModule, type ValidatorFn } from '@angular/forms';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
 import {
   TuiButton,
@@ -12,6 +12,7 @@ import {
 import { TuiButtonLoading } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
+import type { IpcErrorCode } from '../../../core/ipc/config.models';
 import { handleSaveError } from '../save-error';
 import { nameValidator } from '../validators';
 
@@ -19,6 +20,12 @@ export interface NameDialogData {
   readonly noun: string;
   readonly initial: string;
   readonly save: (name: string) => Promise<unknown>;
+  /** Defaults to a required name of at most 100 characters. */
+  readonly validator?: ValidatorFn;
+  /** The error code meaning the name is taken; defaults to `conflict`. */
+  readonly conflictCode?: IpcErrorCode;
+  /** Defaults to true; file names keep surrounding spaces. */
+  readonly trim?: boolean;
 }
 
 @Component({
@@ -41,7 +48,7 @@ export class NameDialog {
 
   protected readonly saving = signal(false);
   protected readonly form = inject(NonNullableFormBuilder).group({
-    name: [this.context.data.initial, nameValidator('Name', 100)],
+    name: [this.context.data.initial, this.context.data.validator ?? nameValidator('Name', 100)],
   });
 
   protected async submit(): Promise<void> {
@@ -49,13 +56,14 @@ export class NameDialog {
     if (this.form.invalid || this.saving()) {
       return;
     }
+    const { save, trim, noun, conflictCode } = this.context.data;
     const nameControl = this.form.controls.name;
     this.saving.set(true);
     try {
-      await this.context.data.save(nameControl.value.trim());
+      await save(trim === false ? nameControl.value : nameControl.value.trim());
       this.context.completeWith();
     } catch (err) {
-      handleSaveError(this.alerts, err, nameControl, this.context.data.noun);
+      handleSaveError(this.alerts, err, nameControl, noun, conflictCode);
     } finally {
       this.saving.set(false);
     }

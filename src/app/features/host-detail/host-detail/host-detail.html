@@ -76,7 +76,29 @@
       </dd>
     </dl>
   </section>
-  <app-terminal-panel class="terminals" [hostId]="node.id" />
+  <tui-segmented
+    size="s"
+    class="views"
+    aria-label="View"
+    [activeItemIndex]="viewIndex()"
+    (activeItemIndexChange)="selectView($event)"
+  >
+    @for (option of viewOptions; track option.view) {
+      <button
+        type="button"
+        [attr.aria-pressed]="option.view === view()"
+        [attr.data-testid]="'host-view-' + option.view"
+      >
+        <tui-icon [icon]="option.icon" />
+        {{ option.label }}
+      </button>
+    }
+  </tui-segmented>
+  @if (view() === 'files') {
+    <app-files-panel [hostId]="node.id" />
+  } @else {
+    <app-terminal-panel [hostId]="node.id" />
+  }
 } @else {
   <tui-block-status size="m" data-testid="host-not-found">
     <h2>Host not found</h2>

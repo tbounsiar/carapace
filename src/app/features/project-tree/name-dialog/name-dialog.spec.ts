@@ -8,14 +8,21 @@ describe('NameDialog', () => {
   const completeWith = vi.fn();
   const save = vi.fn<NameDialogData['save']>();
 
-  async function setup(initial = ''): Promise<{ el: HTMLElement; submit: () => Promise<void> }> {
+  async function setup(
+    initial = '',
+    extra: Partial<NameDialogData> = {},
+  ): Promise<{ el: HTMLElement; submit: () => Promise<void> }> {
     await TestBed.configureTestingModule({
       imports: [NameDialog],
       providers: [
         provideTaiga(),
         {
           provide: POLYMORPHEUS_CONTEXT,
-          useValue: { data: { noun: 'project', initial, save }, completeWith, $implicit: {} },
+          useValue: {
+            data: { noun: 'project', initial, save, ...extra },
+            completeWith,
+            $implicit: {},
+          },
         },
       ],
     }).compileComponents();
@@ -76,5 +83,30 @@ describe('NameDialog', () => {
     await submit();
     expect(completeWith).not.toHaveBeenCalled();
     expect(el.textContent).toContain('A project with this name already exists');
+  });
+
+  it('supports a custom validator, conflict code and untrimmed names', async () => {
+    const validator = (c: { value: string }) =>
+      c.value.includes('/') ? { invalid: new Error('No slash') } : null;
+    save.mockRejectedValueOnce(new IpcError('already_exists', 'exists'));
+    const { el, submit } = await setup('', {
+      noun: 'file or folder',
+      validator: validator as never,
+      conflictCode: 'already_exists',
+      trim: false,
+    });
+    type(el, 'a/b');
+    await submit();
+    expect(save).not.toHaveBeenCalled();
+
+    type(el, ' notes ');
+    await submit();
+    expect(save).toHaveBeenCalledWith(' notes ');
+    expect(el.textContent).toContain('A file or folder with this name already exists');
+
+    type(el, 'notes2');
+    await submit();
+    expect(save).toHaveBeenLastCalledWith('notes2');
+    expect(completeWith).toHaveBeenCalledOnce();
   });
 });

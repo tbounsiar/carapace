@@ -1,0 +1,187 @@
+<div class="head">
+  <h3 class="title">{{ label() }}</h3>
+  <button
+    tuiIconButton
+    appearance="flat-grayscale"
+    size="xs"
+    iconStart="@tui.arrow-up"
+    type="button"
+    tuiHint="Up one level"
+    aria-label="Up one level"
+    data-testid="pane-up"
+    [disabled]="upPath() === null"
+    (click)="up()"
+  >
+    Up
+  </button>
+  <button
+    tuiIconButton
+    appearance="flat-grayscale"
+    size="xs"
+    iconStart="@tui.refresh-cw"
+    type="button"
+    tuiHint="Refresh"
+    aria-label="Refresh"
+    data-testid="pane-refresh"
+    [disabled]="path() === null"
+    (click)="refresh()"
+  >
+    Refresh
+  </button>
+  <button
+    tuiIconButton
+    appearance="flat-grayscale"
+    size="xs"
+    iconStart="@tui.folder-plus"
+    type="button"
+    tuiHint="New folder"
+    aria-label="New folder"
+    data-testid="pane-mkdir"
+    [disabled]="!canCreate()"
+    (click)="mkdir()"
+  >
+    New folder
+  </button>
+  <button
+    tuiIconButton
+    size="xs"
+    type="button"
+    aria-label="Show hidden files"
+    data-testid="pane-hidden"
+    [appearance]="showHidden() ? 'secondary' : 'flat-grayscale'"
+    [iconStart]="showHidden() ? '@tui.eye' : '@tui.eye-off'"
+    [tuiHint]="showHidden() ? 'Hide hidden files' : 'Show hidden files'"
+    [attr.aria-pressed]="showHidden()"
+    (click)="toggleHidden()"
+  >
+    Hidden files
+  </button>
+</div>
+
+<tui-breadcrumbs size="m" class="path" data-testid="pane-path" [itemsLimit]="5">
+  @for (crumb of crumbs(); track crumb.path) {
+    <button
+      *tuiItem
+      tuiLink
+      type="button"
+      class="crumb"
+      [class._current]="$last"
+      [attr.aria-current]="$last ? 'location' : null"
+      (click)="navigate(crumb.path)"
+    >
+      {{ crumb.label }}
+    </button>
+  }
+</tui-breadcrumbs>
+
+@if (error(); as message) {
+  <div tuiNotification appearance="negative" size="s" role="alert" data-testid="pane-error">
+    {{ message }}
+  </div>
+}
+
+<tui-loader class="body" [overlay]="true" [loading]="loading()">
+  <div class="scroll">
+    <table
+      tuiTable
+      size="s"
+      class="table"
+      role="grid"
+      [attr.aria-label]="label() + ' files'"
+      [sorter]="sorter()"
+      [direction]="direction()"
+      (sortChange)="onSort($event)"
+    >
+      <thead tuiThead>
+        <tr>
+          <th tuiTh [sorter]="sorters.name" [requiredSort]="true">Name</th>
+          <th tuiTh class="col-size" [sorter]="sorters.size" [requiredSort]="true">Size</th>
+          <th tuiTh class="col-modified" [sorter]="sorters.modified" [requiredSort]="true">
+            Modified
+          </th>
+          @if (showPermissions()) {
+            <th tuiTh class="col-permissions">Permissions</th>
+          }
+          <th tuiTh class="col-menu" aria-label="Actions"></th>
+        </tr>
+      </thead>
+      <tbody tuiTbody>
+        @for (row of rows(); track row.entry.path; let i = $index) {
+          <tr
+            #row
+            class="row"
+            aria-keyshortcuts="Enter Backspace F2 Delete"
+            [class._selected]="selection.has(row.entry.path)"
+            [class._menu]="openMenu() === row.entry.path"
+            [attr.aria-selected]="selection.has(row.entry.path)"
+            [attr.data-testid]="'entry-' + row.entry.name"
+            [tabIndex]="i === activeIndex() ? 0 : -1"
+            (click)="select(row.entry)"
+            (dblclick)="onDblClick($event, row.entry)"
+            (keydown)="onRowKeydown($event, i)"
+          >
+            <td tuiTd>
+              <span class="name">
+                <tui-icon class="kind" [icon]="row.icon" />
+                <span class="label" [attr.title]="row.entry.name">{{ row.entry.name }}</span>
+              </span>
+            </td>
+            <td tuiTd class="num">{{ row.size }}</td>
+            <td tuiTd class="nowrap">{{ row.modified }}</td>
+            @if (showPermissions()) {
+              <td tuiTd class="mono">{{ row.entry.permissions }}</td>
+            }
+            <td tuiTd class="menu">
+              <button
+                tuiIconButton
+                appearance="flat-grayscale"
+                size="xs"
+                iconStart="@tui.ellipsis"
+                type="button"
+                [tabIndex]="i === activeIndex() ? 0 : -1"
+                [attr.aria-label]="'Actions for ' + row.entry.name"
+                [attr.data-testid]="'entry-menu-' + row.entry.name"
+                [tuiDropdown]="menu"
+                [tuiDropdownOpen]="openMenu() === row.entry.path"
+                (tuiDropdownOpenChange)="setMenu(row.entry, $event)"
+              >
+                Actions
+              </button>
+              <ng-template #menu let-close>
+                <tui-data-list size="s">
+                  <button
+                    tuiOption
+                    iconStart="@tui.pencil"
+                    type="button"
+                    data-testid="entry-rename"
+                    (click)="close(); rename(row.entry)"
+                  >
+                    Rename
+                  </button>
+                  <hr />
+                  <button
+                    tuiOption
+                    iconStart="@tui.trash"
+                    type="button"
+                    data-testid="entry-delete"
+                    (click)="close(); remove(row.entry)"
+                  >
+                    Delete
+                  </button>
+                </tui-data-list>
+              </ng-template>
+            </td>
+          </tr>
+        } @empty {
+          @if (listing()) {
+            <tr>
+              <td tuiTd class="empty" [attr.colspan]="columnCount()">
+                {{ hiddenCount() ? 'Only hidden items' : 'This folder is empty' }}
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+</tui-loader>

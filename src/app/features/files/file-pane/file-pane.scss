@@ -1,0 +1,136 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0.5rem;
+  border: 1px solid var(--tui-border-normal);
+  border-radius: var(--tui-radius-m);
+  background: var(--tui-background-base);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  font: var(--tui-typography-ui-s);
+  font-weight: bold;
+  color: var(--tui-text-secondary);
+}
+
+.path {
+  min-inline-size: 0;
+}
+
+.crumb {
+  max-inline-size: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &._current {
+    color: var(--tui-text-primary);
+  }
+}
+
+.body {
+  flex: 1;
+  min-block-size: 0;
+}
+
+.scroll {
+  block-size: 100%;
+  overflow: auto;
+}
+
+.table {
+  inline-size: 100%;
+  /* Fixed layout lets long names ellipsize instead of widening the pane. */
+  table-layout: fixed;
+}
+
+.col-size {
+  inline-size: 5.5rem;
+}
+
+.col-modified {
+  inline-size: 8.5rem;
+}
+
+.col-permissions {
+  inline-size: 6.5rem;
+}
+
+.col-menu {
+  inline-size: 2.25rem;
+}
+
+.row {
+  cursor: default;
+  outline: none;
+
+  &:hover > td,
+  &._menu > td {
+    background: var(--tui-background-neutral-1-hover);
+  }
+
+  &._selected > td {
+    background: var(--tui-service-selection-background);
+  }
+
+  &:focus-visible > td {
+    box-shadow:
+      inset 0 2px var(--tui-border-focus),
+      inset 0 -2px var(--tui-border-focus);
+  }
+}
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.kind {
+  flex: none;
+  font-size: 1rem;
+  color: var(--tui-text-secondary);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.num {
+  text-align: end;
+  white-space: nowrap;
+}
+
+.nowrap {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--app-font-mono);
+  white-space: nowrap;
+}
+
+.menu {
+  text-align: center;
+}
+
+.empty {
+  text-align: center;
+  color: var(--tui-text-secondary);
+}

@@ -19,6 +19,10 @@ const KNOWN_CODES: readonly string[] = [
   'keychain_unavailable',
   'not_connected',
   'busy',
+  'permission_denied',
+  'already_exists',
+  'not_empty',
+  'too_large',
 ];
 
 export class IpcError extends Error {
