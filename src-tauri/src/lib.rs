@@ -1,6 +1,9 @@
 mod commands;
 mod config;
+mod files;
+mod localfs;
 mod secrets;
+mod sftp;
 mod ssh;
 mod terminal;
 
@@ -22,6 +25,7 @@ pub fn run() {
             let secrets = secrets::SecretStore::keychain();
             app.manage(ssh::SshManager::new(&home, secrets.clone()));
             app.manage(terminal::TerminalManager::default());
+            app.manage(sftp::SftpManager::default());
             app.manage(secrets);
             app.manage(config::ConfigStore::new(home));
             Ok(())
@@ -62,6 +66,15 @@ pub fn run() {
             commands::terminal::write_terminal,
             commands::terminal::resize_terminal,
             commands::terminal::close_terminal,
+            commands::sftp::sftp_list,
+            commands::sftp::sftp_mkdir,
+            commands::sftp::sftp_rename,
+            commands::sftp::sftp_delete,
+            commands::localfs::local_home,
+            commands::localfs::local_list,
+            commands::localfs::local_mkdir,
+            commands::localfs::local_rename,
+            commands::localfs::local_delete,
             commands::secrets::set_host_secret,
             commands::secrets::delete_host_secret,
             commands::secrets::has_host_secret,

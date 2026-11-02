@@ -1,0 +1,19 @@
+[[permission]]
+identifier = "allow-sftp-list"
+description = "Allows the sftp_list command."
+commands.allow = ["sftp_list"]
+
+[[permission]]
+identifier = "allow-sftp-mkdir"
+description = "Allows the sftp_mkdir command."
+commands.allow = ["sftp_mkdir"]
+
+[[permission]]
+identifier = "allow-sftp-rename"
+description = "Allows the sftp_rename command."
+commands.allow = ["sftp_rename"]
+
+[[permission]]
+identifier = "allow-sftp-delete"
+description = "Allows the sftp_delete command."
+commands.allow = ["sftp_delete"]

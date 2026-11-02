@@ -27,6 +27,15 @@
     "allow-close-terminal",
     "allow-set-host-secret",
     "allow-delete-host-secret",
-    "allow-has-host-secret"
+    "allow-has-host-secret",
+    "allow-sftp-list",
+    "allow-sftp-mkdir",
+    "allow-sftp-rename",
+    "allow-sftp-delete",
+    "allow-local-home",
+    "allow-local-list",
+    "allow-local-mkdir",
+    "allow-local-rename",
+    "allow-local-delete"
   ]
 }

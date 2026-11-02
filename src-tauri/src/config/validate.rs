@@ -31,7 +31,7 @@ fn token(value: &str, max: usize, label: &str) -> Result<String, ConfigError> {
     Ok(value.to_string())
 }
 
-fn is_local_absolute(path: &str) -> bool {
+pub(crate) fn is_local_absolute(path: &str) -> bool {
     if path.starts_with("\\") || path.starts_with("//") {
         return false;
     }

@@ -1,0 +1,24 @@
+[[permission]]
+identifier = "allow-local-home"
+description = "Allows the local_home command."
+commands.allow = ["local_home"]
+
+[[permission]]
+identifier = "allow-local-list"
+description = "Allows the local_list command."
+commands.allow = ["local_list"]
+
+[[permission]]
+identifier = "allow-local-mkdir"
+description = "Allows the local_mkdir command."
+commands.allow = ["local_mkdir"]
+
+[[permission]]
+identifier = "allow-local-rename"
+description = "Allows the local_rename command."
+commands.allow = ["local_rename"]
+
+[[permission]]
+identifier = "allow-local-delete"
+description = "Allows the local_delete command."
+commands.allow = ["local_delete"]

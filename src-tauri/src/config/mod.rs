@@ -6,3 +6,4 @@ mod validate;
 pub use home::resolve_home;
 pub use model::{Environment, Host, HostInput, Project};
 pub use store::{ConfigError, ConfigStore};
+pub(crate) use validate::is_local_absolute;

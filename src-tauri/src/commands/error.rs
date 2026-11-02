@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::config::ConfigError;
+use crate::files::FsError;
 use crate::secrets::SecretError;
 use crate::ssh::SshError;
 use crate::terminal::TerminalError;
@@ -41,6 +42,12 @@ impl From<SshError> for CommandError {
 
 impl From<TerminalError> for CommandError {
     fn from(e: TerminalError) -> Self {
+        Self::new(e.code(), e.to_string())
+    }
+}
+
+impl From<FsError> for CommandError {
+    fn from(e: FsError) -> Self {
         Self::new(e.code(), e.to_string())
     }
 }
@@ -101,6 +108,25 @@ mod tests {
             (TerminalError::InvalidInput("bad".into()), "invalid_input"),
             (TerminalError::Network, "network"),
             (TerminalError::Busy, "busy"),
+        ];
+        for (err, code) in cases {
+            assert_eq!(CommandError::from(err).code, code);
+        }
+    }
+
+    #[test]
+    fn maps_file_codes() {
+        let p = || "/p".to_string();
+        let cases = [
+            (FsError::NotConnected, "not_connected"),
+            (FsError::NotFound(p()), "not_found"),
+            (FsError::PermissionDenied(p()), "permission_denied"),
+            (FsError::AlreadyExists(p()), "already_exists"),
+            (FsError::NotEmpty(p()), "not_empty"),
+            (FsError::TooLarge(p()), "too_large"),
+            (FsError::InvalidInput("bad".into()), "invalid_input"),
+            (FsError::Io(p()), "io"),
+            (FsError::Network, "network"),
         ];
         for (err, code) in cases {
             assert_eq!(CommandError::from(err).code, code);

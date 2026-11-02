@@ -9,3 +9,4 @@ AuthorizedKeysFile .ssh/authorized_keys
 HostKey /etc/ssh/ssh_host_ed25519_key
 HostKey /etc/ssh/ssh_host_rsa_key
 LogLevel ERROR
+Subsystem sftp internal-sftp

@@ -1,6 +1,7 @@
 //! In-process russh server on 127.0.0.1 for unit tests: accepts any public key and one
-//! password, and runs a fake shell that echoes its input.
+//! password, runs a fake shell that echoes its input, and serves an in-memory SFTP subsystem.
 
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -14,6 +15,7 @@ use russh::{Channel, ChannelId};
 
 use super::known_hosts::KnownHosts;
 use super::manager::{Emit, Timeouts};
+use super::test_sftp::{MemFs, MemSftp};
 use super::{SshError, SshManager};
 use crate::config::Host;
 use crate::config::model::AuthMethod;
@@ -30,6 +32,8 @@ struct Shared {
     clients: Arc<Mutex<Vec<server::Handle>>>,
     closed_channels: Arc<AtomicUsize>,
     flood_sent: Arc<AtomicUsize>,
+    sftp_opens: Arc<AtomicUsize>,
+    fs: MemFs,
 }
 
 impl TestServer {
@@ -41,6 +45,16 @@ impl TestServer {
     /// Bytes of the `SHELL_FLOOD` output the server managed to send so far.
     pub fn flood_sent(&self) -> usize {
         self.shared.flood_sent.load(Ordering::SeqCst)
+    }
+
+    /// SFTP subsystem channels opened so far.
+    pub fn sftp_opens(&self) -> usize {
+        self.shared.sftp_opens.load(Ordering::SeqCst)
+    }
+
+    /// The tree served over SFTP, shared by every connection.
+    pub fn fs(&self) -> &MemFs {
+        &self.shared.fs
     }
 
     /// Ends every client connection from the server side, as a dropped link would.
@@ -79,6 +93,11 @@ pub fn long_password() -> String {
 
 struct AcceptAll {
     shared: Shared,
+    /// Kept only until the channel's purpose is known: a held `Channel` that nobody reads would
+    /// fill its buffer and stall the server session (the shell tests flood it).
+    channels: HashMap<ChannelId, Channel<Msg>>,
+    /// SFTP channels, whose data belongs to the subsystem and must not reach the fake shell.
+    sftp: HashSet<ChannelId>,
 }
 
 impl server::Handler for AcceptAll {
@@ -108,12 +127,28 @@ impl server::Handler for AcceptAll {
 
     async fn channel_open_session(
         &mut self,
-        _channel: Channel<Msg>,
+        channel: Channel<Msg>,
         reply: server::ChannelOpenHandle,
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         self.shared.clients.lock().unwrap().push(session.handle());
+        self.channels.insert(channel.id(), channel);
         reply.accept().await;
+        Ok(())
+    }
+
+    async fn pty_request(
+        &mut self,
+        channel: ChannelId,
+        _term: &str,
+        _col_width: u32,
+        _row_height: u32,
+        _pix_width: u32,
+        _pix_height: u32,
+        _modes: &[(russh::Pty, u32)],
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        self.channels.remove(&channel);
         Ok(())
     }
 
@@ -122,7 +157,27 @@ impl server::Handler for AcceptAll {
         channel: ChannelId,
         session: &mut Session,
     ) -> Result<(), Self::Error> {
+        self.channels.remove(&channel);
         session.channel_success(channel)
+    }
+
+    async fn subsystem_request(
+        &mut self,
+        channel: ChannelId,
+        name: &str,
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        match self.channels.remove(&channel) {
+            Some(c) if name == "sftp" => {
+                self.shared.sftp_opens.fetch_add(1, Ordering::SeqCst);
+                self.sftp.insert(channel);
+                session.channel_success(channel)?;
+                russh_sftp::server::run(c.into_stream(), MemSftp::new(self.shared.fs.clone()))
+                    .await;
+                Ok(())
+            }
+            _ => session.channel_failure(channel),
+        }
     }
 
     async fn data(
@@ -131,6 +186,9 @@ impl server::Handler for AcceptAll {
         data: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
+        if self.sftp.contains(&channel) {
+            return Ok(());
+        }
         if data == SHELL_FLOOD {
             let handle = session.handle();
             let sent = self.shared.flood_sent.clone();
@@ -203,6 +261,8 @@ pub async fn start_server(seed: u8) -> TestServer {
             let config = config.clone();
             let handler = AcceptAll {
                 shared: accepted.clone(),
+                channels: HashMap::new(),
+                sftp: HashSet::new(),
             };
             tokio::spawn(async move {
                 if let Ok(session) = server::run_stream(config, socket, handler).await {
