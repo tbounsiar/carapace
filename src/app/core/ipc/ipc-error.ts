@@ -14,6 +14,9 @@ const KNOWN_CODES: readonly string[] = [
   'network',
   'host_key_changed',
   'host_key_revoked',
+  'secret_required',
+  'invalid_passphrase',
+  'keychain_unavailable',
 ];
 
 export class IpcError extends Error {

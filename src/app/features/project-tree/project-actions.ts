@@ -27,7 +27,7 @@ export class ProjectActions {
         this.config.createEnvironment(node.project.id, name),
       );
     } else if (node.kind === 'environment') {
-      this.openHostDialog('New host', null, (host) =>
+      this.openHostDialog('New host', null, null, (host) =>
         this.config.createHost(node.project.id, node.environment.id, host),
       );
     }
@@ -47,8 +47,12 @@ export class ProjectActions {
         break;
       case 'host': {
         const { name, hostname, port, username, auth } = node.host;
-        this.openHostDialog('Edit host', { name, hostname, port, username, auth }, (host) =>
-          this.config.updateHost(node.project.id, node.environment.id, node.host.id, host),
+        this.openHostDialog(
+          'Edit host',
+          { name, hostname, port, username, auth },
+          node.host.id,
+          (host) =>
+            this.config.updateHost(node.project.id, node.environment.id, node.host.id, host),
         );
         break;
       }
@@ -113,13 +117,14 @@ export class ProjectActions {
   private openHostDialog(
     label: string,
     initial: HostInput | null,
+    hostId: string | null,
     save: HostDialogData['save'],
   ): void {
     this.dialogs
       .open<void>(new PolymorpheusComponent(HostDialog), {
         label,
         size: 'm',
-        data: { initial, save } satisfies HostDialogData,
+        data: { initial, hostId, save } satisfies HostDialogData,
       })
       .subscribe();
   }

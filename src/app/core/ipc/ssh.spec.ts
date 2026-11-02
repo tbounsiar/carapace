@@ -66,6 +66,16 @@ describe('SshService', () => {
     expect(calls[0].args['hostId']).toBe('h1');
   });
 
+  it('sends no credential by default', async () => {
+    await service.connect('h1', handlers());
+    expect(calls[0].args['credential']).toBeNull();
+  });
+
+  it('sends the credential with connect_host', async () => {
+    await service.connect('h1', handlers(), { secret: 'pw', remember: true });
+    expect(calls[0].args['credential']).toEqual({ secret: 'pw', remember: true });
+  });
+
   it('sends the user decision for a host key prompt', async () => {
     const decide = vi.fn(() => Promise.resolve(true));
     onConnect = async (channel) => {

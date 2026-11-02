@@ -37,7 +37,10 @@ export type CommandErrorCode =
   | 'timeout'
   | 'network'
   | 'host_key_changed'
-  | 'host_key_revoked';
+  | 'host_key_revoked'
+  | 'secret_required'
+  | 'invalid_passphrase'
+  | 'keychain_unavailable';
 
 export type IpcErrorCode = CommandErrorCode | 'unknown';
 

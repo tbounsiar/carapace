@@ -5,6 +5,7 @@ import type {
   ConnectEvent,
   ConnectionInfo,
   ConnectionState,
+  Credential,
   HostKeyChanged,
   HostKeyPrompt,
 } from './ssh.models';
@@ -24,7 +25,11 @@ export class SshService {
     return this._states()[hostId] ?? 'idle';
   }
 
-  async connect(hostId: string, handlers: ConnectHandlers): Promise<ConnectionInfo> {
+  async connect(
+    hostId: string,
+    handlers: ConnectHandlers,
+    credential?: Credential,
+  ): Promise<ConnectionInfo> {
     this.setState(hostId, 'connecting');
     const onEvent = new Channel<ConnectEvent>();
     onEvent.onmessage = (event) => {
@@ -38,7 +43,11 @@ export class SshService {
       }
     };
     try {
-      const info = await invokeCommand<ConnectionInfo>('connect_host', { hostId, onEvent });
+      const info = await invokeCommand<ConnectionInfo>('connect_host', {
+        hostId,
+        onEvent,
+        credential: credential ?? null,
+      });
       this.setState(hostId, 'connected');
       return info;
     } catch (err) {

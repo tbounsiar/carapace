@@ -31,3 +31,9 @@ export interface ConnectionInfo {
 
 export type ConnectionState =
   'idle' | 'connecting' | 'authenticating' | 'awaitingHostKey' | 'connected' | 'error';
+
+/** Sent with `connect_host` only; never stored, never returned by the backend. */
+export interface Credential {
+  secret: string;
+  remember: boolean;
+}

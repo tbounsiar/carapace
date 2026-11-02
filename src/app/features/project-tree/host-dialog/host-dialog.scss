@@ -23,3 +23,16 @@ legend {
   font: var(--tui-typography-body-s);
   color: var(--tui-text-secondary);
 }
+
+.secret-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+
+  button {
+    margin-inline-start: auto;
+  }
+}

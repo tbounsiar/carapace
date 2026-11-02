@@ -60,3 +60,17 @@ export function keyPathValidator(control: AbstractControl): ValidationErrors | n
   }
   return ABSOLUTE_PATH.test(value) ? null : fail('Use an absolute path or one starting with ~/');
 }
+
+// Windows Credential Manager stores at most 1280 UTF-16 code units, which is what `length` counts.
+export const SECRET_MAX = 1280;
+
+/** Never trims or echoes the value: whitespace can be part of a password. */
+export function secretValidator(label: string, required: boolean): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const length = String(control.value ?? '').length;
+    if (length === 0) {
+      return required ? fail(`${label} is required`) : null;
+    }
+    return length > SECRET_MAX ? fail(`${label} must be at most ${SECRET_MAX} characters`) : null;
+  };
+}

@@ -5,6 +5,7 @@ import {
   nameValidator,
   noWhitespaceValidator,
   portValidator,
+  secretValidator,
 } from './validators';
 
 const ok = (fn: (c: FormControl) => unknown, value: unknown): boolean =>
@@ -60,5 +61,15 @@ describe('form validators', () => {
     expect(ok(v, 'a/b')).toBe(false);
     expect(ok(v, '-oProxy=x y')).toBe(false);
     expect(ok(v, '')).toBe(false);
+  });
+
+  it('validates secrets by length only', () => {
+    const required = secretValidator('Password', true);
+    const optional = secretValidator('Password', false);
+    expect(ok(required, '')).toBe(false);
+    expect(ok(optional, '')).toBe(true);
+    expect(ok(required, ' pass word ')).toBe(true);
+    expect(ok(optional, 'x'.repeat(1280))).toBe(true);
+    expect(ok(optional, 'x'.repeat(1281))).toBe(false);
   });
 });

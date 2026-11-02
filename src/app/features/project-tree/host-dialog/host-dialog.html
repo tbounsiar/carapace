@@ -66,6 +66,44 @@
     </div>
   }
 
+  @if (secretKind(); as kind) {
+    <div>
+      <tui-textfield>
+        <label tuiLabel>{{ secretLabel() }}</label>
+        <input
+          tuiInput
+          type="password"
+          autocomplete="off"
+          formControlName="secret"
+          [attr.data-testid]="kind === 'password' ? 'host-password' : 'host-passphrase'"
+        />
+        <tui-icon tuiPassword />
+      </tui-textfield>
+      <tui-error formControlName="secret" />
+      @if (stored()) {
+        <div class="secret-note" data-testid="host-secret-stored">
+          <tui-icon icon="@tui.key-round" />
+          <span>Stored in keychain. Leave empty to keep it.</span>
+          <button
+            tuiButton
+            appearance="flat"
+            size="xs"
+            type="button"
+            data-testid="host-secret-forget"
+            [loading]="forgetting()"
+            (click)="forget()"
+          >
+            Forget
+          </button>
+        </div>
+      } @else if (kind === 'password') {
+        <p class="secret-note">Optional. Leave empty to be asked when connecting.</p>
+      } @else {
+        <p class="secret-note">Only for an encrypted key. Leave empty to be asked when needed.</p>
+      }
+    </div>
+  }
+
   <footer>
     <button
       tuiButton
