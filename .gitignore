@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Angular build and cache
+dist/
+.angular/
+coverage/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Environment and logs
+.env
+.env.*
+*.log
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
