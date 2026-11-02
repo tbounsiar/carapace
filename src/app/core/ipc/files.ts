@@ -60,22 +60,30 @@ export class LocalFiles implements FileSource {
 export class RemoteFiles implements FileSource {
   readonly side = 'remote';
 
-  constructor(readonly hostId: string) {}
+  constructor(readonly connectionId: string) {}
 
   list(path: string): Promise<Listing> {
-    return invokeCommand<Listing>('sftp_list', { hostId: this.hostId, path });
+    return invokeCommand<Listing>('sftp_list', { connectionId: this.connectionId, path });
   }
 
   mkdir(parent: string, name: string): Promise<FileEntry> {
-    return invokeCommand<FileEntry>('sftp_mkdir', { hostId: this.hostId, parent, name });
+    return invokeCommand<FileEntry>('sftp_mkdir', {
+      connectionId: this.connectionId,
+      parent,
+      name,
+    });
   }
 
   rename(path: string, newName: string): Promise<FileEntry> {
-    return invokeCommand<FileEntry>('sftp_rename', { hostId: this.hostId, path, newName });
+    return invokeCommand<FileEntry>('sftp_rename', {
+      connectionId: this.connectionId,
+      path,
+      newName,
+    });
   }
 
   async delete(path: string, recursive: boolean): Promise<void> {
-    await invokeCommand<null>('sftp_delete', { hostId: this.hostId, path, recursive });
+    await invokeCommand<null>('sftp_delete', { connectionId: this.connectionId, path, recursive });
   }
 
   /** The server resolves `""` to the home directory, so no round trip is needed. */
@@ -89,11 +97,11 @@ export class FileSources {
   readonly local: FileSource = new LocalFiles();
   private readonly remotes = new Map<string, FileSource>();
 
-  remote(hostId: string): FileSource {
-    let source = this.remotes.get(hostId);
+  remote(connectionId: string): FileSource {
+    let source = this.remotes.get(connectionId);
     if (!source) {
-      source = new RemoteFiles(hostId);
-      this.remotes.set(hostId, source);
+      source = new RemoteFiles(connectionId);
+      this.remotes.set(connectionId, source);
     }
     return source;
   }

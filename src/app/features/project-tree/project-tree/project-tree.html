@@ -3,7 +3,7 @@
 } @else if (nodes().length === 0) {
   <tui-block-status size="m" class="empty">
     <h2>No projects yet</h2>
-    Projects group your environments and hosts.
+    Projects group your hosts, environments and variables.
     <button
       tuiButton
       appearance="primary"
@@ -54,7 +54,8 @@
     [attr.tabindex]="value.kind === 'host' ? null : -1"
     [attr.data-testid]="testId('tree', value)"
     [class._menu]="openMenu() === key(value)"
-    [style.--app-env-color]="marker(value)?.color"
+    [style.--app-env-color]="marker(value)?.color ?? 'var(--tui-status-neutral)'"
+    (focusin)="selectProject(value)"
   >
     @if (value.kind === 'host') {
       @let state = status(value);
@@ -87,19 +88,8 @@
         {{ label(value) }}
       </a>
     } @else {
-      <tui-icon class="icon" [icon]="icon(value)" />
-      <span class="label" [class.strong]="value.kind === 'project'">{{ label(value) }}</span>
-      @let envMarker = marker(value);
-      @if (envMarker?.label) {
-        <span
-          tuiBadge
-          size="s"
-          [appearance]="envMarker!.appearance"
-          [attr.data-testid]="testId('env-kind', value)"
-        >
-          {{ envMarker!.label }}
-        </span>
-      }
+      <tui-icon class="icon" icon="@tui.folder" />
+      <span class="label strong">{{ label(value) }}</span>
     }
 
     <span class="actions">
@@ -141,12 +131,12 @@
           size="xs"
           iconStart="@tui.plus"
           type="button"
-          [tuiHint]="addLabel(value)"
-          [attr.aria-label]="addLabel(value) + ' to ' + label(value)"
+          tuiHint="Add host"
+          [attr.aria-label]="'Add host to ' + label(value)"
           [attr.data-testid]="testId('add', value)"
-          (click)="addChild(value)"
+          (click)="addHost(value)"
         >
-          {{ addLabel(value) }}
+          Add host
         </button>
       }
       <button
@@ -168,15 +158,24 @@
 
     <ng-template #menu let-close>
       <tui-data-list size="s">
-        @if (value.kind !== 'host') {
+        @if (value.kind === 'project') {
           <button
             tuiOption
             iconStart="@tui.plus"
             type="button"
             data-testid="menu-add"
-            (click)="close(); addChild(value)"
+            (click)="close(); addHost(value)"
           >
-            {{ addLabel(value) }}
+            Add host
+          </button>
+          <button
+            tuiOption
+            iconStart="@tui.variable"
+            type="button"
+            data-testid="menu-variables"
+            (click)="close(); openVariables(value)"
+          >
+            Variables and environments
           </button>
         } @else if (isConnected(value)) {
           <button

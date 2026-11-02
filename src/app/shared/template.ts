@@ -1,0 +1,205 @@
+import type { HostInput, Project, VariableView } from '../core/ipc/config.models';
+
+export const VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/;
+export const TEMPLATE_MAX = 1024;
+
+export type Segment = { readonly text: string } | { readonly ref: string };
+
+/** `${name}` is a reference, `$$` a literal `$`; any other `$` stays literal. */
+export function parseTemplate(template: string): Segment[] {
+  const segments: Segment[] = [];
+  let text = '';
+  let i = 0;
+  while (i < template.length) {
+    const char = template[i];
+    if (char === '$' && template[i + 1] === '$') {
+      text += '$';
+      i += 2;
+      continue;
+    }
+    if (char === '$' && template[i + 1] === '{') {
+      const end = template.indexOf('}', i + 2);
+      const name = end < 0 ? '' : template.slice(i + 2, end);
+      if (VARIABLE_NAME.test(name)) {
+        if (text) {
+          segments.push({ text });
+          text = '';
+        }
+        segments.push({ ref: name });
+        i = end + 1;
+        continue;
+      }
+    }
+    text += char;
+    i++;
+  }
+  if (text) {
+    segments.push({ text });
+  }
+  return segments;
+}
+
+/** The backend rejects a `${` that does not start a valid reference; `$${` is a literal. */
+export function invalidReference(template: string): string | null {
+  for (let i = 0; i < template.length; i++) {
+    if (template[i] !== '$') {
+      continue;
+    }
+    if (template[i + 1] === '$') {
+      i++;
+    } else if (template[i + 1] === '{') {
+      const end = template.indexOf('}', i + 2);
+      const name = end < 0 ? '' : template.slice(i + 2, end);
+      if (!VARIABLE_NAME.test(name)) {
+        return template.slice(i, end < 0 ? undefined : end + 1);
+      }
+      i = end;
+    }
+  }
+  return null;
+}
+
+export function hasReferences(template: string): boolean {
+  return parseTemplate(template).some((s) => 'ref' in s);
+}
+
+/** Secret fields (and a templated port) hold exactly one reference and nothing else. */
+export function secretReferenceName(template: string): string | null {
+  const segments = parseTemplate(template);
+  return segments.length === 1 && 'ref' in segments[0] ? segments[0].ref : null;
+}
+
+export interface VariableLayers {
+  readonly global: readonly VariableView[];
+  readonly project: readonly VariableView[];
+  readonly environment: readonly VariableView[] | null;
+}
+
+export function variableLayers(
+  global: readonly VariableView[],
+  project: Project,
+  environmentId: string | null,
+): VariableLayers {
+  const environment = project.environments.find((e) => e.id === environmentId);
+  return {
+    global,
+    project: project.variables,
+    environment: environment?.variables ?? null,
+  };
+}
+
+/** The environment wins over the project, which wins over the global level. */
+export function lookupVariable(layers: VariableLayers, name: string): VariableView | null {
+  for (const layer of [layers.environment ?? [], layers.project, layers.global]) {
+    const found = layer.find((v) => v.name === name);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+}
+
+export interface Resolution {
+  readonly value: string;
+  readonly missing: readonly string[];
+  readonly errors: readonly string[];
+}
+
+export function resolveTemplate(template: string, layers: VariableLayers): Resolution {
+  let value = '';
+  const missing: string[] = [];
+  const errors: string[] = [];
+  for (const segment of parseTemplate(template)) {
+    if ('text' in segment) {
+      value += segment.text;
+      continue;
+    }
+    const variable = lookupVariable(layers, segment.ref);
+    if (!variable) {
+      missing.push(segment.ref);
+    } else if (variable.kind === 'secret') {
+      errors.push(`secret variable ${segment.ref} used in a non-secret field`);
+    } else {
+      value += variable.value ?? '';
+    }
+  }
+  return { value, missing, errors };
+}
+
+export interface HostPreview {
+  readonly address: string;
+  readonly missing: readonly string[];
+  readonly errors: readonly string[];
+}
+
+/** UI-only mirror of the backend resolution, so an unsaved host can be previewed while typing. */
+export function previewHost(host: HostInput, layers: VariableLayers): HostPreview {
+  const missing = new Set<string>();
+  const errors: string[] = [];
+  const plain = (template: string): string => {
+    const invalid = invalidReference(template);
+    if (invalid) {
+      errors.push(`invalid variable reference "${invalid}"`);
+    }
+    const result = resolveTemplate(template, layers);
+    result.missing.forEach((name) => missing.add(name));
+    errors.push(...result.errors);
+    return result.value;
+  };
+  const secret = (label: string, template: string | null): void => {
+    if (template === null) {
+      return;
+    }
+    const name = secretReferenceName(template);
+    if (!name) {
+      errors.push(`${label} must be a single \${name} reference`);
+      return;
+    }
+    const variable = lookupVariable(layers, name);
+    if (!variable) {
+      missing.add(name);
+    } else if (variable.kind !== 'secret') {
+      errors.push(`plain variable ${name} used in a secret field`);
+    }
+  };
+
+  const hostname = plain(host.hostname);
+  if (hasReferences(host.port) && !secretReferenceName(host.port)) {
+    errors.push('port must be digits or a single ${name} reference');
+  }
+  const port = plain(host.port);
+  const username = plain(host.username);
+  if (host.auth.kind === 'key') {
+    plain(host.auth.keyPath);
+    secret('Passphrase', host.auth.passphrase);
+  } else if (host.auth.kind === 'password') {
+    secret('Password', host.auth.password);
+  }
+  if (missing.size === 0 && !errors.length) {
+    const n = Number(port);
+    if (!/^\d+$/.test(port) || n < 1 || n > 65535) {
+      errors.push(`port "${port}" is not between 1 and 65535`);
+    }
+  }
+  return { address: `${username}@${hostname}:${port}`, missing: [...missing], errors };
+}
+
+/** Secret variable names defined at any level a host of the project can see. */
+export function secretVariableNames(
+  global: readonly VariableView[],
+  project: Pick<Project, 'variables' | 'environments'>,
+): string[] {
+  const names = new Set<string>();
+  for (const layer of [
+    global,
+    project.variables,
+    ...project.environments.map((e) => e.variables),
+  ]) {
+    for (const variable of layer) {
+      if (variable.kind === 'secret') {
+        names.add(variable.name);
+      }
+    }
+  }
+  return [...names].sort((a, b) => a.localeCompare(b));
+}

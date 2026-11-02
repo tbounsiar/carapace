@@ -1,0 +1,45 @@
+@if (project(); as project) {
+  <span class="project" data-testid="env-select-project">{{ project.name }}</span>
+  <tui-textfield
+    tuiChevron
+    tuiTextfieldSize="s"
+    class="field"
+    [stringify]="stringify"
+    [tuiTextfieldCleaner]="false"
+  >
+    <input
+      tuiSelect
+      data-testid="env-select"
+      [attr.aria-label]="'Environment of ' + project.name"
+      [ngModel]="selected()"
+      (ngModelChange)="choose($event)"
+    />
+    @if (marker()?.label) {
+      <span tuiBadge size="s" data-testid="env-select-kind" [appearance]="marker()!.appearance">
+        {{ marker()!.label }}
+      </span>
+    }
+    <tui-data-list *tuiDropdown size="s">
+      <button tuiOption type="button" data-testid="env-option-none" [value]="none">
+        No environment
+      </button>
+      @for (env of project.environments; track env.id) {
+        @let envMarker = markerOf(env.name);
+        <button
+          tuiOption
+          type="button"
+          class="option"
+          [value]="env.id"
+          [attr.data-testid]="'env-option-' + env.name"
+        >
+          <span class="option-name">{{ env.name }}</span>
+          @if (envMarker.label) {
+            <span tuiBadge size="s" [appearance]="envMarker.appearance">
+              {{ envMarker.label }}
+            </span>
+          }
+        </button>
+      }
+    </tui-data-list>
+  </tui-textfield>
+}

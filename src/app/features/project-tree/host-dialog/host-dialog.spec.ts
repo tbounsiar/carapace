@@ -1,50 +1,68 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import type { FormGroup } from '@angular/forms';
 import { provideTaiga, TuiNotificationService } from '@taiga-ui/core';
-import { of } from 'rxjs';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
-import type { Host, HostInput } from '../../../core/ipc/config.models';
-import { SecretsService } from '../../../core/ipc/secrets';
+import { of } from 'rxjs';
+import { ConfigService } from '../../../core/ipc/config';
+import type { Host, HostInput, Project, VariableView } from '../../../core/ipc/config.models';
 import { HostDialog, type HostDialogData } from './host-dialog';
+
+const plain = (name: string, value: string): VariableView => ({
+  name,
+  kind: 'plain',
+  value,
+  hasValue: true,
+});
+const secret = (name: string): VariableView => ({
+  name,
+  kind: 'secret',
+  value: null,
+  hasValue: true,
+});
+
+const PROJECT: Project = {
+  id: 'p1',
+  name: 'Shop',
+  variables: [plain('host', 'example.com'), secret('db_pw')],
+  environments: [
+    { id: 'e1', name: 'Dev', variables: [plain('host', '127.0.0.1'), plain('port', '2223')] },
+    { id: 'e2', name: 'Prod', variables: [secret('prod_pw')] },
+  ],
+  hosts: [],
+  activeEnvironmentId: 'e1',
+};
+
+interface DialogApi {
+  form: FormGroup;
+  secretReferences(): string[];
+  submit(): Promise<void>;
+}
 
 describe('HostDialog', () => {
   const completeWith = vi.fn();
   const save = vi.fn<HostDialogData['save']>();
-  const order: string[] = [];
   const alerts = { open: vi.fn(() => of(undefined)) };
-  const secrets = {
-    set: vi.fn(() => {
-      order.push('set');
-      return Promise.resolve();
-    }),
-    delete: vi.fn(() => Promise.resolve()),
-    has: vi.fn(() => Promise.resolve(false)),
-  };
+  const projects = signal<Project[]>([PROJECT]);
+  const variables = signal<VariableView[]>([plain('user', 'carapace'), secret('global_pw')]);
 
-  async function setup(initial: HostInput | null = null, hostId: string | null = null) {
+  async function setup(initial: HostInput | null = null) {
     await TestBed.configureTestingModule({
       imports: [HostDialog],
       providers: [
         provideTaiga(),
         {
           provide: POLYMORPHEUS_CONTEXT,
-          useValue: { data: { initial, hostId, save }, completeWith, $implicit: {} },
+          useValue: { data: { projectId: 'p1', initial, save }, completeWith, $implicit: {} },
         },
-        { provide: SecretsService, useValue: secrets },
+        { provide: ConfigService, useValue: { projects, variables } },
         { provide: TuiNotificationService, useValue: alerts },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(HostDialog);
     await fixture.whenStable();
-    await new Promise((r) => setTimeout(r));
-    await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
     return { fixture, el, dialog: fixture.componentInstance as unknown as DialogApi };
-  }
-
-  interface DialogApi {
-    form: import('@angular/forms').FormGroup;
-    submit(): Promise<void>;
-    forget(): Promise<void>;
   }
 
   const byId = (el: HTMLElement, id: string): HTMLElement | null =>
@@ -53,25 +71,29 @@ describe('HostDialog', () => {
   const valid: HostInput = {
     name: 'web-1',
     hostname: 'web1.example.com',
-    port: 22,
+    port: '22',
     username: 'deploy',
     auth: { kind: 'agent' },
+  };
+  const templated: HostInput = {
+    name: 'ui',
+    hostname: '${host}',
+    port: '${port}',
+    username: '${user}',
+    auth: { kind: 'password', password: null },
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    order.length = 0;
-    secrets.has.mockResolvedValue(false);
-    save.mockImplementation((host) => {
-      order.push('save');
-      return Promise.resolve({ ...host, id: 'h1' } as Host);
-    });
+    projects.set([PROJECT]);
+    save.mockImplementation((host) => Promise.resolve({ ...host, id: 'h1' } as Host));
   });
 
-  it('defaults the port to 22 and password auth', async () => {
+  it('defaults the port to 22 and password auth asked when connecting', async () => {
     const { dialog } = await setup();
-    expect(dialog.form.value.port).toBe(22);
+    expect(dialog.form.value.port).toBe('22');
     expect(dialog.form.value.authKind).toBe('password');
+    expect(dialog.form.value.password).toBeNull();
   });
 
   it('is invalid until required fields are filled', async () => {
@@ -83,14 +105,17 @@ describe('HostDialog', () => {
     expect(dialog.form.get('username')!.invalid).toBe(true);
   });
 
-  it('rejects whitespace and out-of-range values', async () => {
+  it('checks literal values but accepts templates', async () => {
     const { dialog } = await setup(valid);
-    dialog.form.patchValue({ hostname: 'a b', username: 'x y', port: 70000 });
+    dialog.form.patchValue({ hostname: 'a b', username: 'x y', port: '70000' });
     expect(dialog.form.get('hostname')!.invalid).toBe(true);
     expect(dialog.form.get('username')!.invalid).toBe(true);
     expect(dialog.form.get('port')!.invalid).toBe(true);
-    dialog.form.patchValue({ hostname: 'h', username: 'u', port: 2222 });
+    dialog.form.patchValue({ hostname: '${host}', username: '${user}', port: '${port}' });
     expect(dialog.form.valid).toBe(true);
+    dialog.form.patchValue({ hostname: '${bad name}', port: '22${x}' });
+    expect(dialog.form.get('hostname')!.invalid).toBe(true);
+    expect(dialog.form.get('port')!.invalid).toBe(true);
   });
 
   it('requires a key path only for key auth', async () => {
@@ -99,26 +124,35 @@ describe('HostDialog', () => {
     dialog.form.patchValue({ authKind: 'key' });
     await fixture.whenStable();
     expect(dialog.form.get('keyPath')!.invalid).toBe(true);
-    dialog.form.patchValue({ keyPath: '~/.ssh/id_ed25519' });
+    dialog.form.patchValue({ keyPath: '${keys}/id_ed25519' });
     expect(dialog.form.valid).toBe(true);
   });
 
-  it('submits the host input with the key auth method', async () => {
+  it('submits trimmed templates with the key auth method', async () => {
     const { fixture, dialog } = await setup(valid);
-    dialog.form.patchValue({ authKind: 'key', keyPath: ' ~/.ssh/id ' });
+    dialog.form.patchValue({ authKind: 'key', keyPath: ' ~/.ssh/id ', hostname: ' ${host} ' });
     await fixture.whenStable();
     await dialog.submit();
-    expect(save).toHaveBeenCalledWith({ ...valid, auth: { kind: 'key', keyPath: '~/.ssh/id' } });
+    expect(save).toHaveBeenCalledWith({
+      ...valid,
+      hostname: '${host}',
+      auth: { kind: 'key', keyPath: '~/.ssh/id', passphrase: null },
+    });
     expect(completeWith).toHaveBeenCalledOnce();
   });
 
-  describe('secret', () => {
-    const passwordHost: HostInput = { ...valid, auth: { kind: 'password' } };
-    const keyHost: HostInput = { ...valid, auth: { kind: 'key', keyPath: '~/.ssh/id' } };
+  it('keeps the dialog open when the save fails', async () => {
+    save.mockRejectedValue(new Error('boom'));
+    const { dialog } = await setup(valid);
+    await dialog.submit();
+    expect(completeWith).not.toHaveBeenCalled();
+    expect(alerts.open).toHaveBeenCalledOnce();
+  });
 
+  describe('secret picker', () => {
     it('shows a password field for password auth, a passphrase field for key auth, none for agent', async () => {
-      const { fixture, el, dialog } = await setup(passwordHost);
-      expect((byId(el, 'host-password') as HTMLInputElement).type).toBe('password');
+      const { fixture, el, dialog } = await setup(templated);
+      expect(byId(el, 'host-password')).not.toBeNull();
       dialog.form.patchValue({ authKind: 'key' });
       await fixture.whenStable();
       expect(byId(el, 'host-password')).toBeNull();
@@ -128,92 +162,93 @@ describe('HostDialog', () => {
       expect(byId(el, 'host-passphrase')).toBeNull();
     });
 
-    it('saves the host first, then the secret, and keeps it out of the host payload', async () => {
-      const { dialog } = await setup(passwordHost);
-      dialog.form.patchValue({ secret: 'pw' });
-      await dialog.submit();
-      expect(order).toEqual(['save', 'set']);
-      expect(save).toHaveBeenCalledWith(passwordHost);
-      expect(JSON.stringify(save.mock.calls[0][0])).not.toContain('pw');
-      expect(secrets.set).toHaveBeenCalledWith('h1', 'password', 'pw');
-      expect(dialog.form.get('secret')!.value).toBe('');
-      expect(completeWith).toHaveBeenCalledOnce();
+    it('offers the secret variables of every level as references', async () => {
+      const { dialog } = await setup(templated);
+      expect(dialog.secretReferences()).toEqual(['${db_pw}', '${global_pw}', '${prod_pw}']);
     });
 
-    it('stores a passphrase for key auth', async () => {
-      const { dialog } = await setup(keyHost, 'h1');
-      dialog.form.patchValue({ secret: 'phrase' });
-      await dialog.submit();
-      expect(secrets.set).toHaveBeenCalledWith('h1', 'passphrase', 'phrase');
+    it('keeps a reference to a variable that no longer exists in the list', async () => {
+      const { dialog } = await setup({
+        ...templated,
+        auth: { kind: 'password', password: '${removed}' },
+      });
+      expect(dialog.form.value.password).toBe('${removed}');
+      expect(dialog.secretReferences()).toContain('${removed}');
     });
 
-    it('does not touch the keychain when the field is empty', async () => {
-      const { dialog } = await setup(passwordHost);
+    it('saves a picked reference, never a value', async () => {
+      const { dialog } = await setup(templated);
+      dialog.form.patchValue({ password: '${db_pw}' });
       await dialog.submit();
-      expect(save).toHaveBeenCalledOnce();
-      expect(secrets.set).not.toHaveBeenCalled();
+      expect(save).toHaveBeenCalledWith({
+        ...templated,
+        auth: { kind: 'password', password: '${db_pw}' },
+      });
     });
 
-    it('keeps the typed secret and skips the keychain when the host save fails', async () => {
-      save.mockRejectedValue(new Error('boom'));
-      const { dialog } = await setup(passwordHost);
-      dialog.form.patchValue({ secret: 'pw' });
+    it('saves an empty field as "ask when connecting"', async () => {
+      const { dialog } = await setup({
+        ...templated,
+        auth: { kind: 'password', password: '${db_pw}' },
+      });
+      dialog.form.patchValue({ password: '  ' });
       await dialog.submit();
-      expect(secrets.set).not.toHaveBeenCalled();
-      expect(completeWith).not.toHaveBeenCalled();
+      expect(save.mock.calls[0][0].auth).toEqual({ kind: 'password', password: null });
     });
 
-    it('still closes when the keychain write fails after the host was saved', async () => {
-      secrets.set.mockRejectedValueOnce(new Error('keychain'));
-      const { dialog } = await setup(passwordHost);
-      dialog.form.patchValue({ secret: 'pw' });
+    it('rejects a typed password instead of a reference', async () => {
+      const { dialog } = await setup(templated);
+      dialog.form.patchValue({ password: 'hunter2' });
       await dialog.submit();
-      expect(completeWith).toHaveBeenCalledOnce();
-      expect(dialog.form.get('secret')!.value).toBe('');
-      expect(alerts.open).toHaveBeenCalledOnce();
+      expect(dialog.form.get('password')!.invalid).toBe(true);
+      expect(save).not.toHaveBeenCalled();
     });
 
-    it('shows the stored state on edit and forgets it', async () => {
-      secrets.has.mockResolvedValue(true);
-      const { fixture, el } = await setup(passwordHost, 'h1');
-      expect(secrets.has).toHaveBeenCalledWith('h1', 'password');
-      expect(byId(el, 'host-secret-stored')).not.toBeNull();
-      byId(el, 'host-secret-forget')!.click();
+    it('keeps the passphrase reference of a key host', async () => {
+      const { dialog } = await setup({
+        ...valid,
+        auth: { kind: 'key', keyPath: '~/.ssh/id', passphrase: '${db_pw}' },
+      });
+      await dialog.submit();
+      expect(save.mock.calls[0][0].auth).toEqual({
+        kind: 'key',
+        keyPath: '~/.ssh/id',
+        passphrase: '${db_pw}',
+      });
+    });
+  });
+
+  describe('preview', () => {
+    const preview = (el: HTMLElement): string => byId(el, 'host-preview')?.textContent ?? '';
+
+    it('resolves the templates in the active environment', async () => {
+      const { el } = await setup(templated);
+      expect(preview(el)).toContain('Resolves to');
+      expect(preview(el)).toContain('carapace@127.0.0.1:2223');
+      expect(preview(el)).toContain('in Dev');
+    });
+
+    it('updates while typing and lists missing variables', async () => {
+      const { fixture, el, dialog } = await setup(templated);
+      dialog.form.patchValue({ hostname: '${nope}.${host}', password: '${gone}' });
       await fixture.whenStable();
-      expect(secrets.delete).toHaveBeenCalledWith('h1', 'password');
-      expect(byId(el, 'host-secret-stored')).toBeNull();
+      expect(preview(el)).toContain('Missing in Dev: nope, gone');
     });
 
-    it('hides the stored state when the key path changes', async () => {
-      secrets.has.mockResolvedValue(true);
-      const { fixture, el, dialog } = await setup(keyHost, 'h1');
-      expect(secrets.has).toHaveBeenCalledWith('h1', 'passphrase');
-      expect(byId(el, 'host-secret-stored')).not.toBeNull();
-      dialog.form.patchValue({ keyPath: '~/.ssh/other' });
+    it('resolves without an environment', async () => {
+      projects.set([{ ...PROJECT, activeEnvironmentId: null }]);
+      const { fixture, el, dialog } = await setup(templated);
+      expect(preview(el)).toContain('Missing with no environment: port');
+      dialog.form.patchValue({ port: '2200' });
       await fixture.whenStable();
-      expect(byId(el, 'host-secret-stored')).toBeNull();
+      expect(preview(el)).toContain('carapace@example.com:2200 with no environment');
     });
 
-    it('hides the stored password when the server changes', async () => {
-      secrets.has.mockResolvedValue(true);
-      const { fixture, el, dialog } = await setup(passwordHost, 'h1');
-      expect(byId(el, 'host-secret-stored')).not.toBeNull();
-      dialog.form.patchValue({ username: 'someone-else' });
+    it('reports a secret variable used in a plain field', async () => {
+      const { fixture, el, dialog } = await setup(templated);
+      dialog.form.patchValue({ username: '${db_pw}' });
       await fixture.whenStable();
-      expect(byId(el, 'host-secret-stored')).toBeNull();
-    });
-
-    it('clears a typed secret when the auth kind changes', async () => {
-      const { fixture, dialog } = await setup(passwordHost);
-      dialog.form.patchValue({ secret: 'pw' });
-      dialog.form.patchValue({ authKind: 'key', keyPath: '~/.ssh/id' });
-      await fixture.whenStable();
-      expect(dialog.form.get('secret')!.value).toBe('');
-    });
-
-    it('does not look up a secret for a new host', async () => {
-      await setup(passwordHost);
-      expect(secrets.has).not.toHaveBeenCalled();
+      expect(preview(el)).toContain('secret variable db_pw used in a non-secret field');
     });
   });
 });

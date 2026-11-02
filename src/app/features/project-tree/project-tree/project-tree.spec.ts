@@ -1,11 +1,12 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
-import type { Project } from '../../../core/ipc/config.models';
+import type { Host as SshHost, Project } from '../../../core/ipc/config.models';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { SshService } from '../../../core/ipc/ssh';
+import { CurrentProject } from '../../../shared/current-project';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
 import { ProjectTree } from './project-tree';
 
@@ -15,28 +16,36 @@ import { ProjectTree } from './project-tree';
 })
 class Host {}
 
-const PROJECTS: Project[] = [
-  {
-    id: 'p1',
-    name: 'Shop',
-    environments: [
-      {
-        id: 'e1',
-        name: 'staging',
-        hosts: [
-          {
-            id: 'h1',
-            name: 'web-1',
-            hostname: 'web1.example.com',
-            port: 22,
-            username: 'deploy',
-            auth: { kind: 'agent' },
-          },
-        ],
-      },
-    ],
-  },
-];
+@Component({ template: '' })
+class Blank {}
+
+const host = (id: string, name: string): SshHost => ({
+  id,
+  name,
+  hostname: `${name}.example.com`,
+  port: '22',
+  username: 'deploy',
+  auth: { kind: 'agent' },
+});
+
+const project = (
+  id: string,
+  name: string,
+  hosts: SshHost[],
+  activeEnvironmentId: string | null = null,
+): Project => ({
+  id,
+  name,
+  variables: [],
+  environments: [
+    { id: 'e1', name: 'staging', variables: [] },
+    { id: 'e2', name: 'prod', variables: [] },
+  ],
+  hosts,
+  activeEnvironmentId,
+});
+
+const PROJECTS: Project[] = [project('p1', 'Shop', [host('h1', 'web-1')], 'e1')];
 
 describe('ProjectTree', () => {
   const projects = signal<Project[]>([]);
@@ -44,16 +53,26 @@ describe('ProjectTree', () => {
   const config = {
     projects,
     loading,
+    variables: signal([]),
     load: vi.fn(() => Promise.resolve()),
     createProject: vi.fn(() => Promise.resolve({})),
     deleteProject: vi.fn(() => Promise.resolve()),
     deleteHost: vi.fn(() => Promise.resolve()),
+    findHost: (id: string) => {
+      for (const p of projects()) {
+        const h = p.hosts.find((x) => x.id === id);
+        if (h) {
+          return { project: p, host: h };
+        }
+      }
+      return null;
+    },
   };
   const states = signal<Record<string, ConnectionState>>({});
   const ssh = {
     states,
     loadConnections: vi.fn(() => Promise.resolve([])),
-    connect: vi.fn(() => Promise.resolve({ hostId: 'h1', state: 'connected' })),
+    connect: vi.fn(() => Promise.resolve({ connectionId: 'h1@e1', state: 'connected' })),
     disconnect: vi.fn(() => Promise.resolve()),
     replaceHostKey: vi.fn(() => Promise.resolve()),
   };
@@ -84,7 +103,7 @@ describe('ProjectTree', () => {
     await TestBed.configureTestingModule({
       imports: [Host],
       providers: [
-        provideRouter([]),
+        provideRouter([{ path: 'projects/:projectId/variables', component: Blank }]),
         provideTaiga(),
         { provide: ConfigService, useValue: config },
         { provide: SshService, useValue: ssh },
@@ -123,15 +142,16 @@ describe('ProjectTree', () => {
     expect(config.createProject).not.toHaveBeenCalled();
   });
 
-  it('renders projects, environments and hosts', async () => {
+  it('renders projects and their hosts without an environment level', async () => {
     projects.set(PROJECTS);
     await settle();
-    const items = el().querySelectorAll('tui-tree-item');
-    expect(items.length).toBe(3);
+    expect(el().querySelectorAll('tui-tree-item').length).toBe(2);
     const text = el().textContent ?? '';
     expect(text).toContain('Shop');
-    expect(text).toContain('staging');
     expect(text).toContain('web-1');
+    expect(text).not.toContain('staging');
+    expect(byTestId('tree-project-Shop')).not.toBeNull();
+    expect(byTestId('tree-host-web-1')).not.toBeNull();
     expect(el().querySelector('button[aria-label="Actions for web-1"]')).not.toBeNull();
   });
 
@@ -142,7 +162,7 @@ describe('ProjectTree', () => {
     await click(byText('button[tuiOption]', 'Delete'));
     await click(byText('tui-confirm button, button', 'Delete'));
 
-    expect(config.deleteHost).toHaveBeenCalledWith('p1', 'e1', 'h1');
+    expect(config.deleteHost).toHaveBeenCalledWith('p1', 'h1');
   });
 
   it('does not delete when the confirmation is cancelled', async () => {
@@ -155,27 +175,37 @@ describe('ProjectTree', () => {
     expect(config.deleteProject).not.toHaveBeenCalled();
   });
 
-  it('connects a host from the menu', async () => {
+  it('connects a host in the active environment from the menu', async () => {
     projects.set(PROJECTS);
     await settle();
     await click(el().querySelector('button[aria-label="Actions for web-1"]'));
     await click(byText('button[tuiOption]', 'Connect'));
-    expect(ssh.connect).toHaveBeenCalledWith('h1', {
-      decide: expect.any(Function),
-      changed: expect.any(Function),
-    });
+    expect(ssh.connect).toHaveBeenCalledWith(
+      { projectId: 'p1', hostId: 'h1', environmentId: 'e1', connectionId: 'h1@e1' },
+      { decide: expect.any(Function), changed: expect.any(Function) },
+    );
   });
 
   it('shows the status as a dot with a word and offers Disconnect when connected', async () => {
     projects.set(PROJECTS);
-    states.set({ h1: 'connected' });
+    states.set({ 'h1@e1': 'connected' });
     await settle();
     expect(byTestId('status-host-web-1')?.getAttribute('aria-label')).toBe('Connected');
     expect(byTestId('connect-host-web-1')).toBeNull();
     await click(el().querySelector('button[aria-label="Actions for web-1"]'));
     expect(byText('button[tuiOption]', 'Connect')).toBeUndefined();
     await click(byText('button[tuiOption]', 'Disconnect'));
-    expect(ssh.disconnect).toHaveBeenCalledWith('h1');
+    expect(ssh.disconnect).toHaveBeenCalledWith('h1@e1');
+  });
+
+  it('shows the status of the connection in the active environment', async () => {
+    projects.set([project('p1', 'Shop', [host('h1', 'web-1')], null)]);
+    states.set({ 'h1@e1': 'connected' });
+    await settle();
+    expect(byTestId('status-host-web-1')?.getAttribute('aria-label')).toBe('Not connected');
+    states.set({ 'h1@e1': 'connected', 'h1@none': 'connected' });
+    await settle();
+    expect(byTestId('status-host-web-1')?.getAttribute('aria-label')).toBe('Connected');
   });
 
   it('shows a neutral status for idle hosts and connects from the row action', async () => {
@@ -183,30 +213,44 @@ describe('ProjectTree', () => {
     await settle();
     expect(byTestId('status-host-web-1')?.getAttribute('aria-label')).toBe('Not connected');
     await click(byTestId('connect-host-web-1'));
-    expect(ssh.connect).toHaveBeenCalledWith('h1', expect.anything());
+    expect(ssh.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ connectionId: 'h1@e1' }),
+      expect.anything(),
+    );
   });
 
   it('disables the row connect action while connecting', async () => {
     projects.set(PROJECTS);
-    states.set({ h1: 'connecting' });
+    states.set({ 'h1@e1': 'connecting' });
     await settle();
     expect(byTestId('connect-host-web-1')?.hasAttribute('disabled')).toBe(true);
     expect(byTestId('status-host-web-1')?.tagName.toLowerCase()).toBe('tui-loader');
   });
 
-  it('marks environments by kind and links hosts to their detail route', async () => {
+  it('colors hosts by the active environment and links them to their detail route', async () => {
     projects.set(PROJECTS);
     await settle();
-    expect(byTestId('env-kind-env-staging')?.textContent).toContain('staging');
     expect(byTestId('open-host-web-1')?.getAttribute('href')).toBe('/hosts/h1');
     expect(byTestId('tree-host-web-1')?.getAttribute('style')).toContain('--tui-status-warning');
+    projects.set([project('p1', 'Shop', [host('h1', 'web-1')], null)]);
+    await settle();
+    expect(byTestId('tree-host-web-1')?.getAttribute('style')).toContain('--tui-status-neutral');
   });
 
-  it('adds a host from the environment row action', async () => {
+  it('adds a host from the project row action', async () => {
     projects.set(PROJECTS);
     await settle();
-    await click(byTestId('add-env-staging'));
+    await click(byTestId('add-project-Shop'));
     expect(document.body.querySelector('app-host-dialog')).not.toBeNull();
+  });
+
+  it('opens the variables editor from the project menu', async () => {
+    projects.set(PROJECTS);
+    await settle();
+    await click(byTestId('menu-project-Shop'));
+    expect(byText('button[tuiOption]', 'Connect')).toBeUndefined();
+    await click(document.body.querySelector('[data-testid="menu-variables"]'));
+    expect(TestBed.inject(Router).url).toBe('/projects/p1/variables');
   });
 
   it('shows the safe message when connecting fails', async () => {
@@ -219,27 +263,9 @@ describe('ProjectTree', () => {
   });
 
   describe('keyboard navigation', () => {
-    const host = (id: string, name: string) => ({
-      id,
-      name,
-      hostname: `${name}.example.com`,
-      port: 22,
-      username: 'deploy',
-      auth: { kind: 'agent' as const },
-    });
     const TWO_PROJECTS: Project[] = [
-      {
-        id: 'p1',
-        name: 'Shop',
-        environments: [
-          { id: 'e1', name: 'staging', hosts: [host('h1', 'web-1'), host('h2', 'web-2')] },
-        ],
-      },
-      {
-        id: 'p2',
-        name: 'Blog',
-        environments: [{ id: 'e2', name: 'prod', hosts: [host('h3', 'db-1')] }],
-      },
+      project('p1', 'Shop', [host('h1', 'web-1'), host('h2', 'web-2')]),
+      project('p2', 'Blog', [host('h3', 'db-1')]),
     ];
 
     const press = async (key: string, init: KeyboardEventInit = {}): Promise<KeyboardEvent> => {
@@ -263,7 +289,7 @@ describe('ProjectTree', () => {
       expect(down.defaultPrevented).toBe(true);
       expect(focused()).toBe('tree-project-Blog');
       await press('ArrowDown');
-      expect(focused()).toBe('tree-env-prod');
+      expect(focused()).toBe('open-host-db-1');
       await press('ArrowUp');
       await press('ArrowUp');
       expect(focused()).toBe('open-host-web-2');
@@ -277,34 +303,31 @@ describe('ProjectTree', () => {
     });
 
     it('jumps to the first and last rows with Home and End', async () => {
-      focus('tree-env-prod');
+      focus('tree-project-Blog');
       await press('Home');
       expect(focused()).toBe('tree-project-Shop');
       await press('End');
       expect(focused()).toBe('open-host-db-1');
     });
 
-    it('collapses with ArrowLeft, then moves to the parent', async () => {
+    it('moves to the parent with ArrowLeft, then collapses', async () => {
       focus('open-host-web-1');
       await press('ArrowLeft');
-      expect(focused()).toBe('tree-env-staging');
+      expect(focused()).toBe('tree-project-Shop');
       await press('ArrowLeft');
-      expect(byTestId('tree-env-staging')?.getAttribute('data-expanded')).toBe('false');
-      expect(focused()).toBe('tree-env-staging');
+      expect(byTestId('tree-project-Shop')?.getAttribute('data-expanded')).toBe('false');
+      expect(focused()).toBe('tree-project-Shop');
       await press('ArrowDown');
       expect(focused()).toBe('tree-project-Blog');
-      focus('tree-env-staging');
-      await press('ArrowLeft');
-      expect(focused()).toBe('tree-project-Shop');
     });
 
     it('expands with ArrowRight, then focuses the first child', async () => {
-      focus('tree-env-staging');
+      focus('tree-project-Shop');
       await press('ArrowLeft');
-      expect(byTestId('tree-env-staging')?.getAttribute('data-expanded')).toBe('false');
+      expect(byTestId('tree-project-Shop')?.getAttribute('data-expanded')).toBe('false');
       await press('ArrowRight');
-      expect(byTestId('tree-env-staging')?.getAttribute('data-expanded')).toBe('true');
-      expect(focused()).toBe('tree-env-staging');
+      expect(byTestId('tree-project-Shop')?.getAttribute('data-expanded')).toBe('true');
+      expect(focused()).toBe('tree-project-Shop');
       await press('ArrowRight');
       expect(focused()).toBe('open-host-web-1');
       await press('ArrowRight');
@@ -312,9 +335,9 @@ describe('ProjectTree', () => {
     });
 
     it('handles keys pressed on a row action button', async () => {
-      focus('add-env-staging');
+      focus('add-project-Blog');
       await press('ArrowUp');
-      expect(focused()).toBe('tree-project-Shop');
+      expect(focused()).toBe('open-host-web-2');
     });
 
     it('does not prevent unhandled keys or modified arrows', async () => {
@@ -326,7 +349,14 @@ describe('ProjectTree', () => {
       expect(focused()).toBe('open-host-web-1');
     });
 
-    it('keeps project and environment rows out of the tab order', () => {
+    it('makes the project of a focused row current for the environment selector', () => {
+      focus('open-host-db-1');
+      expect(TestBed.inject(CurrentProject).project()?.id).toBe('p2');
+      focus('tree-project-Shop');
+      expect(TestBed.inject(CurrentProject).project()?.id).toBe('p1');
+    });
+
+    it('keeps project rows out of the tab order', () => {
       expect(byTestId('tree-project-Shop')?.getAttribute('tabindex')).toBe('-1');
       expect(byTestId('tree-host-web-1')?.hasAttribute('tabindex')).toBe(false);
     });

@@ -1,0 +1,70 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-padding-m);
+}
+
+.scroll {
+  max-block-size: calc(100dvh - 16rem);
+  overflow: auto;
+}
+
+.table {
+  inline-size: 100%;
+  table-layout: fixed;
+}
+
+.col-name {
+  inline-size: 30%;
+}
+
+.col-kind {
+  inline-size: 8rem;
+}
+
+.col-remove {
+  inline-size: 2.5rem;
+}
+
+/*
+ * Taiga's table appearance gives cell inputs a 100rem transparent bottom border inside an
+ * overflow-hidden field. Focusing or scrolling to such an input scrolls the field, and the
+ * text leaves the cell. Our inputs keep the cell height instead; the scoped selector outranks
+ * Taiga's attribute selector.
+ */
+.table td .cell-input {
+  border-block-end-width: 0;
+}
+
+.remove {
+  text-align: center;
+}
+
+.mono {
+  font-family: var(--app-font-mono);
+}
+
+.empty {
+  color: var(--tui-text-secondary);
+  font: var(--tui-typography-body-s);
+}
+
+.errors {
+  margin: 0;
+  padding-inline-start: 1rem;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.spacer {
+  flex: 1;
+}

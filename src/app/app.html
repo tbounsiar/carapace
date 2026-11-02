@@ -1,10 +1,11 @@
 <tui-root [attr.tuiTheme]="effective()">
-  <header tuiNavigationHeader [attr.tuiTheme]="effective()">
+  <header tuiNavigationHeader [attr.tuiTheme]="effective()" [class._prod]="isProd()">
     <a tuiNavigationLogo routerLink="/" data-testid="home-link">
       <tui-icon icon="@tui.terminal" />
       Carapace
     </a>
     <hr />
+    <app-env-select />
     <tui-segmented
       size="s"
       aria-label="Theme"
@@ -29,6 +30,20 @@
   <div class="body">
     <aside aria-label="Projects" [tuiNavigationAside]="true" [attr.tuiTheme]="effective()">
       <app-project-tree />
+      <footer>
+        <a
+          tuiButton
+          appearance="flat-grayscale"
+          size="s"
+          iconStart="@tui.variable"
+          routerLink="/variables"
+          routerLinkActive="_active"
+          ariaCurrentWhenActive="page"
+          data-testid="global-variables"
+        >
+          Global variables
+        </a>
+      </footer>
     </aside>
     <main tuiNavigationMain>
       <router-outlet />

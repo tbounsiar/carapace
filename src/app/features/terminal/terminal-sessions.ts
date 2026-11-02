@@ -15,10 +15,10 @@ import { xtermFont, xtermTheme } from './xterm-theme';
 export type TerminalTabState = 'opening' | 'open' | 'ended';
 
 export interface TerminalTab {
-  /** Unique across hosts, for `track`. */
+  /** Unique across connections, for `track`. */
   readonly key: number;
-  readonly hostId: string;
-  /** "Terminal N", increments per host and is never reused. */
+  readonly connectionId: string;
+  /** "Terminal N", increments per connection and is never reused. */
   readonly n: number;
   readonly state: Signal<TerminalTabState>;
   readonly reason: Signal<TerminalClosedReason | null>;
@@ -41,7 +41,7 @@ class Session implements TerminalTab {
 
   constructor(
     readonly key: number,
-    readonly hostId: string,
+    readonly connectionId: string,
     readonly n: number,
     readonly view: XtermView,
   ) {
@@ -51,7 +51,7 @@ class Session implements TerminalTab {
 
 const DEFAULT_SIZE = { cols: 80, rows: 24 };
 
-/** Terminal tabs per host, kept here (not in the panel) so their xterm and scrollback outlive navigation. */
+/** Terminal tabs per connection, kept here (not in the panel) so their xterm and scrollback outlive navigation. */
 @Service()
 export class TerminalSessions {
   private readonly ipc = inject(TerminalIpc);
@@ -65,31 +65,34 @@ export class TerminalSessions {
   private theme: ITheme | null = null;
   private fontFamily = 'monospace';
 
-  tabs(hostId: string): readonly TerminalTab[] {
-    return this._tabs()[hostId] ?? [];
+  tabs(connectionId: string): readonly TerminalTab[] {
+    return this._tabs()[connectionId] ?? [];
   }
 
-  active(hostId: string): TerminalTab | null {
-    const tabs = this._tabs()[hostId] ?? [];
-    return tabs.find((tab) => tab.key === this._active()[hostId]) ?? tabs.at(-1) ?? null;
+  active(connectionId: string): TerminalTab | null {
+    const tabs = this._tabs()[connectionId] ?? [];
+    return tabs.find((tab) => tab.key === this._active()[connectionId]) ?? tabs.at(-1) ?? null;
   }
 
   select(tab: TerminalTab): void {
-    this._active.update((active) => ({ ...active, [tab.hostId]: tab.key }));
+    this._active.update((active) => ({ ...active, [tab.connectionId]: tab.key }));
   }
 
-  async open(hostId: string): Promise<TerminalTab | null> {
-    const n = (this.counters.get(hostId) ?? 0) + 1;
-    this.counters.set(hostId, n);
+  async open(connectionId: string): Promise<TerminalTab | null> {
+    const n = (this.counters.get(connectionId) ?? 0) + 1;
+    this.counters.set(connectionId, n);
     const session = new Session(
       this.nextKey++,
-      hostId,
+      connectionId,
       n,
       this.factory.create(this.theme ?? {}, this.fontFamily),
     );
     session.view.onData((data) => this.send(session, data));
     session.view.onResize(() => this.syncSize(session));
-    this._tabs.update((tabs) => ({ ...tabs, [hostId]: [...(tabs[hostId] ?? []), session] }));
+    this._tabs.update((tabs) => ({
+      ...tabs,
+      [connectionId]: [...(tabs[connectionId] ?? []), session],
+    }));
     this.select(session);
     if (await this.start(session)) {
       return session;
@@ -177,7 +180,7 @@ export class TerminalSessions {
     session.run = run;
     const cols = session.view.cols || DEFAULT_SIZE.cols;
     const rows = session.view.rows || DEFAULT_SIZE.rows;
-    const opening = this.ipc.open(session.hostId, cols, rows, (event) =>
+    const opening = this.ipc.open(session.connectionId, cols, rows, (event) =>
       this.onEvent(session, run, event),
     );
     session.queue = opening.catch(() => undefined);
@@ -250,16 +253,16 @@ export class TerminalSessions {
   }
 
   private session(tab: TerminalTab): Session | null {
-    return (this._tabs()[tab.hostId] ?? []).find((s) => s.key === tab.key) ?? null;
+    return (this._tabs()[tab.connectionId] ?? []).find((s) => s.key === tab.key) ?? null;
   }
 
   private remove(session: Session): void {
     session.disposed = true;
-    const tabs = this._tabs()[session.hostId] ?? [];
+    const tabs = this._tabs()[session.connectionId] ?? [];
     const index = tabs.indexOf(session);
     const rest = tabs.filter((s) => s !== session);
-    this._tabs.update((all) => ({ ...all, [session.hostId]: rest }));
-    if (this._active()[session.hostId] === session.key && rest.length) {
+    this._tabs.update((all) => ({ ...all, [session.connectionId]: rest }));
+    if (this._active()[session.connectionId] === session.key && rest.length) {
       this.select(rest[Math.min(index, rest.length - 1)]);
     }
     session.element.remove();

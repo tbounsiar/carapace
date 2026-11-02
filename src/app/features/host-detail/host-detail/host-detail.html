@@ -1,9 +1,12 @@
-@if (node(); as node) {
+@if (located(); as located) {
   <section tuiCardLarge="compact" appearance="outline-grayscale" data-testid="host-detail">
     <header tuiHeader="body-l">
       <hgroup tuiTitle>
-        <h1 class="name">
-          <span data-testid="host-detail-name">{{ node.host.name }}</span>
+        <h1 class="name" data-testid="host-detail-title">
+          <span data-testid="host-detail-name">{{ located.host.name }}</span>
+          @if (environment(); as env) {
+            <span class="env" data-testid="host-detail-title-env">· {{ env.name }}</span>
+          }
           @if (marker()?.label) {
             <span
               tuiBadge
@@ -15,7 +18,20 @@
             </span>
           }
         </h1>
-        <p tuiSubtitle class="mono" data-testid="host-detail-address">{{ address() }}</p>
+        @if (address(); as address) {
+          <p
+            tuiSubtitle
+            class="mono"
+            data-testid="host-detail-address"
+            [class._problem]="!address.ok"
+          >
+            {{ address.text }}
+          </p>
+        } @else {
+          <p tuiSubtitle class="mono" data-testid="host-detail-address">
+            {{ located.host.username }}@{{ located.host.hostname }}:{{ located.host.port }}
+          </p>
+        }
       </hgroup>
       <div tuiAccessories>
         <button
@@ -66,12 +82,29 @@
         </span>
       </dd>
       <dt>Environment</dt>
-      <dd data-testid="host-detail-env">{{ node.project.name }} / {{ node.environment.name }}</dd>
+      <dd data-testid="host-detail-env">
+        {{ located.project.name }} / {{ environment()?.name ?? 'No environment' }}
+      </dd>
       <dt>Authentication</dt>
       <dd data-testid="host-detail-auth">
         {{ authLabel() }}
-        @if (keyPath(); as path) {
-          <span class="mono path">{{ path }}</span>
+        @if (authDetail(); as detail) {
+          <span class="mono path">{{ detail }}</span>
+        }
+        @if (secretLabel(); as kind) {
+          <button
+            tuiButton
+            appearance="flat"
+            size="xs"
+            iconStart="@tui.eraser"
+            type="button"
+            class="forget"
+            data-testid="host-forget-secrets"
+            [loading]="forgetting()"
+            (click)="forgetSecrets()"
+          >
+            Forget saved {{ kind }}
+          </button>
         }
       </dd>
     </dl>
@@ -95,9 +128,9 @@
     }
   </tui-segmented>
   @if (view() === 'files') {
-    <app-files-panel [hostId]="node.id" />
+    <app-files-panel [target]="target()!" />
   } @else {
-    <app-terminal-panel [hostId]="node.id" />
+    <app-terminal-panel [target]="target()!" [envName]="environment()?.name ?? null" />
   }
 } @else {
   <tui-block-status size="m" data-testid="host-not-found">

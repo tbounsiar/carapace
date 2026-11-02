@@ -2,6 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiAvatar, TuiButtonLoading } from '@taiga-ui/kit';
 import { TuiBlockStatus } from '@taiga-ui/layout';
+import type { ConnectionTarget } from '../../../core/ipc/connection';
 import { FileSources, type FileSide } from '../../../core/ipc/files';
 import { SshService } from '../../../core/ipc/ssh';
 import { connectionStatus } from '../../../shared/connection-status';
@@ -22,23 +23,23 @@ export class FilesPanel {
   private readonly connector = inject(HostConnector);
   private readonly paths = inject(PanePaths);
 
-  readonly hostId = input.required<string>();
+  readonly target = input.required<ConnectionTarget>();
 
   protected readonly local = this.sources.local;
-  protected readonly remote = computed(() => this.sources.remote(this.hostId()));
-  private readonly state = computed(() => this.ssh.states()[this.hostId()] ?? 'idle');
+  protected readonly remote = computed(() => this.sources.remote(this.target().connectionId));
+  private readonly state = computed(() => this.ssh.states()[this.target().connectionId] ?? 'idle');
   protected readonly connected = computed(() => this.state() === 'connected');
   protected readonly busy = computed(() => connectionStatus(this.state()).busy);
 
   protected startPath(side: FileSide): string | null {
-    return this.paths.get(this.hostId(), side);
+    return this.paths.get(this.target().connectionId, side);
   }
 
   protected remember(side: FileSide, path: string): void {
-    this.paths.set(this.hostId(), side, path);
+    this.paths.set(this.target().connectionId, side, path);
   }
 
   protected connect(): void {
-    void this.connector.connect(this.hostId());
+    void this.connector.connect(this.target());
   }
 }

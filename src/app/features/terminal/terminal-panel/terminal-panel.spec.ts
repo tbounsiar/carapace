@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiNotificationService } from '@taiga-ui/core';
 import { of } from 'rxjs';
+import { type ConnectionTarget, connectionTarget } from '../../../core/ipc/connection';
 import { SshService } from '../../../core/ipc/ssh';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
 import { TerminalIpc, type TerminalEvent } from '../../../core/ipc/terminal';
@@ -10,12 +11,15 @@ import { FakeXtermFactory } from '../fake-xterm';
 import { XtermFactory } from '../xterm-factory';
 import { TerminalPanel } from './terminal-panel';
 
+const DEV = connectionTarget('p1', 'h1', 'e1');
+const NONE = connectionTarget('p1', 'h1', null);
+
 describe('TerminalPanel', () => {
   const states = signal<Record<string, ConnectionState>>({});
   const ssh = { states, stateOf: (id: string) => states()[id] ?? 'idle' };
   const connector = {
-    connect: vi.fn((id: string) => {
-      states.update((s) => ({ ...s, [id]: 'connected' }));
+    connect: vi.fn((target: ConnectionTarget) => {
+      states.update((s) => ({ ...s, [target.connectionId]: 'connected' }));
       return Promise.resolve();
     }),
   };
@@ -42,9 +46,10 @@ describe('TerminalPanel', () => {
     await fixture.whenStable();
   };
 
-  async function setup(hostId = 'h1'): Promise<void> {
+  async function setup(target = DEV, envName: string | null = 'Dev'): Promise<void> {
     fixture = TestBed.createComponent(TerminalPanel);
-    fixture.componentRef.setInput('hostId', hostId);
+    fixture.componentRef.setInput('target', target);
+    fixture.componentRef.setInput('envName', envName);
     await fixture.whenStable();
   }
 
@@ -77,10 +82,10 @@ describe('TerminalPanel', () => {
   it('connects first when the host is disconnected, then opens', async () => {
     await setup();
     await click('terminal-new');
-    expect(connector.connect).toHaveBeenCalledWith('h1');
+    expect(connector.connect).toHaveBeenCalledWith(DEV);
     expect(ipc.open).toHaveBeenCalledTimes(1);
-    expect(ipc.open.mock.calls[0][0]).toBe('h1');
-    expect(byId('terminal-tab-1')?.textContent).toContain('Terminal 1');
+    expect(ipc.open.mock.calls[0][0]).toBe('h1@e1');
+    expect(byId('terminal-tab-1')?.textContent).toContain('Terminal 1 · Dev');
     expect(byId('terminal-view-1')).toBeTruthy();
   });
 
@@ -93,7 +98,7 @@ describe('TerminalPanel', () => {
   });
 
   it('opens directly on a connected host and renders one tab per terminal', async () => {
-    states.set({ h1: 'connected' });
+    states.set({ 'h1@e1': 'connected' });
     await setup();
     await click('terminal-new');
     await click('terminal-new');
@@ -105,7 +110,7 @@ describe('TerminalPanel', () => {
   });
 
   it('closes a tab with its close icon', async () => {
-    states.set({ h1: 'connected' });
+    states.set({ 'h1@e1': 'connected' });
     await setup();
     await click('terminal-new');
     await click('terminal-new');
@@ -118,7 +123,7 @@ describe('TerminalPanel', () => {
   });
 
   it('shows the ended banner and reopens', async () => {
-    states.set({ h1: 'connected' });
+    states.set({ 'h1@e1': 'connected' });
     await setup();
     await click('terminal-new');
     emits[0]({ kind: 'closed', reason: 'closed' });
@@ -126,14 +131,14 @@ describe('TerminalPanel', () => {
     expect(byId('terminal-ended')?.textContent).toContain('Session ended');
     states.set({});
     await click('terminal-reopen');
-    expect(connector.connect).toHaveBeenCalledWith('h1');
+    expect(connector.connect).toHaveBeenCalledWith(DEV);
     expect(ipc.open).toHaveBeenCalledTimes(2);
     expect(byId('terminal-ended')).toBeNull();
     expect(byId('terminal-tab-1')).toBeTruthy();
   });
 
   it('keeps tabs and the xterm element across component destroy', async () => {
-    states.set({ h1: 'connected' });
+    states.set({ 'h1@e1': 'connected' });
     await setup();
     await click('terminal-new');
     const element = byId('terminal-view-1')!.firstElementChild;
@@ -144,15 +149,21 @@ describe('TerminalPanel', () => {
     expect(factory.created).toHaveLength(1);
   });
 
-  it('keeps tabs per host', async () => {
-    states.set({ h1: 'connected' });
+  it('keeps separate tabs for two environments of the same host', async () => {
+    states.set({ 'h1@e1': 'connected', 'h1@none': 'connected' });
     await setup();
     await click('terminal-new');
-    fixture.componentRef.setInput('hostId', 'h2');
+    fixture.componentRef.setInput('target', NONE);
+    fixture.componentRef.setInput('envName', null);
     await fixture.whenStable();
     expect(byId('terminal-empty')).toBeTruthy();
-    fixture.componentRef.setInput('hostId', 'h1');
+    await click('terminal-new');
+    expect(ipc.open.mock.calls[1][0]).toBe('h1@none');
+    expect(byId('terminal-tab-1')?.textContent?.trim()).toMatch(/^Terminal 1$/);
+    fixture.componentRef.setInput('target', DEV);
+    fixture.componentRef.setInput('envName', 'Dev');
     await fixture.whenStable();
-    expect(byId('terminal-tab-1')).toBeTruthy();
+    expect(byId('terminal-tab-1')?.textContent).toContain('Terminal 1 · Dev');
+    expect(byId('terminal-tab-2')).toBeNull();
   });
 });

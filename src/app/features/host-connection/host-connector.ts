@@ -2,6 +2,7 @@ import { inject, Service } from '@angular/core';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { ConfigService } from '../../core/ipc/config';
 import type { Host } from '../../core/ipc/config.models';
+import type { ConnectionTarget } from '../../core/ipc/connection';
 import { IpcError } from '../../core/ipc/ipc-error';
 import { type ConnectHandlers, SshService } from '../../core/ipc/ssh';
 import type { Credential, HostKeyChanged } from '../../core/ipc/ssh.models';
@@ -10,7 +11,12 @@ import { CredentialPrompter } from '../credential-dialog/credential-prompter';
 import { HostKeyPrompter } from '../host-key-dialog/host-key-prompter';
 import { notifyError } from '../project-tree/save-error';
 
-/** Connect/disconnect wired to the host key dialogs and error notifications, shared by the tree and the detail view. */
+interface Subjects {
+  readonly address: string;
+  readonly keyPath: string;
+}
+
+/** Connect/disconnect wired to the host key dialogs and error notifications, shared by the tree and the host page. */
 @Service()
 export class HostConnector {
   private readonly ssh = inject(SshService);
@@ -19,23 +25,24 @@ export class HostConnector {
   private readonly config = inject(ConfigService);
   private readonly alerts = inject(TuiNotificationService);
 
-  async connect(hostId: string): Promise<void> {
+  async connect(target: ConnectionTarget): Promise<void> {
     const handlers: ConnectHandlers = {
       decide: (prompt) => this.prompter.ask(prompt),
-      changed: (event) => void this.handleChangedKey(hostId, event),
+      changed: (event) => void this.handleChangedKey(target.connectionId, event),
     };
     let credential: Credential | null = null;
     for (;;) {
       try {
         await (credential
-          ? this.ssh.connect(hostId, handlers, credential)
-          : this.ssh.connect(hostId, handlers));
+          ? this.ssh.connect(target, handlers, credential)
+          : this.ssh.connect(target, handlers));
         return;
       } catch (err) {
-        const prompt = this.credentialPrompt(hostId, err);
+        const prompt = await this.credentialPrompt(target, err);
         if (!prompt) {
           if (!(err instanceof IpcError && err.code === 'host_key_changed')) {
-            notifyError(this.alerts, err);
+            const missing = err instanceof IpcError && err.code === 'missing_variables';
+            notifyError(this.alerts, err, missing ? 'Missing variables' : 'Connection failed');
           }
           return;
         }
@@ -47,71 +54,59 @@ export class HostConnector {
     }
   }
 
-  async disconnect(hostId: string): Promise<void> {
+  async disconnect(connectionId: string): Promise<void> {
     try {
-      await this.ssh.disconnect(hostId);
+      await this.ssh.disconnect(connectionId);
     } catch (err) {
       notifyError(this.alerts, err);
     }
   }
 
-  private credentialPrompt(
-    hostId: string,
+  private async credentialPrompt(
+    target: ConnectionTarget,
     err: unknown,
-  ): { label: string; data: CredentialDialogData } | null {
-    const host = this.findHost(hostId);
-    if (!host || !(err instanceof IpcError)) {
+  ): Promise<{ label: string; data: CredentialDialogData } | null> {
+    const host = this.config.findHost(target.hostId)?.host;
+    if (!host || !(err instanceof IpcError) || host.auth.kind === 'agent') {
       return null;
     }
-    const { auth } = host;
-    if (auth.kind === 'password') {
-      const label = 'Password';
-      const subject = `${host.username}@${host.hostname}:${host.port}`;
-      if (err.code === 'secret_required') {
-        return { label, data: { kind: 'password', subject, error: null } };
+    if (host.auth.kind === 'password') {
+      if (err.code !== 'secret_required' && err.code !== 'auth_failed') {
+        return null;
       }
-      if (err.code === 'auth_failed') {
-        return {
-          label,
-          data: {
-            kind: 'password',
-            subject,
-            error: 'The server rejected the password. Try again.',
-          },
-        };
-      }
-    } else if (auth.kind === 'key') {
-      const label = 'Key passphrase';
-      const subject = auth.keyPath;
-      if (err.code === 'secret_required') {
-        return { label, data: { kind: 'passphrase', subject, error: null } };
-      }
-      if (err.code === 'invalid_passphrase') {
-        return {
-          label,
-          data: { kind: 'passphrase', subject, error: 'Wrong passphrase. Try again.' },
-        };
-      }
+      const { address } = await this.subjects(target, host);
+      const error =
+        err.code === 'auth_failed' ? 'The server rejected the password. Try again.' : null;
+      return { label: 'Password', data: { kind: 'password', subject: address, error } };
     }
-    return null;
+    if (err.code !== 'secret_required' && err.code !== 'invalid_passphrase') {
+      return null;
+    }
+    const { keyPath } = await this.subjects(target, host);
+    const error = err.code === 'invalid_passphrase' ? 'Wrong passphrase. Try again.' : null;
+    return { label: 'Key passphrase', data: { kind: 'passphrase', subject: keyPath, error } };
   }
 
-  private findHost(hostId: string): Host | null {
-    for (const project of this.config.projects()) {
-      for (const environment of project.environments) {
-        const host = environment.hosts.find((h) => h.id === hostId);
-        if (host) {
-          return host;
-        }
-      }
+  /** What the secret unlocks, resolved in the connection's environment; the templates if that fails. */
+  private async subjects(target: ConnectionTarget, host: Host): Promise<Subjects> {
+    const keyPath = host.auth.kind === 'key' ? host.auth.keyPath : '';
+    try {
+      const r = await this.config.resolveHost(
+        target.projectId,
+        target.hostId,
+        target.environmentId,
+      );
+      const address = `${r.username ?? host.username}@${r.hostname ?? host.hostname}:${r.port ?? host.port}`;
+      return { address, keyPath: r.keyPath ?? keyPath };
+    } catch {
+      return { address: `${host.username}@${host.hostname}:${host.port}`, keyPath };
     }
-    return null;
   }
 
-  private async handleChangedKey(hostId: string, event: HostKeyChanged): Promise<void> {
+  private async handleChangedKey(connectionId: string, event: HostKeyChanged): Promise<void> {
     try {
       if (await this.prompter.confirmReplace(event)) {
-        await this.ssh.replaceHostKey(hostId, event.fingerprint);
+        await this.ssh.replaceHostKey(connectionId, event.fingerprint);
         this.alerts
           .open('The stored key was replaced. Connect again to continue.', {
             label: 'Host key replaced',

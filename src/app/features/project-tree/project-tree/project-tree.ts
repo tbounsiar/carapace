@@ -1,5 +1,5 @@
 import { Component, computed, ElementRef, inject, signal, type OnInit } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { type TuiHandler } from '@taiga-ui/cdk';
 import {
   TuiButton,
@@ -10,11 +10,14 @@ import {
   TuiLoader,
   TuiNotificationService,
 } from '@taiga-ui/core';
-import { TuiBadge, TuiStatus, TuiTree } from '@taiga-ui/kit';
+import { TuiStatus, TuiTree } from '@taiga-ui/kit';
 import { TuiBlockStatus } from '@taiga-ui/layout';
 import { ConfigService } from '../../../core/ipc/config';
+import { connectionTarget, type ConnectionTarget } from '../../../core/ipc/connection';
 import { SshService } from '../../../core/ipc/ssh';
+import type { ConnectionState } from '../../../core/ipc/ssh.models';
 import { connectionStatus, type ConnectionStatus } from '../../../shared/connection-status';
+import { CurrentProject } from '../../../shared/current-project';
 import { environmentMarker, type EnvironmentMarker } from '../../../shared/environment-kind';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../project-actions';
@@ -24,17 +27,7 @@ import { nodeLabel, toNodes, type TreeNode } from '../tree-node';
 
 export type { TreeNode } from '../tree-node';
 
-const ICONS: Record<TreeNode['kind'], string> = {
-  project: '@tui.folder',
-  environment: '@tui.layers',
-  host: '@tui.server',
-};
-
-const TEST_KINDS: Record<TreeNode['kind'], string> = {
-  project: 'project',
-  environment: 'env',
-  host: 'host',
-};
+type HostNode = Extract<TreeNode, { kind: 'host' }>;
 
 interface VisibleRowElement extends VisibleRow {
   readonly item: Element;
@@ -54,7 +47,6 @@ function toggle(row: HTMLElement): void {
   imports: [
     RouterLink,
     RouterLinkActive,
-    TuiBadge,
     TuiBlockStatus,
     TuiButton,
     TuiDataList,
@@ -76,6 +68,8 @@ export class ProjectTree implements OnInit {
   private readonly ssh = inject(SshService);
   private readonly connector = inject(HostConnector);
   private readonly actions = inject(ProjectActions);
+  private readonly current = inject(CurrentProject);
+  private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
 
   protected readonly loading = this.config.loading;
@@ -137,31 +131,39 @@ export class ProjectTree implements OnInit {
   }
 
   protected testId(prefix: string, node: TreeNode): string {
-    return `${prefix}-${TEST_KINDS[node.kind]}-${nodeLabel(node)}`;
+    return `${prefix}-${node.kind}-${nodeLabel(node)}`;
   }
 
   protected label(node: TreeNode): string {
     return nodeLabel(node);
   }
 
-  protected addLabel(node: TreeNode): string {
-    return node.kind === 'project' ? 'Add environment' : 'Add host';
-  }
-
-  protected icon(node: TreeNode): string {
-    return ICONS[node.kind];
-  }
-
+  /** Hosts are colored by the active environment of their project. */
   protected marker(node: TreeNode): EnvironmentMarker | null {
-    return node.kind === 'project' ? null : environmentMarker(node.environment.name);
+    if (node.kind === 'project') {
+      return null;
+    }
+    const { project } = node;
+    const env = project.environments.find((e) => e.id === project.activeEnvironmentId);
+    return env ? environmentMarker(env.name) : null;
+  }
+
+  private target(node: HostNode): ConnectionTarget {
+    return connectionTarget(node.project.id, node.host.id, node.project.activeEnvironmentId);
+  }
+
+  private state(node: TreeNode): ConnectionState {
+    return node.kind === 'host'
+      ? (this.ssh.states()[this.target(node).connectionId] ?? 'idle')
+      : 'idle';
   }
 
   protected status(node: TreeNode): ConnectionStatus {
-    return connectionStatus(this.ssh.states()[node.id] ?? 'idle');
+    return connectionStatus(this.state(node));
   }
 
   protected isConnected(node: TreeNode): boolean {
-    return node.kind === 'host' && this.ssh.states()[node.id] === 'connected';
+    return this.state(node) === 'connected';
   }
 
   protected setMenu(node: TreeNode, open: boolean): void {
@@ -169,12 +171,21 @@ export class ProjectTree implements OnInit {
     this.openMenu.update((current) => (open ? key : current === key ? null : current));
   }
 
+  protected selectProject(node: TreeNode): void {
+    this.current.select(node.project.id);
+  }
+
   protected createProject(): void {
     this.actions.createProject();
   }
 
-  protected addChild(node: TreeNode): void {
-    this.actions.addChild(node);
+  protected addHost(node: TreeNode): void {
+    this.actions.addHost(node.project);
+  }
+
+  protected openVariables(node: TreeNode): void {
+    this.current.select(node.project.id);
+    void this.router.navigate(['/projects', node.project.id, 'variables']);
   }
 
   protected edit(node: TreeNode): void {
@@ -187,13 +198,13 @@ export class ProjectTree implements OnInit {
 
   protected connect(node: TreeNode): void {
     if (node.kind === 'host') {
-      void this.connector.connect(node.host.id);
+      void this.connector.connect(this.target(node));
     }
   }
 
   protected disconnect(node: TreeNode): void {
     if (node.kind === 'host') {
-      void this.connector.disconnect(node.host.id);
+      void this.connector.disconnect(this.target(node).connectionId);
     }
   }
 }

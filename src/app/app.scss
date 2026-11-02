@@ -22,3 +22,21 @@ aside {
   text-decoration: none;
   font-weight: bold;
 }
+
+/* A production environment is active: a thin warning line under the header. */
+header._prod {
+  box-shadow: inset 0 -0.125rem var(--tui-status-negative);
+}
+
+app-env-select {
+  margin-inline-end: 0.75rem;
+}
+
+footer {
+  padding-block-end: 0.5rem;
+
+  ._active {
+    background: var(--tui-background-neutral-1-hover);
+    color: var(--tui-text-action);
+  }
+}

@@ -1,0 +1,30 @@
+:host {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.project {
+  max-inline-size: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+}
+
+.field {
+  inline-size: 11rem;
+}
+
+.option {
+  gap: 0.5rem;
+}
+
+.option-name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

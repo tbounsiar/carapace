@@ -29,7 +29,9 @@ describe('Welcome', () => {
 
   it('shows the app name and tagline', () => {
     expect(el().textContent).toContain('Carapace');
-    expect(el().textContent).toContain('SSH and SFTP, organized by project and environment');
+    expect(el().textContent).toContain(
+      'SSH and SFTP, organized by project, with environments and variables',
+    );
   });
 
   it('offers to create the first project', () => {
@@ -38,9 +40,19 @@ describe('Welcome', () => {
   });
 
   it('points to the sidebar once projects exist', async () => {
-    projects.set([{ id: 'p1', name: 'Shop', environments: [] }]);
+    projects.set([
+      {
+        id: 'p1',
+        name: 'Shop',
+        variables: [],
+        environments: [],
+        hosts: [],
+        activeEnvironmentId: null,
+      },
+    ]);
     await fixture.whenStable();
     expect(el().querySelector('[data-testid="welcome-new-project"]')).toBeNull();
     expect(el().textContent).toContain('Select a host');
+    expect(el().textContent).toContain('environment at the top right');
   });
 });

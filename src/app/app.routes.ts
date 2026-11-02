@@ -1,4 +1,8 @@
 import { Routes } from '@angular/router';
+import { unsavedChangesGuard } from './features/variables/unsaved-changes-guard';
+
+const variablesPage = () =>
+  import('./features/variables/variables-page/variables-page').then((m) => m.VariablesPage);
 
 export const routes: Routes = [
   {
@@ -11,5 +15,11 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/host-detail/host-detail/host-detail').then((m) => m.HostDetail),
   },
+  {
+    path: 'projects/:projectId/variables',
+    loadComponent: variablesPage,
+    canDeactivate: [unsavedChangesGuard],
+  },
+  { path: 'variables', loadComponent: variablesPage, canDeactivate: [unsavedChangesGuard] },
   { path: '**', redirectTo: '' },
 ];

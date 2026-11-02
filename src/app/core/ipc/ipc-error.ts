@@ -23,6 +23,7 @@ const KNOWN_CODES: readonly string[] = [
   'already_exists',
   'not_empty',
   'too_large',
+  'missing_variables',
 ];
 
 export class IpcError extends Error {

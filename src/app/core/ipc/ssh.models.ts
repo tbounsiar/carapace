@@ -25,7 +25,9 @@ export interface StatusEvent {
 export type ConnectEvent = HostKeyPrompt | HostKeyChanged | StatusEvent;
 
 export interface ConnectionInfo {
+  connectionId: string;
   hostId: string;
+  environmentId: string | null;
   state: 'connected';
 }
 

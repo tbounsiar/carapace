@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import type { Channel } from '@tauri-apps/api/core';
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
+import { connectionTarget } from './connection';
 import { IpcError } from './ipc-error';
 import { SshService, type ConnectHandlers } from './ssh';
 import type { ConnectEvent, HostKeyChanged, HostKeyPrompt } from './ssh.models';
@@ -15,6 +16,9 @@ const prompt: HostKeyPrompt = {
   fingerprint: 'SHA256:abc',
 };
 
+const target = connectionTarget('p1', 'h1', 'e1');
+const info = { connectionId: 'h1@e1', hostId: 'h1', environmentId: 'e1', state: 'connected' };
+
 describe('SshService', () => {
   let service: SshService;
   let calls: { cmd: string; args: Record<string, unknown> }[];
@@ -28,7 +32,7 @@ describe('SshService', () => {
 
   beforeEach(() => {
     calls = [];
-    onConnect = () => ({ hostId: 'h1', state: 'connected' });
+    onConnect = () => info;
     mockIPC((cmd, args) => {
       const a = (args ?? {}) as Record<string, unknown>;
       calls.push({ cmd, args: a });
@@ -36,7 +40,7 @@ describe('SshService', () => {
         return onConnect(a['onEvent'] as Channel<ConnectEvent>);
       }
       if (cmd === 'list_connections') {
-        return [{ hostId: 'h9', state: 'connected' }];
+        return [{ connectionId: 'h9@none', hostId: 'h9', environmentId: null, state: 'connected' }];
       }
       return null;
     });
@@ -46,33 +50,46 @@ describe('SshService', () => {
   afterEach(() => clearMocks());
 
   it('is idle by default', () => {
-    expect(service.stateOf('h1')).toBe('idle');
+    expect(service.stateOf('h1@e1')).toBe('idle');
+  });
+
+  it('keeps separate states for two environments of the same host', async () => {
+    await service.connect(target, handlers());
+    expect(service.stateOf('h1@e1')).toBe('connected');
+    expect(service.stateOf('h1@none')).toBe('idle');
+    onConnect = () => {
+      throw { code: 'network', message: 'Connection refused' };
+    };
+    await service.connect(connectionTarget('p1', 'h1', null), handlers()).catch(() => null);
+    expect(service.stateOf('h1@none')).toBe('error');
+    expect(service.stateOf('h1@e1')).toBe('connected');
+    expect(calls.at(-1)?.args['environmentId']).toBeNull();
   });
 
   it('follows status events and ends connected', async () => {
     const seen: string[] = [];
     onConnect = (channel) => {
       channel.onmessage({ kind: 'status', state: 'connecting' });
-      seen.push(service.stateOf('h1'));
+      seen.push(service.stateOf('h1@e1'));
       channel.onmessage({ kind: 'status', state: 'authenticating' });
-      seen.push(service.stateOf('h1'));
-      return { hostId: 'h1', state: 'connected' };
+      seen.push(service.stateOf('h1@e1'));
+      return info;
     };
-    const info = await service.connect('h1', handlers());
+    const result = await service.connect(target, handlers());
     expect(seen).toEqual(['connecting', 'authenticating']);
-    expect(info).toEqual({ hostId: 'h1', state: 'connected' });
-    expect(service.stateOf('h1')).toBe('connected');
+    expect(result).toEqual(info);
+    expect(service.stateOf('h1@e1')).toBe('connected');
     expect(calls[0].cmd).toBe('connect_host');
-    expect(calls[0].args['hostId']).toBe('h1');
+    expect(calls[0].args).toMatchObject({ projectId: 'p1', hostId: 'h1', environmentId: 'e1' });
   });
 
   it('sends no credential by default', async () => {
-    await service.connect('h1', handlers());
+    await service.connect(target, handlers());
     expect(calls[0].args['credential']).toBeNull();
   });
 
   it('sends the credential with connect_host', async () => {
-    await service.connect('h1', handlers(), { secret: 'pw', remember: true });
+    await service.connect(target, handlers(), { secret: 'pw', remember: true });
     expect(calls[0].args['credential']).toEqual({ secret: 'pw', remember: true });
   });
 
@@ -80,11 +97,11 @@ describe('SshService', () => {
     const decide = vi.fn(() => Promise.resolve(true));
     onConnect = async (channel) => {
       channel.onmessage(prompt);
-      expect(service.stateOf('h1')).toBe('awaitingHostKey');
+      expect(service.stateOf('h1@e1')).toBe('awaitingHostKey');
       await flush();
-      return { hostId: 'h1', state: 'connected' };
+      return info;
     };
-    await service.connect('h1', handlers(decide));
+    await service.connect(target, handlers(decide));
     expect(decide).toHaveBeenCalledWith(prompt);
     expect(calls.find((c) => c.cmd === 'answer_host_key')?.args).toEqual({
       requestId: 'r1',
@@ -100,23 +117,23 @@ describe('SshService', () => {
     };
     const err = await service
       .connect(
-        'h1',
+        target,
         handlers(() => Promise.reject(new Error('boom'))),
       )
       .catch((e: unknown) => e);
     expect(calls.find((c) => c.cmd === 'answer_host_key')?.args['accept']).toBe(false);
     expect(err).toMatchObject({ code: 'host_key_rejected' });
-    expect(service.stateOf('h1')).toBe('error');
+    expect(service.stateOf('h1@e1')).toBe('error');
   });
 
   it('maps backend errors to IpcError and sets the error state', async () => {
     onConnect = () => {
       throw { code: 'auth_failed', message: 'Authentication failed' };
     };
-    const err = await service.connect('h1', handlers()).catch((e: unknown) => e);
+    const err = await service.connect(target, handlers()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(IpcError);
     expect(err).toMatchObject({ code: 'auth_failed', message: 'Authentication failed' });
-    expect(service.stateOf('h1')).toBe('error');
+    expect(service.stateOf('h1@e1')).toBe('error');
   });
 
   it('sends answerHostKey arguments', async () => {
@@ -128,16 +145,16 @@ describe('SshService', () => {
   });
 
   it('disconnects and returns to idle', async () => {
-    await service.connect('h1', handlers());
-    await service.disconnect('h1');
-    expect(calls.at(-1)).toEqual({ cmd: 'disconnect_host', args: { hostId: 'h1' } });
-    expect(service.stateOf('h1')).toBe('idle');
+    await service.connect(target, handlers());
+    await service.disconnect('h1@e1');
+    expect(calls.at(-1)).toEqual({ cmd: 'disconnect_host', args: { connectionId: 'h1@e1' } });
+    expect(service.stateOf('h1@e1')).toBe('idle');
   });
 
   it('loads existing connections into state', async () => {
     const list = await service.loadConnections();
-    expect(list).toEqual([{ hostId: 'h9', state: 'connected' }]);
-    expect(service.stateOf('h9')).toBe('connected');
+    expect(list.map((c) => c.connectionId)).toEqual(['h9@none']);
+    expect(service.stateOf('h9@none')).toBe('connected');
   });
 
   it('forwards a changed key event and sends replace_host_key arguments', async () => {
@@ -154,13 +171,15 @@ describe('SshService', () => {
       channel.onmessage(event);
       throw { code: 'host_key_changed', message: 'Host key changed' };
     };
-    const err = await service.connect('h1', handlers(undefined, changed)).catch((e: unknown) => e);
+    const err = await service
+      .connect(target, handlers(undefined, changed))
+      .catch((e: unknown) => e);
     expect(changed).toHaveBeenCalledWith(event);
     expect(err).toMatchObject({ code: 'host_key_changed' });
-    await service.replaceHostKey('h1', 'SHA256:new');
+    await service.replaceHostKey('h1@e1', 'SHA256:new');
     expect(calls.at(-1)).toEqual({
       cmd: 'replace_host_key',
-      args: { hostId: 'h1', fingerprint: 'SHA256:new' },
+      args: { connectionId: 'h1@e1', fingerprint: 'SHA256:new' },
     });
   });
 });

@@ -73,7 +73,7 @@ async function retryBusy<T>(call: () => Promise<T>): Promise<T> {
 @Service()
 export class TerminalIpc {
   open(
-    hostId: string,
+    connectionId: string,
     cols: number,
     rows: number,
     onEvent: (event: TerminalEvent) => void,
@@ -82,7 +82,7 @@ export class TerminalIpc {
     channel.onmessage = (event) => {
       onEvent(event.kind === 'data' ? { kind: 'data', bytes: decodeBase64(event.data) } : event);
     };
-    return invokeCommand<string>('open_terminal', { hostId, cols, rows, onEvent: channel });
+    return invokeCommand<string>('open_terminal', { connectionId, cols, rows, onEvent: channel });
   }
 
   /** Writes in order, chunked to the backend limit; a full input queue (`busy`) is retried. */

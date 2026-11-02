@@ -1,22 +1,52 @@
 import { Service, signal } from '@angular/core';
-import type { Environment, Host, HostInput, Project } from './config.models';
+import type {
+  ConfigView,
+  Environment,
+  Host,
+  HostInput,
+  Project,
+  ResolvedHost,
+  VariableInput,
+  VariableScope,
+  VariableView,
+} from './config.models';
 import { invokeCommand } from './ipc-error';
+
+export interface HostLocation {
+  readonly project: Project;
+  readonly host: Host;
+}
 
 @Service()
 export class ConfigService {
+  private readonly _variables = signal<VariableView[]>([]);
   private readonly _projects = signal<Project[]>([]);
   private readonly _loading = signal(false);
 
+  /** Global variables. */
+  readonly variables = this._variables.asReadonly();
   readonly projects = this._projects.asReadonly();
   readonly loading = this._loading.asReadonly();
 
   async load(): Promise<void> {
     this._loading.set(true);
     try {
-      this._projects.set(await invokeCommand<Project[]>('list_projects'));
+      const config = await invokeCommand<ConfigView>('get_config');
+      this._variables.set(config.variables);
+      this._projects.set(config.projects);
     } finally {
       this._loading.set(false);
     }
+  }
+
+  findHost(hostId: string): HostLocation | null {
+    for (const project of this._projects()) {
+      const host = project.hosts.find((h) => h.id === hostId);
+      if (host) {
+        return { project, host };
+      }
+    }
+    return null;
   }
 
   async createProject(name: string): Promise<Project> {
@@ -25,10 +55,9 @@ export class ConfigService {
     return project;
   }
 
-  async renameProject(projectId: string, name: string): Promise<Project> {
+  async renameProject(projectId: string, name: string): Promise<void> {
     const project = await invokeCommand<Project>('rename_project', { projectId, name });
-    this.patchProject(projectId, () => project);
-    return project;
+    this.patchProject(projectId, (p) => ({ ...p, name: project.name }));
   }
 
   async deleteProject(projectId: string): Promise<void> {
@@ -42,18 +71,18 @@ export class ConfigService {
     return env;
   }
 
-  async renameEnvironment(
-    projectId: string,
-    environmentId: string,
-    name: string,
-  ): Promise<Environment> {
+  async renameEnvironment(projectId: string, environmentId: string, name: string): Promise<void> {
     const env = await invokeCommand<Environment>('rename_environment', {
       projectId,
       environmentId,
       name,
     });
-    this.patchEnvironment(projectId, environmentId, () => env);
-    return env;
+    this.patchProject(projectId, (p) => ({
+      ...p,
+      environments: p.environments.map((e) =>
+        e.id === environmentId ? { ...e, name: env.name } : e,
+      ),
+    }));
   }
 
   async deleteEnvironment(projectId: string, environmentId: string): Promise<void> {
@@ -61,57 +90,62 @@ export class ConfigService {
     this.patchProject(projectId, (p) => ({
       ...p,
       environments: p.environments.filter((e) => e.id !== environmentId),
+      activeEnvironmentId: p.activeEnvironmentId === environmentId ? null : p.activeEnvironmentId,
     }));
   }
 
-  async createHost(projectId: string, environmentId: string, host: HostInput): Promise<Host> {
-    const created = await invokeCommand<Host>('create_host', { projectId, environmentId, host });
-    this.patchEnvironment(projectId, environmentId, (e) => ({
-      ...e,
-      hosts: [...e.hosts, created],
-    }));
+  async setActiveEnvironment(projectId: string, environmentId: string | null): Promise<void> {
+    await invokeCommand<unknown>('set_active_environment', { projectId, environmentId });
+    this.patchProject(projectId, (p) => ({ ...p, activeEnvironmentId: environmentId }));
+  }
+
+  /** Replaces the whole list of the scope. */
+  async setVariables(scope: VariableScope, variables: VariableInput[]): Promise<VariableView[]> {
+    const saved = await invokeCommand<VariableView[]>('set_variables', { scope, variables });
+    if (scope.kind === 'global') {
+      this._variables.set(saved);
+    } else if (scope.kind === 'project') {
+      this.patchProject(scope.projectId, (p) => ({ ...p, variables: saved }));
+    } else {
+      this.patchProject(scope.projectId, (p) => ({
+        ...p,
+        environments: p.environments.map((e) =>
+          e.id === scope.environmentId ? { ...e, variables: saved } : e,
+        ),
+      }));
+    }
+    return saved;
+  }
+
+  async createHost(projectId: string, host: HostInput): Promise<Host> {
+    const created = await invokeCommand<Host>('create_host', { projectId, host });
+    this.patchProject(projectId, (p) => ({ ...p, hosts: [...p.hosts, created] }));
     return created;
   }
 
-  async updateHost(
-    projectId: string,
-    environmentId: string,
-    hostId: string,
-    host: HostInput,
-  ): Promise<Host> {
-    const updated = await invokeCommand<Host>('update_host', {
-      projectId,
-      environmentId,
-      hostId,
-      host,
-    });
-    this.patchEnvironment(projectId, environmentId, (e) => ({
-      ...e,
-      hosts: e.hosts.map((h) => (h.id === hostId ? updated : h)),
+  async updateHost(projectId: string, hostId: string, host: HostInput): Promise<Host> {
+    const updated = await invokeCommand<Host>('update_host', { projectId, hostId, host });
+    this.patchProject(projectId, (p) => ({
+      ...p,
+      hosts: p.hosts.map((h) => (h.id === hostId ? updated : h)),
     }));
     return updated;
   }
 
-  async deleteHost(projectId: string, environmentId: string, hostId: string): Promise<void> {
-    await invokeCommand<null>('delete_host', { projectId, environmentId, hostId });
-    this.patchEnvironment(projectId, environmentId, (e) => ({
-      ...e,
-      hosts: e.hosts.filter((h) => h.id !== hostId),
-    }));
+  async deleteHost(projectId: string, hostId: string): Promise<void> {
+    await invokeCommand<null>('delete_host', { projectId, hostId });
+    this.patchProject(projectId, (p) => ({ ...p, hosts: p.hosts.filter((h) => h.id !== hostId) }));
+  }
+
+  resolveHost(
+    projectId: string,
+    hostId: string,
+    environmentId: string | null,
+  ): Promise<ResolvedHost> {
+    return invokeCommand<ResolvedHost>('resolve_host', { projectId, hostId, environmentId });
   }
 
   private patchProject(projectId: string, fn: (p: Project) => Project): void {
     this._projects.update((list) => list.map((p) => (p.id === projectId ? fn(p) : p)));
-  }
-
-  private patchEnvironment(
-    projectId: string,
-    environmentId: string,
-    fn: (e: Environment) => Environment,
-  ): void {
-    this.patchProject(projectId, (p) => ({
-      ...p,
-      environments: p.environments.map((e) => (e.id === environmentId ? fn(e) : e)),
-    }));
   }
 }

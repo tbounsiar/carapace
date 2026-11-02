@@ -1,0 +1,74 @@
+:host {
+  display: block;
+}
+
+.header {
+  margin-block-end: var(--tui-padding-l);
+}
+
+.mono {
+  font-family: var(--app-font-mono);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: var(--tui-padding-l);
+  align-items: start;
+
+  &._global {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.scopes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.scope {
+  justify-content: flex-start;
+  gap: 0.5rem;
+  min-inline-size: 0;
+  flex: 1;
+}
+
+.scope-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-start: 0.75rem;
+  padding-inline-start: 0.5rem;
+}
+
+.heading {
+  font: var(--tui-typography-body-xs);
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--tui-text-secondary);
+}
+
+.env {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.hint {
+  margin: 0;
+  padding-inline: 0.5rem;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+}
+
+.scope-title {
+  margin: 0 0 0.5rem;
+  font: var(--tui-typography-heading-h6);
+}

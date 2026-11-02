@@ -4,9 +4,13 @@ import type { TuiNotificationService } from '@taiga-ui/core';
 import type { IpcErrorCode } from '../../core/ipc/config.models';
 import { IpcError } from '../../core/ipc/ipc-error';
 
-export function notifyError(alerts: TuiNotificationService, err: unknown): void {
+export function notifyError(
+  alerts: TuiNotificationService,
+  err: unknown,
+  label = 'Operation failed',
+): void {
   const message = err instanceof IpcError ? err.message : 'Unexpected error';
-  alerts.open(message, { label: 'Operation failed', appearance: 'negative' }).subscribe();
+  alerts.open(message, { label, appearance: 'negative' }).subscribe();
 }
 
 export function handleSaveError(

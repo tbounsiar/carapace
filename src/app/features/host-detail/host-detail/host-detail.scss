@@ -31,6 +31,19 @@ dd {
   min-inline-size: 0;
 }
 
+.env {
+  color: var(--tui-text-secondary);
+  font-weight: normal;
+}
+
+._problem {
+  color: var(--tui-text-negative);
+}
+
+.forget {
+  margin-inline-start: 0.5rem;
+}
+
 .path {
   margin-inline-start: 0.5rem;
   color: var(--tui-text-secondary);

@@ -1,43 +1,33 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
-  <div>
-    <tui-textfield>
-      <label tuiLabel>Name</label>
-      <input tuiAutoFocus tuiInput formControlName="name" data-testid="host-name" />
-    </tui-textfield>
-    <tui-error formControlName="name" />
-  </div>
+  <tui-textfield>
+    <label tuiLabel>Name</label>
+    <input tuiAutoFocus tuiInput formControlName="name" data-testid="host-name" />
+  </tui-textfield>
+  <tui-error formControlName="name" />
 
-  <div class="address">
-    <div>
-      <tui-textfield>
-        <label tuiLabel>Hostname</label>
-        <input tuiInput class="mono" formControlName="hostname" data-testid="host-hostname" />
-      </tui-textfield>
-      <tui-error formControlName="hostname" />
-    </div>
-    <div>
-      <tui-textfield>
-        <label tuiLabel>Port</label>
-        <input
-          tuiInputNumber
-          class="mono"
-          formControlName="port"
-          data-testid="host-port"
-          [min]="1"
-          [max]="65535"
-        />
-      </tui-textfield>
-      <tui-error formControlName="port" />
-    </div>
-  </div>
+  <p class="note">
+    Fields accept variables such as <code class="mono">{{ example }}</code
+    >; write <code class="mono">$$</code> for a literal <code class="mono">$</code>.
+  </p>
 
-  <div>
+  <fieldset class="address">
     <tui-textfield>
-      <label tuiLabel>Username</label>
-      <input tuiInput class="mono" formControlName="username" data-testid="host-username" />
+      <label tuiLabel>Hostname</label>
+      <input tuiInput class="mono" formControlName="hostname" data-testid="host-hostname" />
     </tui-textfield>
-    <tui-error formControlName="username" />
-  </div>
+    <tui-textfield>
+      <label tuiLabel>Port</label>
+      <input tuiInput class="mono" formControlName="port" data-testid="host-port" />
+    </tui-textfield>
+  </fieldset>
+  <tui-error formControlName="hostname" />
+  <tui-error formControlName="port" />
+
+  <tui-textfield>
+    <label tuiLabel>Username</label>
+    <input tuiInput class="mono" formControlName="username" data-testid="host-username" />
+  </tui-textfield>
+  <tui-error formControlName="username" />
 
   <fieldset class="auth">
     <legend>Authentication</legend>
@@ -51,57 +41,102 @@
   </fieldset>
 
   @if (isKey()) {
-    <div>
-      <tui-textfield>
-        <label tuiLabel>Key path</label>
-        <input
-          tuiInput
-          class="mono"
-          formControlName="keyPath"
-          placeholder="~/.ssh/id_ed25519"
-          data-testid="host-key-path"
-        />
-      </tui-textfield>
-      <tui-error formControlName="keyPath" />
-    </div>
+    <tui-textfield>
+      <label tuiLabel>Key path</label>
+      <input
+        tuiInput
+        class="mono"
+        formControlName="keyPath"
+        placeholder="~/.ssh/id_ed25519"
+        data-testid="host-key-path"
+      />
+    </tui-textfield>
+    <tui-error formControlName="keyPath" />
+    <tui-textfield tuiChevron [stringify]="askLabel" [tuiTextfieldCleaner]="false">
+      <label tuiLabel>Passphrase</label>
+      <input
+        tuiSelect
+        class="mono"
+        placeholder="Ask when connecting"
+        formControlName="passphrase"
+        data-testid="host-passphrase"
+      />
+      <tui-icon
+        tuiTooltip="Only for an encrypted key. Pick a secret variable (defined in Variables and environments) or be asked when needed."
+      />
+      <tui-data-list *tuiDropdown size="s">
+        <button tuiOption type="button" data-testid="host-secret-option-ask" [value]="null">
+          Ask when connecting
+        </button>
+        @for (ref of secretReferences(); track ref) {
+          <button
+            tuiOption
+            type="button"
+            class="mono"
+            [value]="ref"
+            [attr.data-testid]="'host-secret-option-' + ref"
+          >
+            {{ ref }}
+          </button>
+        }
+      </tui-data-list>
+    </tui-textfield>
+    <tui-error formControlName="passphrase" />
   }
 
-  @if (secretKind(); as kind) {
-    <div>
-      <tui-textfield>
-        <label tuiLabel>{{ secretLabel() }}</label>
-        <input
-          tuiInput
-          type="password"
-          autocomplete="off"
-          formControlName="secret"
-          [attr.data-testid]="kind === 'password' ? 'host-password' : 'host-passphrase'"
-        />
-        <tui-icon tuiPassword />
-      </tui-textfield>
-      <tui-error formControlName="secret" />
-      @if (stored()) {
-        <div class="secret-note" data-testid="host-secret-stored">
-          <tui-icon icon="@tui.key-round" />
-          <span>Stored in keychain. Leave empty to keep it.</span>
+  @if (isPassword()) {
+    <tui-textfield tuiChevron [stringify]="askLabel" [tuiTextfieldCleaner]="false">
+      <label tuiLabel>Password</label>
+      <input
+        tuiSelect
+        class="mono"
+        placeholder="Ask when connecting"
+        formControlName="password"
+        data-testid="host-password"
+      />
+      <tui-icon
+        tuiTooltip="Pick a secret variable (defined in Variables and environments) or be asked when connecting."
+      />
+      <tui-data-list *tuiDropdown size="s">
+        <button tuiOption type="button" data-testid="host-secret-option-ask" [value]="null">
+          Ask when connecting
+        </button>
+        @for (ref of secretReferences(); track ref) {
           <button
-            tuiButton
-            appearance="flat"
-            size="xs"
+            tuiOption
             type="button"
-            data-testid="host-secret-forget"
-            [loading]="forgetting()"
-            (click)="forget()"
+            class="mono"
+            [value]="ref"
+            [attr.data-testid]="'host-secret-option-' + ref"
           >
-            Forget
+            {{ ref }}
           </button>
-        </div>
-      } @else if (kind === 'password') {
-        <p class="secret-note">Optional. Leave empty to be asked when connecting.</p>
+        }
+      </tui-data-list>
+    </tui-textfield>
+    <tui-error formControlName="password" />
+  }
+
+  @if (preview(); as p) {
+    <p
+      class="preview"
+      data-testid="host-preview"
+      role="status"
+      [class._problem]="p.missing.length || p.errors.length"
+    >
+      @if (p.missing.length) {
+        <tui-icon icon="@tui.circle-alert" />
+        <span>Missing {{ p.env }}: {{ p.missing.join(', ') }}</span>
+      } @else if (p.errors.length) {
+        <tui-icon icon="@tui.circle-alert" />
+        <span>{{ p.errors[0] }}</span>
       } @else {
-        <p class="secret-note">Only for an encrypted key. Leave empty to be asked when needed.</p>
+        <tui-icon icon="@tui.circle-check" />
+        <span>
+          Resolves to <span class="mono">{{ p.address }}</span> {{ p.env }}
+        </span>
       }
-    </div>
+    </p>
   }
 
   <footer>

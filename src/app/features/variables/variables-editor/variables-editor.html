@@ -1,0 +1,170 @@
+<form class="editor" [formGroup]="form" (ngSubmit)="save()">
+  <div class="scroll">
+    <table tuiTable size="s" class="table" aria-label="Variables">
+      <thead tuiThead>
+        <tr>
+          <th tuiTh class="col-name">Name</th>
+          <th tuiTh class="col-kind">Type</th>
+          <th tuiTh>Value</th>
+          <th tuiTh class="col-remove" aria-label="Remove"></th>
+        </tr>
+      </thead>
+      <tbody tuiTbody formArrayName="rows">
+        @for (row of rowViews(); track row.group; let i = $index) {
+          <tr [formGroupName]="i">
+            <td tuiTd>
+              <tui-textfield>
+                <input
+                  tuiInput
+                  class="cell-input mono"
+                  formControlName="name"
+                  placeholder="name"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [attr.aria-label]="'Name of variable ' + (i + 1)"
+                  [attr.data-testid]="'var-name-' + i"
+                  (input)="revalidateNames()"
+                />
+              </tui-textfield>
+            </td>
+            <td tuiTd>
+              <tui-textfield tuiChevron [stringify]="kindLabel" [tuiTextfieldCleaner]="false">
+                <input
+                  tuiSelect
+                  class="cell-input"
+                  formControlName="kind"
+                  autocomplete="off"
+                  [attr.aria-label]="'Type of variable ' + (i + 1)"
+                  [attr.data-testid]="'var-kind-' + i"
+                />
+                <tui-data-list *tuiDropdown size="s">
+                  @for (kind of kinds; track kind) {
+                    <button
+                      tuiOption
+                      type="button"
+                      [value]="kind"
+                      [attr.data-testid]="'var-kind-option-' + kind"
+                    >
+                      {{ kindLabel(kind) }}
+                    </button>
+                  }
+                </tui-data-list>
+              </tui-textfield>
+            </td>
+            <td tuiTd>
+              @if (row.kind === 'secret') {
+                <tui-textfield>
+                  <input
+                    tuiInput
+                    class="cell-input"
+                    type="password"
+                    autocomplete="off"
+                    formControlName="value"
+                    [placeholder]="row.hasValue ? 'Set. Type to replace' : 'Not set'"
+                    [attr.aria-label]="'Secret value of variable ' + (i + 1)"
+                    [attr.data-testid]="'var-value-' + i"
+                  />
+                  <tui-icon
+                    role="img"
+                    [icon]="row.hasValue ? '@tui.lock' : '@tui.lock-open'"
+                    [attr.aria-label]="row.hasValue ? 'Set' : 'Not set'"
+                    [attr.data-testid]="'var-status-' + i"
+                    [tuiHint]="row.hasValue ? 'Set' : 'Not set'"
+                  />
+                </tui-textfield>
+              } @else {
+                <tui-textfield>
+                  <input
+                    tuiInput
+                    class="cell-input mono"
+                    formControlName="value"
+                    placeholder="value"
+                    autocomplete="off"
+                    spellcheck="false"
+                    [attr.aria-label]="'Value of variable ' + (i + 1)"
+                    [attr.data-testid]="'var-value-' + i"
+                  />
+                </tui-textfield>
+              }
+            </td>
+            <td tuiTd class="remove">
+              <button
+                tuiIconButton
+                appearance="flat-grayscale"
+                size="xs"
+                iconStart="@tui.trash-2"
+                type="button"
+                tuiHint="Remove"
+                [attr.aria-label]="'Remove variable ' + (i + 1)"
+                [attr.data-testid]="'var-remove-' + i"
+                (click)="remove(i)"
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td tuiTd colspan="4" class="empty" data-testid="vars-empty">
+              No variables yet. Add one to use it in host fields as {{ example }}.
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (errors().length) {
+    <div tuiNotification appearance="negative" size="s" role="alert" data-testid="vars-errors">
+      <ul class="errors">
+        @for (error of errors(); track $index) {
+          <li>{{ error }}</li>
+        }
+      </ul>
+    </div>
+  }
+
+  @if (droppedNames().length) {
+    <div tuiNotification appearance="warning" size="s" data-testid="vars-rename-warning">
+      Renaming a secret drops its stored value: {{ droppedNames().join(', ') }}. Type the value
+      again or keep the old name.
+    </div>
+  }
+
+  <div class="actions">
+    <button
+      tuiButton
+      appearance="secondary"
+      size="s"
+      iconStart="@tui.plus"
+      type="button"
+      data-testid="vars-add"
+      [disabled]="rowViews().length >= maxVariables"
+      (click)="add()"
+    >
+      Add variable
+    </button>
+    <span class="spacer"></span>
+    <button
+      tuiButton
+      appearance="secondary"
+      size="s"
+      type="button"
+      data-testid="vars-cancel"
+      [disabled]="!dirty() || saving()"
+      (click)="cancel()"
+    >
+      Cancel
+    </button>
+    <button
+      tuiButton
+      size="s"
+      type="submit"
+      data-testid="vars-save"
+      [disabled]="!dirty()"
+      [loading]="saving()"
+    >
+      Save
+    </button>
+  </div>
+</form>

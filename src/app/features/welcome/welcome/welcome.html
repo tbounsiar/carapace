@@ -1,9 +1,13 @@
 <tui-block-status size="m" data-testid="welcome">
   <span tuiAvatar="@tui.terminal" size="xl" tuiSlot="top"></span>
   <h1>Carapace</h1>
-  <p class="line">SSH and SFTP, organized by project and environment.</p>
+  <p class="line">SSH and SFTP, organized by project, with environments and variables.</p>
   @if (hasProjects()) {
-    <p class="line">Select a host in the sidebar to see its details and connect.</p>
+    <p class="line">Select a host in the sidebar to connect.</p>
+    <p class="line">
+      Pick the environment at the top right: host fields such as host, port or user can use its
+      variables.
+    </p>
   } @else {
     <button
       tuiButton

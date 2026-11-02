@@ -4,11 +4,23 @@ import { provideRouter } from '@angular/router';
 import { provideTaiga } from '@taiga-ui/core';
 import { App } from './app';
 import { ConfigService } from './core/ipc/config';
+import type { Project } from './core/ipc/config.models';
 import { ThemeService } from './core/theme/theme';
+
+const projects = signal<Project[]>([]);
+const prodProject: Project = {
+  id: 'p1',
+  name: 'Shop',
+  variables: [],
+  environments: [{ id: 'e1', name: 'Production', variables: [] }],
+  hosts: [],
+  activeEnvironmentId: 'e1',
+};
 
 describe('App', () => {
   beforeEach(async () => {
     localStorage.clear();
+    projects.set([]);
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [
@@ -16,7 +28,12 @@ describe('App', () => {
         provideTaiga(),
         {
           provide: ConfigService,
-          useValue: { projects: signal([]), loading: signal(false), load: () => Promise.resolve() },
+          useValue: {
+            projects,
+            variables: signal([]),
+            loading: signal(false),
+            load: () => Promise.resolve(),
+          },
         },
       ],
     }).compileComponents();
@@ -52,5 +69,26 @@ describe('App', () => {
     expect(el.querySelector('header[tuiNavigationHeader]')?.getAttribute('tuiTheme')).toBe('light');
     expect(el.querySelector('aside[tuiNavigationAside]')?.getAttribute('tuiTheme')).toBe('light');
     expect(el.querySelector('[data-testid="theme-toggle"]')).not.toBeNull();
+  });
+
+  it('links the sidebar footer to the global variables', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'aside footer [data-testid="global-variables"]',
+    );
+    expect(link?.getAttribute('href')).toBe('/variables');
+  });
+
+  it('shows the environment selector and a prod accent on the header', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const header = el.querySelector('header[tuiNavigationHeader]')!;
+    expect(header.classList).not.toContain('_prod');
+    projects.set([prodProject]);
+    await fixture.whenStable();
+    expect(header.querySelector('[data-testid="env-select"]')).not.toBeNull();
+    expect(header.classList).toContain('_prod');
   });
 });

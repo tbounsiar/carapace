@@ -6,45 +6,34 @@ import { SecretsService } from './secrets';
 describe('SecretsService', () => {
   let service: SecretsService;
   let calls: { cmd: string; args: unknown }[];
-  let reply: (cmd: string) => unknown;
+  let reply: () => unknown;
 
   beforeEach(() => {
     calls = [];
     reply = () => null;
     mockIPC((cmd, args) => {
       calls.push({ cmd, args });
-      return reply(cmd);
+      return reply();
     });
     service = TestBed.inject(SecretsService);
   });
 
   afterEach(() => clearMocks());
 
-  it('sends set_host_secret arguments', async () => {
-    await service.set('h1', 'password', 'pw');
+  it('forgets the saved secrets of one connection', async () => {
+    await service.forgetSaved('h1', 'e1');
+    await service.forgetSaved('h1', null);
     expect(calls).toEqual([
-      { cmd: 'set_host_secret', args: { hostId: 'h1', kind: 'password', value: 'pw' } },
+      { cmd: 'forget_saved_secrets', args: { hostId: 'h1', environmentId: 'e1' } },
+      { cmd: 'forget_saved_secrets', args: { hostId: 'h1', environmentId: null } },
     ]);
-  });
-
-  it('sends delete_host_secret arguments', async () => {
-    await service.delete('h1', 'passphrase');
-    expect(calls).toEqual([
-      { cmd: 'delete_host_secret', args: { hostId: 'h1', kind: 'passphrase' } },
-    ]);
-  });
-
-  it('returns the has_host_secret answer', async () => {
-    reply = () => true;
-    await expect(service.has('h1', 'password')).resolves.toBe(true);
-    expect(calls).toEqual([{ cmd: 'has_host_secret', args: { hostId: 'h1', kind: 'password' } }]);
   });
 
   it('maps keychain errors to IpcError', async () => {
     reply = () => {
       throw { code: 'keychain_unavailable', message: 'Keychain unavailable' };
     };
-    const err = await service.set('h1', 'password', 'pw').catch((e: unknown) => e);
+    const err = await service.forgetSaved('h1', null).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(IpcError);
     expect(err).toMatchObject({ code: 'keychain_unavailable' });
   });

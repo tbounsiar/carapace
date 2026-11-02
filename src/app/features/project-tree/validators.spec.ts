@@ -4,8 +4,11 @@ import {
   keyPathValidator,
   nameValidator,
   noWhitespaceValidator,
+  portTemplateValidator,
   portValidator,
+  secretReferenceValidator,
   secretValidator,
+  templated,
 } from './validators';
 
 const ok = (fn: (c: FormControl) => unknown, value: unknown): boolean =>
@@ -34,14 +37,41 @@ describe('form validators', () => {
     expect(ok(user, 'a\tb')).toBe(false);
   });
 
-  it('validates ports between 1 and 65535', () => {
-    expect(ok(portValidator, 22)).toBe(true);
-    expect(ok(portValidator, 1)).toBe(true);
-    expect(ok(portValidator, 65535)).toBe(true);
-    expect(ok(portValidator, 0)).toBe(false);
-    expect(ok(portValidator, 65536)).toBe(false);
-    expect(ok(portValidator, 22.5)).toBe(false);
-    expect(ok(portValidator, null)).toBe(false);
+  it('validates literal ports between 1 and 65535', () => {
+    expect(ok(portValidator, '22')).toBe(true);
+    expect(ok(portValidator, '1')).toBe(true);
+    expect(ok(portValidator, '65535')).toBe(true);
+    expect(ok(portValidator, '0')).toBe(false);
+    expect(ok(portValidator, '65536')).toBe(false);
+    expect(ok(portValidator, '22.5')).toBe(false);
+    expect(ok(portValidator, '')).toBe(false);
+  });
+
+  it('accepts a port of digits or a single reference', () => {
+    expect(ok(portTemplateValidator, '${port}')).toBe(true);
+    expect(ok(portTemplateValidator, '2222')).toBe(true);
+    expect(ok(portTemplateValidator, '2${port}')).toBe(false);
+    expect(ok(portTemplateValidator, 'abc')).toBe(false);
+    expect(ok(portTemplateValidator, '${bad name}')).toBe(false);
+  });
+
+  it('defers literal rules for templates, bounds their size and rejects bad references', () => {
+    const host = templated('Hostname', hostnameValidator(253));
+    expect(ok(host, '${bad name}.example.com')).toBe(false);
+    expect(ok(host, '${open.example.com')).toBe(false);
+    expect(ok(templated('Username', noWhitespaceValidator('Username', 64)), '$${user}')).toBe(true);
+    expect(ok(host, '${env}.example.com')).toBe(true);
+    expect(ok(host, '${a}' + 'x'.repeat(1021))).toBe(false);
+    expect(ok(templated('Key path', keyPathValidator), '${keys}/id')).toBe(true);
+  });
+
+  it('accepts an empty secret field or a single reference', () => {
+    const v = secretReferenceValidator('Password');
+    expect(ok(v, null)).toBe(true);
+    expect(ok(v, '')).toBe(true);
+    expect(ok(v, '${db_pw}')).toBe(true);
+    expect(ok(v, 'hunter2')).toBe(false);
+    expect(ok(v, '${a}${b}')).toBe(false);
   });
 
   it('requires a non-blank key path', () => {

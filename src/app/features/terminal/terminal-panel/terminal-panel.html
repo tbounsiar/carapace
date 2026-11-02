@@ -14,11 +14,11 @@
           [attr.data-testid]="'terminal-tab-' + tab.n"
           (keydown.delete)="close(tab)"
         >
-          Terminal {{ tab.n }}
+          {{ title(tab) }}
           <tui-icon
             icon="@tui.x"
             class="close"
-            [attr.aria-label]="'Close Terminal ' + tab.n"
+            [attr.aria-label]="'Close ' + title(tab)"
             [attr.data-testid]="'terminal-close-' + tab.n"
             (click.stop)="close(tab)"
           />
@@ -63,7 +63,10 @@
   <tui-block-status size="m" data-testid="terminal-empty">
     <span tuiAvatar="@tui.square-terminal" size="l" tuiSlot="top"></span>
     <h2>No terminal open</h2>
-    <p>Open a shell on this host. It connects first if needed.</p>
+    <p>
+      Open a shell on this host{{ envName() ? ' in ' + envName() : '' }}. It connects first if
+      needed.
+    </p>
     <button
       tuiButton
       size="s"
