@@ -18,7 +18,18 @@ function genKey(name, type, extra) {
   const path = join(work, name);
   rmSync(path, { force: true });
   rmSync(`${path}.pub`, { force: true });
-  run('ssh-keygen', ['-q', '-t', type, ...extra, '-N', '', '-C', `carapace-e2e-${name}`, '-f', path]);
+  run('ssh-keygen', [
+    '-q',
+    '-t',
+    type,
+    ...extra,
+    '-N',
+    '',
+    '-C',
+    `carapace-e2e-${name}`,
+    '-f',
+    path,
+  ]);
 }
 
 function provision() {
@@ -26,10 +37,15 @@ function provision() {
   genKey('id_ed25519', 'ed25519', []);
   genKey('id_rsa', 'rsa', ['-b', '4096']);
   genKey('id_wrong', 'ed25519', []);
-  const keys = ['id_ed25519', 'id_rsa'].map((n) => readFileSync(join(work, `${n}.pub`), 'utf8').trim());
+  const keys = ['id_ed25519', 'id_rsa'].map((n) =>
+    readFileSync(join(work, `${n}.pub`), 'utf8').trim(),
+  );
   writeFileSync(join(work, 'authorized_keys'), keys.join('\n') + '\n');
   writeFileSync(join(work, 'password'), randomBytes(18).toString('base64url'));
-  writeFileSync(join(work, 'sshd.env'), `CARAPACE_PASSWORD=${readFileSync(join(work, 'password'), 'utf8')}\n`);
+  writeFileSync(
+    join(work, 'sshd.env'),
+    `CARAPACE_PASSWORD=${readFileSync(join(work, 'password'), 'utf8')}\n`,
+  );
 }
 
 function probe() {

@@ -3,7 +3,7 @@ services:
     build: .
     container_name: carapace-e2e-sshd
     ports:
-      - "127.0.0.1:2222:22"
+      - '127.0.0.1:2222:22'
     environment:
       CARAPACE_PASSWORD: ${CARAPACE_PASSWORD:?run setup.mjs up}
     volumes:
