@@ -46,10 +46,12 @@
   }
 }
 
-<ng-template #content let-value>
+<ng-template #content let-value let-node="node">
   <div
     class="row"
     [attr.data-kind]="value.kind"
+    [attr.data-expanded]="node.isExpandable ? node.expanded() : null"
+    [attr.tabindex]="value.kind === 'host' ? null : -1"
     [attr.data-testid]="testId('tree', value)"
     [class._menu]="openMenu() === key(value)"
     [style.--app-env-color]="marker(value)?.color"

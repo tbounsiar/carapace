@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal, type OnInit } from '@angular/core';
+import { Component, computed, ElementRef, inject, signal, type OnInit } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { type TuiHandler } from '@taiga-ui/cdk';
 import {
@@ -19,6 +19,7 @@ import { environmentMarker, type EnvironmentMarker } from '../../../shared/envir
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../project-actions';
 import { notifyError } from '../save-error';
+import { isTreeKey, treeKeyAction, type VisibleRow } from '../tree-keys';
 import { nodeLabel, toNodes, type TreeNode } from '../tree-node';
 
 export type { TreeNode } from '../tree-node';
@@ -34,6 +35,20 @@ const TEST_KINDS: Record<TreeNode['kind'], string> = {
   environment: 'env',
   host: 'host',
 };
+
+interface VisibleRowElement extends VisibleRow {
+  readonly item: Element;
+  readonly row: HTMLElement;
+}
+
+function focusTarget(row: HTMLElement): HTMLElement {
+  return row.querySelector<HTMLElement>('a.link') ?? row;
+}
+
+// Clicking Taiga's own chevron keeps the expanded state in its tree controller.
+function toggle(row: HTMLElement): void {
+  row.parentElement?.querySelector<HTMLElement>(':scope > button')?.click();
+}
 
 @Component({
   imports: [
@@ -51,6 +66,7 @@ const TEST_KINDS: Record<TreeNode['kind'], string> = {
     TuiTree,
   ],
   selector: 'app-project-tree',
+  host: { '(keydown)': 'onKeydown($event)' },
   styleUrl: './project-tree.scss',
   templateUrl: './project-tree.html',
 })
@@ -60,6 +76,7 @@ export class ProjectTree implements OnInit {
   private readonly ssh = inject(SshService);
   private readonly connector = inject(HostConnector);
   private readonly actions = inject(ProjectActions);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
 
   protected readonly loading = this.config.loading;
   protected readonly nodes = computed(() => toNodes(this.config.projects()));
@@ -72,6 +89,47 @@ export class ProjectTree implements OnInit {
   ngOnInit(): void {
     this.config.load().catch((err: unknown) => notifyError(this.alerts, err));
     this.ssh.loadConnections().catch((err: unknown) => notifyError(this.alerts, err));
+  }
+
+  protected onKeydown(event: KeyboardEvent): void {
+    if (!isTreeKey(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+      return;
+    }
+    const item = (event.target as Element | null)?.closest('tui-tree-item');
+    const rows = this.visibleRows();
+    const current = rows.findIndex((row) => row.item === item);
+    if (current < 0) {
+      return;
+    }
+    event.preventDefault();
+    const action = treeKeyAction(event.key, rows, current);
+    if (action.kind === 'focus') {
+      focusTarget(rows[action.index].row).focus();
+    } else if (action.kind === 'toggle') {
+      toggle(rows[action.index].row);
+    }
+  }
+
+  private visibleRows(): VisibleRowElement[] {
+    const rows: VisibleRowElement[] = [];
+    const indexOf = new Map<Element, number>();
+    for (const item of this.host.querySelectorAll('tui-tree-item')) {
+      const row = item.querySelector<HTMLElement>('.row');
+      const parentItem = item.parentElement?.closest('tui-tree-item');
+      const parent = parentItem ? indexOf.get(parentItem) : -1;
+      if (!row || parent === undefined || (parent >= 0 && !rows[parent].expanded)) {
+        continue;
+      }
+      indexOf.set(item, rows.length);
+      const expanded = row.dataset['expanded'];
+      rows.push({
+        item,
+        row,
+        parent,
+        expanded: expanded === undefined ? null : expanded === 'true',
+      });
+    }
+    return rows;
   }
 
   protected key(node: TreeNode): string {

@@ -217,4 +217,118 @@ describe('ProjectTree', () => {
     await click(byText('button[tuiOption]', 'Connect'));
     expect(document.body.textContent).toContain('Authentication failed');
   });
+
+  describe('keyboard navigation', () => {
+    const host = (id: string, name: string) => ({
+      id,
+      name,
+      hostname: `${name}.example.com`,
+      port: 22,
+      username: 'deploy',
+      auth: { kind: 'agent' as const },
+    });
+    const TWO_PROJECTS: Project[] = [
+      {
+        id: 'p1',
+        name: 'Shop',
+        environments: [
+          { id: 'e1', name: 'staging', hosts: [host('h1', 'web-1'), host('h2', 'web-2')] },
+        ],
+      },
+      {
+        id: 'p2',
+        name: 'Blog',
+        environments: [{ id: 'e2', name: 'prod', hosts: [host('h3', 'db-1')] }],
+      },
+    ];
+
+    const press = async (key: string, init: KeyboardEventInit = {}): Promise<KeyboardEvent> => {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+      (document.activeElement ?? document.body).dispatchEvent(event);
+      await settle();
+      return event;
+    };
+    const focus = (id: string): void => byTestId(id)!.focus();
+    const focused = (): string | null | undefined =>
+      document.activeElement?.getAttribute('data-testid');
+
+    beforeEach(async () => {
+      projects.set(TWO_PROJECTS);
+      await settle();
+    });
+
+    it('moves down and up across project trees', async () => {
+      focus('open-host-web-2');
+      const down = await press('ArrowDown');
+      expect(down.defaultPrevented).toBe(true);
+      expect(focused()).toBe('tree-project-Blog');
+      await press('ArrowDown');
+      expect(focused()).toBe('tree-env-prod');
+      await press('ArrowUp');
+      await press('ArrowUp');
+      expect(focused()).toBe('open-host-web-2');
+    });
+
+    it('stays on the last row without wrapping', async () => {
+      focus('open-host-db-1');
+      const event = await press('ArrowDown');
+      expect(event.defaultPrevented).toBe(true);
+      expect(focused()).toBe('open-host-db-1');
+    });
+
+    it('jumps to the first and last rows with Home and End', async () => {
+      focus('tree-env-prod');
+      await press('Home');
+      expect(focused()).toBe('tree-project-Shop');
+      await press('End');
+      expect(focused()).toBe('open-host-db-1');
+    });
+
+    it('collapses with ArrowLeft, then moves to the parent', async () => {
+      focus('open-host-web-1');
+      await press('ArrowLeft');
+      expect(focused()).toBe('tree-env-staging');
+      await press('ArrowLeft');
+      expect(byTestId('tree-env-staging')?.getAttribute('data-expanded')).toBe('false');
+      expect(focused()).toBe('tree-env-staging');
+      await press('ArrowDown');
+      expect(focused()).toBe('tree-project-Blog');
+      focus('tree-env-staging');
+      await press('ArrowLeft');
+      expect(focused()).toBe('tree-project-Shop');
+    });
+
+    it('expands with ArrowRight, then focuses the first child', async () => {
+      focus('tree-env-staging');
+      await press('ArrowLeft');
+      expect(byTestId('tree-env-staging')?.getAttribute('data-expanded')).toBe('false');
+      await press('ArrowRight');
+      expect(byTestId('tree-env-staging')?.getAttribute('data-expanded')).toBe('true');
+      expect(focused()).toBe('tree-env-staging');
+      await press('ArrowRight');
+      expect(focused()).toBe('open-host-web-1');
+      await press('ArrowRight');
+      expect(focused()).toBe('open-host-web-1');
+    });
+
+    it('handles keys pressed on a row action button', async () => {
+      focus('add-env-staging');
+      await press('ArrowUp');
+      expect(focused()).toBe('tree-project-Shop');
+    });
+
+    it('does not prevent unhandled keys or modified arrows', async () => {
+      focus('open-host-web-1');
+      for (const key of ['Enter', ' ', 'Tab', 'a']) {
+        expect((await press(key)).defaultPrevented).toBe(false);
+      }
+      expect((await press('ArrowDown', { shiftKey: true })).defaultPrevented).toBe(false);
+      expect(focused()).toBe('open-host-web-1');
+    });
+
+    it('keeps project and environment rows out of the tab order', () => {
+      expect(byTestId('tree-project-Shop')?.getAttribute('tabindex')).toBe('-1');
+      expect(byTestId('tree-host-web-1')?.hasAttribute('tabindex')).toBe(false);
+    });
+  });
 });
