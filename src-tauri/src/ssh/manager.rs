@@ -606,3 +606,6 @@ async fn connect_agent() -> Result<DynAgent, SshError> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod e2e_tests;

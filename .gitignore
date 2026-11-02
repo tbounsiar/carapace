@@ -51,3 +51,9 @@ Thumbs.db
 .env
 .env.*
 *.log
+
+# e2e work dir (generated keys and passwords)
+e2e/.work/
+
+# E2E artifacts
+/e2e/.work/
