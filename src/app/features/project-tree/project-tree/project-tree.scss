@@ -33,6 +33,8 @@
 }
 
 .row {
+  /* Taiga's tui-expand grid track grows to the row's min-content (nowrap labels); keep the row out of it. */
+  contain: inline-size;
   display: flex;
   flex: 1;
   align-items: center;
@@ -48,6 +50,11 @@
 
   &:has(._selected) {
     background: var(--tui-background-neutral-1-hover);
+  }
+
+  &:focus-visible {
+    outline: var(--tui-stroke-width) solid var(--tui-border-focus);
+    outline-offset: calc(-1 * var(--tui-stroke-width));
   }
 
   &[data-kind='host'] {
@@ -102,12 +109,16 @@
 .actions {
   display: flex;
   flex-shrink: 0;
+  /* Collapsed rather than display: none, so the buttons stay in the tab order. */
+  max-inline-size: 0;
+  overflow: hidden;
   opacity: 0;
 
   .row:hover &,
   .row:focus-within &,
   .row._menu &,
   .row:has(._selected) & {
+    max-inline-size: none;
     opacity: 1;
   }
 }

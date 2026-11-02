@@ -3,6 +3,12 @@ tui-root[tuiTheme='light'] {
   --tui-theme-color: var(--tui-background-base-alt);
 }
 
+/* Taiga's sliding pill does not render inside the navigation header; paint the active item instead. */
+tui-segmented > ._active {
+  background-color: var(--tui-background-accent-1);
+  color: var(--tui-text-primary-on-accent-1);
+}
+
 .body {
   display: flex;
 }

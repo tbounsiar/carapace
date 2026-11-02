@@ -29,7 +29,6 @@ export class HostKeyPrompter {
       this.dialogs.open<boolean>(new PolymorpheusComponent(HostKeyChangedDialog), {
         label: 'Host key has changed',
         size: 'm',
-        appearance: 'negative',
         data: event,
       }),
       { defaultValue: false },

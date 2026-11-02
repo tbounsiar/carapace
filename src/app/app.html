@@ -15,6 +15,8 @@
       @for (option of themeOptions; track option.mode) {
         <button
           type="button"
+          [class._active]="$index === activeIndex()"
+          [attr.aria-pressed]="$index === activeIndex()"
           [attr.aria-label]="option.label"
           [attr.data-testid]="'theme-' + option.mode"
           [tuiHint]="option.label"
