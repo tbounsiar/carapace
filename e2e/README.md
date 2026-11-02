@@ -13,7 +13,8 @@ node e2e/sshd/setup.mjs down              # stop and remove the container
 ```
 
 - Without `CARAPACE_E2E=1` the tests return immediately, so plain `cargo test` needs no Docker.
-- `e2e/.work/` is gitignored: Ed25519, RSA 4096 and an unauthorized ("wrong") key pair, `authorized_keys`, and the generated password of the `carapace` user. Nothing in it is committed.
+- `e2e/.work/` is gitignored: Ed25519, RSA 4096, an Ed25519 key encrypted with a random passphrase (`id_ed25519_enc`, passphrase in `passphrase`) and an unauthorized ("wrong") key pair, `authorized_keys`, and the generated password of the `carapace` user (`password`). Nothing in it is committed.
+- Password and passphrase tests use an in-memory secret store, never the system keychain.
 - Each test uses its own temporary known_hosts files; the user's home is never touched.
 - The host key rotation test calls `rotate-host-key` itself and runs exclusively.
 - The agent test runs only when the local agent already holds `e2e/.work/id_ed25519` (`ssh-add e2e/.work/id_ed25519`); otherwise it prints a skip message.

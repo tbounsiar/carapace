@@ -2,6 +2,7 @@
 //! after `node e2e/sshd/setup.mjs up`.
 
 use super::*;
+use crate::secrets::MemoryBackend;
 use std::process::Command;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc;
@@ -31,6 +32,14 @@ fn key_path(name: &str) -> String {
     s.strip_prefix(r"\\?\").unwrap_or(&s).to_owned()
 }
 
+fn work_file(name: &str) -> String {
+    let path = e2e_dir().join(".work").join(name);
+    std::fs::read_to_string(&path)
+        .unwrap_or_else(|_| panic!("missing {path:?}, run setup.mjs up"))
+        .trim()
+        .to_owned()
+}
+
 fn rotate_host_key() {
     let status = Command::new("node")
         .arg(e2e_dir().join("sshd/setup.mjs"))
@@ -45,18 +54,21 @@ struct Env {
     manager: Arc<SshManager>,
     host: Host,
     app_known_hosts: PathBuf,
+    secrets: SecretStore,
 }
 
 fn env_for(hostname: &str, port: u16, connect: Duration, auth: AuthMethod) -> Env {
     let dir = tempfile::tempdir().unwrap();
     let app_known_hosts = dir.path().join("known_hosts");
     let user_file = dir.path().join("user_known_hosts");
+    let (secrets, _) = MemoryBackend::store();
     let manager = Arc::new(SshManager::with_parts(
         KnownHosts::new(app_known_hosts.clone(), Some(user_file)),
         Timeouts {
             connect,
             prompt: Duration::from_secs(20),
         },
+        secrets.clone(),
     ));
     let host = Host {
         id: "e2e".into(),
@@ -71,7 +83,17 @@ fn env_for(hostname: &str, port: u16, connect: Duration, auth: AuthMethod) -> En
         manager,
         host,
         app_known_hosts,
+        secrets,
     }
+}
+
+fn scope() -> SecretScope {
+    SecretScope::new(
+        "00000000-0000-4000-8000-0000000000e1",
+        "00000000-0000-4000-8000-0000000000e2",
+        "00000000-0000-4000-8000-0000000000e3",
+    )
+    .unwrap()
 }
 
 fn key_auth(name: &str) -> AuthMethod {
@@ -88,6 +110,10 @@ type Events = mpsc::UnboundedReceiver<ConnectEvent>;
 type ConnectTask = tokio::task::JoinHandle<Result<ConnectionInfo, SshError>>;
 
 fn start_connect(env: &Env) -> (ConnectTask, Events) {
+    start_connect_with(env, None)
+}
+
+fn start_connect_with(env: &Env, credential: Option<Credential>) -> (ConnectTask, Events) {
     let (tx, rx) = mpsc::unbounded_channel();
     let emit: Emit = Arc::new(move |e| {
         let _ = tx.send(e);
@@ -95,7 +121,12 @@ fn start_connect(env: &Env) -> (ConnectTask, Events) {
     let manager = env.manager.clone();
     let host = env.host.clone();
     (
-        tokio::spawn(async move { manager.connect(&host, emit).await }),
+        tokio::spawn(async move {
+            let current = || true;
+            manager
+                .connect(&scope(), &host, credential, &current, emit)
+                .await
+        }),
         rx,
     )
 }
@@ -131,7 +162,11 @@ fn assert_no_prompt(rx: &mut Events) {
 }
 
 async fn trust_first_use(env: &Env) -> String {
-    let (task, mut rx) = start_connect(env);
+    trust_first_use_with(env, None).await
+}
+
+async fn trust_first_use_with(env: &Env, credential: Option<Credential>) -> String {
+    let (task, mut rx) = start_connect_with(env, credential);
     let (id, fp) = next_prompt(&mut rx).await;
     env.manager.answer_host_key(&id, true).unwrap();
     task.await.unwrap().unwrap();
@@ -342,4 +377,93 @@ async fn agent_auth_when_the_agent_holds_the_e2e_key() {
     trust_first_use(&env).await;
     let (task, _rx) = start_connect(&env);
     assert_eq!(task.await.unwrap().unwrap().state, ConnectState::Connected);
+}
+
+fn typed(secret: &str) -> Option<Credential> {
+    Some(Credential {
+        secret: SecretString::from(secret),
+        remember: false,
+    })
+}
+
+fn password_env() -> Env {
+    env_for(
+        "127.0.0.1",
+        PORT,
+        Duration::from_secs(10),
+        AuthMethod::Password,
+    )
+}
+
+#[tokio::test]
+async fn password_auth_with_the_right_password() {
+    if !enabled() {
+        return;
+    }
+    let _g = SERVER.read().await;
+    let env = password_env();
+    let password = work_file("password");
+    trust_first_use_with(&env, typed(&password)).await;
+    env.secrets
+        .set(
+            &scope(),
+            SecretKind::Password,
+            &SecretString::from(password),
+        )
+        .unwrap();
+    let (task, _rx) = start_connect(&env);
+    assert_eq!(task.await.unwrap().unwrap().state, ConnectState::Connected);
+}
+
+#[tokio::test]
+async fn password_auth_with_a_wrong_password_is_auth_failed() {
+    if !enabled() {
+        return;
+    }
+    let _g = SERVER.read().await;
+    let env = password_env();
+    let (task, mut rx) = start_connect_with(&env, typed("not-the-password"));
+    let (id, _) = next_prompt(&mut rx).await;
+    env.manager.answer_host_key(&id, true).unwrap();
+    assert_eq!(task.await.unwrap().unwrap_err().code(), "auth_failed");
+    assert!(env.manager.list().await.is_empty());
+}
+
+#[tokio::test]
+async fn encrypted_key_with_its_passphrase() {
+    if !enabled() {
+        return;
+    }
+    let _g = SERVER.read().await;
+    let env = env("id_ed25519_enc");
+    trust_first_use_with(&env, typed(&work_file("passphrase"))).await;
+    let (task, _rx) = start_connect_with(&env, typed(&work_file("passphrase")));
+    assert_eq!(task.await.unwrap().unwrap().state, ConnectState::Connected);
+}
+
+#[tokio::test]
+async fn encrypted_key_with_a_wrong_passphrase_is_invalid_passphrase() {
+    if !enabled() {
+        return;
+    }
+    let _g = SERVER.read().await;
+    let env = env("id_ed25519_enc");
+    let (task, mut rx) = start_connect_with(&env, typed("not-the-passphrase"));
+    assert_eq!(
+        task.await.unwrap().unwrap_err(),
+        SshError::InvalidPassphrase
+    );
+    assert!(drain(&mut rx).is_empty());
+}
+
+#[tokio::test]
+async fn encrypted_key_without_a_passphrase_is_secret_required() {
+    if !enabled() {
+        return;
+    }
+    let _g = SERVER.read().await;
+    let env = env("id_ed25519_enc");
+    let (task, mut rx) = start_connect(&env);
+    assert_eq!(task.await.unwrap().unwrap_err(), SshError::SecretRequired);
+    assert!(drain(&mut rx).is_empty());
 }

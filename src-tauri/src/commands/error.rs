@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::config::ConfigError;
+use crate::secrets::SecretError;
 use crate::ssh::SshError;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -37,6 +38,12 @@ impl From<SshError> for CommandError {
     }
 }
 
+impl From<SecretError> for CommandError {
+    fn from(e: SecretError) -> Self {
+        Self::new(e.code(), e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,7 +74,9 @@ mod tests {
             (SshError::HostKeyChanged, "host_key_changed"),
             (SshError::HostKeyRevoked, "host_key_revoked"),
             (SshError::AuthFailed("no".into()), "auth_failed"),
-            (SshError::Unsupported("x".into()), "unsupported"),
+            (SshError::SecretRequired, "secret_required"),
+            (SshError::InvalidPassphrase, "invalid_passphrase"),
+            (SshError::KeychainUnavailable, "keychain_unavailable"),
             (SshError::Timeout, "timeout"),
             (SshError::Network, "network"),
             (SshError::Io, "io"),
@@ -75,5 +84,21 @@ mod tests {
         for (err, code) in cases {
             assert_eq!(CommandError::from(err).code, code);
         }
+    }
+
+    #[test]
+    fn maps_secret_codes() {
+        assert_eq!(
+            CommandError::from(SecretError::Unavailable).code,
+            "keychain_unavailable"
+        );
+        assert_eq!(
+            CommandError::from(SecretError::TooLong).code,
+            "invalid_input"
+        );
+        assert_eq!(
+            CommandError::from(SshError::from(SecretError::Unavailable)).code,
+            "keychain_unavailable"
+        );
     }
 }

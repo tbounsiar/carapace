@@ -9,7 +9,8 @@ use russh::keys::agent::AgentIdentity;
 use russh::keys::agent::client::AgentClient;
 use russh::keys::ssh_key::{HashAlg, PublicKey};
 use russh::keys::{PrivateKey, PrivateKeyWithHashAlg, PublicKeyOrCertificate};
-use serde::Serialize;
+use secrecy::{ExposeSecret, SecretString};
+use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio::sync::oneshot;
 use tokio::time::timeout;
@@ -20,8 +21,12 @@ use super::error::SshError;
 use super::known_hosts::{HostKeyStatus, KnownHosts, fingerprint};
 use crate::config::Host;
 use crate::config::model::AuthMethod;
+use crate::secrets::{SecretKind, SecretScope, SecretStore, fits_keychain};
 
 pub type Emit = Arc<dyn Fn(ConnectEvent) + Send + Sync>;
+
+/// Tells whether the host is still configured as it was when the connect started.
+pub type StillCurrent<'a> = &'a (dyn Fn() -> bool + Send + Sync);
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -69,6 +74,15 @@ pub enum ConnectEvent {
 pub struct ConnectionInfo {
     pub host_id: String,
     pub state: ConnectState,
+}
+
+/// A password or passphrase typed by the user for one connect attempt.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Credential {
+    pub secret: SecretString,
+    #[serde(default)]
+    pub remember: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -304,7 +318,20 @@ impl client::Handler for ClientHandler {
 
 enum Credentials {
     Key(Arc<PrivateKey>),
+    Password(SecretString),
     Agent,
+}
+
+struct Loaded {
+    credentials: Credentials,
+    remember: Option<(SecretKind, SecretString)>,
+    from_keychain: bool,
+}
+
+struct Resolved {
+    value: SecretString,
+    remember: Option<(SecretKind, SecretString)>,
+    from_keychain: bool,
 }
 
 type Session = Arc<Handle<ClientHandler>>;
@@ -316,21 +343,24 @@ pub struct SshManager {
     host_locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     pending: Pending,
     changed: ChangedKeys,
+    secrets: SecretStore,
 }
 
 impl SshManager {
-    pub fn new(config_dir: &Path) -> Self {
+    pub fn new(config_dir: &Path, secrets: SecretStore) -> Self {
         let user_file = std::env::home_dir().map(|h| h.join(".ssh").join("known_hosts"));
         Self::with_parts(
             KnownHosts::new(config_dir.join("known_hosts"), user_file),
             Timeouts::default(),
+            secrets,
         )
     }
 
-    pub fn with_parts(known_hosts: KnownHosts, timeouts: Timeouts) -> Self {
+    pub fn with_parts(known_hosts: KnownHosts, timeouts: Timeouts, secrets: SecretStore) -> Self {
         Self {
             known_hosts: Arc::new(known_hosts),
             timeouts,
+            secrets,
             sessions: Default::default(),
             host_locks: Default::default(),
             pending: Default::default(),
@@ -388,7 +418,15 @@ impl SshManager {
         out
     }
 
-    pub async fn connect(&self, host: &Host, emit: Emit) -> Result<ConnectionInfo, SshError> {
+    /// `scope` locates the host's keychain entries; `credential` overrides the stored secret.
+    pub async fn connect(
+        &self,
+        scope: &SecretScope,
+        host: &Host,
+        credential: Option<Credential>,
+        still_current: StillCurrent<'_>,
+        emit: Emit,
+    ) -> Result<ConnectionInfo, SshError> {
         let lock = {
             let mut locks = self.host_locks.lock().map_err(|_| SshError::Io)?;
             locks.entry(host.id.clone()).or_default().clone()
@@ -410,7 +448,11 @@ impl SshManager {
             }
         }
 
-        let credentials = load_credentials(&host.auth)?;
+        let Loaded {
+            credentials,
+            remember,
+            from_keychain,
+        } = load_credentials(&self.secrets, scope, &host.auth, credential)?;
         if let Ok(mut map) = self.changed.lock() {
             map.remove(&host.id);
         }
@@ -464,7 +506,7 @@ impl SshManager {
         });
         let auth = timeout(
             self.timeouts.connect,
-            authenticate(&mut handle, &host.username, credentials),
+            authenticate(&mut handle, &host.username, &credentials),
         )
         .await;
         let outcome = match auth {
@@ -475,7 +517,24 @@ impl SshManager {
             let _ = handle
                 .disconnect(russh::Disconnect::ByApplication, "", "en")
                 .await;
+            if let (SshError::AuthFailed(_), true, Credentials::Password(p)) =
+                (&e, from_keychain, &credentials)
+            {
+                forget_if_unchanged(&self.secrets, scope, SecretKind::Password, p);
+            }
             return Err(e);
+        }
+
+        // The host-key prompt can last minutes; the host may have been edited or deleted meanwhile.
+        if let Some((kind, secret)) = remember
+            && fits_keychain(&secret)
+            && still_current()
+            && self.secrets.set(scope, kind, &secret).is_err()
+        {
+            log::warn!(
+                "could not store the {kind} of host {} in the keychain",
+                host.id
+            );
         }
 
         self.sessions
@@ -498,33 +557,115 @@ fn expand_home(path: &str) -> PathBuf {
     PathBuf::from(path)
 }
 
-fn load_credentials(auth: &AuthMethod) -> Result<Credentials, SshError> {
+fn provided_or_stored(
+    secrets: &SecretStore,
+    scope: &SecretScope,
+    kind: SecretKind,
+    credential: Option<Credential>,
+) -> Result<Resolved, SshError> {
+    if let Some(c) = credential {
+        let remember = c
+            .remember
+            .then(|| (kind, SecretString::from(c.secret.expose_secret())));
+        return Ok(Resolved {
+            value: c.secret,
+            remember,
+            from_keychain: false,
+        });
+    }
+    match secrets.get(scope, kind)? {
+        Some(value) => Ok(Resolved {
+            value,
+            remember: None,
+            from_keychain: true,
+        }),
+        None => Err(SshError::SecretRequired),
+    }
+}
+
+/// Drops a stored secret the server or the key file rejected, unless it was replaced meanwhile.
+fn forget_if_unchanged(
+    secrets: &SecretStore,
+    scope: &SecretScope,
+    kind: SecretKind,
+    rejected: &SecretString,
+) {
+    let unchanged = matches!(
+        secrets.get(scope, kind),
+        Ok(Some(current)) if current.expose_secret() == rejected.expose_secret()
+    );
+    if unchanged && secrets.delete(scope, kind).is_err() {
+        log::warn!(
+            "could not delete the rejected {kind} of host {} from the keychain",
+            scope.host_id()
+        );
+    }
+}
+
+fn read_key_file(key_path: &str) -> Result<Zeroizing<String>, SshError> {
+    match std::fs::read_to_string(expand_home(key_path)) {
+        Ok(t) => Ok(Zeroizing::new(t)),
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => Err(unparseable_key()),
+        Err(_) => Err(SshError::Io),
+    }
+}
+
+fn unparseable_key() -> SshError {
+    SshError::InvalidInput("the private key file could not be parsed".into())
+}
+
+/// Resolves everything authentication needs before any network traffic.
+fn load_credentials(
+    secrets: &SecretStore,
+    scope: &SecretScope,
+    auth: &AuthMethod,
+    credential: Option<Credential>,
+) -> Result<Loaded, SshError> {
+    use russh::keys::Error as KeyError;
     match auth {
-        AuthMethod::Password => Err(SshError::Unsupported(
-            "password authentication is not available yet".into(),
-        )),
-        AuthMethod::Agent => Ok(Credentials::Agent),
+        AuthMethod::Agent => Ok(Loaded {
+            credentials: Credentials::Agent,
+            remember: None,
+            from_keychain: false,
+        }),
+        AuthMethod::Password => {
+            let r = provided_or_stored(secrets, scope, SecretKind::Password, credential)?;
+            Ok(Loaded {
+                credentials: Credentials::Password(r.value),
+                remember: r.remember,
+                from_keychain: r.from_keychain,
+            })
+        }
         AuthMethod::Key { key_path } => {
-            use russh::keys::Error as KeyError;
-            let text = Zeroizing::new(match std::fs::read_to_string(expand_home(key_path)) {
-                Ok(t) => t,
-                Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
-                    return Err(SshError::InvalidInput(
-                        "the private key file could not be parsed".into(),
-                    ));
+            let text = read_key_file(key_path)?;
+            let (key, remember) = match russh::keys::decode_secret_key(&text, None) {
+                Ok(key) => (key, None),
+                Err(KeyError::KeyIsEncrypted) => {
+                    let r = provided_or_stored(secrets, scope, SecretKind::Passphrase, credential)?;
+                    match russh::keys::decode_secret_key(&text, Some(r.value.expose_secret())) {
+                        Ok(key) => (key, r.remember),
+                        Err(KeyError::IO(_)) => return Err(SshError::Io),
+                        Err(_) => {
+                            if r.from_keychain {
+                                forget_if_unchanged(
+                                    secrets,
+                                    scope,
+                                    SecretKind::Passphrase,
+                                    &r.value,
+                                );
+                            }
+                            return Err(SshError::InvalidPassphrase);
+                        }
+                    }
                 }
-                Err(_) => return Err(SshError::Io),
-            });
-            match russh::keys::decode_secret_key(&text, None) {
-                Ok(key) => Ok(Credentials::Key(Arc::new(key))),
-                Err(KeyError::KeyIsEncrypted) => Err(SshError::Unsupported(
-                    "passphrase-protected keys are not available yet".into(),
-                )),
-                Err(KeyError::IO(_)) => Err(SshError::Io),
-                Err(_) => Err(SshError::InvalidInput(
-                    "the private key file could not be parsed".into(),
-                )),
-            }
+                Err(KeyError::IO(_)) => return Err(SshError::Io),
+                Err(_) => return Err(unparseable_key()),
+            };
+            Ok(Loaded {
+                credentials: Credentials::Key(Arc::new(key)),
+                remember,
+                from_keychain: false,
+            })
         }
     }
 }
@@ -545,14 +686,24 @@ async fn rsa_hash(handle: &Handle<ClientHandler>, key: &PublicKey) -> Option<Has
 async fn authenticate(
     handle: &mut Handle<ClientHandler>,
     username: &str,
-    credentials: Credentials,
+    credentials: &Credentials,
 ) -> Result<(), SshError> {
     let failed = || SshError::AuthFailed("authentication was refused by the server".into());
     match credentials {
         Credentials::Key(key) => {
             let hash = rsa_hash(handle, key.public_key()).await;
-            let key = PrivateKeyWithHashAlg::new(key, hash);
+            let key = PrivateKeyWithHashAlg::new(key.clone(), hash);
             match handle.authenticate_publickey(username, key).await {
+                Ok(AuthResult::Success) => Ok(()),
+                Ok(AuthResult::Failure { .. }) => Err(failed()),
+                Err(_) => Err(SshError::Network),
+            }
+        }
+        Credentials::Password(password) => {
+            match handle
+                .authenticate_password(username, password.expose_secret())
+                .await
+            {
                 Ok(AuthResult::Success) => Ok(()),
                 Ok(AuthResult::Failure { .. }) => Err(failed()),
                 Err(_) => Err(SshError::Network),

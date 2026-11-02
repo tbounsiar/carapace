@@ -1,4 +1,5 @@
 use super::*;
+use crate::secrets::MemoryBackend;
 use russh::keys::ssh_key::LineEnding;
 use russh::keys::ssh_key::private::{Ed25519Keypair, KeypairData};
 use russh::server;
@@ -9,10 +10,31 @@ struct TestServer {
     port: u16,
 }
 
+const SERVER_PASSWORD: &str = "right-password";
+
+/// Longer than the keychain accepts, so it can be used but never stored.
+fn long_password() -> String {
+    "x".repeat(crate::secrets::MAX_SECRET_UTF16_UNITS + 1)
+}
+
 struct AcceptAll;
 
 impl server::Handler for AcceptAll {
     type Error = russh::Error;
+
+    async fn auth_password(
+        &mut self,
+        _user: &str,
+        password: &str,
+    ) -> Result<server::Auth, Self::Error> {
+        Ok(
+            if password == SERVER_PASSWORD || password == long_password() {
+                server::Auth::Accept
+            } else {
+                server::Auth::reject()
+            },
+        )
+    }
 
     async fn auth_publickey(
         &mut self,
@@ -56,6 +78,8 @@ struct Env {
     manager: Arc<SshManager>,
     host: Host,
     app_known_hosts: PathBuf,
+    secrets: SecretStore,
+    mem: Arc<MemoryBackend>,
 }
 
 fn env(port: u16, prompt: Duration, auth: impl FnOnce(&Path) -> AuthMethod) -> Env {
@@ -71,9 +95,11 @@ fn env_with(
     let dir = tempfile::tempdir().unwrap();
     let app_known_hosts = dir.path().join("known_hosts");
     let user_file = dir.path().join("user_known_hosts");
+    let (secrets, mem) = MemoryBackend::store();
     let manager = Arc::new(SshManager::with_parts(
         KnownHosts::new(app_known_hosts.clone(), Some(user_file)),
         Timeouts { connect, prompt },
+        secrets.clone(),
     ));
     let host = Host {
         id: "h1".into(),
@@ -88,7 +114,18 @@ fn env_with(
         manager,
         host,
         app_known_hosts,
+        secrets,
+        mem,
     }
+}
+
+fn scope() -> SecretScope {
+    SecretScope::new(
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000002",
+        "00000000-0000-4000-8000-000000000003",
+    )
+    .unwrap()
 }
 
 fn key_auth(dir: &Path) -> AuthMethod {
@@ -104,6 +141,18 @@ type Events = mpsc::UnboundedReceiver<ConnectEvent>;
 type ConnectTask = tokio::task::JoinHandle<Result<ConnectionInfo, SshError>>;
 
 fn start_connect(env: &Env) -> (ConnectTask, Events) {
+    start_connect_with(env, None)
+}
+
+fn start_connect_with(env: &Env, credential: Option<Credential>) -> (ConnectTask, Events) {
+    spawn_connect(env, credential, true)
+}
+
+fn spawn_connect(
+    env: &Env,
+    credential: Option<Credential>,
+    current: bool,
+) -> (ConnectTask, Events) {
     let (tx, rx) = mpsc::unbounded_channel();
     let emit: Emit = Arc::new(move |e| {
         let _ = tx.send(e);
@@ -111,7 +160,12 @@ fn start_connect(env: &Env) -> (ConnectTask, Events) {
     let manager = env.manager.clone();
     let host = env.host.clone();
     (
-        tokio::spawn(async move { manager.connect(&host, emit).await }),
+        tokio::spawn(async move {
+            let current = move || current;
+            manager
+                .connect(&scope(), &host, credential, &current, emit)
+                .await
+        }),
         rx,
     )
 }
@@ -312,17 +366,221 @@ async fn prompt_may_outlast_the_connect_timeout() {
     assert!(task.await.unwrap().is_ok());
 }
 
-#[tokio::test]
-async fn password_and_unreadable_keys_fail_before_any_network() {
-    let env = env(1, Duration::from_secs(1), |_| AuthMethod::Password);
-    let emit: Emit = Arc::new(|_| {});
-    let err = env.manager.connect(&env.host, emit).await.unwrap_err();
-    assert_eq!(err.code(), "unsupported");
+fn credential(secret: &str, remember: bool) -> Option<Credential> {
+    Some(Credential {
+        secret: SecretString::from(secret),
+        remember,
+    })
+}
 
-    let missing = AuthMethod::Key {
+fn stored(env: &Env, kind: SecretKind) -> Option<String> {
+    env.secrets
+        .get(&scope(), kind)
+        .unwrap()
+        .map(|s| s.expose_secret().to_owned())
+}
+
+fn store_secret(env: &Env, kind: SecretKind, value: &str) {
+    env.secrets
+        .set(&scope(), kind, &SecretString::from(value))
+        .unwrap();
+}
+
+fn trust_server(env: &Env, server: &TestServer) {
+    env.manager
+        .known_hosts
+        .trust("127.0.0.1", server.port, server.key.public_key())
+        .unwrap();
+}
+
+const PASSPHRASE: &str = "correct horse";
+
+fn encrypted_key_auth(dir: &Path) -> AuthMethod {
+    let path = dir.join("id_ed25519_enc");
+    let key = ed25519(9).encrypt(&mut rand::rng(), PASSPHRASE).unwrap();
+    let pem = key.to_openssh(LineEnding::LF).unwrap();
+    std::fs::write(&path, pem.as_bytes()).unwrap();
+    AuthMethod::Key {
+        key_path: path.to_string_lossy().into_owned(),
+    }
+}
+
+async fn connect_once(
+    env: &Env,
+    credential: Option<Credential>,
+) -> Result<ConnectionInfo, SshError> {
+    let (task, _rx) = start_connect_with(env, credential);
+    task.await.unwrap()
+}
+
+fn load(env: &Env, credential: Option<Credential>) -> Result<Loaded, SshError> {
+    load_credentials(&env.secrets, &scope(), &env.host.auth, credential)
+}
+
+#[tokio::test]
+async fn typed_password_connects_and_is_stored_only_when_asked() {
+    let server = start_server(10).await;
+    let env = env(server.port, Duration::from_secs(10), |_| {
+        AuthMethod::Password
+    });
+    trust_server(&env, &server);
+
+    connect_once(&env, credential(SERVER_PASSWORD, false))
+        .await
+        .unwrap();
+    assert!(env.mem.accounts().is_empty());
+    env.manager.disconnect("h1").await.unwrap();
+
+    connect_once(&env, credential(SERVER_PASSWORD, true))
+        .await
+        .unwrap();
+    assert_eq!(
+        stored(&env, SecretKind::Password).as_deref(),
+        Some(SERVER_PASSWORD)
+    );
+    assert_eq!(
+        env.mem.accounts(),
+        vec![scope().account(SecretKind::Password)]
+    );
+}
+
+#[tokio::test]
+async fn stored_password_is_used_and_a_refused_one_is_auth_failed() {
+    let server = start_server(11).await;
+    let env = env(server.port, Duration::from_secs(10), |_| {
+        AuthMethod::Password
+    });
+    trust_server(&env, &server);
+
+    store_secret(&env, SecretKind::Password, SERVER_PASSWORD);
+    connect_once(&env, None).await.unwrap();
+    env.manager.disconnect("h1").await.unwrap();
+
+    store_secret(&env, SecretKind::Password, "stale");
+    let err = connect_once(&env, None).await.unwrap_err();
+    assert_eq!(err.code(), "auth_failed");
+    assert_eq!(stored(&env, SecretKind::Password), None);
+    assert!(env.manager.list().await.is_empty());
+}
+
+#[tokio::test]
+async fn refused_password_is_not_remembered() {
+    let server = start_server(12).await;
+    let env = env(server.port, Duration::from_secs(10), |_| {
+        AuthMethod::Password
+    });
+    trust_server(&env, &server);
+    let err = connect_once(&env, credential("wrong", true))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), "auth_failed");
+    assert!(env.mem.accounts().is_empty());
+}
+
+#[tokio::test]
+async fn missing_password_is_secret_required_before_any_network() {
+    let env = env(1, Duration::from_secs(1), |_| AuthMethod::Password);
+    let (task, mut rx) = start_connect(&env);
+    assert_eq!(task.await.unwrap().unwrap_err(), SshError::SecretRequired);
+    assert!(drain(&mut rx).is_empty());
+}
+
+#[tokio::test]
+async fn unavailable_keychain_is_reported_unless_the_secret_is_typed() {
+    let server = start_server(13).await;
+    let env = env(server.port, Duration::from_secs(10), |_| {
+        AuthMethod::Password
+    });
+    trust_server(&env, &server);
+    env.mem.set_failing(true);
+    assert_eq!(
+        connect_once(&env, None).await.unwrap_err(),
+        SshError::KeychainUnavailable
+    );
+    connect_once(&env, credential(SERVER_PASSWORD, true))
+        .await
+        .unwrap();
+}
+
+#[test]
+fn encrypted_key_needs_the_right_passphrase() {
+    let env = env(1, Duration::from_secs(1), encrypted_key_auth);
+    assert_eq!(load(&env, None).err(), Some(SshError::SecretRequired));
+    assert_eq!(
+        load(&env, credential("nope", true)).err(),
+        Some(SshError::InvalidPassphrase)
+    );
+    let loaded = load(&env, credential(PASSPHRASE, false)).unwrap();
+    assert!(matches!(loaded.credentials, Credentials::Key(_)));
+    assert!(loaded.remember.is_none());
+
+    store_secret(&env, SecretKind::Passphrase, "stale");
+    assert_eq!(load(&env, None).err(), Some(SshError::InvalidPassphrase));
+    assert_eq!(stored(&env, SecretKind::Passphrase), None);
+    assert_eq!(load(&env, None).err(), Some(SshError::SecretRequired));
+    store_secret(&env, SecretKind::Passphrase, PASSPHRASE);
+    assert!(load(&env, None).is_ok());
+    assert!(env.mem.accounts().iter().all(|a| !a.ends_with("password")));
+}
+
+#[tokio::test]
+async fn wrong_passphrase_fails_before_any_network() {
+    let env = env(1, Duration::from_secs(1), encrypted_key_auth);
+    let (task, mut rx) = start_connect_with(&env, credential("nope", true));
+    assert_eq!(
+        task.await.unwrap().unwrap_err(),
+        SshError::InvalidPassphrase
+    );
+    assert!(drain(&mut rx).is_empty());
+    assert!(env.mem.accounts().is_empty());
+}
+
+#[tokio::test]
+async fn passphrase_is_remembered_after_success_and_reused() {
+    let server = start_server(14).await;
+    let env = env(server.port, Duration::from_secs(10), encrypted_key_auth);
+    trust_server(&env, &server);
+    connect_once(&env, credential(PASSPHRASE, true))
+        .await
+        .unwrap();
+    assert_eq!(
+        stored(&env, SecretKind::Passphrase).as_deref(),
+        Some(PASSPHRASE)
+    );
+    env.manager.disconnect("h1").await.unwrap();
+    connect_once(&env, None).await.unwrap();
+}
+
+#[test]
+fn credential_is_ignored_for_agent_and_plain_keys() {
+    let agent = env(1, Duration::from_secs(1), |_| AuthMethod::Agent);
+    let loaded = load(&agent, credential("x", true)).unwrap();
+    assert!(matches!(loaded.credentials, Credentials::Agent));
+    assert!(loaded.remember.is_none());
+
+    let plain = env(1, Duration::from_secs(1), key_auth);
+    let loaded = load(&plain, credential("x", true)).unwrap();
+    assert!(matches!(loaded.credentials, Credentials::Key(_)));
+    assert!(loaded.remember.is_none());
+}
+
+#[test]
+fn unreadable_and_garbage_key_files() {
+    let mut env = env(1, Duration::from_secs(1), |_| AuthMethod::Agent);
+    env.host.auth = AuthMethod::Key {
         key_path: "does-not-exist".into(),
     };
-    assert_eq!(load_credentials(&missing).err(), Some(SshError::Io));
+    assert_eq!(load(&env, None).err(), Some(SshError::Io));
+
+    let garbage = env._dir.path().join("garbage");
+    std::fs::write(&garbage, "not a key").unwrap();
+    env.host.auth = AuthMethod::Key {
+        key_path: garbage.to_string_lossy().into_owned(),
+    };
+    assert_eq!(
+        load(&env, None).err().map(|e| e.code()),
+        Some("invalid_input")
+    );
 }
 
 #[tokio::test]
@@ -333,7 +591,11 @@ async fn refused_connection_maps_to_network() {
     };
     let env = env(port, Duration::from_secs(1), key_auth);
     let emit: Emit = Arc::new(|_| {});
-    let err = env.manager.connect(&env.host, emit).await.unwrap_err();
+    let err = env
+        .manager
+        .connect(&scope(), &env.host, None, &|| true, emit)
+        .await
+        .unwrap_err();
     assert_eq!(err, SshError::Network);
 }
 
@@ -374,4 +636,81 @@ fn events_serialize_as_contract() {
     .unwrap();
     assert_eq!(v["hostId"], "a");
     assert_eq!(v["state"], "connected");
+}
+
+#[tokio::test]
+async fn remember_is_skipped_when_the_host_changed_during_the_connect() {
+    let server = start_server(15).await;
+    let env = env(server.port, Duration::from_secs(10), |_| {
+        AuthMethod::Password
+    });
+    trust_server(&env, &server);
+    let (task, _rx) = spawn_connect(&env, credential(SERVER_PASSWORD, true), false);
+    task.await.unwrap().unwrap();
+    assert!(env.mem.accounts().is_empty());
+}
+
+#[tokio::test]
+async fn over_limit_typed_secret_connects_but_is_not_stored() {
+    let server = start_server(16).await;
+    let env = env(server.port, Duration::from_secs(10), |_| {
+        AuthMethod::Password
+    });
+    trust_server(&env, &server);
+    connect_once(&env, credential(&long_password(), true))
+        .await
+        .unwrap();
+    assert!(env.mem.accounts().is_empty());
+}
+
+#[tokio::test]
+async fn refused_stored_password_replaced_meanwhile_is_kept() {
+    let env = env(1, Duration::from_secs(1), |_| AuthMethod::Password);
+    store_secret(&env, SecretKind::Password, "new");
+    forget_if_unchanged(
+        &env.secrets,
+        &scope(),
+        SecretKind::Password,
+        &SecretString::from("old"),
+    );
+    assert_eq!(stored(&env, SecretKind::Password).as_deref(), Some("new"));
+    forget_if_unchanged(
+        &env.secrets,
+        &scope(),
+        SecretKind::Password,
+        &SecretString::from("new"),
+    );
+    assert_eq!(stored(&env, SecretKind::Password), None);
+}
+
+#[tokio::test]
+async fn typed_wrong_secrets_never_delete_the_stored_ones() {
+    let server = start_server(17).await;
+    let env = env(server.port, Duration::from_secs(10), |_| {
+        AuthMethod::Password
+    });
+    trust_server(&env, &server);
+    store_secret(&env, SecretKind::Password, SERVER_PASSWORD);
+    let err = connect_once(&env, credential("wrong", false))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), "auth_failed");
+    assert_eq!(
+        stored(&env, SecretKind::Password).as_deref(),
+        Some(SERVER_PASSWORD)
+    );
+}
+
+#[test]
+fn typed_wrong_passphrase_keeps_the_stored_one() {
+    let enc = env(1, Duration::from_secs(1), encrypted_key_auth);
+    store_secret(&enc, SecretKind::Passphrase, PASSPHRASE);
+    assert_eq!(
+        load(&enc, credential("nope", false)).err(),
+        Some(SshError::InvalidPassphrase)
+    );
+    assert_eq!(
+        stored(&enc, SecretKind::Passphrase).as_deref(),
+        Some(PASSPHRASE)
+    );
 }

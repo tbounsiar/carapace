@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::secrets::SecretError;
+
 #[derive(Debug, Error, PartialEq)]
 pub enum SshError {
     #[error("{0} not found")]
@@ -14,8 +16,12 @@ pub enum SshError {
     HostKeyRevoked,
     #[error("{0}")]
     AuthFailed(String),
-    #[error("{0}")]
-    Unsupported(String),
+    #[error("a password or passphrase is required")]
+    SecretRequired,
+    #[error("the passphrase does not unlock the private key")]
+    InvalidPassphrase,
+    #[error("the system keychain is not available")]
+    KeychainUnavailable,
     #[error("the connection timed out")]
     Timeout,
     #[error("could not reach the host or the connection was lost")]
@@ -33,10 +39,21 @@ impl SshError {
             Self::HostKeyChanged => "host_key_changed",
             Self::HostKeyRevoked => "host_key_revoked",
             Self::AuthFailed(_) => "auth_failed",
-            Self::Unsupported(_) => "unsupported",
+            Self::SecretRequired => "secret_required",
+            Self::InvalidPassphrase => "invalid_passphrase",
+            Self::KeychainUnavailable => "keychain_unavailable",
             Self::Timeout => "timeout",
             Self::Network => "network",
             Self::Io => "io",
+        }
+    }
+}
+
+impl From<SecretError> for SshError {
+    fn from(e: SecretError) -> Self {
+        match e {
+            SecretError::Unavailable => Self::KeychainUnavailable,
+            SecretError::TooLong | SecretError::InvalidScope => Self::InvalidInput(e.to_string()),
         }
     }
 }

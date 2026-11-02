@@ -20,6 +20,9 @@
     "allow-answer-host-key",
     "allow-replace-host-key",
     "allow-disconnect-host",
-    "allow-list-connections"
+    "allow-list-connections",
+    "allow-set-host-secret",
+    "allow-delete-host-secret",
+    "allow-has-host-secret"
   ]
 }

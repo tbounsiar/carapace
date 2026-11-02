@@ -14,7 +14,13 @@ const PORT = 2222;
 
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: 'inherit', ...opts });
 
-function genKey(name, type, extra) {
+// The mode only applies when the file is created, so any previous copy is removed first.
+function writeSecret(path, data) {
+  rmSync(path, { force: true });
+  writeFileSync(path, data, { mode: 0o600 });
+}
+
+function genKey(name, type, extra, passphrase = '') {
   const path = join(work, name);
   rmSync(path, { force: true });
   rmSync(`${path}.pub`, { force: true });
@@ -24,7 +30,7 @@ function genKey(name, type, extra) {
     type,
     ...extra,
     '-N',
-    '',
+    passphrase,
     '-C',
     `carapace-e2e-${name}`,
     '-f',
@@ -37,15 +43,16 @@ function provision() {
   genKey('id_ed25519', 'ed25519', []);
   genKey('id_rsa', 'rsa', ['-b', '4096']);
   genKey('id_wrong', 'ed25519', []);
-  const keys = ['id_ed25519', 'id_rsa'].map((n) =>
+  const passphrase = randomBytes(18).toString('base64url');
+  writeSecret(join(work, 'passphrase'), passphrase);
+  genKey('id_ed25519_enc', 'ed25519', [], passphrase);
+  const keys = ['id_ed25519', 'id_rsa', 'id_ed25519_enc'].map((n) =>
     readFileSync(join(work, `${n}.pub`), 'utf8').trim(),
   );
   writeFileSync(join(work, 'authorized_keys'), keys.join('\n') + '\n');
-  writeFileSync(join(work, 'password'), randomBytes(18).toString('base64url'));
-  writeFileSync(
-    join(work, 'sshd.env'),
-    `CARAPACE_PASSWORD=${readFileSync(join(work, 'password'), 'utf8')}\n`,
-  );
+  const password = randomBytes(18).toString('base64url');
+  writeSecret(join(work, 'password'), password);
+  writeSecret(join(work, 'sshd.env'), `CARAPACE_PASSWORD=${password}\n`);
 }
 
 function probe() {

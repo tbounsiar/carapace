@@ -1,5 +1,6 @@
 mod commands;
 mod config;
+mod secrets;
 mod ssh;
 
 use tauri::Manager;
@@ -16,7 +17,9 @@ pub fn run() {
                 )?;
             }
             let home = config::resolve_home()?;
-            app.manage(ssh::SshManager::new(&home));
+            let secrets = secrets::SecretStore::keychain();
+            app.manage(ssh::SshManager::new(&home, secrets.clone()));
+            app.manage(secrets);
             app.manage(config::ConfigStore::new(home));
             Ok(())
         })
@@ -36,6 +39,9 @@ pub fn run() {
             commands::ssh::replace_host_key,
             commands::ssh::disconnect_host,
             commands::ssh::list_connections,
+            commands::secrets::set_host_secret,
+            commands::secrets::delete_host_secret,
+            commands::secrets::has_host_secret,
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
