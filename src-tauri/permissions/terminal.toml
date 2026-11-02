@@ -1,0 +1,19 @@
+[[permission]]
+identifier = "allow-open-terminal"
+description = "Allows the open_terminal command."
+commands.allow = ["open_terminal"]
+
+[[permission]]
+identifier = "allow-write-terminal"
+description = "Allows the write_terminal command."
+commands.allow = ["write_terminal"]
+
+[[permission]]
+identifier = "allow-resize-terminal"
+description = "Allows the resize_terminal command."
+commands.allow = ["resize_terminal"]
+
+[[permission]]
+identifier = "allow-close-terminal"
+description = "Allows the close_terminal command."
+commands.allow = ["close_terminal"]

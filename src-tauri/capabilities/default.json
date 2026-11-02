@@ -21,6 +21,10 @@
     "allow-replace-host-key",
     "allow-disconnect-host",
     "allow-list-connections",
+    "allow-open-terminal",
+    "allow-write-terminal",
+    "allow-resize-terminal",
+    "allow-close-terminal",
     "allow-set-host-secret",
     "allow-delete-host-secret",
     "allow-has-host-secret"

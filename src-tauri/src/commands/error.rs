@@ -3,6 +3,7 @@ use serde::Serialize;
 use crate::config::ConfigError;
 use crate::secrets::SecretError;
 use crate::ssh::SshError;
+use crate::terminal::TerminalError;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CommandError {
@@ -34,6 +35,12 @@ impl From<ConfigError> for CommandError {
 
 impl From<SshError> for CommandError {
     fn from(e: SshError) -> Self {
+        Self::new(e.code(), e.to_string())
+    }
+}
+
+impl From<TerminalError> for CommandError {
+    fn from(e: TerminalError) -> Self {
         Self::new(e.code(), e.to_string())
     }
 }
@@ -80,6 +87,20 @@ mod tests {
             (SshError::Timeout, "timeout"),
             (SshError::Network, "network"),
             (SshError::Io, "io"),
+        ];
+        for (err, code) in cases {
+            assert_eq!(CommandError::from(err).code, code);
+        }
+    }
+
+    #[test]
+    fn maps_terminal_codes() {
+        let cases = [
+            (TerminalError::NotFound, "not_found"),
+            (TerminalError::NotConnected, "not_connected"),
+            (TerminalError::InvalidInput("bad".into()), "invalid_input"),
+            (TerminalError::Network, "network"),
+            (TerminalError::Busy, "busy"),
         ];
         for (err, code) in cases {
             assert_eq!(CommandError::from(err).code, code);

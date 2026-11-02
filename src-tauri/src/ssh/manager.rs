@@ -12,7 +12,7 @@ use russh::keys::{PrivateKey, PrivateKeyWithHashAlg, PublicKeyOrCertificate};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 use tokio::time::timeout;
 use uuid::Uuid;
 use zeroize::Zeroizing;
@@ -191,7 +191,35 @@ impl Drop for ConnectGuard {
     }
 }
 
-struct ClientHandler {
+/// Why a live session ended, as seen by the modules sharing it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SessionEnd {
+    Disconnected,
+    Lost,
+}
+
+type EndSignal = Arc<watch::Sender<Option<SessionEnd>>>;
+
+fn mark_ended(signal: &EndSignal, end: SessionEnd) {
+    signal.send_if_modified(|current| {
+        let first = current.is_none();
+        if first {
+            *current = Some(end);
+        }
+        first
+    });
+}
+
+/// A live connection to a host, for opening channels on it.
+#[derive(Clone)]
+pub struct SessionRef {
+    pub handle: Session,
+    /// Becomes `Some` once when the connection ends; a closed sender also means it ended.
+    pub ended: watch::Receiver<Option<SessionEnd>>,
+}
+
+pub struct ClientHandler {
+    ended: EndSignal,
     host_id: String,
     hostname: String,
     port: u16,
@@ -205,6 +233,17 @@ struct ClientHandler {
 
 impl client::Handler for ClientHandler {
     type Error = russh::Error;
+
+    async fn disconnected(
+        &mut self,
+        reason: client::DisconnectReason<Self::Error>,
+    ) -> Result<(), Self::Error> {
+        mark_ended(&self.ended, SessionEnd::Lost);
+        match reason {
+            client::DisconnectReason::ReceivedDisconnect(_) => Ok(()),
+            client::DisconnectReason::Error(e) => Err(e),
+        }
+    }
 
     async fn check_server_key(
         &mut self,
@@ -334,12 +373,28 @@ struct Resolved {
     from_keychain: bool,
 }
 
-type Session = Arc<Handle<ClientHandler>>;
+pub type Session = Arc<Handle<ClientHandler>>;
+
+struct Connection {
+    handle: Session,
+    ended: EndSignal,
+}
+
+impl Connection {
+    fn is_live(&self) -> bool {
+        !self.handle.is_closed() && self.ended.borrow().is_none()
+    }
+}
+
+/// Any connection leaving the map without `disconnect` was lost.
+fn forget_connection(conn: Connection) {
+    mark_ended(&conn.ended, SessionEnd::Lost);
+}
 
 pub struct SshManager {
     known_hosts: Arc<KnownHosts>,
     timeouts: Timeouts,
-    sessions: tokio::sync::Mutex<HashMap<String, Session>>,
+    sessions: tokio::sync::Mutex<HashMap<String, Connection>>,
     host_locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     pending: Pending,
     changed: ChangedKeys,
@@ -395,18 +450,48 @@ impl SshManager {
     }
 
     pub async fn disconnect(&self, host_id: &str) -> Result<(), SshError> {
-        let session = self.sessions.lock().await.remove(host_id);
-        if let Some(session) = session {
-            let _ = session
+        let conn = self.sessions.lock().await.remove(host_id);
+        if let Some(conn) = conn {
+            // Marked before the disconnect so channel users see why their channels end.
+            mark_ended(&conn.ended, SessionEnd::Disconnected);
+            let _ = conn
+                .handle
                 .disconnect(russh::Disconnect::ByApplication, "", "en")
                 .await;
         }
         Ok(())
     }
 
+    /// The live session of `host_id`, shared by every terminal and SFTP pane of the host.
+    pub async fn session(&self, host_id: &str) -> Option<SessionRef> {
+        let mut sessions = self.sessions.lock().await;
+        match sessions.get(host_id) {
+            Some(c) if c.is_live() => Some(SessionRef {
+                handle: c.handle.clone(),
+                ended: c.ended.subscribe(),
+            }),
+            Some(_) => {
+                if let Some(c) = sessions.remove(host_id) {
+                    forget_connection(c);
+                }
+                None
+            }
+            None => None,
+        }
+    }
+
     pub async fn list(&self) -> Vec<ConnectionInfo> {
         let mut sessions = self.sessions.lock().await;
-        sessions.retain(|_, s| !s.is_closed());
+        let dead: Vec<String> = sessions
+            .iter()
+            .filter(|(_, c)| !c.is_live())
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in dead {
+            if let Some(c) = sessions.remove(&id) {
+                forget_connection(c);
+            }
+        }
         let mut out: Vec<ConnectionInfo> = sessions
             .keys()
             .map(|id| ConnectionInfo {
@@ -440,9 +525,11 @@ impl SshManager {
         {
             let mut sessions = self.sessions.lock().await;
             match sessions.get(&host.id) {
-                Some(s) if !s.is_closed() => return Ok(info),
+                Some(c) if c.is_live() => return Ok(info),
                 Some(_) => {
-                    sessions.remove(&host.id);
+                    if let Some(c) = sessions.remove(&host.id) {
+                        forget_connection(c);
+                    }
                 }
                 None => {}
             }
@@ -468,12 +555,14 @@ impl SshManager {
         .map_err(|_| SshError::Timeout)?
         .map_err(|_| SshError::Network)?;
 
+        let ended: EndSignal = Arc::new(watch::channel(None).0);
         let shared = Arc::new(Shared::default());
         let _end = ConnectGuard {
             shared: shared.clone(),
             pending: self.pending.clone(),
         };
         let handler = ClientHandler {
+            ended: ended.clone(),
             host_id: host.id.clone(),
             hostname: host.hostname.clone(),
             port: host.port,
@@ -537,10 +626,13 @@ impl SshManager {
             );
         }
 
-        self.sessions
-            .lock()
-            .await
-            .insert(host.id.clone(), Arc::new(handle));
+        self.sessions.lock().await.insert(
+            host.id.clone(),
+            Connection {
+                handle: Arc::new(handle),
+                ended,
+            },
+        );
         emit(ConnectEvent::Status {
             state: ConnectState::Connected,
         });

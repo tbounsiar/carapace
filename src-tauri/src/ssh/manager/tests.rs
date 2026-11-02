@@ -1,77 +1,8 @@
 use super::*;
 use crate::secrets::MemoryBackend;
+use crate::ssh::test_server::*;
 use russh::keys::ssh_key::LineEnding;
-use russh::keys::ssh_key::private::{Ed25519Keypair, KeypairData};
-use russh::server;
 use tokio::sync::mpsc;
-
-struct TestServer {
-    key: PrivateKey,
-    port: u16,
-}
-
-const SERVER_PASSWORD: &str = "right-password";
-
-/// Longer than the keychain accepts, so it can be used but never stored.
-fn long_password() -> String {
-    "x".repeat(crate::secrets::MAX_SECRET_UTF16_UNITS + 1)
-}
-
-struct AcceptAll;
-
-impl server::Handler for AcceptAll {
-    type Error = russh::Error;
-
-    async fn auth_password(
-        &mut self,
-        _user: &str,
-        password: &str,
-    ) -> Result<server::Auth, Self::Error> {
-        Ok(
-            if password == SERVER_PASSWORD || password == long_password() {
-                server::Auth::Accept
-            } else {
-                server::Auth::reject()
-            },
-        )
-    }
-
-    async fn auth_publickey(
-        &mut self,
-        _user: &str,
-        _key: server::VerifiedPublicKey<'_>,
-    ) -> Result<server::Auth, Self::Error> {
-        Ok(server::Auth::Accept)
-    }
-}
-
-fn ed25519(seed: u8) -> PrivateKey {
-    let pair = Ed25519Keypair::from_seed(&[seed; 32]);
-    PrivateKey::new(KeypairData::Ed25519(pair), "").unwrap()
-}
-
-async fn start_server(seed: u8) -> TestServer {
-    let key = ed25519(seed);
-    let config = Arc::new(server::Config {
-        keys: vec![key.clone()],
-        auth_rejection_time: Duration::from_millis(1),
-        auth_rejection_time_initial: Some(Duration::from_millis(1)),
-        ..Default::default()
-    });
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = listener.local_addr().unwrap().port();
-    tokio::spawn(async move {
-        while let Ok((socket, _)) = listener.accept().await {
-            let config = config.clone();
-            tokio::spawn(async move {
-                if let Ok(session) = server::run_stream(config, socket, AcceptAll).await {
-                    let _ = session.await;
-                }
-            });
-        }
-    });
-    TestServer { key, port }
-}
 
 struct Env {
     _dir: tempfile::TempDir,

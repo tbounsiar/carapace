@@ -3,14 +3,11 @@
 
 use super::*;
 use crate::secrets::MemoryBackend;
+use crate::ssh::test_server::E2E_SERVER as SERVER;
 use std::process::Command;
-use tokio::sync::RwLock;
 use tokio::sync::mpsc;
 
 const PORT: u16 = 2222;
-
-/// Rotation changes the server host key for everyone, so it runs alone.
-static SERVER: std::sync::LazyLock<RwLock<()>> = std::sync::LazyLock::new(|| RwLock::new(()));
 
 fn enabled() -> bool {
     let on = std::env::var("CARAPACE_E2E").is_ok_and(|v| v == "1");

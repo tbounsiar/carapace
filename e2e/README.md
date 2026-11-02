@@ -1,6 +1,6 @@
 # End-to-end SSH tests
 
-A disposable OpenSSH server (Docker, alpine) bound to `127.0.0.1:2222` only, used by the gated Rust tests in `src-tauri/src/ssh/manager/e2e_tests.rs`. The same server is also published on `127.0.0.1:2223` for the UI tests (`e2e/wdio/`): the app reads `~/.ssh/known_hosts`, and a personal entry for port 2222 would turn the first-connect prompt into a changed-key warning.
+A disposable OpenSSH server (Docker, alpine) bound to `127.0.0.1:2222` only, used by the gated Rust tests in `src-tauri/src/ssh/manager/e2e_tests.rs` and `src-tauri/src/terminal/manager/e2e_tests.rs` (PTY shell: echo, resize via `stty size`, exit status, close, disconnect). The same server is also published on `127.0.0.1:2223` for the UI tests (`e2e/wdio/`): the app reads `~/.ssh/known_hosts`, and a personal entry for port 2222 would turn the first-connect prompt into a changed-key warning.
 
 Requirements: Docker, Node, and `ssh-keygen` (OpenSSH client) on the PATH.
 
