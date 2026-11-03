@@ -114,7 +114,15 @@ async function selectEntries(side: Side, names: string[], ctrl = false): Promise
 async function expandPanel(): Promise<void> {
   const toggle = byId('transfer-toggle');
   await toggle.waitForClickable({ timeout: 10000 });
-  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  const expanded = async () => (await toggle.getAttribute('aria-expanded')) === 'true';
+  // The panel opens by itself when a job is enqueued; clicking too early would close it again.
+  const opened = await browser
+    .waitUntil(expanded, { timeout: 3000, interval: 100 })
+    .catch(() => false);
+  if (!opened) {
+    await toggle.click();
+    await browser.waitUntil(expanded, { timeout: 5000 });
+  }
 }
 
 // The same name can have several rows (upload then download); `count` waits for that many.
