@@ -1,0 +1,180 @@
+{
+  "version": 2,
+  "variables": [
+    {
+      "name": "user",
+      "kind": "plain",
+      "value": "deploy"
+    },
+    {
+      "name": "vault_token",
+      "kind": "secret",
+      "value": null
+    },
+    {
+      "name": "empty",
+      "kind": "plain",
+      "value": ""
+    }
+  ],
+  "projects": [
+    {
+      "id": "42544aa4-871d-4538-98d9-8fd45864d6c9",
+      "name": "Payments",
+      "variables": [
+        {
+          "name": "domain",
+          "kind": "plain",
+          "value": "pay.example.com"
+        },
+        {
+          "name": "db_password",
+          "kind": "secret",
+          "value": null
+        }
+      ],
+      "environments": [
+        {
+          "id": "adc2171d-0474-48da-af85-32e019b2cecb",
+          "name": "dev",
+          "variables": [
+            {
+              "name": "host",
+              "kind": "plain",
+              "value": "dev.pay.example.com"
+            },
+            {
+              "name": "port",
+              "kind": "plain",
+              "value": "2222"
+            }
+          ]
+        },
+        {
+          "id": "d0393fe4-b8d0-46e7-872f-8d3810ab88e8",
+          "name": "prod",
+          "variables": [
+            {
+              "name": "host",
+              "kind": "plain",
+              "value": "prod.pay.example.com"
+            },
+            {
+              "name": "prod_pass",
+              "kind": "secret",
+              "value": null
+            }
+          ]
+        }
+      ],
+      "hosts": [
+        {
+          "id": "f56a3080-ba46-4889-add1-3cf154d7322f",
+          "name": "api",
+          "hostname": "${host}",
+          "port": "${port}",
+          "username": "${user}",
+          "auth": {
+            "kind": "password",
+            "password": "${prod_pass}"
+          }
+        },
+        {
+          "id": "14af5226-eee1-4826-9e93-b2476323ba5d",
+          "name": "db",
+          "hostname": "10.0.0.5",
+          "port": "22",
+          "username": "postgres",
+          "auth": {
+            "kind": "password",
+            "password": null
+          }
+        },
+        {
+          "id": "32dd88ee-73e3-4a7f-86de-5688e175ba51",
+          "name": "bastion",
+          "hostname": "bastion.example.com",
+          "port": "22",
+          "username": "${user}",
+          "auth": {
+            "kind": "key",
+            "keyPath": "~/.ssh/id_ed25519",
+            "passphrase": "${vault_token}"
+          }
+        }
+      ],
+      "activeEnvironmentId": "d0393fe4-b8d0-46e7-872f-8d3810ab88e8"
+    },
+    {
+      "id": "da3a025b-e582-4a26-b5a1-d07dce013d6a",
+      "name": "Website",
+      "variables": [],
+      "environments": [
+        {
+          "id": "60483a41-4cc6-4063-9017-f4727fc8c194",
+          "name": "staging",
+          "variables": []
+        }
+      ],
+      "hosts": [
+        {
+          "id": "81ba5673-7466-4128-8434-6c33da28d8d3",
+          "name": "front",
+          "hostname": "www.example.org",
+          "port": "2200",
+          "username": "www-data",
+          "auth": {
+            "kind": "key",
+            "keyPath": "C:\\Users\\alice\\.carapace\\keys\\work",
+            "passphrase": null
+          }
+        },
+        {
+          "id": "72d06ec1-9c8d-4e5c-89b6-75bf56c40301",
+          "name": "cdn",
+          "hostname": "fe80::1",
+          "port": "22",
+          "username": "alice",
+          "auth": {
+            "kind": "agent"
+          }
+        }
+      ],
+      "activeEnvironmentId": null
+    },
+    {
+      "id": "5fab6ce6-226e-427a-bb14-55d81460542b",
+      "name": "Empty",
+      "variables": [],
+      "environments": [],
+      "hosts": [],
+      "activeEnvironmentId": null
+    }
+  ],
+  "keys": [
+    {
+      "id": "d00faf21-9add-414f-b289-decbfc18f461",
+      "name": "work",
+      "path": "C:\\Users\\alice\\.carapace\\keys\\work",
+      "managed": true,
+      "algorithm": "ed25519",
+      "bits": null,
+      "publicKey": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOZpS0Y4b0xQb1NwZ0V4YW1wbGVLZXlEYXRhRm9yVGVzdA alice@laptop",
+      "fingerprint": "SHA256:Zm9vYmFyYmF6cXV4ZXhhbXBsZWZpbmdlcnByaW50MDE",
+      "comment": "alice@laptop",
+      "encrypted": true
+    },
+    {
+      "id": "12cf6a7f-becc-4cf7-8145-36182b33e08a",
+      "name": "legacy rsa",
+      "path": "C:\\Users\\alice\\.ssh\\id_rsa",
+      "managed": false,
+      "algorithm": "rsa",
+      "bits": 4096,
+      "publicKey": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQExampleOnly",
+      "fingerprint": "SHA256:cnNhZXhhbXBsZWZpbmdlcnByaW50MDJhYmNkZWZnaGlqaw",
+      "comment": "",
+      "encrypted": false
+    }
+  ]
+}

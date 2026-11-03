@@ -1,11 +1,16 @@
+use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, Prefix};
 
-use super::model::{AuthMethod, HostInput, Template, Variable, VariableKind};
+use uuid::Uuid;
+
+use super::model::{AuthMethod, ConfigFile, HostInput, Node, Template, Variable, VariableKind};
 use super::store::ConfigError;
 use crate::vars::{self, Segment};
 
 pub const MAX_VARIABLES: usize = 200;
 pub const MAX_PLAIN_VALUE_CHARS: usize = 4096;
+pub const MAX_NODES: usize = 5000;
+pub const MAX_DEPTH: usize = 32;
 
 fn invalid(msg: impl Into<String>) -> ConfigError {
     ConfigError::InvalidInput(msg.into())
@@ -207,4 +212,89 @@ pub(super) fn variables(list: &[Variable]) -> Result<Vec<Variable>, ConfigError>
         });
     }
     Ok(out)
+}
+
+/// Lowercase hyphenated only: keychain accounts are built from ids, and some keychains compare
+/// them case-insensitively.
+pub(crate) fn is_canonical_id(id: &str) -> bool {
+    Uuid::parse_str(id).is_ok_and(|u| u.hyphenated().to_string() == id)
+}
+
+/// Collections from `id` up to the scope root, `id` included when it is a collection.
+/// `None` when a parent is missing, is not a collection, or the chain is longer than
+/// `MAX_DEPTH` (which also stops a loop).
+pub(super) fn collection_chain<'a>(
+    by_id: &HashMap<&str, &'a Node>,
+    id: Option<&str>,
+) -> Option<Vec<&'a Node>> {
+    let mut out = Vec::new();
+    let mut next = id;
+    while let Some(id) = next {
+        let node = *by_id.get(id)?;
+        if !node.is_collection() || out.len() >= MAX_DEPTH {
+            return None;
+        }
+        out.push(node);
+        next = node.parent_id();
+    }
+    Some(out)
+}
+
+/// Structural invariants of a version 3 file, limits included; name rules are checked by the
+/// mutations. Linear in the number of nodes (chains are at most `MAX_DEPTH` long).
+pub(super) fn structure(cfg: &ConfigFile) -> Result<(), String> {
+    if cfg.nodes.len() > MAX_NODES {
+        return Err(format!("more than {MAX_NODES} nodes"));
+    }
+    let mut ids = HashSet::new();
+    let mut add = |id: &str| -> Result<(), String> {
+        if !is_canonical_id(id) {
+            return Err("an id is not a canonical UUID".into());
+        }
+        if !ids.insert(id.to_string()) {
+            return Err(format!("id {id} is used twice"));
+        }
+        Ok(())
+    };
+    for p in &cfg.projects {
+        add(&p.id)?;
+        for e in &p.environments {
+            add(&e.id)?;
+        }
+        if let Some(active) = &p.active_environment_id
+            && p.environment(active).is_none()
+        {
+            return Err(format!(
+                "project {} has an unknown active environment",
+                p.id
+            ));
+        }
+    }
+    let projects: HashSet<&str> = cfg.projects.iter().map(|p| p.id.as_str()).collect();
+    for n in &cfg.nodes {
+        add(n.id())?;
+    }
+    let by_id: HashMap<&str, &Node> = cfg.nodes.iter().map(|n| (n.id(), n)).collect();
+    for n in &cfg.nodes {
+        if let Some(p) = n.project_id()
+            && !projects.contains(p)
+        {
+            return Err(format!("node {} refers to a missing project", n.id()));
+        }
+        let Some(parent) = n.parent_id() else {
+            continue;
+        };
+        let chain = collection_chain(&by_id, Some(parent))
+            .ok_or_else(|| format!("node {} has an invalid parent", n.id()))?;
+        if chain
+            .iter()
+            .any(|c| c.project_id() != n.project_id() || c.id() == n.id())
+        {
+            return Err(format!("node {} has an invalid parent", n.id()));
+        }
+        if n.is_collection() && chain.len() >= MAX_DEPTH {
+            return Err(format!("collection {} is nested too deep", n.id()));
+        }
+    }
+    Ok(())
 }

@@ -37,15 +37,86 @@ pub enum AuthMethod {
     Agent,
 }
 
+/// `project_id: None` is Home; `parent_id: None` is the root of the scope, otherwise a
+/// collection of the same scope.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Host {
     pub id: String,
     pub name: String,
+    pub project_id: Option<String>,
+    pub parent_id: Option<String>,
     pub hostname: Template,
     pub port: Template,
     pub username: Template,
     pub auth: AuthMethod,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Collection {
+    pub id: String,
+    pub name: String,
+    pub project_id: Option<String>,
+    pub parent_id: Option<String>,
+}
+
+/// Entry of the flat node list; the tree is given by `parent_id`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum Node {
+    Collection(Collection),
+    Host(Host),
+}
+
+impl Node {
+    pub fn id(&self) -> &str {
+        match self {
+            Node::Collection(c) => &c.id,
+            Node::Host(h) => &h.id,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        match self {
+            Node::Collection(c) => &c.name,
+            Node::Host(h) => &h.name,
+        }
+    }
+
+    pub fn project_id(&self) -> Option<&str> {
+        match self {
+            Node::Collection(c) => c.project_id.as_deref(),
+            Node::Host(h) => h.project_id.as_deref(),
+        }
+    }
+
+    pub fn parent_id(&self) -> Option<&str> {
+        match self {
+            Node::Collection(c) => c.parent_id.as_deref(),
+            Node::Host(h) => h.parent_id.as_deref(),
+        }
+    }
+
+    pub fn set_location(&mut self, project_id: Option<String>, parent_id: Option<String>) {
+        let (p, q) = match self {
+            Node::Collection(c) => (&mut c.project_id, &mut c.parent_id),
+            Node::Host(h) => (&mut h.project_id, &mut h.parent_id),
+        };
+        *p = project_id;
+        *q = parent_id;
+    }
+
+    pub fn as_host(&self) -> Option<&Host> {
+        match self {
+            Node::Host(h) => Some(h),
+            Node::Collection(_) => None,
+        }
+    }
+
+    pub fn is_collection(&self) -> bool {
+        matches!(self, Node::Collection(_))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -92,18 +163,12 @@ pub struct Project {
     #[serde(default)]
     pub environments: Vec<Environment>,
     #[serde(default)]
-    pub hosts: Vec<Host>,
-    #[serde(default)]
     pub active_environment_id: Option<String>,
 }
 
 impl Project {
     pub fn environment(&self, id: &str) -> Option<&Environment> {
         self.environments.iter().find(|e| e.id == id)
-    }
-
-    pub fn host(&self, id: &str) -> Option<&Host> {
-        self.hosts.iter().find(|h| h.id == id)
     }
 }
 
@@ -116,12 +181,41 @@ pub struct ConfigFile {
     #[serde(default)]
     pub projects: Vec<Project>,
     #[serde(default)]
+    pub nodes: Vec<Node>,
+    #[serde(default)]
     pub keys: Vec<KeyEntry>,
 }
 
 impl ConfigFile {
     pub fn project(&self, id: &str) -> Option<&Project> {
         self.projects.iter().find(|p| p.id == id)
+    }
+
+    pub fn node(&self, id: &str) -> Option<&Node> {
+        self.nodes.iter().find(|n| n.id() == id)
+    }
+
+    pub fn host(&self, id: &str) -> Option<&Host> {
+        self.node(id).and_then(Node::as_host)
+    }
+
+    /// The node and every node below it, the node first.
+    pub fn subtree(&self, id: &str) -> Vec<&Node> {
+        let mut out: Vec<&Node> = self.node(id).into_iter().collect();
+        let mut i = 0;
+        // Bounded so a cycle in an unvalidated list cannot loop forever.
+        while i < out.len() && out.len() <= self.nodes.len() {
+            let node: &Node = out[i];
+            if node.is_collection() {
+                out.extend(
+                    self.nodes
+                        .iter()
+                        .filter(|n| n.parent_id() == Some(node.id())),
+                );
+            }
+            i += 1;
+        }
+        out
     }
 
     pub fn key(&self, id: &str) -> Option<&KeyEntry> {
@@ -159,6 +253,7 @@ impl Default for ConfigFile {
             version: super::store::VERSION,
             variables: Vec::new(),
             projects: Vec::new(),
+            nodes: Vec::new(),
             keys: Vec::new(),
         }
     }

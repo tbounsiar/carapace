@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{ErrorKind, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 
@@ -7,15 +7,23 @@ use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
 
+use super::migrate;
 use super::model::{
-    ConfigFile, Environment, Host, HostInput, KeyEntry, Project, Variable, VariableScope,
+    ConfigFile, Environment, Host, KeyEntry, Node, Project, Variable, VariableScope,
 };
 use super::validate::{self, same_name};
+
+mod nodes;
+pub use nodes::Moved;
 
 const FILE_NAME: &str = "config.json";
 const TMP_NAME: &str = "config.json.tmp";
 const V1_BACKUP: &str = "config.json.v1.bak";
-pub(super) const VERSION: u32 = 2;
+const V2_BACKUP: &str = "config.json.v2.bak";
+const MAX_BACKUPS: usize = 1000;
+/// Far above 5000 nodes and 200 variables per scope; a larger file is not ours.
+pub(super) const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
+pub(super) const VERSION: u32 = 3;
 
 #[derive(Debug, Error)]
 pub enum ConfigError {
@@ -25,6 +33,9 @@ pub enum ConfigError {
     InvalidInput(String),
     #[error("{0} already exists")]
     Conflict(&'static str),
+    /// A conflict whose message names the item and where it clashes.
+    #[error("{0}")]
+    NameTaken(String),
     #[error("{0} already exists")]
     Exists(&'static str),
     #[error("could not read or write the configuration file")]
@@ -100,12 +111,6 @@ fn env_mut<'a>(p: &'a mut Project, id: &str) -> Result<&'a mut Environment, Conf
         .ok_or(ConfigError::NotFound("environment"))
 }
 
-fn host_name_taken(p: &Project, name: &str, except: Option<&str>) -> bool {
-    p.hosts
-        .iter()
-        .any(|h| Some(h.id.as_str()) != except && same_name(&h.name, name))
-}
-
 fn key_mut<'a>(cfg: &'a mut ConfigFile, id: &str) -> Result<&'a mut KeyEntry, ConfigError> {
     cfg.keys
         .iter_mut()
@@ -161,14 +166,34 @@ impl ConfigStore {
     /// Must be called with the lock held.
     fn load(&self) -> Result<ConfigFile, ConfigError> {
         let path = self.dir.join(FILE_NAME);
-        let raw = match fs::read(&path) {
-            Ok(raw) => raw,
+        let file = match fs::File::open(&path) {
+            Ok(f) => f,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(ConfigFile::default()),
             Err(_) => return Err(ConfigError::Io),
         };
+        let mut raw = Vec::new();
+        file.take(MAX_FILE_BYTES + 1)
+            .read_to_end(&mut raw)
+            .map_err(|_| ConfigError::Io)?;
+        if raw.len() as u64 > MAX_FILE_BYTES {
+            return Err(ConfigError::Corrupt);
+        }
         let probe: Probe = serde_json::from_slice(&raw).map_err(|_| ConfigError::Corrupt)?;
         match probe.version {
-            VERSION => serde_json::from_slice(&raw).map_err(|_| ConfigError::Corrupt),
+            VERSION => {
+                let cfg: ConfigFile =
+                    serde_json::from_slice(&raw).map_err(|_| ConfigError::Corrupt)?;
+                validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
+                Ok(cfg)
+            }
+            2 => {
+                let cfg = migrate::from_v2(&raw, VERSION).map_err(|_| ConfigError::Corrupt)?;
+                validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
+                self.back_up_v2(&raw)?;
+                self.save(&cfg)?;
+                log::info!("configuration migrated from version 2 to version 3");
+                Ok(cfg)
+            }
             1 => {
                 let hosts = legacy_hosts(&raw);
                 self.back_up_v1()?;
@@ -185,13 +210,39 @@ impl ConfigStore {
     /// starts empty.
     fn back_up_v1(&self) -> Result<(), ConfigError> {
         let target = std::iter::once(V1_BACKUP.to_string())
-            .chain((2..=1000).map(|n| format!("config.json.v1.{n}.bak")))
+            .chain((2..=MAX_BACKUPS).map(|n| format!("config.json.v1.{n}.bak")))
             .map(|name| self.dir.join(name))
             .find(|p| !p.exists())
             .ok_or(ConfigError::Io)?;
         fs::rename(self.dir.join(FILE_NAME), target).map_err(|_| ConfigError::Io)?;
         log::info!("configuration version 1 moved aside; starting with an empty configuration");
         Ok(())
+    }
+
+    /// A byte-identical copy, created with `create_new` so an earlier backup is never replaced.
+    fn back_up_v2(&self, raw: &[u8]) -> Result<(), ConfigError> {
+        let names = std::iter::once(V2_BACKUP.to_string())
+            .chain((2..=MAX_BACKUPS).map(|n| format!("config.json.v2.{n}.bak")));
+        for name in names {
+            let path = self.dir.join(name);
+            let mut options = fs::OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+            match options.open(&path) {
+                Ok(mut f) => {
+                    if f.write_all(raw).and_then(|()| f.sync_all()).is_err() {
+                        drop(f);
+                        let _ = fs::remove_file(&path);
+                        return Err(ConfigError::Io);
+                    }
+                    return Ok(());
+                }
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+                Err(_) => return Err(ConfigError::Io),
+            }
+        }
+        Err(ConfigError::Io)
     }
 
     fn save(&self, cfg: &ConfigFile) -> Result<(), ConfigError> {
@@ -218,10 +269,22 @@ impl ConfigStore {
         &self,
         f: impl FnOnce(&mut ConfigFile) -> Result<T, ConfigError>,
     ) -> Result<T, ConfigError> {
+        self.transact(|cfg| f(cfg).map(|out| (out, true)))
+    }
+
+    /// `f` returns whether it changed anything; the file is rewritten only then, after the
+    /// structural invariants were checked again.
+    fn transact<T>(
+        &self,
+        f: impl FnOnce(&mut ConfigFile) -> Result<(T, bool), ConfigError>,
+    ) -> Result<T, ConfigError> {
         let _guard = self.guard()?;
         let mut cfg = self.load()?;
-        let out = f(&mut cfg)?;
-        self.save(&cfg)?;
+        let (out, changed) = f(&mut cfg)?;
+        if changed {
+            validate::structure(&cfg).map_err(ConfigError::InvalidInput)?;
+            self.save(&cfg)?;
+        }
         Ok(out)
     }
 
@@ -241,7 +304,6 @@ impl ConfigStore {
                 name,
                 variables: Vec::new(),
                 environments: Vec::new(),
-                hosts: Vec::new(),
                 active_environment_id: None,
             };
             cfg.projects.push(project.clone());
@@ -266,15 +328,27 @@ impl ConfigStore {
         })
     }
 
-    /// Returns what was removed, so its keychain entries can be cleaned up.
-    pub fn delete_project(&self, project_id: &str) -> Result<Project, ConfigError> {
+    /// Removes the project and every node of it. Returns the project and its hosts, so their
+    /// keychain entries can be cleaned up.
+    pub fn delete_project(&self, project_id: &str) -> Result<(Project, Vec<Host>), ConfigError> {
         self.mutate(|cfg| {
             let i = cfg
                 .projects
                 .iter()
                 .position(|p| p.id == project_id)
                 .ok_or(ConfigError::NotFound("project"))?;
-            Ok(cfg.projects.remove(i))
+            let (gone, kept): (Vec<Node>, Vec<Node>) = std::mem::take(&mut cfg.nodes)
+                .into_iter()
+                .partition(|n| n.project_id() == Some(project_id));
+            cfg.nodes = kept;
+            let hosts = gone
+                .into_iter()
+                .filter_map(|n| match n {
+                    Node::Host(h) => Some(h),
+                    Node::Collection(_) => None,
+                })
+                .collect();
+            Ok((cfg.projects.remove(i), hosts))
         })
     }
 
@@ -326,7 +400,7 @@ impl ConfigStore {
         })
     }
 
-    /// Returns the removed environment and the project's host ids at that moment.
+    /// Returns the removed environment and the ids of the project's hosts at that moment.
     pub fn delete_environment(
         &self,
         project_id: &str,
@@ -342,8 +416,15 @@ impl ConfigStore {
             if project.active_environment_id.as_deref() == Some(environment_id) {
                 project.active_environment_id = None;
             }
-            let hosts = project.hosts.iter().map(|h| h.id.clone()).collect();
-            Ok((project.environments.remove(i), hosts))
+            let env = project.environments.remove(i);
+            let hosts = cfg
+                .nodes
+                .iter()
+                .filter_map(Node::as_host)
+                .filter(|h| h.project_id.as_deref() == Some(project_id))
+                .map(|h| h.id.clone())
+                .collect();
+            Ok((env, hosts))
         })
     }
 
@@ -385,55 +466,6 @@ impl ConfigStore {
         })
     }
 
-    pub fn create_host(&self, project_id: &str, input: &HostInput) -> Result<Host, ConfigError> {
-        let v = validate::host(input)?;
-        self.mutate(|cfg| {
-            let project = project_mut(cfg, project_id)?;
-            if host_name_taken(project, &v.name, None) {
-                return Err(ConfigError::Conflict("host"));
-            }
-            let host = Host {
-                id: new_id(),
-                name: v.name,
-                hostname: v.hostname,
-                port: v.port,
-                username: v.username,
-                auth: v.auth,
-            };
-            project.hosts.push(host.clone());
-            Ok(host)
-        })
-    }
-
-    pub fn update_host(
-        &self,
-        project_id: &str,
-        host_id: &str,
-        input: &HostInput,
-    ) -> Result<Host, ConfigError> {
-        let v = validate::host(input)?;
-        self.mutate(|cfg| {
-            let project = project_mut(cfg, project_id)?;
-            if project.host(host_id).is_none() {
-                return Err(ConfigError::NotFound("host"));
-            }
-            if host_name_taken(project, &v.name, Some(host_id)) {
-                return Err(ConfigError::Conflict("host"));
-            }
-            let host = project
-                .hosts
-                .iter_mut()
-                .find(|h| h.id == host_id)
-                .ok_or(ConfigError::NotFound("host"))?;
-            host.name = v.name;
-            host.hostname = v.hostname;
-            host.port = v.port;
-            host.username = v.username;
-            host.auth = v.auth;
-            Ok(host.clone())
-        })
-    }
-
     /// `entry.name` is validated and trimmed; names and paths must be unique.
     pub fn add_key(&self, mut entry: KeyEntry) -> Result<KeyEntry, ConfigError> {
         entry.name = validate::key_name(&entry.name)?;
@@ -470,24 +502,6 @@ impl ConfigStore {
                 .position(|k| k.id == key_id)
                 .ok_or(ConfigError::NotFound("key"))?;
             Ok(cfg.keys.remove(i))
-        })
-    }
-
-    /// Returns the removed host and the project's environment ids at that moment.
-    pub fn delete_host(
-        &self,
-        project_id: &str,
-        host_id: &str,
-    ) -> Result<(Host, Vec<String>), ConfigError> {
-        self.mutate(|cfg| {
-            let project = project_mut(cfg, project_id)?;
-            let i = project
-                .hosts
-                .iter()
-                .position(|h| h.id == host_id)
-                .ok_or(ConfigError::NotFound("host"))?;
-            let envs = project.environments.iter().map(|e| e.id.clone()).collect();
-            Ok((project.hosts.remove(i), envs))
         })
     }
 }

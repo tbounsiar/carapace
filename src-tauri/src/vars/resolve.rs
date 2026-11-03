@@ -13,19 +13,24 @@ pub enum Level {
     Environment(String),
 }
 
-/// Variable layers, lowest priority first: global < project < environment.
+/// Variable layers, lowest priority first: global < project < environment. A host outside a
+/// project (Home) has neither a project nor an environment layer.
 #[derive(Debug, Clone, Copy)]
 pub struct Layers<'a> {
     pub global: &'a [Variable],
-    pub project: (&'a str, &'a [Variable]),
+    pub project: Option<(&'a str, &'a [Variable])>,
     pub environment: Option<(&'a str, &'a [Variable])>,
 }
 
 impl<'a> Layers<'a> {
-    pub fn of(config: &'a ConfigFile, project: &'a Project, env: Option<&'a Environment>) -> Self {
+    pub fn of(
+        config: &'a ConfigFile,
+        project: Option<&'a Project>,
+        env: Option<&'a Environment>,
+    ) -> Self {
         Self {
             global: &config.variables,
-            project: (&project.id, &project.variables),
+            project: project.map(|p| (p.id.as_str(), p.variables.as_slice())),
             environment: env.map(|e| (e.id.as_str(), e.variables.as_slice())),
         }
     }
@@ -38,8 +43,10 @@ impl<'a> Layers<'a> {
         {
             return Some((Level::Environment(id.into()), v));
         }
-        if let Some(v) = find(self.project.1) {
-            return Some((Level::Project(self.project.0.into()), v));
+        if let Some((id, list)) = self.project
+            && let Some(v) = find(list)
+        {
+            return Some((Level::Project(id.into()), v));
         }
         find(self.global).map(|v| (Level::Global, v))
     }
@@ -282,6 +289,8 @@ mod tests {
         Host {
             id: "h".into(),
             name: "h".into(),
+            project_id: Some("p".into()),
+            parent_id: None,
             hostname: hostname.into(),
             port: port.into(),
             username: username.into(),
@@ -303,7 +312,7 @@ mod tests {
         fn layers(&self) -> Layers<'_> {
             Layers {
                 global: &self.global,
-                project: ("p", &self.project),
+                project: Some(("p", &self.project)),
                 environment: self.env.as_deref().map(|e| ("e", e)),
             }
         }
@@ -339,6 +348,21 @@ mod tests {
             Level::Project("p".into())
         );
         assert_eq!(no_env.layers().lookup("user").unwrap().0, Level::Global);
+    }
+
+    #[test]
+    fn home_hosts_see_global_variables_only() {
+        let w = world();
+        let layers = Layers {
+            project: None,
+            environment: None,
+            ..w.layers()
+        };
+        assert_eq!(layers.lookup("user").unwrap().0, Level::Global);
+        assert!(layers.lookup("host").is_none() && layers.lookup("pw").is_none());
+        let r = resolve_host(&templated(AuthMethod::Agent), layers);
+        assert_eq!(r.missing, vec!["host".to_string()]);
+        assert_eq!(r.port, Some(22));
     }
 
     #[test]
