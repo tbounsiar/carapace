@@ -44,6 +44,7 @@ dd {
   color: var(--tui-text-secondary);
 }
 
-.views {
-  margin-block: var(--tui-padding-l) 0.5rem;
+.name:focus-visible {
+  outline: 2px solid var(--tui-border-focus);
+  outline-offset: 2px;
 }

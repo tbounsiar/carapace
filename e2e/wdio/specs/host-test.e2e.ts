@@ -58,6 +58,8 @@ const terminalText = (n: number) =>
     .catch(() => '') as Promise<string>;
 
 async function runInTerminal(n: number, command: string, expected: string): Promise<void> {
+  // Until the tab opens, the focus is still on New terminal: typed spaces and Enter would click it.
+  await byId(`terminal-view-${n}`).waitForDisplayed({ timeout: 20000 });
   await browser.execute(
     (sel: string) => document.querySelector<HTMLTextAreaElement>(`${sel} textarea`)?.focus(),
     tid(`terminal-view-${n}`),
@@ -122,7 +124,7 @@ describe('test connection', () => {
     await createHost(PROJECT);
     await waitStatus(HOST.name, 'Not connected');
     await byId('host-detail').waitForDisplayed({ timeout: 10000 });
-    await clickId('terminal-new');
+    await clickId('host-new-terminal');
     await waitStatus(HOST.name, 'Connected');
     await expect(byId('host-key-accept')).not.toExist();
     await runInTerminal(1, 'echo before-test', 'before-test');

@@ -24,8 +24,10 @@ import {
   TuiLoader,
   TuiNotification,
   TuiNotificationService,
+  TuiTitle,
 } from '@taiga-ui/core';
 import { TuiBadge, TuiBreadcrumbs } from '@taiga-ui/kit';
+import { MAX_EDIT_BYTES } from '../../../core/ipc/editor-files';
 import type { FileEntry, FileSource, Listing } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { errorText, notifyError } from '../../project-tree/save-error';
@@ -62,6 +64,8 @@ interface NavigateOptions {
   select?: string | null;
   focus?: boolean;
   fallbackHome?: boolean;
+  /** Runs instead of reporting a failed listing. */
+  onFail?: () => void;
 }
 
 const SORT_KEYS: readonly SortKey[] = ['name', 'size', 'modified'];
@@ -85,6 +89,7 @@ const SORTERS = Object.fromEntries(
     TuiLoader,
     TuiNotification,
     TuiTable,
+    TuiTitle,
   ],
   selector: 'app-file-pane',
   styleUrl: './file-pane.scss',
@@ -109,6 +114,10 @@ export class FilePane {
   readonly send = output<PaneTransfer>();
   /** Entries dropped from the other pane into this one. */
   readonly receive = output<PaneTransfer>();
+  /** Files open in the editor (remote panes only). */
+  readonly editable = input(false);
+  /** A file to open in the editor: Edit, Enter or double-click. */
+  readonly edit = output<FileEntry>();
 
   protected readonly sorters = SORTERS;
   protected readonly selection = new FileSelection();
@@ -309,9 +318,22 @@ export class FilePane {
     return this.orderedPaths().filter((p) => this.selection.has(p));
   }
 
+  protected canEdit(entry: FileEntry): boolean {
+    return this.editable() && (entry.kind === 'file' || entry.kind === 'symlink');
+  }
+
+  protected isTooLarge(entry: FileEntry): boolean {
+    return entry.size !== null && entry.size > MAX_EDIT_BYTES;
+  }
+
+  /** Directories open; files go to the editor; a symlink is tried as a directory first. */
   protected open(entry: FileEntry, focus = false): void {
-    if (isOpenable(entry)) {
+    if (entry.kind === 'symlink' && this.editable()) {
+      void this.navigate(entry.path, { focus, onFail: () => this.edit.emit(entry) });
+    } else if (isOpenable(entry)) {
       void this.navigate(entry.path, { focus });
+    } else if (this.canEdit(entry)) {
+      this.edit.emit(entry);
     }
   }
 
@@ -471,6 +493,10 @@ export class FilePane {
       }
     } catch (err) {
       if (sequence !== this.sequence || source !== this.source()) {
+        return;
+      }
+      if (options.onFail) {
+        options.onFail();
         return;
       }
       if (options.fallbackHome) {

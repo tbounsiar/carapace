@@ -110,7 +110,9 @@ export type CommandErrorCode =
   | 'not_empty'
   | 'too_large'
   | 'missing_variables'
-  | 'cancelled';
+  | 'cancelled'
+  | 'not_text'
+  | 'partial_write';
 
 export type IpcErrorCode = CommandErrorCode | 'unknown';
 

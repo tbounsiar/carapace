@@ -195,7 +195,7 @@ describe('file transfers', () => {
     await createHost(PROJECT);
     await clickId(`open-host-${HOST.name}`);
     await byId('host-detail').waitForDisplayed({ timeout: 10000 });
-    await clickId('host-view-files');
+    await clickId('host-open-files');
     await byId('files-panel').waitForDisplayed({ timeout: 10000 });
     await paneClick('remote', 'pane-connect');
     await acceptHostKeyIfAsked();

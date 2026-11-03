@@ -32,3 +32,8 @@ commands.allow = ["test_host"]
 identifier = "allow-cancel-host-test"
 description = "Allows the cancel_host_test command."
 commands.allow = ["cancel_host_test"]
+
+[[permission]]
+identifier = "allow-subscribe-connections"
+description = "Allows the subscribe_connections command."
+commands.allow = ["subscribe_connections"]

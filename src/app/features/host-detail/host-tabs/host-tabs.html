@@ -1,0 +1,98 @@
+<section class="section" data-testid="host-tabs" aria-label="Open tabs">
+  @if (tabs().length) {
+    <header tuiHeader="body-l">
+      <h2 tuiTitle>Open tabs</h2>
+      <div tuiAccessories>
+        <ng-container [ngTemplateOutlet]="actions" />
+      </div>
+    </header>
+    @for (tab of tabs(); track tab.id) {
+      @let status = tab.status();
+      <a
+        tuiCell="s"
+        class="tab"
+        [routerLink]="['/tabs', tab.id]"
+        [attr.aria-label]="aria(tab)"
+        [attr.data-testid]="'host-tab-' + suffix(tab)"
+        (click)="activate($event, tab)"
+      >
+        @switch (status.kind) {
+          @case ('connecting') {
+            <tui-loader size="xs" />
+          }
+          @case ('lost') {
+            <tui-icon icon="@tui.triangle-alert" class="lost" />
+          }
+          @default {
+            <span
+              [tuiStatus]="
+                status.kind === 'connected'
+                  ? 'var(--tui-status-positive)'
+                  : 'var(--tui-status-neutral)'
+              "
+            ></span>
+          }
+        }
+        <span tuiTitle [class._ended]="status.kind === 'ended'">{{ tab.label }}</span>
+        @if (tab.readOnly()) {
+          <tui-icon icon="@tui.lock" class="secondary" />
+        }
+        @if (tab.modified()) {
+          <span class="secondary">Modified</span>
+        }
+      </a>
+    }
+  } @else {
+    <tui-block-status size="m" data-testid="host-tabs-empty">
+      <h2>No open tabs</h2>
+      <p>Open a terminal or the files of this host. It connects first if needed.</p>
+      <button
+        tuiButton
+        size="s"
+        iconStart="@tui.square-terminal"
+        type="button"
+        data-testid="host-new-terminal"
+        [appearance]="newAppearance()"
+        (click)="newTerminal()"
+      >
+        New terminal
+      </button>
+      <button
+        tuiButton
+        appearance="secondary"
+        size="s"
+        iconStart="@tui.folder-open"
+        type="button"
+        data-testid="host-open-files"
+        (click)="openFiles()"
+      >
+        Files
+      </button>
+    </tui-block-status>
+  }
+</section>
+
+<ng-template #actions>
+  <button
+    tuiButton
+    size="s"
+    iconStart="@tui.square-terminal"
+    type="button"
+    data-testid="host-new-terminal"
+    [appearance]="newAppearance()"
+    (click)="newTerminal()"
+  >
+    New terminal
+  </button>
+  <button
+    tuiButton
+    appearance="secondary"
+    size="s"
+    iconStart="@tui.folder-open"
+    type="button"
+    data-testid="host-open-files"
+    (click)="openFiles()"
+  >
+    Files
+  </button>
+</ng-template>

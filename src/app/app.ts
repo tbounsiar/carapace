@@ -8,7 +8,9 @@ import {
   effect,
   ElementRef,
   inject,
+  untracked,
   viewChild,
+  ViewContainerRef,
 } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { ThemeService } from './core/theme/theme';
@@ -18,6 +20,7 @@ import { ProjectSelect } from './features/shell/project-select/project-select';
 import { ThemeMenu } from './features/shell/theme-menu/theme-menu';
 import { AsideHeader } from './features/sidebar/aside-header/aside-header';
 import { SidebarTree } from './features/sidebar/sidebar-tree/sidebar-tree';
+import { Workspace } from './features/workspace/workspace';
 
 /** The navigation chrome: a token that differs from the page background in both themes. */
 const CHROME_TOKEN = '--tui-background-base-alt';
@@ -46,6 +49,10 @@ export class App {
   private readonly root = viewChild.required(TuiRoot, { read: ElementRef<HTMLElement> });
 
   protected readonly effective = this.theme.effective;
+  private readonly workspace = inject(Workspace);
+  protected readonly hasTabs = computed(() => this.workspace.tabs().length > 0);
+  private readonly stripSlot = viewChild.required('tabStrip', { read: ViewContainerRef });
+  private stripLoading = false;
   /** Global pages in the aside footer; Taiga's item shows the active one but sets no aria-current. */
   protected readonly page = computed(() => {
     const route = this.scope.route();
@@ -53,6 +60,16 @@ export class App {
   });
 
   constructor() {
+    // Lazy: tabs only exist after a lazy terminal, files or editor action.
+    effect(() => {
+      if (this.hasTabs() && !this.stripLoading) {
+        this.stripLoading = true;
+        const slot = untracked(this.stripSlot);
+        void import('./features/workspace/tab-strip/tab-strip').then(({ TabStrip }) =>
+          slot.createComponent(TabStrip),
+        );
+      }
+    });
     // Taiga's dropdowns read the closest `tuiTheme` again only when its dark-mode signal changes.
     const darkMode = inject(TUI_DARK_MODE);
     effect(() => {

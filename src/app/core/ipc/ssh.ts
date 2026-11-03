@@ -7,6 +7,7 @@ import type {
   ConnectionInfo,
   ConnectionState,
   Credential,
+  EndReason,
   HostKeyChanged,
   HostKeyPrompt,
 } from './ssh.models';
@@ -21,7 +22,11 @@ export interface ConnectHandlers {
 export class SshService {
   private readonly _states = signal<Readonly<Record<string, ConnectionState>>>({});
 
+  private readonly _endReasons = signal<Readonly<Record<string, EndReason>>>({});
+
   readonly states = this._states.asReadonly();
+  /** Set once a connection closed, cleared when it opens again. */
+  readonly endReasons = this._endReasons.asReadonly();
 
   stateOf(connectionId: string): ConnectionState {
     return this._states()[connectionId] ?? 'idle';
@@ -33,6 +38,7 @@ export class SshService {
     credential?: Credential,
   ): Promise<ConnectionInfo> {
     const id = target.connectionId;
+    this.setEndReason(id, null);
     this.setState(id, 'connecting');
     const onEvent = new Channel<ConnectEvent>();
     onEvent.onmessage = (event) => {
@@ -69,6 +75,12 @@ export class SshService {
 
   async disconnect(connectionId: string): Promise<void> {
     await invokeCommand<null>('disconnect_host', { connectionId });
+    this.ended(connectionId, 'user');
+  }
+
+  /** The backend reported the connection closed. */
+  ended(connectionId: string, reason: EndReason): void {
+    this.setEndReason(connectionId, reason);
     this.setState(connectionId, 'idle');
   }
 
@@ -98,6 +110,18 @@ export class SshService {
     } catch {
       // connect_host fails by itself once the request is gone
     }
+  }
+
+  private setEndReason(connectionId: string, reason: EndReason | null): void {
+    this._endReasons.update((reasons) => {
+      const next = { ...reasons };
+      if (reason) {
+        next[connectionId] = reason;
+      } else {
+        delete next[connectionId];
+      }
+      return next;
+    });
   }
 
   private setState(connectionId: string, state: ConnectionState): void {

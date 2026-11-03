@@ -50,13 +50,13 @@ describe('TerminalSessions', () => {
     sessions = TestBed.inject(TerminalSessions);
   });
 
-  it('opens a terminal on the connection and makes it active', async () => {
+  it('opens a terminal on the connection', async () => {
     const tab = await sessions.open('h1');
     expect(tab?.n).toBe(1);
     expect(tab?.state()).toBe('open');
     expect(opens[0]).toMatchObject({ connectionId: 'h1', cols: 80, rows: 24 });
     expect(sessions.tabs('h1')).toEqual([tab]);
-    expect(sessions.active('h1')).toBe(tab);
+    expect(factory.created[0].reserved).not.toBeNull();
   });
 
   it('numbers tabs per connection, keeps two hosts apart, never reuses a number', async () => {
@@ -124,7 +124,6 @@ describe('TerminalSessions', () => {
     expect(ipc.close).toHaveBeenCalledWith('t1');
     expect(factory.created[0].disposed).toBe(true);
     expect(sessions.tabs('h1')).toEqual([]);
-    expect(sessions.active('h1')).toBeNull();
   });
 
   it('does not call close_terminal for an ended tab', async () => {
@@ -132,17 +131,6 @@ describe('TerminalSessions', () => {
     opens[0].emit({ kind: 'closed', reason: 'exited' });
     await sessions.close(tab!);
     expect(ipc.close).not.toHaveBeenCalled();
-  });
-
-  it('activates the neighbour when the active tab closes', async () => {
-    const t1 = await sessions.open('h1');
-    const t2 = await sessions.open('h1');
-    const t3 = await sessions.open('h1');
-    sessions.select(t2!);
-    await sessions.close(t2!);
-    expect(sessions.active('h1')).toBe(t3);
-    await sessions.close(t3!);
-    expect(sessions.active('h1')).toBe(t1);
   });
 
   it('removes the tab and notifies when the open fails', async () => {

@@ -84,7 +84,9 @@ class FakeSource implements FileSource {
       [revisions]="revisions()"
       (pathChange)="paths.push($event)"
       (send)="sent.push($event)"
+      [editable]="editable()"
       (receive)="received.push($event)"
+      (edit)="edited.push($event.path)"
     />
   </tui-root>`,
 })
@@ -96,6 +98,8 @@ class Host {
   readonly paths: string[] = [];
   readonly sent: PaneTransfer[] = [];
   readonly received: PaneTransfer[] = [];
+  readonly editable = signal(false);
+  readonly edited: string[] = [];
 }
 
 describe('FilePane', () => {
@@ -206,6 +210,43 @@ describe('FilePane', () => {
     byId('entry-notes.txt')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     await settle();
     expect(source.list.mock.calls.length).toBe(calls);
+  });
+
+  it('opens remote files in the editor with Enter, double-click and the Edit entry', async () => {
+    fixture = TestBed.createComponent(Host);
+    source = new FakeSource('remote');
+    fixture.componentInstance.source.set(source);
+    fixture.componentInstance.editable.set(true);
+    await settle();
+    const edited = fixture.componentInstance.edited;
+    byId('entry-notes.txt')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await key(byId('entry-notes.txt'), 'Enter');
+    await click(byId('entry-menu-notes.txt'));
+    await click(document.querySelector('[data-testid="entry-edit"]'));
+    expect(edited).toEqual(['/home/u/notes.txt', '/home/u/notes.txt', '/home/u/notes.txt']);
+    await click(byId('entry-menu-src'));
+    expect(document.querySelector('[data-testid="entry-edit"]')).toBeNull();
+  });
+
+  it('disables Edit over 5 MiB and tries a symlink as a directory first', async () => {
+    TREE['/home/u'].entries.push(
+      entry('/home/u', 'big.log', { size: 6 * 1024 * 1024 }),
+      entry('/home/u', 'link', { kind: 'symlink', size: 10 }),
+    );
+    fixture = TestBed.createComponent(Host);
+    source = new FakeSource('remote');
+    fixture.componentInstance.source.set(source);
+    fixture.componentInstance.editable.set(true);
+    await settle();
+    await click(byId('entry-menu-big.log'));
+    const editEntry = document.querySelector<HTMLButtonElement>('[data-testid="entry-edit"]')!;
+    expect(editEntry.disabled).toBe(true);
+    expect(editEntry.textContent).toContain('Too large to edit (max 5 MiB)');
+    byId('entry-link')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await settle();
+    expect(source.list).toHaveBeenCalledWith('/home/u/link');
+    expect(fixture.componentInstance.edited).toEqual(['/home/u/link']);
+    expect(alerts.open).not.toHaveBeenCalled();
   });
 
   it('navigates with the breadcrumbs', async () => {

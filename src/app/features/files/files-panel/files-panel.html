@@ -18,7 +18,9 @@
       [startPath]="startPath('remote')"
       [transferTarget]="downloadTarget()"
       [revisions]="remoteRevisions()"
+      [editable]="true"
       (pathChange)="remember('remote', $event)"
+      (edit)="edit($event)"
       (send)="download($event)"
       (receive)="upload($event)"
     />

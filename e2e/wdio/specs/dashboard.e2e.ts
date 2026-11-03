@@ -1,6 +1,7 @@
 import { HOST } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
+  activeTab,
   byId,
   clickId,
   confirmDelete,
@@ -118,9 +119,18 @@ describe('dashboards', () => {
 
     await clickId('card-files-api-1');
     await byId('files-panel').waitForDisplayed({ timeout: 10000 });
+    expect(await activeTab()).toBe('tab-api-1-files');
+    expect(await browser.getUrl()).toContain('/tabs/');
     await clickId('crumb-project');
     await clickId('card-terminal-bastion');
-    await byId('terminal-panel').waitForDisplayed({ timeout: 10000 });
+    await byId('terminal-view-1').waitForDisplayed({ timeout: 20000 });
+    expect(await activeTab()).toBe('tab-bastion-terminal-1');
+    await clickId('crumb-project');
+    await clickId('card-terminal-bastion');
+    await browser.waitUntil(async () => (await activeTab()) === 'tab-bastion-terminal-1', {
+      timeout: 10000,
+    });
+    await expect(byId('tab-bastion-terminal-2')).not.toExist();
     await clickId('crumb-project');
     await byId('card-host-bastion').waitForDisplayed({ timeout: 10000 });
   });
@@ -202,10 +212,13 @@ describe('dashboards', () => {
     await disconnect('bastion');
     await filterSidebar('bast');
     await browser.keys('Enter');
-    await byId('host-detail').waitForDisplayed({ timeout: 10000 });
-    await acceptHostKeyIfAsked(async () => byId('terminal-tab-1').isExisting());
+    await acceptHostKeyIfAsked(
+      async () => (await activeTab())?.startsWith('tab-bastion-terminal-') ?? false,
+    );
     await waitStatus('bastion', 'Connected');
     await expect(byId('sidebar-filter')).toHaveValue('');
+    // The focus goes into the terminal, not the sidebar row.
+    expect(await browser.execute(() => !!document.activeElement?.closest('.xterm'))).toBe(true);
   });
 
   it('focuses the filter with Ctrl+K, except inside a terminal', async () => {
@@ -217,7 +230,7 @@ describe('dashboards', () => {
     expect(await browser.execute(() => document.activeElement?.tagName.toLowerCase() ?? '')).toBe(
       'textarea',
     );
-    await clickId('host-detail-title');
+    await clickId('breadcrumbs');
     await browser.keys(['Control', 'k']);
     await browser.waitUntil(async () => (await activeTestId()) === 'sidebar-filter', {
       timeout: 5000,

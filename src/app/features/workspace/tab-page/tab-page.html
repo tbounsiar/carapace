@@ -1,0 +1,19 @@
+@if (tab(); as tab) {
+  @if (target(); as target) {
+    @switch (tab.kind) {
+      @case ('terminal') {
+        @if (tab.terminal; as terminal) {
+          <app-terminal-panel [tab]="terminal" [target]="target" />
+        }
+      }
+      @case ('files') {
+        <app-files-panel [target]="target" />
+      }
+      @case ('edit') {
+        @if (tab.doc; as doc) {
+          <app-editor-panel [doc]="doc" />
+        }
+      }
+    }
+  }
+}

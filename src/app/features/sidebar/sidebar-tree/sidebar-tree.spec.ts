@@ -10,6 +10,8 @@ import { IpcError } from '../../../core/ipc/ipc-error';
 import { SshService } from '../../../core/ipc/ssh';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
 import { HostConnector } from '../../host-connection/host-connector';
+import { HostLauncher } from '../../host-connection/host-launcher';
+import { Workspace } from '../../workspace/workspace';
 import { MoveLauncher } from '../../project-tree/move-launcher';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { SidebarDrag } from '../sidebar-drag';
@@ -36,6 +38,7 @@ describe('SidebarTree', () => {
   const states = signal<Record<string, ConnectionState>>({});
   const ssh = { states, loadConnections: vi.fn(() => Promise.resolve([])) };
   const connector = { connect: vi.fn(), disconnect: vi.fn() };
+  const launcher = { openTerminal: vi.fn(), newTerminal: vi.fn(), openFiles: vi.fn() };
   const actions = {
     createProject: vi.fn(),
     renameProject: vi.fn(),
@@ -75,6 +78,7 @@ describe('SidebarTree', () => {
         { provide: ConfigService, useValue: config },
         { provide: SshService, useValue: ssh },
         { provide: HostConnector, useValue: connector },
+        { provide: HostLauncher, useValue: launcher },
         { provide: ProjectActions, useValue: actions },
         { provide: MoveLauncher, useValue: moves },
         { provide: TuiNotificationService, useValue: alerts },
@@ -205,6 +209,42 @@ describe('SidebarTree', () => {
       await settle();
       byId('menu-add-collection')!.click();
       expect(actions.addCollection).toHaveBeenCalledWith({ projectId: null, parentId: 'c1' });
+    });
+
+    it('starts the host menu with New terminal and Open files', async () => {
+      byId('menu-host-my-vps')!.click();
+      await settle();
+      const ids = [...document.body.querySelectorAll('tui-data-list [data-testid]')].map((e) =>
+        e.getAttribute('data-testid'),
+      );
+      expect(ids.slice(0, 3)).toEqual(['menu-new-terminal', 'menu-open-files', 'menu-connect']);
+      byId('menu-new-terminal')!.click();
+      expect(launcher.newTerminal).toHaveBeenCalledWith(config.findNode('h2'));
+      await settle();
+      byId('menu-host-my-vps')!.click();
+      await settle();
+      byId('menu-open-files')!.click();
+      expect(launcher.openFiles).toHaveBeenCalledWith(config.findNode('h2'));
+    });
+
+    it('focuses or opens the terminal on a host double-click', async () => {
+      byId('open-host-my-vps')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      expect(launcher.openTerminal).toHaveBeenCalledWith(config.findNode('h2'));
+    });
+
+    it('marks the host of the active tab selected and reveals it', async () => {
+      const tab = TestBed.inject(Workspace).add({
+        key: 'files:h1',
+        kind: 'files',
+        hostId: 'h1',
+        label: 'Files',
+        status: signal({ kind: 'connected' as const, word: 'Connected' }),
+      });
+      await go(`/tabs/${tab.id}`);
+      expect(byId('tree-host-pi-hole')?.classList).toContain('_selected');
+      expect(byId('tree-collection-Lab')?.getAttribute('aria-expanded')).toBe('true');
+      expect(byId('tree-host-my-vps')?.classList).not.toContain('_selected');
+      expect(document.activeElement).not.toBe(byId('open-host-pi-hole'));
     });
 
     it('connects a host from its row', async () => {

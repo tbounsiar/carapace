@@ -3,7 +3,7 @@ use tauri::State;
 use super::error::CommandError;
 use crate::analytics::Analytics;
 use crate::files::{FileEntry, FsError, Listing};
-use crate::sftp::SftpManager;
+use crate::sftp::{Eol, Saved, SftpManager, TextFile, WriteText};
 use crate::ssh::SshManager;
 
 type Res<T> = Result<T, CommandError>;
@@ -75,6 +75,42 @@ pub async fn sftp_delete(
     Ok(sftp.delete(&ssh, &connection_id, &path, recursive).await?)
 }
 
+#[tauri::command]
+pub async fn sftp_read_text(
+    ssh: State<'_, SshManager>,
+    sftp: State<'_, SftpManager>,
+    connection_id: String,
+    path: String,
+) -> Res<TextFile> {
+    required(&connection_id)?;
+    Ok(sftp.read_text(&ssh, &connection_id, &path).await?)
+}
+
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn sftp_write_text(
+    ssh: State<'_, SshManager>,
+    sftp: State<'_, SftpManager>,
+    connection_id: String,
+    path: String,
+    text: String,
+    expected_version: Option<String>,
+    expected_target: Option<String>,
+    line_ending: Eol,
+    bom: bool,
+) -> Res<Saved> {
+    required(&connection_id)?;
+    let req = WriteText {
+        path: &path,
+        text: &text,
+        expected: expected_version.as_deref(),
+        expected_target: expected_target.as_deref(),
+        eol: line_ending,
+        bom,
+    };
+    Ok(sftp.write_text(&ssh, &connection_id, req).await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,5 +119,26 @@ mod tests {
     fn blank_connection_id_is_invalid_input() {
         assert_eq!(required("  ").unwrap_err().code, "invalid_input");
         assert!(required("h").is_ok());
+    }
+
+    #[test]
+    fn editor_errors_map_to_stable_codes() {
+        let e = CommandError::from(FsError::Changed("/etc/a".into()));
+        assert_eq!(
+            (e.code, e.message.as_str()),
+            (
+                "conflict",
+                "/etc/a changed on the server since it was opened"
+            )
+        );
+        let e = CommandError::from(FsError::Deleted("/etc/a".into()));
+        assert_eq!(
+            (e.code, e.message.as_str()),
+            ("conflict", "/etc/a no longer exists on the server")
+        );
+        assert_eq!(
+            CommandError::from(FsError::NotText("/b".into())).code,
+            "not_text"
+        );
     }
 }

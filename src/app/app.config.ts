@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { provideRouter, withComponentInputBinding, withRouterConfig } from '@angular/router';
 import { routes } from './app.routes';
+import { ConnectionEvents } from './core/ipc/connection-events';
 import { provideOpenDialogs } from './shared/open-dialogs';
 
 export const appConfig: ApplicationConfig = {
@@ -25,6 +26,10 @@ export const appConfig: ApplicationConfig = {
     // transfers, so the queue stays out of the initial bundle.
     provideAppInitializer(() => {
       const injector = inject(Injector);
+      void inject(ConnectionEvents).start();
+      void import('./features/workspace/quit-guard').then(({ QuitGuard }) =>
+        injector.get(QuitGuard).start(),
+      );
       void import('./features/transfers/transfer-queue').then(({ TransferQueue }) =>
         injector.get(TransferQueue).start(),
       );

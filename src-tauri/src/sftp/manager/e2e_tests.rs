@@ -262,3 +262,138 @@ async fn disconnect_drops_the_channel() {
     w.ssh.disconnect(HOST_ID).await.unwrap();
     assert_eq!(w.list("").await.unwrap_err(), FsError::NotConnected);
 }
+
+#[tokio::test]
+async fn editor_round_trip_with_conflicts_and_links() {
+    if !enabled() {
+        return;
+    }
+    let _g = E2E_SERVER.read().await;
+    let w = connected().await;
+    let file = w.at("app.ini");
+    w.exec(&format!(
+        "printf 'a=1\\r\\nb=2\\r\\n' > {file} && chmod 640 {file} && ln -s app.ini {}",
+        w.at("link.ini")
+    ))
+    .await;
+    let read = w.sftp.read_text(&w.ssh, HOST_ID, &file).await.unwrap();
+    assert_eq!(read.text, "a=1\nb=2\n");
+    assert_eq!(read.line_ending, crate::sftp::text::LineEnding::Crlf);
+    assert!(read.writable);
+
+    let save = |path: String, text: &'static str, expected: Option<String>| {
+        let w = &w;
+        async move {
+            let req = WriteText {
+                path: &path,
+                text,
+                expected: expected.as_deref(),
+                expected_target: None,
+                eol: crate::sftp::Eol::Crlf,
+                bom: false,
+            };
+            w.sftp.write_text(&w.ssh, HOST_ID, req).await
+        }
+    };
+    let saved = save(file.clone(), "a=3\nb=2\n", Some(read.version.clone()))
+        .await
+        .unwrap();
+    let again = w.sftp.read_text(&w.ssh, HOST_ID, &file).await.unwrap();
+    assert_eq!(
+        (again.text.as_str(), &again.version),
+        ("a=3\nb=2\n", &saved.version)
+    );
+    let entries = w.list(&w.base).await.unwrap().entries;
+    let entry = |name: &str| entries.iter().find(|e| e.name == name).unwrap().clone();
+    assert_eq!(entry("app.ini").permissions.as_deref(), Some("rw-r-----"));
+    assert_eq!(entry("link.ini").kind, EntryKind::Symlink);
+    assert_eq!(w.names(&w.base).await, ["app.ini", "link.ini"]);
+
+    // Same size, same second: only the content hash tells.
+    w.exec(&format!("printf 'a=4\\r\\nb=2\\r\\n' > {file}"))
+        .await;
+    let err = save(file.clone(), "mine\n", Some(saved.version.clone()))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, FsError::Changed(_)), "{err:?}");
+
+    let via_link = w
+        .sftp
+        .read_text(&w.ssh, HOST_ID, &w.at("link.ini"))
+        .await
+        .unwrap();
+    assert_eq!(via_link.target.as_deref(), Some(file.as_str()));
+    w.exec(&format!(
+        "echo other > {} && ln -sf other.ini {}",
+        w.at("other.ini"),
+        w.at("link.ini")
+    ))
+    .await;
+    let retargeted = save(w.at("link.ini"), "c=5\n", Some(via_link.version.clone()))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(retargeted, FsError::Retargeted(_)),
+        "{retargeted:?}"
+    );
+    w.exec(&format!(
+        "ln -sf app.ini {} && rm {}",
+        w.at("link.ini"),
+        w.at("other.ini")
+    ))
+    .await;
+    save(w.at("link.ini"), "c=5\n", Some(via_link.version))
+        .await
+        .unwrap();
+    let entries = w.list(&w.base).await.unwrap().entries;
+    assert_eq!(
+        entries.iter().find(|e| e.name == "link.ini").unwrap().kind,
+        EntryKind::Symlink
+    );
+    assert_eq!(
+        w.sftp.read_text(&w.ssh, HOST_ID, &file).await.unwrap().text,
+        "c=5\n"
+    );
+
+    let current = w.sftp.read_text(&w.ssh, HOST_ID, &file).await.unwrap();
+    w.exec(&format!("rm {file}")).await;
+    let err = save(file.clone(), "x\n", Some(current.version))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, FsError::Deleted(_)), "{err:?}");
+    save(file.clone(), "x\n", None).await.unwrap();
+    assert_eq!(
+        w.sftp.read_text(&w.ssh, HOST_ID, &file).await.unwrap().text,
+        "x\n"
+    );
+    assert_eq!(w.names(&w.base).await, ["app.ini", "link.ini"]);
+    w.cleanup().await;
+}
+
+#[tokio::test]
+async fn editor_refuses_binary_and_unreadable_files() {
+    if !enabled() {
+        return;
+    }
+    let _g = E2E_SERVER.read().await;
+    let w = connected().await;
+    let (bin, locked) = (w.at("bin"), w.at("locked"));
+    w.exec(&format!(
+        "printf 'a\\000b' > {bin} && echo x > {locked} && chmod 000 {locked}"
+    ))
+    .await;
+    let code = |r: Result<TextFile, FsError>| r.unwrap_err().code();
+    assert_eq!(
+        code(w.sftp.read_text(&w.ssh, HOST_ID, &bin).await),
+        "not_text"
+    );
+    assert_eq!(
+        code(w.sftp.read_text(&w.ssh, HOST_ID, &locked).await),
+        "permission_denied"
+    );
+    assert_eq!(
+        code(w.sftp.read_text(&w.ssh, HOST_ID, &w.base).await),
+        "invalid_input"
+    );
+    w.cleanup().await;
+}

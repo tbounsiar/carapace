@@ -1,0 +1,10 @@
+/* Down to the window bottom minus main's bottom border (Taiga's 1.5rem). */
+:host {
+  display: block;
+  block-size: max(16rem, calc(100dvh - var(--app-panel-top, 0px) - 1.5rem));
+  min-inline-size: 0;
+}
+
+:host > * {
+  block-size: 100%;
+}

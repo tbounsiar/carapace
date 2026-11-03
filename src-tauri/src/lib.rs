@@ -5,6 +5,7 @@ mod files;
 mod fsutil;
 mod keys;
 mod localfs;
+mod quit;
 mod secrets;
 mod sftp;
 mod ssh;
@@ -33,6 +34,7 @@ pub fn run() {
             app.manage(ssh::SshManager::new(&home, secrets.clone()));
             app.manage(terminal::TerminalManager::default());
             app.manage(sftp::SftpManager::default());
+            app.manage(quit::QuitGuard::default());
             let store = commands::secrets::config_store(home, &secrets);
             // Loading moves a version 1 file aside or drops environments; their keychain entries go
             // with them. Consent is read here, before the webview runs: an unreadable file is unset.
@@ -77,8 +79,21 @@ pub fn run() {
             if let Some(transfers) = webview.try_state::<transfer::TransferManager>() {
                 transfers.unsubscribe();
             }
+            if let Some(ssh) = webview.try_state::<ssh::SshManager>() {
+                ssh.unsubscribe_ends();
+            }
+            // The new page has no unsaved editor and has not subscribed yet.
+            if let Some(guard) = webview.try_state::<quit::QuitGuard>() {
+                guard.reset();
+            }
         })
         .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" && commands::app::on_quit_request(window.app_handle()) {
+                    api.prevent_close();
+                }
+                return;
+            }
             if !matches!(event, WindowEvent::Destroyed) {
                 return;
             }
@@ -111,6 +126,7 @@ pub fn run() {
             commands::ssh::list_connections,
             commands::ssh::test_host,
             commands::ssh::cancel_host_test,
+            commands::ssh::subscribe_connections,
             commands::terminal::open_terminal,
             commands::terminal::write_terminal,
             commands::terminal::resize_terminal,
@@ -119,6 +135,8 @@ pub fn run() {
             commands::sftp::sftp_mkdir,
             commands::sftp::sftp_rename,
             commands::sftp::sftp_delete,
+            commands::sftp::sftp_read_text,
+            commands::sftp::sftp_write_text,
             commands::localfs::local_home,
             commands::localfs::local_list,
             commands::localfs::local_mkdir,
@@ -146,10 +164,23 @@ pub fn run() {
             commands::analytics::analytics_recent,
             commands::analytics::analytics_app_started,
             commands::analytics::open_privacy_page,
+            commands::app::set_quit_guard,
+            commands::app::subscribe_app_events,
+            commands::app::quit_app,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            // Cmd+Q on macOS asks to exit without closing the window first. With no window
+            // left (the last one closed) there is no page to ask.
+            if let RunEvent::ExitRequested {
+                code: None, api, ..
+            } = &event
+                && app.get_webview_window("main").is_some()
+                && commands::app::on_quit_request(app)
+            {
+                api.prevent_exit();
+            }
             if let RunEvent::Exit = event
                 && let Some(analytics) = app.try_state::<analytics::Analytics>()
             {

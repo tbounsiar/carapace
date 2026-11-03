@@ -1,0 +1,54 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.toolbar,
+.status {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.banner {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.body {
+  flex: 1;
+  min-block-size: 0;
+}
+
+/* Same frame as the terminal view, so editor and terminal tabs read as one family. */
+.content {
+  block-size: 100%;
+  border: 1px solid var(--tui-border-normal);
+  border-radius: var(--tui-radius-m);
+  background: var(--tui-background-base);
+  overflow: hidden;
+}
+
+.status {
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+  white-space: nowrap;
+}
+
+.path {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--app-font-mono);
+}

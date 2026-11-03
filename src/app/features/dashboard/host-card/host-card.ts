@@ -144,7 +144,7 @@ export class HostCard {
   }
 
   protected openFiles(): void {
-    void this.launcher.open(this.host(), 'files');
+    void this.launcher.openFiles(this.host());
   }
 
   protected run(entry: CardMenuEntry): void {

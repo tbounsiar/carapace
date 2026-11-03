@@ -1,0 +1,19 @@
+:host {
+  display: block;
+  margin-block-start: var(--tui-padding-l);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.lost {
+  color: var(--tui-text-negative);
+}
+
+._ended,
+.secondary {
+  color: var(--tui-text-secondary);
+}

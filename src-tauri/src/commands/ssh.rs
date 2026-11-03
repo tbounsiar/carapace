@@ -10,8 +10,8 @@ use super::secrets::check_secret;
 use crate::analytics::{Analytics, Attempt, Auth, ErrorCode, Event, TestResult, Took};
 use crate::config::{ConfigStore, HostInput};
 use crate::ssh::{
-    ConnectEvent, Connected, ConnectionInfo, Credential, Emit, HostTestResult, SshManager,
-    TestTicket,
+    ConnectEvent, Connected, ConnectionEnd, ConnectionEvent, ConnectionInfo, Credential, Emit,
+    HostTestResult, SshManager, TestTicket,
 };
 
 type Res<T> = Result<T, CommandError>;
@@ -317,6 +317,16 @@ pub(super) async fn close_hosts(ssh: &SshManager, host_ids: &[String]) {
 #[tauri::command]
 pub async fn list_connections(ssh: State<'_, SshManager>) -> Res<Vec<ConnectionInfo>> {
     Ok(ssh.list().await)
+}
+
+/// Connection end events (`user` or `lost`) go to `onEvent` from now on; returns the ends of
+/// connections not connected again since.
+#[tauri::command]
+pub fn subscribe_connections(
+    ssh: State<'_, SshManager>,
+    on_event: Channel<ConnectionEvent>,
+) -> Vec<ConnectionEnd> {
+    ssh.subscribe_ends(Arc::new(move |event| on_event.send(event).is_ok()))
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
+import { Workspace } from '../features/workspace/workspace';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { ConfigService } from '../core/ipc/config';
@@ -22,6 +23,7 @@ describe('parseScopeRoute', () => {
       variables: true,
     });
     expect(parseScopeRoute('/hosts/h1')).toEqual({ kind: 'host', hostId: 'h1' });
+    expect(parseScopeRoute('/tabs/t3')).toEqual({ kind: 'tab', tabId: 't3' });
     expect(parseScopeRoute('/keys')).toEqual({ kind: 'other', path: '/keys' });
   });
 });
@@ -73,6 +75,26 @@ describe('CurrentScope', () => {
     expect(scope.projectId()).toBe('p1');
     await go('/projects/nope');
     expect(scope.projectId()).toBeNull();
+  });
+
+  it('takes the scope of the active tab’s host', async () => {
+    const scope = setup();
+    const workspace = TestBed.inject(Workspace);
+    const tab = workspace.add({
+      key: 'files:h1',
+      kind: 'files',
+      hostId: 'h1',
+      label: 'Files',
+      status: signal({ kind: 'connected' as const, word: 'Connected' }),
+    });
+    await go('/projects/p1');
+    await go(`/tabs/${tab.id}`);
+    expect(scope.projectId()).toBe('p2');
+    expect(scope.hostId()).toBe('h1');
+    expect(scope.tab()).toBe(tab);
+    await go('/tabs/unknown');
+    expect(scope.projectId()).toBe('p2');
+    expect(scope.hostId()).toBeNull();
   });
 
   it('follows a host moved to another scope', async () => {

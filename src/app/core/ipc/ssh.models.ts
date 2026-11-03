@@ -24,6 +24,9 @@ export interface StatusEvent {
 
 export type ConnectEvent = HostKeyPrompt | HostKeyChanged | StatusEvent;
 
+/** Why a connection closed: the user disconnected it, or it dropped. */
+export type EndReason = 'user' | 'lost';
+
 export interface ConnectionInfo {
   connectionId: string;
   hostId: string;

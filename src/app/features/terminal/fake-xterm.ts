@@ -12,6 +12,8 @@ export class FakeXterm implements XtermView {
   fontSize = 0;
   disposed = false;
   fits = 0;
+  focused = 0;
+  reserved: ((event: KeyboardEvent) => boolean) | null = null;
   private dataListener: ((data: string) => void) | null = null;
   private resizeListener: ((size: { cols: number; rows: number }) => void) | null = null;
 
@@ -42,7 +44,11 @@ export class FakeXterm implements XtermView {
   }
 
   focus(): void {
-    return;
+    this.focused++;
+  }
+
+  reserveKeys(reserved: (event: KeyboardEvent) => boolean): void {
+    this.reserved = reserved;
   }
 
   dispose(): void {

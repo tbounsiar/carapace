@@ -12,7 +12,8 @@ import { SshService } from '../../../core/ipc/ssh';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../../project-tree/project-actions';
-import { HostViews } from '../host-view';
+import { HostLauncher } from '../../host-connection/host-launcher';
+import { Workspace } from '../../workspace/workspace';
 import { HostDetail } from './host-detail';
 
 const PROJECT: Project = { id: 'p1', name: 'Shop', variables: [] };
@@ -47,6 +48,7 @@ describe('HostDetail', () => {
   const secrets = { forgetSaved: vi.fn(() => Promise.resolve()) };
   const alerts = { open: vi.fn(() => of(undefined)) };
   const resolveHost = vi.fn(() => Promise.resolve(RESOLVED));
+  const launcher = { newTerminal: vi.fn(), openFiles: vi.fn() };
   const local = {
     side: 'local',
     home: () => Promise.resolve('/home/me'),
@@ -94,6 +96,7 @@ describe('HostDetail', () => {
           },
         },
         { provide: SshService, useValue: { states } },
+        { provide: HostLauncher, useValue: launcher },
         { provide: SecretsService, useValue: secrets },
         { provide: HostConnector, useValue: connector },
         { provide: ProjectActions, useValue: actions },
@@ -197,25 +200,48 @@ describe('HostDetail', () => {
     expect(byId('host-not-found')?.textContent).toContain('Host not found');
   });
 
-  it('switches between terminal and files and remembers the view per host', async () => {
+  it('shows the empty Open tabs block with New terminal and Files', async () => {
     await setup();
-    expect(byId('terminal-panel')).toBeTruthy();
-    expect(byId('files-panel')).toBeNull();
-    expect(byId('host-view-terminal')?.getAttribute('aria-pressed')).toBe('true');
-
-    byId('host-view-files')!.click();
-    await fixture.whenStable();
-    expect(byId('files-panel')).toBeTruthy();
+    expect(byId('host-view-terminal')).toBeNull();
     expect(byId('terminal-panel')).toBeNull();
-    expect(byId('host-view-files')?.getAttribute('aria-pressed')).toBe('true');
-    expect(TestBed.inject(HostViews).of('h1')).toBe('files');
+    expect(byId('host-tabs-empty')?.textContent).toContain('No open tabs');
+    expect(byId('host-new-terminal')?.getAttribute('data-appearance')).toBe('secondary');
+    byId('host-new-terminal')!.click();
+    expect(launcher.newTerminal).toHaveBeenCalledWith(HOST);
+    byId('host-open-files')!.click();
+    expect(launcher.openFiles).toHaveBeenCalledWith(HOST);
+  });
 
-    fixture.destroy();
+  it('lists the host tabs as links, with New terminal primary when connected', async () => {
+    states.set({ h1: 'connected' });
+    const workspace = TestBed.inject(Workspace);
+    workspace.add({
+      key: 'files:h1',
+      kind: 'files',
+      hostId: 'h1',
+      label: 'Files',
+      status: signal({ kind: 'connected' as const, word: 'Connected' }),
+    });
+    workspace.add({
+      key: 'files:h9',
+      kind: 'files',
+      hostId: 'h9',
+      label: 'Files',
+      status: signal({ kind: 'ended' as const, word: 'Disconnected' }),
+    });
     await setup();
-    expect(byId('files-panel')).toBeTruthy();
+    expect(byId('host-tabs-empty')).toBeNull();
+    const link = byId('host-tab-web-1-files');
+    expect(link?.getAttribute('href')).toBe('/tabs/t1');
+    expect(link?.getAttribute('aria-label')).toBe('Files — Connected');
+    expect(el().querySelectorAll('[data-testid^="host-tab-"]')).toHaveLength(1);
+    expect(byId('host-new-terminal')?.getAttribute('data-appearance')).toBe('primary');
+  });
 
-    byId('host-view-terminal')!.click();
-    await fixture.whenStable();
-    expect(byId('terminal-panel')).toBeTruthy();
+  it('focuses the heading after the last tab closed', async () => {
+    TestBed.inject(Workspace).headingFocus.set(true);
+    await setup();
+    expect(document.activeElement).toBe(byId('host-detail-title'));
+    expect(TestBed.inject(Workspace).headingFocus()).toBe(false);
   });
 });

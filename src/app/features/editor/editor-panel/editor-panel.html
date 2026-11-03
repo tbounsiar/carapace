@@ -1,0 +1,172 @@
+@let d = doc();
+<div class="toolbar">
+  @if (d.readOnly()) {
+    <span
+      tuiBadge
+      size="s"
+      appearance="neutral"
+      iconStart="@tui.lock"
+      tabindex="0"
+      data-testid="editor-readonly"
+      tuiHint="You don’t have write permission on this file."
+    >
+      Read-only
+    </span>
+  }
+  <span class="spacer"></span>
+  <button
+    tuiIconButton
+    appearance="flat-grayscale"
+    size="xs"
+    iconStart="@tui.refresh-cw"
+    type="button"
+    tuiHint="Reload from server"
+    aria-label="Reload from server"
+    data-testid="editor-reload"
+    [disabled]="loading() || saving()"
+    (click)="reload()"
+  >
+    Reload from server
+  </button>
+  @if (!d.readOnly()) {
+    <button
+      tuiButton
+      appearance="primary"
+      size="s"
+      type="button"
+      data-testid="editor-save"
+      aria-keyshortcuts="Control+S"
+      [loading]="saving()"
+      [disabled]="loading() || !d.modified()"
+      (click)="save()"
+    >
+      Save
+    </button>
+  }
+</div>
+
+@if (d.banner(); as banner) {
+  <div
+    tuiNotification
+    size="s"
+    class="banner"
+    data-testid="editor-banner"
+    [attr.data-state]="banner"
+    [appearance]="banner === 'lost' ? 'warning' : 'neutral'"
+  >
+    <span>
+      {{ banner === 'lost' ? 'Connection lost.' : 'Disconnected.' }} Your changes are kept;
+      reconnect to save.
+    </span>
+    <button
+      tuiButton
+      appearance="secondary"
+      size="xs"
+      iconStart="@tui.plug"
+      type="button"
+      data-testid="editor-reconnect"
+      [loading]="d.reconnecting()"
+      (click)="reconnect()"
+    >
+      Reconnect
+    </button>
+  </div>
+}
+@if (d.error(); as error) {
+  <div
+    tuiNotification
+    appearance="negative"
+    size="s"
+    role="alert"
+    class="banner"
+    data-testid="editor-error"
+  >
+    <span>{{ error }}</span>
+    @if (d.partial()) {
+      <button
+        tuiButton
+        appearance="secondary"
+        size="xs"
+        type="button"
+        data-testid="editor-save-again"
+        (click)="save()"
+      >
+        Save again
+      </button>
+    }
+  </div>
+}
+
+<tui-loader class="body" [overlay]="true" [loading]="loading()">
+  <div #content class="content"></div>
+</tui-loader>
+
+<footer class="status">
+  <span class="path" data-testid="editor-path" [tuiHint]="location()">{{ location() }}</span>
+  @if (d.target(); as target) {
+    <span class="path link" data-testid="editor-link" [tuiHint]="'Saves write ' + target">
+      Link to {{ target }}
+    </span>
+  }
+  <span role="status" aria-live="polite" data-testid="editor-saved">
+    @if (d.savedAt(); as at) {
+      Saved {{ at }}
+    }
+  </span>
+  <span data-testid="editor-position">{{ position() }}</span>
+  <span data-testid="editor-size">{{ size() }}</span>
+  <span data-testid="editor-encoding">UTF-8</span>
+  <span data-testid="editor-eol" [tuiHint]="eolHint()">{{ eol() }}</span>
+  <button
+    #languageButton
+    tuiButton
+    tuiChevron
+    appearance="flat-grayscale"
+    size="xs"
+    type="button"
+    data-testid="editor-language"
+    tuiDropdownAlign="end"
+    [disabled]="loading()"
+    [tuiHint]="languageHint()"
+    [attr.aria-label]="'Language: ' + languageName()"
+    [tuiDropdown]="languageMenu"
+    [tuiDropdownOpen]="languageOpen()"
+    (tuiDropdownOpenChange)="onLanguageOpen($event)"
+  >
+    {{ languageName() }}
+  </button>
+  <button
+    tuiButton
+    appearance="flat-grayscale"
+    size="xs"
+    iconStart="@tui.wrap-text"
+    type="button"
+    data-testid="editor-wrap"
+    aria-keyshortcuts="Alt+Z"
+    tuiHint="Wrap lines (Alt+Z)"
+    [disabled]="loading()"
+    [attr.aria-pressed]="d.wrap()"
+    (click)="toggleWrap()"
+  >
+    Wrap
+  </button>
+</footer>
+
+<ng-template #languageMenu>
+  <tui-data-list size="s" role="menu" aria-label="Language">
+    @for (language of languages; track language.id) {
+      @let current = language.id === d.language();
+      <button
+        tuiOption
+        type="button"
+        role="menuitemradio"
+        [attr.aria-checked]="current"
+        [iconEnd]="current ? '@tui.check' : ''"
+        [attr.data-testid]="'editor-language-' + language.id"
+        (click)="pick(language.id)"
+      >
+        {{ language.label }}
+      </button>
+    }
+  </tui-data-list>
+</ng-template>

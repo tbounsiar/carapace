@@ -13,6 +13,7 @@ import type {
 import { CurrentScope } from '../../shared/current-scope';
 import { confirmDestructive } from '../../shared/destructive-confirm/confirm-destructive';
 import { SidebarState } from '../sidebar/sidebar-state';
+import { Workspace } from '../workspace/workspace';
 import type { HostDialogData } from './host-dialog/host-dialog';
 import type { NameDialogData } from './name-dialog/name-dialog';
 import {
@@ -40,6 +41,7 @@ export class ProjectActions {
   private readonly router = inject(Router);
   private readonly scope = inject(CurrentScope);
   private readonly sidebar = inject(SidebarState);
+  private readonly workspace = inject(Workspace);
 
   createProject(): void {
     void this.openNameDialog({
@@ -70,14 +72,18 @@ export class ProjectActions {
       ? `“${project.name}” contains ${countText(countNodes(nodes))}. Everything in it will be deleted, with its variables and saved passwords. Open connections are closed. This cannot be undone.`
       : `“${project.name}” is empty. It will be deleted with its variables. This cannot be undone.`;
     const inside = this.scope.projectId() === project.id;
+    const ids = new Set(nodes.map((n) => n.id));
     const deleted = await this.confirmDelete(
       'Delete project?',
-      content,
+      content + this.tabLines(ids),
       'Project not deleted',
       () => this.config.deleteProject(project.id),
     );
     if (deleted && inside) {
-      void this.router.navigate(['/']);
+      await this.router.navigate(['/']);
+    }
+    if (deleted) {
+      this.closeTabs(ids);
     }
     return deleted;
   }
@@ -122,16 +128,17 @@ export class ProjectActions {
       ? `“${collection.name}” contains ${countText(countNodes(inside))}. They will all be deleted, with their saved passwords. Open connections to these hosts are closed. This cannot be undone. To keep the hosts, move them out first.`
       : `“${collection.name}” is empty.`;
     const next = this.focusAfterDelete(collection);
+    const ids = new Set([collection.id, ...inside.map((n) => n.id)]);
     const deleted = await this.confirmDelete(
       'Delete collection?',
-      content,
+      content + this.tabLines(ids),
       'Collection not deleted',
       async () => {
         await this.config.deleteCollection(collection.id);
       },
     );
     if (deleted) {
-      this.leaveDeleted(new Set([collection.id, ...inside.map((n) => n.id)]), collection.projectId);
+      await this.leaveDeleted(ids, collection.projectId);
       if (next) {
         this.sidebar.focus(next);
       }
@@ -170,12 +177,13 @@ export class ProjectActions {
     const next = this.focusAfterDelete(host);
     const deleted = await this.confirmDelete(
       'Delete host?',
-      `“${host.name}” and its saved passwords will be deleted. Open connections to it are closed.`,
+      `“${host.name}” and its saved passwords will be deleted. Open connections to it are closed.` +
+        this.tabLines(new Set([host.id])),
       'Host not deleted',
       () => this.config.deleteHost(host.id),
     );
     if (deleted) {
-      this.leaveDeleted(new Set([host.id]), host.projectId);
+      await this.leaveDeleted(new Set([host.id]), host.projectId);
       if (next && sidebarFocus) {
         this.sidebar.focus(next);
       }
@@ -204,11 +212,31 @@ export class ProjectActions {
     return siblings[index + 1]?.id ?? siblings[index - 1]?.id ?? node.parentId;
   }
 
-  /** The open host page was inside what was deleted: go to the scope home. */
-  private leaveDeleted(ids: ReadonlySet<string>, projectId: string | null): void {
-    const route = this.scope.route();
-    if (route.kind === 'host' && ids.has(route.hostId)) {
-      void this.router.navigate(projectId ? ['/projects', projectId] : ['/']);
+  /** The open host page or tab was inside what was deleted: go to the scope home. */
+  private async leaveDeleted(ids: ReadonlySet<string>, projectId: string | null): Promise<void> {
+    const hostId = this.scope.hostId();
+    if (hostId && ids.has(hostId)) {
+      await this.router.navigate(projectId ? ['/projects', projectId] : ['/']);
+    }
+    this.closeTabs(ids);
+  }
+
+  /** " 2 open tabs will be closed. Unsaved changes in nginx.conf will be lost." for a confirm. */
+  private tabLines(ids: ReadonlySet<string>): string {
+    const tabs = this.workspace.tabs().filter((t) => ids.has(t.hostId));
+    if (!tabs.length) {
+      return '';
+    }
+    const count = tabs.length === 1 ? '1 open tab' : `${tabs.length} open tabs`;
+    const modified = tabs.filter((t) => t.modified()).map((t) => t.label);
+    const lost = modified.length ? ` Unsaved changes in ${modified.join(', ')} will be lost.` : '';
+    return ` ${count} will be closed.${lost}`;
+  }
+
+  private closeTabs(ids: ReadonlySet<string>): void {
+    const tabs = this.workspace.tabs().filter((t) => ids.has(t.hostId));
+    if (tabs.length) {
+      this.workspace.drop(tabs.map((t) => t.id));
     }
   }
 

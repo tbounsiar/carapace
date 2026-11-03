@@ -14,6 +14,8 @@ import {
   typeInto,
   waitForApp,
   waitGone,
+  tabMenu,
+  waitActiveTab,
   waitStatus,
 } from '../helpers/ui';
 
@@ -134,8 +136,9 @@ describe('file explorer', () => {
     await createHost(PROJECT);
     await clickId(`open-host-${HOST.name}`);
     await byId('host-detail').waitForDisplayed({ timeout: 10000 });
-    await clickId('host-view-files');
+    await clickId('host-open-files');
     await byId('files-panel').waitForDisplayed({ timeout: 10000 });
+    await waitActiveTab(`tab-${HOST.name}-files`);
     await inPane('remote', 'pane-connect').waitForDisplayed({ timeout: 10000 });
     await pane('local').waitForDisplayed({ timeout: 10000 });
     await shot('files-01-disconnected');
@@ -197,18 +200,19 @@ describe('file explorer', () => {
     await shot('files-10-local-deleted');
   });
 
-  it('keeps pane paths across views and resets the remote pane on disconnect', async () => {
+  it('keeps pane paths across navigation and resets the remote pane on disconnect', async () => {
     const local = await pathText('local');
-    await clickId('host-view-terminal');
+    await clickId('crumb-host');
     await byId('files-panel').waitForExist({ timeout: 10000, reverse: true });
-    await clickId('host-view-files');
+    await byId(`host-tab-${HOST.name}-files`).waitForDisplayed({ timeout: 10000 });
+    await clickId(`tab-${HOST.name}-files`);
     await byId('files-panel').waitForDisplayed({ timeout: 10000 });
     await inPane('local', 'pane-path').waitForDisplayed({ timeout: 10000 });
     await inPane('remote', 'pane-path').waitForDisplayed({ timeout: 10000 });
     expect(await pathText('local')).toBe(local);
     await waitEntry('local', 'visible.txt');
     await shot('files-11-back-from-terminal');
-    await clickId('host-disconnect');
+    await tabMenu(`tab-${HOST.name}-files`, 'tab-menu-disconnect');
     await inPane('remote', 'pane-connect').waitForDisplayed({ timeout: 10000 });
     await shot('files-12-disconnected-again');
   });

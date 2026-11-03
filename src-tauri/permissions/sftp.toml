@@ -17,3 +17,13 @@ commands.allow = ["sftp_rename"]
 identifier = "allow-sftp-delete"
 description = "Allows the sftp_delete command."
 commands.allow = ["sftp_delete"]
+
+[[permission]]
+identifier = "allow-sftp-read-text"
+description = "Allows the sftp_read_text command."
+commands.allow = ["sftp_read_text"]
+
+[[permission]]
+identifier = "allow-sftp-write-text"
+description = "Allows the sftp_write_text command."
+commands.allow = ["sftp_write_text"]

@@ -1,0 +1,74 @@
+:host {
+  align-items: center;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.tabs {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tab {
+  gap: 0.375rem;
+}
+
+.host {
+  max-inline-size: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.label {
+  max-inline-size: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.separator {
+  color: var(--tui-text-tertiary);
+}
+
+._ended .host,
+._ended .label,
+.option-title._ended {
+  color: var(--tui-text-secondary);
+}
+
+.status {
+  flex: none;
+}
+
+._lost {
+  color: var(--tui-text-negative);
+  font-size: 1rem;
+}
+
+.lock {
+  font-size: 0.875rem;
+  color: var(--tui-text-secondary);
+}
+
+.close-slot {
+  display: inline-flex;
+  inline-size: 1rem;
+  justify-content: center;
+}
+
+.close {
+  font-size: 1rem;
+}
+
+.modified {
+  font-size: 0.625rem;
+}
+
+/* A modified tab shows its dot in the close slot; the × comes back on hover and focus. */
+._modified:not(:hover, :focus-visible) .close,
+._modified:is(:hover, :focus-visible) .close-slot .modified {
+  display: none;
+}
+
+.new {
+  flex: none;
+}

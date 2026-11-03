@@ -100,7 +100,6 @@ export class AsideHeader {
     if (host) {
       this.filter.clear();
       this.state.expand(ancestors(this.config.nodes(), host.id).map((c) => c.id));
-      this.state.focus(host.id);
       void this.launcher.openTerminal(host);
       return;
     }

@@ -10,8 +10,12 @@ import {
   tid,
   waitForApp,
   waitGone,
+  tabMenu,
+  waitActiveTab,
   waitStatus,
 } from '../helpers/ui';
+
+const tab = (n: number) => `tab-${HOST.name}-terminal-${n}`;
 
 const shot = async (name: string) => console.log('screenshots', await screenshotThemes(name));
 
@@ -74,14 +78,24 @@ describe('terminal tabs', () => {
     await createHost(PROJECT);
     await clickId(`open-host-${HOST.name}`);
     await byId('host-detail').waitForDisplayed({ timeout: 10000 });
-    await byId('terminal-empty').waitForDisplayed({ timeout: 10000 });
+    await byId('host-tabs-empty').waitForDisplayed({ timeout: 10000 });
+    await expect(byId('workspace-tabs')).not.toExist();
     await shot('term-01-empty');
-    await clickId('terminal-new');
+    await clickId('host-new-terminal');
     await acceptHostKeyIfAsked();
     await waitStatus(HOST.name, 'Connected');
-    await byId('terminal-tab-1').waitForDisplayed({ timeout: 20000 });
+    await byId(tab(1)).waitForDisplayed({ timeout: 20000 });
+    await waitActiveTab(tab(1));
     await byId('terminal-view-1').waitForDisplayed({ timeout: 10000 });
-    await expect(byId('terminal-empty')).not.toExist();
+    const focused = await browser
+      .waitUntil(() => browser.execute(() => !!document.activeElement?.closest('.xterm')), {
+        timeout: 5000,
+      })
+      .catch(() => false);
+    if (!focused) {
+      const where = await browser.execute(() => document.activeElement?.outerHTML.slice(0, 200));
+      throw new Error(`the focus did not go into the new terminal but to: ${where}`);
+    }
     await browser.pause(1000);
     await shot('term-02-first-tab');
   });
@@ -100,21 +114,38 @@ describe('terminal tabs', () => {
     expect(light).not.toBe(dark);
   });
 
-  it('keeps tab 1 output when a second tab is opened and closed', async () => {
-    await clickId('terminal-new');
-    await byId('terminal-tab-2').waitForDisplayed({ timeout: 20000 });
+  it('keeps tab 1 output when a second tab is opened, switched with the keyboard and closed', async () => {
+    await clickId('tabs-new');
+    await byId(tab(2)).waitForDisplayed({ timeout: 20000 });
+    await waitActiveTab(tab(2));
     await byId('terminal-view-2').waitForDisplayed({ timeout: 10000 });
     await browser.pause(1000);
     await run(2, 'echo second-$((3*4))');
     await waitOutput(2, 'second-12');
     await shot('term-04-two-tabs');
-    await clickId('terminal-tab-1');
+    // Focus is in xterm: Ctrl+Tab and Ctrl+1 still switch tabs.
+    await browser.keys(['Control', 'Tab']);
+    await waitActiveTab(tab(1));
     await byId('terminal-view-1').waitForDisplayed({ timeout: 10000 });
     await waitOutput(1, 'carapace-42');
-    await clickId('terminal-close-2');
-    await waitGone('terminal-tab-2');
-    await expect(byId('terminal-tab-1')).toExist();
+    await browser.keys(['Control', '2']);
+    await waitActiveTab(tab(2));
+    await browser.keys(['Control', '1']);
+    await waitActiveTab(tab(1));
+    await byId(tab(2)).$(tid('tab-close')).click();
+    await waitGone(tab(2));
+    await expect(byId(tab(1))).toExist();
     await waitOutput(1, 'carapace-42');
+    await byId(tab(1)).click();
+    await browser.keys('Delete');
+    await waitGone(tab(1));
+    await byId('host-detail').waitForDisplayed({ timeout: 10000 });
+    // Closing the last tab keeps the connection.
+    await waitStatus(HOST.name, 'Connected');
+    await clickId('host-new-terminal');
+    await waitActiveTab(tab(3));
+    await run(3, 'echo carapace-$((20+22))');
+    await waitOutput(3, 'carapace-42');
   });
 
   it('keeps the tab and scrollback after leaving the host page', async () => {
@@ -122,26 +153,29 @@ describe('terminal tabs', () => {
     await byId('welcome').waitForDisplayed({ timeout: 10000 });
     await browser.waitUntil(async () => (await currentScope()) === 'Home', { timeout: 10000 });
     await enterProject(PROJECT);
-    await clickId(`open-host-${HOST.name}`);
-    await byId('terminal-tab-1').waitForDisplayed({ timeout: 10000 });
-    await byId('terminal-view-1').waitForDisplayed({ timeout: 10000 });
-    await waitOutput(1, 'carapace-42');
+    await byId(tab(3)).waitForDisplayed({ timeout: 10000 });
+    expect(await byId(tab(3)).getAttribute('aria-selected')).toBe('false');
+    await shot('term-05a-no-active-tab');
+    await clickId(tab(3));
+    await byId('terminal-view-3').waitForDisplayed({ timeout: 10000 });
+    await waitOutput(3, 'carapace-42');
     await shot('term-05-back');
   });
 
   it('shows the ended banner on disconnect and reopens the shell', async () => {
-    await clickId('host-disconnect');
+    await tabMenu(tab(3), 'tab-menu-disconnect');
     await waitStatus(HOST.name, 'Not connected');
     await byId('terminal-ended').waitForDisplayed({ timeout: 15000 });
+    await expect(byId(tab(3)).$(tid('tab-status'))).toHaveAttribute('data-state', 'ended');
     await shot('term-06-ended');
     await clickId('terminal-reopen');
     await waitStatus(HOST.name, 'Connected');
     await expect(byId('host-key-accept')).not.toExist();
     await waitGone('terminal-ended');
     await browser.pause(1000);
-    await run(1, 'echo reopened-$((1+1))');
-    await waitOutput(1, 'reopened-2');
-    expect(await rowsText(1)).toContain('carapace-42');
+    await run(3, 'echo reopened-$((1+1))');
+    await waitOutput(3, 'reopened-2');
+    expect(await rowsText(3)).toContain('carapace-42');
     await shot('term-07-reopened');
   });
 });

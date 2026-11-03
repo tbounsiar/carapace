@@ -69,7 +69,7 @@ async function noDialogFor(ms: number): Promise<void> {
 async function openTerminal(): Promise<void> {
   await clickId(`open-host-${HOST.name}`);
   await byId('host-detail').waitForDisplayed({ timeout: 10000 });
-  await clickId('terminal-new');
+  await clickId('host-new-terminal');
   const accept = byId('host-key-accept');
   if (
     await accept.waitForExist({ timeout: 15000 }).then(
@@ -130,7 +130,7 @@ describe('usage analytics consent', () => {
     await createProject(PROJECT);
     await createHost(PROJECT);
     await openTerminal();
-    await byId('terminal-tab-1').waitForDisplayed({ timeout: 20000 });
+    await byId(`tab-${HOST.name}-terminal-1`).waitForDisplayed({ timeout: 20000 });
     await openSettings();
     await openEvents();
     expect(await eventNames()).toContain('terminal_opened');

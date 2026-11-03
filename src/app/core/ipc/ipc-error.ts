@@ -25,6 +25,8 @@ const KNOWN_CODES: readonly string[] = [
   'too_large',
   'missing_variables',
   'cancelled',
+  'not_text',
+  'partial_write',
 ];
 
 export class IpcError extends Error {

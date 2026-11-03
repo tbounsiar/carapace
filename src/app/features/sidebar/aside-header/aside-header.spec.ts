@@ -119,7 +119,8 @@ describe('AsideHeader', () => {
     expect(TestBed.inject(SidebarFilter).query()).toBe('');
     const state = TestBed.inject(SidebarState);
     expect(state.isOpen('c1')).toBe(true);
-    expect(state.focusRequest()).toBe('h1');
+    // The focus goes into the terminal; the sidebar only reveals the row.
+    expect(state.focusRequest()).toBeNull();
   });
 
   it('enters the first matching project when no host matches', async () => {

@@ -1,0 +1,50 @@
+@switch (data.kind) {
+  @case ('unsaved') {
+    <p class="content">Your changes are lost if you don’t save them.</p>
+  }
+  @case ('changed') {
+    <div tuiNotification appearance="warning" size="s" class="content">
+      {{ data.name }} was modified on {{ data.host }} after you opened it.
+    </div>
+  }
+  @case ('retargeted') {
+    <div tuiNotification appearance="warning" size="s" class="content">
+      {{ data.name }} now points to another file on {{ data.host }}. Reload it to see what a save
+      would change.
+    </div>
+  }
+  @case ('deleted') {
+    <div tuiNotification appearance="warning" size="s" class="content">
+      {{ data.name }} no longer exists on {{ data.host }}.
+    </div>
+  }
+}
+<footer class="buttons">
+  @for (button of buttons(); track button.choice) {
+    @if (button.focus) {
+      <button
+        tuiAutoFocus
+        tuiButton
+        size="m"
+        type="button"
+        [appearance]="button.appearance"
+        [attr.data-testid]="button.testId"
+        (click)="choose(button.choice)"
+      >
+        {{ button.label }}
+      </button>
+    } @else {
+      <button
+        tuiButton
+        size="m"
+        type="button"
+        [appearance]="button.appearance"
+        [tuiHint]="button.hint ?? null"
+        [attr.data-testid]="button.testId"
+        (click)="choose(button.choice)"
+      >
+        {{ button.label }}
+      </button>
+    }
+  }
+</footer>

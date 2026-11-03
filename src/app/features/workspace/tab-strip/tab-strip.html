@@ -1,0 +1,169 @@
+@if (tabs().length) {
+  <!-- One context menu for the strip: on a tab, Taiga's dropdown would replace its aria-controls. -->
+  <div
+    class="tabs"
+    tuiDropdownContext
+    [tuiDropdown]="menu"
+    tuiDropdownRole="menu"
+    (contextmenu)="onContextmenu($event)"
+  >
+    <tui-tabs-with-more
+      size="m"
+      role="tablist"
+      aria-label="Open tabs"
+      data-testid="workspace-tabs"
+      [activeItemIndex]="activeIndex()"
+      [moreContent]="more"
+      [dropdownContent]="hidden"
+      (activeItemIndexChange)="select($event)"
+    >
+      @for (tab of tabs(); track tab.id) {
+        @let t = title(tab);
+        @let status = tab.status();
+        <button
+          *tuiItem
+          tuiTab
+          type="button"
+          role="tab"
+          class="tab"
+          aria-keyshortcuts="Delete Shift+F10"
+          [class._ended]="status.kind === 'ended'"
+          [class._modified]="tab.modified()"
+          [id]="tabId(tab)"
+          [attr.data-tab]="tab.id"
+          [tuiHint]="t.hint"
+          [attr.aria-label]="t.aria"
+          [attr.aria-selected]="tab === active()"
+          [attr.aria-controls]="tab === active() ? panelId : null"
+          [attr.data-testid]="'tab-' + suffix(tab)"
+          (auxclick)="onAuxclick($event, tab)"
+          (mousedown)="onMousedown($event)"
+          (keydown)="onTabKeydown($event, tab)"
+        >
+          <ng-container
+            [ngTemplateOutlet]="statusIcon"
+            [ngTemplateOutletContext]="{ $implicit: status }"
+          />
+          <span class="host">{{ t.host }}</span>
+          <span class="separator" aria-hidden="true">·</span>
+          <span class="label">{{ t.label }}</span>
+          @if (tab.readOnly()) {
+            <tui-icon icon="@tui.lock" class="lock" data-testid="tab-readonly" />
+          }
+          <span class="close-slot">
+            @if (tab.modified()) {
+              <tui-icon icon="@tui.circle" class="modified" data-testid="tab-modified" />
+            }
+            <tui-icon
+              icon="@tui.x"
+              class="close"
+              data-testid="tab-close"
+              [attr.aria-label]="'Close ' + t.title"
+              (click.stop)="close(tab)"
+            />
+          </span>
+        </button>
+      }
+    </tui-tabs-with-more>
+  </div>
+  <button
+    tuiIconButton
+    appearance="flat-grayscale"
+    size="xs"
+    iconStart="@tui.plus"
+    type="button"
+    class="new"
+    data-testid="tabs-new"
+    [disabled]="!active()"
+    [tuiHint]="newHint()"
+    [attr.aria-label]="newHint()"
+    (click)="newTerminal()"
+  >
+    New terminal
+  </button>
+}
+
+<ng-template #more>
+  <span data-testid="tabs-more">More ({{ hiddenTabs().length }})</span>
+</ng-template>
+
+<ng-template #hidden>
+  <tui-data-list size="s" role="menu" aria-label="Hidden tabs">
+    @for (tab of hiddenTabs(); track tab.id) {
+      @let t = title(tab);
+      <button
+        tuiOption
+        type="button"
+        role="menuitem"
+        [attr.aria-label]="t.aria"
+        [attr.data-testid]="'tabs-more-option-' + suffix(tab)"
+        (click)="activate(tab)"
+      >
+        <ng-container
+          [ngTemplateOutlet]="statusIcon"
+          [ngTemplateOutletContext]="{ $implicit: tab.status() }"
+        />
+        <span class="option-title" [class._ended]="tab.status().kind === 'ended'">
+          {{ t.title }}
+        </span>
+        @if (tab.readOnly()) {
+          <tui-icon icon="@tui.lock" class="lock" />
+        }
+        @if (tab.modified()) {
+          <tui-icon icon="@tui.circle" class="modified" />
+        }
+      </button>
+    }
+  </tui-data-list>
+</ng-template>
+
+<ng-template #statusIcon let-status>
+  @switch (status.kind) {
+    @case ('connecting') {
+      <tui-loader
+        size="xs"
+        class="status"
+        data-testid="tab-status"
+        [attr.data-state]="status.kind"
+      />
+    }
+    @case ('lost') {
+      <tui-icon
+        icon="@tui.triangle-alert"
+        class="status _lost"
+        data-testid="tab-status"
+        [attr.data-state]="status.kind"
+      />
+    }
+    @default {
+      <span
+        class="status"
+        data-testid="tab-status"
+        [attr.data-state]="status.kind"
+        [tuiStatus]="
+          status.kind === 'connected' ? 'var(--tui-status-positive)' : 'var(--tui-status-neutral)'
+        "
+      ></span>
+    }
+  }
+</ng-template>
+
+<ng-template #menu let-close>
+  <tui-data-list size="s" role="menu">
+    @for (entry of menuEntries(); track entry.id) {
+      @if (entry.separated) {
+        <hr />
+      }
+      <button
+        tuiOption
+        type="button"
+        role="menuitem"
+        [iconStart]="entry.icon"
+        [attr.data-testid]="entry.id"
+        (click)="close(); run(entry)"
+      >
+        {{ entry.label }}
+      </button>
+    }
+  </tui-data-list>
+</ng-template>

@@ -49,6 +49,17 @@ describe('SshService', () => {
 
   afterEach(() => clearMocks());
 
+  it('records why a connection ended and clears it on the next connect', async () => {
+    await service.connect(target, handlers());
+    service.ended('h1', 'lost');
+    expect(service.stateOf('h1')).toBe('idle');
+    expect(service.endReasons()['h1']).toBe('lost');
+    await service.connect(target, handlers());
+    expect(service.endReasons()['h1']).toBeUndefined();
+    await service.disconnect('h1');
+    expect(service.endReasons()['h1']).toBe('user');
+  });
+
   it('is idle by default', () => {
     expect(service.stateOf('h1')).toBe('idle');
   });

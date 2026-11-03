@@ -129,8 +129,8 @@ describe('settings', () => {
     await createProject(PROJECT);
     await createHost(PROJECT);
     await clickId(`open-host-${HOST.name}`);
-    await byId('terminal-empty').waitForDisplayed({ timeout: 10000 });
-    await clickId('terminal-new');
+    await byId('host-tabs-empty').waitForDisplayed({ timeout: 10000 });
+    await clickId('host-new-terminal');
     await acceptHostKeyIfAsked(async () => byId('terminal-view-1').isExisting());
     await waitStatus(HOST.name, 'Connected');
     await browser.waitUntil(async () => (await terminalFontSize()) === '20px', {
@@ -141,8 +141,14 @@ describe('settings', () => {
 
     await openSettings();
     await setFontSize(['Home']);
-    await browser.waitUntil(async () => (await fontSizeValue()) === '10', { timeout: 5000 });
-    await clickId(`open-host-${HOST.name}`);
+    const reached = await browser
+      .waitUntil(async () => (await fontSizeValue()) === '10', { timeout: 5000 })
+      .catch(() => false);
+    if (!reached) {
+      const where = await browser.execute(() => document.activeElement?.outerHTML.slice(0, 160));
+      throw new Error(`font size not reset; focus on: ${where}`);
+    }
+    await clickId(`tab-${HOST.name}-terminal-1`);
     await browser.waitUntil(async () => (await terminalFontSize()) === '10px', {
       timeout: 10000,
       timeoutMsg: 'the open terminal did not switch to 10 px',

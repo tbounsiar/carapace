@@ -2,9 +2,10 @@
 //! client code depends on it: generic failure for existing targets and non-empty directories,
 //! `readdir` in pages with `.` and `..`, `lstat` never follows links, `O_EXCL` opens fail on
 //! any existing entry, `posix-rename@openssh.com` replaces its target (unless turned off).
-//! Permission bits given at create, mkdir or `fsetstat` are kept per path.
+//! Permission bits given at create, mkdir or `fsetstat` are kept per path, like owners and
+//! mtimes set by a test (they follow the path on rename). `fsync@openssh.com` is served.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -45,7 +46,19 @@ pub struct Extra {
     pub no_posix_rename: bool,
     /// Names readdir adds to every listing, to play a hostile server.
     pub extra_names: Vec<String>,
+    /// `(uid, gid)` per path; others are owned by `DEFAULT_OWNER`.
+    pub owners: HashMap<String, (u32, u32)>,
+    /// mtime per path; others use `DEFAULT_MTIME`.
+    pub mtimes: HashMap<String, u32>,
+    /// Files whose open fails with permission denied.
+    pub denied_files: HashSet<String>,
+    /// Every write fails.
+    pub fail_writes: bool,
+    pub fsyncs: u64,
 }
+
+pub const DEFAULT_OWNER: (u32, u32) = (1000, 1000);
+pub const DEFAULT_MTIME: u32 = 1_700_000_000;
 
 impl Default for MemFs {
     fn default() -> Self {
@@ -110,6 +123,32 @@ impl MemFs {
     pub fn set_posix_rename(&self, on: bool) {
         self.3.lock().unwrap().no_posix_rename = !on;
     }
+    pub fn set_owner(&self, path: &str, uid: u32, gid: u32) {
+        self.3
+            .lock()
+            .unwrap()
+            .owners
+            .insert(path.into(), (uid, gid));
+    }
+    pub fn owner(&self, path: &str) -> (u32, u32) {
+        let extra = self.3.lock().unwrap();
+        extra.owners.get(path).copied().unwrap_or(DEFAULT_OWNER)
+    }
+    pub fn set_mtime(&self, path: &str, mtime: u32) {
+        self.3.lock().unwrap().mtimes.insert(path.into(), mtime);
+    }
+    pub fn deny_file(&self, path: &str) {
+        self.3.lock().unwrap().denied_files.insert(path.into());
+    }
+    pub fn set_fail_writes(&self, on: bool) {
+        self.3.lock().unwrap().fail_writes = on;
+    }
+    pub fn fsyncs(&self) -> u64 {
+        self.3.lock().unwrap().fsyncs
+    }
+    pub fn remove(&self, path: &str) {
+        self.0.lock().unwrap().remove(path);
+    }
     pub fn add_listed_name(&self, name: String) {
         self.3.lock().unwrap().extra_names.push(name);
     }
@@ -117,6 +156,11 @@ impl MemFs {
         let mut a = attrs(node);
         if let (Some(m), Some(p)) = (self.mode(path), a.permissions) {
             a.permissions = Some((p & !0o7777) | m);
+        }
+        let (uid, gid) = self.owner(path);
+        (a.uid, a.gid) = (Some(uid), Some(gid));
+        if let Some(m) = self.3.lock().unwrap().mtimes.get(path) {
+            a.mtime = Some(*m);
         }
         a
     }
@@ -133,9 +177,18 @@ impl MemFs {
             let m = extra.modes.remove(&k).unwrap();
             extra.modes.insert(format!("{new}{}", &k[old.len()..]), m);
         }
+        if let Some(v) = extra.owners.remove(old) {
+            extra.owners.insert(new.into(), v);
+        }
+        if let Some(v) = extra.mtimes.remove(old) {
+            extra.mtimes.insert(new.into(), v);
+        }
     }
     fn forget_mode(&self, path: &str) {
-        self.3.lock().unwrap().modes.remove(path);
+        let mut extra = self.3.lock().unwrap();
+        extra.modes.remove(path);
+        extra.owners.remove(path);
+        extra.mtimes.remove(path);
     }
     /// Paths under `dir` (recursively), sorted.
     pub fn paths_under(&self, dir: &str) -> Vec<String> {
@@ -212,8 +265,8 @@ fn attrs(node: &Node) -> FileAttributes {
     FileAttributes {
         size: Some(size),
         permissions: Some(mode),
-        mtime: Some(1_700_000_000),
-        atime: Some(1_700_000_000),
+        mtime: Some(DEFAULT_MTIME),
+        atime: Some(DEFAULT_MTIME),
         ..Default::default()
     }
 }
@@ -289,6 +342,9 @@ impl russh_sftp::server::Handler for MemSftp {
                 .extensions
                 .insert("posix-rename@openssh.com".into(), "1".into());
         }
+        version
+            .extensions
+            .insert("fsync@openssh.com".into(), "1".into());
         Ok(version)
     }
 
@@ -317,10 +373,17 @@ impl russh_sftp::server::Handler for MemSftp {
             path
         } else {
             let path = self.fs.resolve(&filename);
+            if self.fs.3.lock().unwrap().denied_files.contains(&path) {
+                return Err(StatusCode::PermissionDenied);
+            }
             match self.node(&path)? {
-                Node::File(_) | Node::Data(_) => path,
+                Node::File(_) | Node::Data(_) => {}
                 _ => return Err(StatusCode::Failure),
             }
+            if pflags.contains(OpenFlags::TRUNCATE) {
+                self.fs.data(&path, Vec::new());
+            }
+            path
         };
         let handle = self.handle();
         self.files.insert(handle.clone(), path);
@@ -357,6 +420,9 @@ impl russh_sftp::server::Handler for MemSftp {
     ) -> Result<Status, Self::Error> {
         self.pause().await;
         let path = self.file_path(&handle)?;
+        if self.fs.3.lock().unwrap().fail_writes {
+            return Err(StatusCode::Failure);
+        }
         let mut map = self.fs.0.lock().unwrap();
         let Some(Node::Data(bytes)) = map.get_mut(&path) else {
             return Err(StatusCode::Failure);
@@ -388,6 +454,13 @@ impl russh_sftp::server::Handler for MemSftp {
         if let Some(m) = attrs.permissions {
             self.fs.set_mode(&path, m);
         }
+        if let Some(size) = attrs.size {
+            let mut map = self.fs.0.lock().unwrap();
+            let Some(Node::Data(bytes)) = map.get_mut(&path) else {
+                return Err(StatusCode::Failure);
+            };
+            bytes.resize(size as usize, 0);
+        }
         Ok(ok(id))
     }
 
@@ -397,6 +470,12 @@ impl russh_sftp::server::Handler for MemSftp {
         request: String,
         data: Vec<u8>,
     ) -> Result<Packet, Self::Error> {
+        if request == "fsync@openssh.com" {
+            let (handle, _) = decode_string(&data).ok_or(StatusCode::BadMessage)?;
+            self.file_path(&handle)?;
+            self.fs.3.lock().unwrap().fsyncs += 1;
+            return Ok(Packet::Status(ok(id)));
+        }
         if request != "posix-rename@openssh.com" {
             return Err(StatusCode::OpUnsupported);
         }

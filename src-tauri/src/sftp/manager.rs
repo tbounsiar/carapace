@@ -16,6 +16,7 @@ use super::path::{file_name, join, normalize, parent};
 use crate::files::{self, EntryKind, FileEntry, FsError, Listing, MAX_DEPTH, MAX_ENTRIES};
 use crate::ssh::{SessionRef, SshManager};
 
+pub use edit::{Saved, TextFile, WriteText};
 pub use io::RemoteMeta;
 
 const OPEN_TIMEOUT: Duration = Duration::from_secs(15);
@@ -38,6 +39,8 @@ pub struct Remote {
     broken: AtomicBool,
     /// The server announced `posix-rename@openssh.com` (rename that replaces the target).
     posix_rename: bool,
+    /// The server announced `fsync@openssh.com`.
+    fsync: bool,
     /// Dropped with the `Remote`, which ends its watcher task.
     _alive: oneshot::Sender<()>,
 }
@@ -305,6 +308,7 @@ async fn open(session: SessionRef) -> Result<(Remote, oneshot::Receiver<()>), Fs
         home: String::new(),
         broken: AtomicBool::new(false),
         posix_rename: version.extensions.contains_key(io::POSIX_RENAME),
+        fsync: version.extensions.contains_key(edit::FSYNC),
         _alive: alive,
     };
     remote.home = remote.realpath(".").await.map_err(|e| match e {
@@ -495,6 +499,7 @@ fn watch_end(
 
 #[cfg(test)]
 mod e2e_tests;
+mod edit;
 mod io;
 #[cfg(test)]
 mod tests;

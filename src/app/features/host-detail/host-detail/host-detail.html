@@ -2,7 +2,7 @@
   <section tuiCardLarge="compact" appearance="outline-grayscale" data-testid="host-detail">
     <header tuiHeader="body-l">
       <hgroup tuiTitle>
-        <h1 class="name" data-testid="host-detail-title">
+        <h1 #heading class="name" tabindex="-1" data-testid="host-detail-title">
           <span data-testid="host-detail-name">{{ located.host.name }}</span>
         </h1>
         @if (address(); as address) {
@@ -92,29 +92,7 @@
       </dd>
     </dl>
   </section>
-  <tui-segmented
-    size="s"
-    class="views"
-    aria-label="View"
-    [activeItemIndex]="viewIndex()"
-    (activeItemIndexChange)="selectView($event)"
-  >
-    @for (option of viewOptions; track option.view) {
-      <button
-        type="button"
-        [attr.aria-pressed]="option.view === view()"
-        [attr.data-testid]="'host-view-' + option.view"
-      >
-        <tui-icon [icon]="option.icon" />
-        {{ option.label }}
-      </button>
-    }
-  </tui-segmented>
-  @if (view() === 'files') {
-    <app-files-panel [target]="target()!" />
-  } @else {
-    <app-terminal-panel [target]="target()!" />
-  }
+  <app-host-tabs [host]="located.host" [connected]="connected()" />
 } @else {
   <tui-block-status size="m" data-testid="host-not-found">
     <h2>Host not found</h2>

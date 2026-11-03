@@ -32,7 +32,7 @@ describe('HostCard', () => {
   let config: ReturnType<typeof fakeConfig>;
   const states = signal<Record<string, ConnectionState>>({});
   const connector = { connect: vi.fn(), disconnect: vi.fn() };
-  const launcher = { open: vi.fn(), openTerminal: vi.fn() };
+  const launcher = { open: vi.fn(), openTerminal: vi.fn(), openFiles: vi.fn() };
   const actions = { editHost: vi.fn(), deleteHost: vi.fn(() => Promise.resolve(true)) };
   const moves = { openDialog: vi.fn() };
   const byId = (id: string): HTMLElement | null =>
@@ -104,7 +104,7 @@ describe('HostCard', () => {
     byId('card-terminal-api')!.click();
     expect(launcher.openTerminal).toHaveBeenCalledWith(card());
     byId('card-files-api')!.click();
-    expect(launcher.open).toHaveBeenCalledWith(card(), 'files');
+    expect(launcher.openFiles).toHaveBeenCalledWith(card());
   });
 
   it('runs Edit, Move and Delete from the menu, keeping focus out of the sidebar', async () => {

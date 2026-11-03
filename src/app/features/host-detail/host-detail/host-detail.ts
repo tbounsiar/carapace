@@ -1,7 +1,18 @@
-import { Component, computed, inject, input, resource, signal } from '@angular/core';
+import {
+  afterRenderEffect,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  input,
+  resource,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { TuiButton, TuiIcon, TuiNotificationService, TuiTitle } from '@taiga-ui/core';
-import { TuiButtonLoading, TuiSegmented, TuiStatus } from '@taiga-ui/kit';
+import { TuiButton, TuiNotificationService, TuiTitle } from '@taiga-ui/core';
+import { TuiButtonLoading, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiCardLarge, TuiHeader } from '@taiga-ui/layout';
 import { ConfigService } from '../../../core/ipc/config';
 import { hostTarget } from '../../../core/ipc/connection';
@@ -9,17 +20,11 @@ import { SecretsService } from '../../../core/ipc/secrets';
 import { SshService } from '../../../core/ipc/ssh';
 import { AUTH_LABELS } from '../../../shared/auth-method';
 import { connectionStatus } from '../../../shared/connection-status';
-import { FilesPanel } from '../../files/files-panel/files-panel';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { notifyError } from '../../project-tree/save-error';
-import { TerminalPanel } from '../../terminal/terminal-panel/terminal-panel';
-import { type HostView, HostViews } from '../host-view';
-
-const VIEW_OPTIONS: readonly { view: HostView; label: string; icon: string }[] = [
-  { view: 'terminal', label: 'Terminal', icon: '@tui.square-terminal' },
-  { view: 'files', label: 'Files', icon: '@tui.folder' },
-];
+import { Workspace } from '../../workspace/workspace';
+import { HostTabs } from '../host-tabs/host-tabs';
 
 @Component({
   imports: [
@@ -28,11 +33,8 @@ const VIEW_OPTIONS: readonly { view: HostView; label: string; icon: string }[] =
     TuiButton,
     TuiButtonLoading,
     TuiCardLarge,
-    FilesPanel,
+    HostTabs,
     TuiHeader,
-    TuiIcon,
-    TerminalPanel,
-    TuiSegmented,
     TuiStatus,
     TuiTitle,
   ],
@@ -46,7 +48,8 @@ export class HostDetail {
   private readonly secrets = inject(SecretsService);
   private readonly connector = inject(HostConnector);
   private readonly actions = inject(ProjectActions);
-  private readonly views = inject(HostViews);
+  private readonly workspace = inject(Workspace);
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
   private readonly alerts = inject(TuiNotificationService);
 
   readonly hostId = input.required<string>();
@@ -117,17 +120,15 @@ export class HostDetail {
   protected readonly connected = computed(() => this.state() === 'connected');
   protected readonly forgetting = signal(false);
 
-  protected readonly viewOptions = VIEW_OPTIONS;
-  protected readonly view = computed(() => this.views.of(this.hostId()));
-  protected readonly viewIndex = computed(() =>
-    VIEW_OPTIONS.findIndex((o) => o.view === this.view()),
-  );
-
-  protected selectView(index: number): void {
-    const option = VIEW_OPTIONS[index];
-    if (option) {
-      this.views.set(this.hostId(), option.view);
-    }
+  constructor() {
+    // Closing the last tab lands here; the focus goes to the heading, not the page top.
+    afterRenderEffect(() => {
+      const heading = this.heading()?.nativeElement;
+      if (heading && this.workspace.headingFocus()) {
+        untracked(() => this.workspace.headingFocus.set(false));
+        heading.focus();
+      }
+    });
   }
 
   protected connect(): void {

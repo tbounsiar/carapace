@@ -19,6 +19,8 @@ export interface XtermView {
   setAppearance(appearance: XtermAppearance): void;
   fit(): void;
   focus(): void;
+  /** Keys for which `reserved` is true never reach the shell. */
+  reserveKeys(reserved: (event: KeyboardEvent) => boolean): void;
   dispose(): void;
 }
 
@@ -68,6 +70,10 @@ class Xterm implements XtermView {
 
   focus(): void {
     this.terminal.focus();
+  }
+
+  reserveKeys(reserved: (event: KeyboardEvent) => boolean): void {
+    this.terminal.attachCustomKeyEventHandler((event) => !reserved(event));
   }
 
   dispose(): void {

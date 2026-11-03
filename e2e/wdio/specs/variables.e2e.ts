@@ -109,9 +109,9 @@ describe('variables', () => {
     await connect('ui');
     await acceptHostKeyIfAsked();
     await waitStatus('ui', 'Connected');
-    await clickId('terminal-new');
-    await byId('terminal-tab-1').waitForDisplayed({ timeout: 20000 });
-    expect(await textOf('terminal-tab-1')).toBe('Terminal 1');
+    await clickId('host-new-terminal');
+    await byId('tab-ui-terminal-1').waitForDisplayed({ timeout: 20000 });
+    expect(await textOf('tab-ui-terminal-1')).toContain('Terminal 1');
     await browser.pause(1000);
     await shot('vars-04-connected');
   });

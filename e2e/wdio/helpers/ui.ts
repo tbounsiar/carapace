@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { HOST } from './fixture';
 
 export const tid = (id: string) => `[data-testid="${id}"]`;
@@ -262,4 +263,38 @@ export async function testResult(timeout = 30000): Promise<TestResult> {
     title: await textOf('host-test-title'),
     detail: (await detail.isExisting()) ? await textOf('host-test-detail') : '',
   };
+}
+
+/** The test id of the selected workspace tab, or null when none is (off `/tabs/:id`). */
+export async function activeTab(): Promise<string | null> {
+  return browser.execute(
+    () =>
+      document
+        .querySelector('[data-testid="workspace-tabs"] [role="tab"][aria-selected="true"]')
+        ?.getAttribute('data-testid') ?? null,
+  );
+}
+
+export async function waitActiveTab(id: string, timeout = 20000): Promise<void> {
+  await browser.waitUntil(async () => (await activeTab()) === id, {
+    timeout,
+    timeoutMsg: `tab ${id} never became active`,
+  });
+}
+
+/** Opens a tab's context menu (right click) and picks an option. */
+export async function tabMenu(tab: string, option: string): Promise<void> {
+  await byId(tab).click({ button: 'right' });
+  await clickId(option);
+}
+
+/** Runs a shell script as the e2e user in the sshd container (no shell quoting on the host side). */
+export function remoteSh(script: string): string {
+  return execFileSync(
+    'docker',
+    ['exec', '-u', 'carapace', 'carapace-e2e-sshd', 'sh', '-c', script],
+    {
+      encoding: 'utf8',
+    },
+  );
 }

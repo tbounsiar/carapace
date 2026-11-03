@@ -181,6 +181,26 @@
               </button>
               <ng-template #menu let-close>
                 <tui-data-list size="s">
+                  @if (canEdit(row.entry)) {
+                    @let tooLarge = isTooLarge(row.entry);
+                    <button
+                      tuiOption
+                      iconStart="@tui.file-pen"
+                      type="button"
+                      data-testid="entry-edit"
+                      [disabled]="tooLarge"
+                      (click)="close(); edit.emit(row.entry)"
+                    >
+                      @if (tooLarge) {
+                        <span tuiTitle>
+                          Edit
+                          <span tuiSubtitle>Too large to edit (max 5 MiB)</span>
+                        </span>
+                      } @else {
+                        Edit
+                      }
+                    </button>
+                  }
                   <button
                     tuiOption
                     iconStart="@tui.pencil"

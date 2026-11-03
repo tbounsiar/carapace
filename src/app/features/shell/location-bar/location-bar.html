@@ -47,7 +47,7 @@
   <ng-template #entries>
     <tui-data-list size="s" role="menu">
       @for (entry of menu.entries; track entry.id) {
-        @if ($last) {
+        @if (entry.separated) {
           <hr />
         }
         <button

@@ -3,10 +3,12 @@ import { TuiButton } from '@taiga-ui/core';
 import { TuiAvatar, TuiButtonLoading } from '@taiga-ui/kit';
 import { TuiBlockStatus } from '@taiga-ui/layout';
 import type { ConnectionTarget } from '../../../core/ipc/connection';
-import { FileSources, type FileSide } from '../../../core/ipc/files';
+import { ConfigService } from '../../../core/ipc/config';
+import { type FileEntry, FileSources, type FileSide } from '../../../core/ipc/files';
 import { SshService } from '../../../core/ipc/ssh';
 import { connectionStatus } from '../../../shared/connection-status';
 import { HostConnector } from '../../host-connection/host-connector';
+import { HostLauncher } from '../../host-connection/host-launcher';
 import { TransferPanel } from '../../transfers/transfer-panel/transfer-panel';
 import { paneRevisions, TransferQueue } from '../../transfers/transfer-queue';
 import { FilePane, type PaneTransfer } from '../file-pane/file-pane';
@@ -25,6 +27,8 @@ export class FilesPanel {
   private readonly connector = inject(HostConnector);
   private readonly paths = inject(PanePaths);
   private readonly queue = inject(TransferQueue);
+  private readonly config = inject(ConfigService);
+  private readonly launcher = inject(HostLauncher);
 
   readonly target = input.required<ConnectionTarget>();
 
@@ -62,6 +66,13 @@ export class FilesPanel {
 
   protected connect(): void {
     void this.connector.connect(this.target());
+  }
+
+  protected edit(entry: FileEntry): void {
+    const host = this.config.findHost(this.target().hostId)?.host;
+    if (host) {
+      void this.launcher.openFile(host, entry.path, entry.size);
+    }
   }
 
   protected upload(request: PaneTransfer): void {

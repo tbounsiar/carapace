@@ -8,6 +8,7 @@ import {
   type TerminalEvent,
 } from '../../core/ipc/terminal';
 import { notifyError } from '../project-tree/save-error';
+import { isTerminalReserved } from '../workspace/workspace-keys';
 import { DEFAULT_FONT_SIZE } from '../../core/settings/settings';
 import { type XtermAppearance, XtermFactory, type XtermView } from './xterm-factory';
 import { xtermFont, xtermTheme } from './xterm-theme';
@@ -51,7 +52,7 @@ class Session implements TerminalTab {
 
 const DEFAULT_SIZE = { cols: 80, rows: 24 };
 
-/** Terminal tabs per connection, kept here (not in the panel) so their xterm and scrollback outlive navigation. */
+/** Terminals per connection, kept here (not in a view) so their xterm and scrollback outlive navigation. */
 @Service()
 export class TerminalSessions {
   private readonly ipc = inject(TerminalIpc);
@@ -59,7 +60,6 @@ export class TerminalSessions {
   private readonly alerts = inject(TuiNotificationService);
 
   private readonly _tabs = signal<Readonly<Record<string, readonly Session[]>>>({});
-  private readonly _active = signal<Readonly<Record<string, number>>>({});
   private readonly counters = new Map<string, number>();
   private nextKey = 1;
   private appearance: XtermAppearance = {
@@ -70,15 +70,6 @@ export class TerminalSessions {
 
   tabs(connectionId: string): readonly TerminalTab[] {
     return this._tabs()[connectionId] ?? [];
-  }
-
-  active(connectionId: string): TerminalTab | null {
-    const tabs = this._tabs()[connectionId] ?? [];
-    return tabs.find((tab) => tab.key === this._active()[connectionId]) ?? tabs.at(-1) ?? null;
-  }
-
-  select(tab: TerminalTab): void {
-    this._active.update((active) => ({ ...active, [tab.connectionId]: tab.key }));
   }
 
   async open(connectionId: string): Promise<TerminalTab | null> {
@@ -99,11 +90,11 @@ export class TerminalSessions {
     const session = new Session(this.nextKey++, connectionId, n, view);
     session.view.onData((data) => this.send(session, data));
     session.view.onResize(() => this.syncSize(session));
+    session.view.reserveKeys(isTerminalReserved);
     this._tabs.update((tabs) => ({
       ...tabs,
       [connectionId]: [...(tabs[connectionId] ?? []), session],
     }));
-    this.select(session);
     if (await this.start(session)) {
       return session;
     }
@@ -168,6 +159,10 @@ export class TerminalSessions {
 
   detach(tab: TerminalTab): void {
     this.session(tab)?.element.remove();
+  }
+
+  focus(tab: TerminalTab): void {
+    this.session(tab)?.view.focus();
   }
 
   fit(tab: TerminalTab): void {
@@ -273,13 +268,8 @@ export class TerminalSessions {
 
   private remove(session: Session): void {
     session.disposed = true;
-    const tabs = this._tabs()[session.connectionId] ?? [];
-    const index = tabs.indexOf(session);
-    const rest = tabs.filter((s) => s !== session);
+    const rest = (this._tabs()[session.connectionId] ?? []).filter((s) => s !== session);
     this._tabs.update((all) => ({ ...all, [session.connectionId]: rest }));
-    if (this._active()[session.connectionId] === session.key && rest.length) {
-      this.select(rest[Math.min(index, rest.length - 1)]);
-    }
     session.element.remove();
     session.view.dispose();
   }

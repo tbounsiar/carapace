@@ -10,6 +10,7 @@ import { MoveLauncher } from '../../project-tree/move-launcher';
 import { ancestors, HOME } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { SidebarState } from '../../sidebar/sidebar-state';
+import { WorkspaceActions } from '../../workspace/workspace-actions';
 
 const PAGES: Readonly<Record<string, string>> = {
   '/variables': 'Global variables',
@@ -29,6 +30,7 @@ interface PageMenuEntry {
   readonly label: string;
   readonly icon: string;
   readonly run: () => void;
+  readonly separated?: boolean;
 }
 
 interface PageMenu {
@@ -42,6 +44,8 @@ interface Location {
   readonly collections: readonly Collection[];
   readonly current: string | null;
   readonly host: Host | null;
+  /** On a tab route, the host crumb links to its page. */
+  readonly hostCrumb: Host | null;
 }
 
 /** Breadcrumbs of the current route in the main subheader, with the page menu at its end. */
@@ -67,6 +71,7 @@ export class LocationBar {
   private readonly actions = inject(ProjectActions);
   private readonly moves = inject(MoveLauncher);
   private readonly sidebar = inject(SidebarState);
+  private readonly workspace = inject(WorkspaceActions);
 
   protected readonly menuOpen = signal(false);
 
@@ -77,6 +82,7 @@ export class LocationBar {
       collections: [],
       current: null,
       host: null,
+      hostCrumb: null,
     };
     switch (route.kind) {
       case 'home':
@@ -103,6 +109,20 @@ export class LocationBar {
           host: found.host,
         };
       }
+      case 'tab': {
+        const tab = this.scope.tab();
+        const found = tab ? this.config.findHost(tab.hostId) : null;
+        if (!tab || !found) {
+          return none;
+        }
+        return {
+          ...none,
+          project: found.project,
+          collections: ancestors(this.config.nodes(), found.host.id),
+          hostCrumb: found.host,
+          current: tab.label,
+        };
+      }
       default:
         return { ...none, current: PAGES[route.path] ?? null };
     }
@@ -110,7 +130,7 @@ export class LocationBar {
 
   /** Home, the project, the collections, then the current page (the last one is not a link). */
   protected readonly crumbs = computed<Crumb[]>(() => {
-    const { project, collections, current } = this.location();
+    const { project, collections, current, hostCrumb } = this.location();
     const list: Crumb[] = [{ id: 'crumb-home', text: HOME, link: ['/'], collection: null }];
     if (project) {
       list.push({
@@ -128,6 +148,14 @@ export class LocationBar {
         collection,
       });
     }
+    if (hostCrumb) {
+      list.push({
+        id: 'crumb-host',
+        text: hostCrumb.name,
+        link: ['/hosts', hostCrumb.id],
+        collection: null,
+      });
+    }
     if (current) {
       list.push({ id: 'crumb-current', text: current, link: null, collection: null });
     }
@@ -142,6 +170,14 @@ export class LocationBar {
 
   /** The "…" menu of a host page (the project dashboard has its own); its last entry deletes. */
   protected readonly pageMenu = computed<PageMenu | null>(() => {
+    const tab = this.scope.tab();
+    if (tab) {
+      return {
+        id: 'tab-page-menu',
+        name: tab.label,
+        entries: this.workspace.menu(tab),
+      };
+    }
     const { host } = this.location();
     if (host) {
       return {
@@ -158,6 +194,7 @@ export class LocationBar {
             id: 'host-delete',
             label: 'Delete host',
             icon: '@tui.trash',
+            separated: true,
             run: () => void this.actions.deleteHost(host),
           },
         ],

@@ -1,0 +1,14 @@
+[[permission]]
+identifier = "allow-set-quit-guard"
+description = "Allows the set_quit_guard command."
+commands.allow = ["set_quit_guard"]
+
+[[permission]]
+identifier = "allow-subscribe-app-events"
+description = "Allows the subscribe_app_events command."
+commands.allow = ["subscribe_app_events"]
+
+[[permission]]
+identifier = "allow-quit-app"
+description = "Allows the quit_app command."
+commands.allow = ["quit_app"]

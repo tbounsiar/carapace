@@ -11,7 +11,7 @@ import {
   untracked,
   type OnInit,
 } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   TuiButton,
   TuiDataList,
@@ -35,6 +35,7 @@ import {
 } from '../../../shared/connection-status';
 import { CurrentScope } from '../../../shared/current-scope';
 import { HostConnector } from '../../host-connection/host-connector';
+import { HostLauncher } from '../../host-connection/host-launcher';
 import { MoveLauncher } from '../../project-tree/move-launcher';
 import { ancestors, plural, type Container, type TreeItem } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
@@ -78,7 +79,6 @@ export function projectKey(projectId: string): string {
   imports: [
     NgTemplateOutlet,
     RouterLink,
-    RouterLinkActive,
     TuiBlockStatus,
     TuiButton,
     TuiChevron,
@@ -109,6 +109,7 @@ export class SidebarTree implements OnInit {
   private readonly alerts = inject(TuiNotificationService);
   private readonly ssh = inject(SshService);
   private readonly connector = inject(HostConnector);
+  private readonly launcher = inject(HostLauncher);
   private readonly actions = inject(ProjectActions);
   private readonly moves = inject(MoveLauncher);
   private readonly scope = inject(CurrentScope);
@@ -156,12 +157,13 @@ export class SidebarTree implements OnInit {
     });
   });
 
+  /** The host of the host page or of the active tab: its row is marked selected. */
+  protected readonly selectedHost = this.scope.hostId;
+
   /** Collections above the open host, so a collapsed one can show it holds the selection. */
   protected readonly activePath = computed(() => {
-    const route = this.scope.route();
-    return new Set(
-      route.kind === 'host' ? ancestors(this.config.nodes(), route.hostId).map((c) => c.id) : [],
-    );
+    const hostId = this.selectedHost();
+    return new Set(hostId ? ancestors(this.config.nodes(), hostId).map((c) => c.id) : []);
   });
 
   /** Visible items in display order, for the keyboard and the single tab stop. */
@@ -194,8 +196,7 @@ export class SidebarTree implements OnInit {
 
   protected readonly tabStop = computed(() => {
     const keys = new Set(this.rows().map((r) => r.key));
-    const route = this.scope.route();
-    const active = route.kind === 'host' ? route.hostId : null;
+    const active = this.selectedHost();
     const selected = this.selectedProject();
     for (const key of [active, this.lastFocused(), selected && projectKey(selected)]) {
       if (key && keys.has(key)) {
@@ -291,7 +292,24 @@ export class SidebarTree implements OnInit {
               disabled: this.status(host).busy,
               run: () => this.connect(host),
             };
-        return [connection, rename, move, remove];
+        return [
+          {
+            id: 'menu-new-terminal',
+            label: 'New terminal',
+            icon: '@tui.square-terminal',
+            run: () => void this.launcher.newTerminal(host),
+          },
+          {
+            id: 'menu-open-files',
+            label: 'Open files',
+            icon: '@tui.folder-open',
+            run: () => void this.launcher.openFiles(host),
+          },
+          connection,
+          rename,
+          move,
+          remove,
+        ];
       }
     }
   });
@@ -318,9 +336,9 @@ export class SidebarTree implements OnInit {
     });
 
     effect(() => {
-      const route = this.scope.route();
-      if (route.kind === 'host') {
-        const path = ancestors(this.config.nodes(), route.hostId).map((c) => c.id);
+      const hostId = this.selectedHost();
+      if (hostId) {
+        const path = ancestors(this.config.nodes(), hostId).map((c) => c.id);
         untracked(() => this.state.expand(path));
       }
     });
@@ -353,9 +371,9 @@ export class SidebarTree implements OnInit {
     });
 
     afterRenderEffect(() => {
-      const route = this.scope.route();
-      if (route.kind === 'host') {
-        this.itemElement(route.hostId)?.scrollIntoView?.({ block: 'nearest' });
+      const hostId = this.selectedHost();
+      if (hostId) {
+        this.itemElement(hostId)?.scrollIntoView?.({ block: 'nearest' });
       }
     });
   }
@@ -459,6 +477,11 @@ export class SidebarTree implements OnInit {
 
   protected connect(host: Host): void {
     void this.connector.connect(this.target(host));
+  }
+
+  /** Double-click: the host's terminal, focused or opened (the first click opened its page). */
+  protected openTerminal(host: Host): void {
+    void this.launcher.openTerminal(host);
   }
 
   protected disconnect(host: Host): void {

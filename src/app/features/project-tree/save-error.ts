@@ -30,6 +30,8 @@ const NEXT_STEP: Readonly<Record<IpcErrorCode, string>> = {
   too_large: 'Choose a smaller file.',
   missing_variables: 'Define them in the global or project variables.',
   cancelled: 'Start it again when ready.',
+  not_text: 'Only UTF-8 text files can be edited here.',
+  partial_write: 'The remote file may be damaged: save again to write it whole.',
   unknown: 'Try again. Restart the app if it keeps happening.',
 };
 

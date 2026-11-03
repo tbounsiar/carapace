@@ -313,9 +313,9 @@ describe('collections', () => {
     await clickId('open-host-vps');
     await byId('host-detail').waitForDisplayed({ timeout: 10000 });
     await expect(byId('host-detail-title')).toHaveText(VPS.name);
-    await clickId('terminal-new');
-    await byId('terminal-tab-1').waitForDisplayed({ timeout: 20000 });
-    expect(await textOf('terminal-tab-1')).toBe('Terminal 1');
+    await clickId('host-new-terminal');
+    await byId('tab-vps-terminal-1').waitForDisplayed({ timeout: 20000 });
+    expect(await textOf('tab-vps-terminal-1')).toContain('Terminal 1');
     await shot('coll-08-home-host-connected');
   });
 

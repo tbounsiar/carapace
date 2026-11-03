@@ -17,6 +17,7 @@ use tokio::time::timeout;
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
+use super::ends::{ConnectionEnd, EndEmit, Ends};
 use super::error::SshError;
 use super::known_hosts::{HostKeyStatus, KnownHosts, fingerprint};
 use crate::secrets::{KeyPassKey, SavedKey, SecretKind, SecretStore, VarKey, fits_saved};
@@ -347,6 +348,14 @@ pub struct ClientHandler {
     shared: Arc<Shared>,
 }
 
+/// russh skips `disconnected` when shutting down the socket fails after the peer went away;
+/// the handler is dropped with the session task in every case, so the end is marked here too.
+impl Drop for ClientHandler {
+    fn drop(&mut self) {
+        mark_ended(&self.ended, SessionEnd::Lost);
+    }
+}
+
 impl ClientHandler {
     /// `Some(true)` for a known key, `Some(false)` for a refusal (reason stored, changed key
     /// remembered for replace on a connect and reported), `None` for an unknown key.
@@ -645,6 +654,7 @@ pub struct SshManager {
     secrets: SecretStore,
     tests: Tests,
     next_test: AtomicU64,
+    ends: Ends,
 }
 
 impl SshManager {
@@ -668,6 +678,7 @@ impl SshManager {
             changed: Default::default(),
             tests: Default::default(),
             next_test: AtomicU64::new(0),
+            ends: Ends::default(),
         }
     }
 
@@ -728,6 +739,16 @@ impl SshManager {
             }
             None => None,
         }
+    }
+
+    /// Live `connectionEnded` events go to `emit` from now on; returns how the connections that
+    /// are not connected again ended.
+    pub fn subscribe_ends(&self, emit: EndEmit) -> Vec<ConnectionEnd> {
+        self.ends.subscribe(emit)
+    }
+
+    pub fn unsubscribe_ends(&self) {
+        self.ends.unsubscribe();
     }
 
     pub async fn list(&self) -> Vec<ConnectionInfo> {
@@ -859,6 +880,7 @@ impl SshManager {
             );
             return Err(SshError::HostChanged);
         }
+        self.ends.watch(&target.connection_id, ended.subscribe());
         sessions.insert(
             target.connection_id.clone(),
             Connection {

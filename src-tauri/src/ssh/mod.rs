@@ -1,3 +1,4 @@
+mod ends;
 mod error;
 mod known_hosts;
 mod manager;
@@ -6,6 +7,7 @@ pub mod test_server;
 #[cfg(test)]
 pub mod test_sftp;
 
+pub use ends::{ConnectionEnd, ConnectionEvent};
 pub use error::SshError;
 pub use manager::{
     ConnectEvent, Connected, ConnectionInfo, Credential, Emit, HostTestResult, RegisteredKey,
