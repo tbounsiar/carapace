@@ -1,10 +1,12 @@
 import { HOST, PROJECT } from '../helpers/fixture';
-import { screenshotThemes } from '../helpers/screenshot';
+import { screenshotThemes, setThemeMode } from '../helpers/screenshot';
 import {
   byId,
   clickId,
   createHost,
   createProject,
+  currentScope,
+  enterProject,
   tid,
   waitForApp,
   waitGone,
@@ -49,10 +51,7 @@ const terminalBackground = () =>
     return `${getComputedStyle(bg).backgroundColor}|${getComputedStyle(fg).color}`;
   }, tid('terminal-view-1'));
 
-const selectMode = (mode: string) =>
-  browser.execute((m: string) => {
-    document.querySelector<HTMLElement>(`[data-testid="theme-${m}"]`)?.click();
-  }, mode);
+const selectMode = setThemeMode;
 
 async function acceptHostKeyIfAsked(): Promise<void> {
   const accept = byId('host-key-accept');
@@ -121,6 +120,8 @@ describe('terminal tabs', () => {
   it('keeps the tab and scrollback after leaving the host page', async () => {
     await clickId('home-link');
     await byId('welcome').waitForDisplayed({ timeout: 10000 });
+    await browser.waitUntil(async () => (await currentScope()) === 'Home', { timeout: 10000 });
+    await enterProject(PROJECT);
     await clickId(`open-host-${HOST.name}`);
     await byId('terminal-tab-1').waitForDisplayed({ timeout: 10000 });
     await byId('terminal-view-1').waitForDisplayed({ timeout: 10000 });

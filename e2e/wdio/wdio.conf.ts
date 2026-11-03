@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -21,6 +21,24 @@ function emptyHome(): void {
   if (!home) return;
   for (const entry of readdirSync(home))
     rmSync(join(home, entry), { recursive: true, force: true });
+}
+
+/** A v2 config (the backend fixture) plus a host reaching the e2e sshd, for the migration spec. */
+function seedV2Config(): void {
+  const home = homeDir();
+  if (!home) return;
+  const fixture = resolve(root, 'src-tauri', 'tests', 'fixtures', 'config-v2.json');
+  const config = JSON.parse(readFileSync(fixture, 'utf8'));
+  const website = config.projects.find((p: { name: string }) => p.name === 'Website');
+  website.hosts.push({
+    id: '0b6f2a52-6c1e-4c55-9d1e-3f1d2b7a9e01',
+    name: 'sshd',
+    hostname: '127.0.0.1',
+    port: '2223',
+    username: 'carapace',
+    auth: { kind: 'key', keyPath: resolve(root, 'e2e', '.work', 'id_ed25519'), passphrase: null },
+  });
+  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
 }
 
 export const config: WebdriverIO.Config = {
@@ -62,7 +80,10 @@ export const config: WebdriverIO.Config = {
     console.log('failure screenshot', await screenshot(name));
   },
 
-  beforeSession: emptyHome,
+  beforeSession: (_config, _capabilities, specs) => {
+    emptyHome();
+    if (specs.some((spec) => spec.includes('migration'))) seedV2Config();
+  },
   afterSession: emptyHome,
 
   onComplete: () => {

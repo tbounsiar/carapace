@@ -25,13 +25,19 @@ export async function typeInto(id: string, value: string): Promise<void> {
   await browser.keys(value.split(''));
 }
 
+export async function textOf(id: string): Promise<string> {
+  return ((await byId(id).getText()) ?? '').trim();
+}
+
+/** The sidebar is ready once the config is loaded (the New menu is enabled). */
 export async function waitForApp(): Promise<void> {
   await $('tui-root').waitForExist({ timeout: 20000 });
-  await $('app-project-tree').waitForExist({ timeout: 20000 });
-  await browser.waitUntil(
-    async () => (await $(tid('new-project')).isExisting()) || (await $('tui-tree').isExisting()),
-    { timeout: 20000, timeoutMsg: 'sidebar did not render' },
-  );
+  await byId('sidebar-tree').waitForExist({ timeout: 20000 });
+  await byId('aside-new').waitForEnabled({ timeout: 20000 });
+  await browser.waitUntil(async () => !(await $('app-sidebar-tree tui-loader').isExisting()), {
+    timeout: 20000,
+    timeoutMsg: 'sidebar did not render',
+  });
 }
 
 export async function rowAction(row: string, button: string): Promise<void> {
@@ -39,21 +45,62 @@ export async function rowAction(row: string, button: string): Promise<void> {
   await clickId(button);
 }
 
+/** Opens a sidebar item menu (`kind`: host, collection, project) and picks an option. */
 export async function openMenu(kind: string, name: string, option: string): Promise<void> {
   await rowAction(`tree-${kind}-${name}`, `menu-${kind}-${name}`);
   await clickId(option);
 }
 
-async function fillName(value: string): Promise<void> {
+export async function fillName(value: string): Promise<void> {
   await typeInto('name-input', value);
   await clickId('dialog-save');
   await waitGone('name-input');
 }
 
+export async function currentScope(): Promise<string> {
+  return textOf('project-select');
+}
+
+/** A closing dropdown stays in the DOM during its animation; wait so ids stay unique. */
+async function selectorClosed(): Promise<void> {
+  await waitGone('project-option-new');
+}
+
+async function pickScope(option: string, label: string): Promise<void> {
+  if ((await currentScope()) === label) return;
+  await selectorClosed();
+  await clickId('project-select');
+  await clickId(option);
+  await browser.waitUntil(async () => (await currentScope()) === label, {
+    timeout: 10000,
+    timeoutMsg: `the project selector never showed ${label}`,
+  });
+}
+
+export async function goHome(): Promise<void> {
+  await pickScope('project-option-home', 'Home');
+}
+
+export async function enterProject(name: string): Promise<void> {
+  await pickScope(`project-option-${name}`, name);
+}
+
+/** Creates a project from the header selector; the app then enters it. */
 export async function createProject(name: string): Promise<void> {
-  await clickId('new-project');
+  await selectorClosed();
+  await clickId('project-select');
+  await clickId('project-option-new');
   await fillName(name);
-  await byId(`tree-project-${name}`).waitForExist({ timeout: 10000 });
+  await browser.waitUntil(async () => (await currentScope()) === name, {
+    timeout: 10000,
+    timeoutMsg: `did not enter the new project ${name}`,
+  });
+}
+
+export async function newFromAside(option: 'new-host' | 'new-collection' | 'new-project') {
+  await waitGone('new-collection');
+  await clickId('aside-new');
+  await clickId(option);
 }
 
 export interface HostInput {
@@ -65,12 +112,7 @@ export interface HostInput {
   auth?: 'password' | 'key';
 }
 
-export async function createHost(
-  project: string,
-  host: HostInput = HOST,
-  beforeSave?: () => Promise<void>,
-): Promise<void> {
-  await rowAction(`tree-project-${project}`, `add-project-${project}`);
+export async function fillHost(host: HostInput, beforeSave?: () => Promise<void>): Promise<void> {
   await typeInto('host-name', host.name);
   await typeInto('host-hostname', host.hostname);
   await typeInto('host-port', host.port);
@@ -87,13 +129,26 @@ export async function createHost(
   await byId(`tree-host-${host.name}`).waitForExist({ timeout: 10000 });
 }
 
+/** Creates a host at the root of a project (`null`: Home); the app then opens its page. */
+export async function createHost(
+  project: string | null,
+  host: HostInput = HOST,
+  beforeSave?: () => Promise<void>,
+): Promise<void> {
+  if (project === null) await goHome();
+  else await enterProject(project);
+  await newFromAside('new-host');
+  await fillHost(host, beforeSave);
+}
+
 export interface VariableRow {
   name: string;
   value: string;
 }
 
 export async function openProjectVariables(project: string): Promise<void> {
-  await openMenu('project', project, 'menu-variables');
+  await enterProject(project);
+  await clickId('project-variables');
   await byId('vars-title').waitForDisplayed({ timeout: 10000 });
 }
 
@@ -131,13 +186,20 @@ export async function saveVariables(): Promise<void> {
   await byId('vars-cancel').waitForEnabled({ timeout: 10000, reverse: true });
 }
 
+/** The environment item lives in the aside header of the current project; it is read by text. */
+export async function envLabel(): Promise<string> {
+  const text = await textOf('env-select');
+  return text.split('\n')[0].trim();
+}
+
 export async function selectEnvironment(name: string | null): Promise<void> {
+  await waitGone('env-option-none');
   await clickId('env-select');
   await clickId(name === null ? 'env-option-none' : `env-option-${name}`);
-  await browser.waitUntil(
-    async () => (await byId('env-select').getValue()) === (name ?? 'No environment'),
-    { timeout: 10000, timeoutMsg: `env selector never showed ${name}` },
-  );
+  await browser.waitUntil(async () => (await envLabel()) === (name ?? 'No environment'), {
+    timeout: 10000,
+    timeoutMsg: `env item never showed ${name}`,
+  });
 }
 
 export async function hostStatus(name: string): Promise<string> {
@@ -160,14 +222,24 @@ export async function disconnect(name: string): Promise<void> {
   await byId(`connect-host-${name}`).waitForExist({ timeout: 10000 });
 }
 
-export async function confirmDelete(): Promise<void> {
-  const button = $('//tui-dialog//button[normalize-space()="Delete"]');
+export function dialogButton(text: string): ChainablePromiseElement {
+  return $(`//tui-dialog//button[normalize-space()="${text}"]`);
+}
+
+export async function confirmDialog(text: string): Promise<void> {
+  const button = dialogButton(text);
   await button.waitForClickable({ timeout: 10000 });
   await button.click();
   await button.waitForExist({ timeout: 10000, reverse: true });
 }
 
+export async function confirmDelete(): Promise<void> {
+  await confirmDialog('Delete');
+}
+
+/** Deletes a sidebar item; projects are listed at Home only. */
 export async function deleteNode(kind: string, name: string): Promise<void> {
+  if (kind === 'project') await goHome();
   await openMenu(kind, name, 'menu-delete');
   await confirmDelete();
   await waitGone(`tree-${kind}-${name}`);

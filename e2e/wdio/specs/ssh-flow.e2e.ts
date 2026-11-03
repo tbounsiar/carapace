@@ -6,13 +6,20 @@ import {
   connect,
   createHost,
   createProject,
+  currentScope,
   deleteNode,
   disconnect,
+  goHome,
   hostStatus,
   waitForApp,
   waitGone,
   waitStatus,
 } from '../helpers/ui';
+
+const enterProjectAgain = async () => {
+  await byId(`tree-project-${PROJECT}`).doubleClick();
+  await browser.waitUntil(async () => (await currentScope()) === PROJECT, { timeout: 10000 });
+};
 
 const shot = async (name: string) => console.log('screenshots', await screenshotThemes(name));
 
@@ -78,10 +85,24 @@ describe('ssh flow', () => {
     await expect(byId('host-key-replace')).not.toExist();
   });
 
+  it('reopens the last project after a reload', async () => {
+    await browser.refresh();
+    await waitForApp();
+    await browser.waitUntil(async () => (await currentScope()) === PROJECT, {
+      timeout: 10000,
+      timeoutMsg: 'the last project was not restored',
+    });
+    await byId(`tree-host-${HOST.name}`).waitForExist({ timeout: 10000 });
+  });
+
   it('keeps the data after an app restart', async () => {
     await browser.reloadSession();
     await waitForApp();
+    // WebView2 loses recent localStorage writes when the driver ends the process, so the restored
+    // scope is not asserted here (see the reload test above); the config file is.
+    await goHome();
     await byId(`tree-project-${PROJECT}`).waitForExist({ timeout: 10000 });
+    await enterProjectAgain();
     await byId(`tree-host-${HOST.name}`).waitForExist({ timeout: 10000 });
     await shot('flow-07-restarted');
   });
@@ -89,8 +110,9 @@ describe('ssh flow', () => {
   it('deletes the host and the project', async () => {
     await deleteNode('host', HOST.name);
     await deleteNode('project', PROJECT);
-    await byId('new-project').waitForExist({ timeout: 10000 });
-    await expect($('app-project-tree')).toHaveText(expect.stringContaining('No projects yet'));
+    await byId('sidebar-empty').waitForExist({ timeout: 10000 });
+    await expect(byId('sidebar-empty')).toHaveText(expect.stringContaining('Nothing here yet'));
+    await byId('welcome').waitForDisplayed({ timeout: 10000 });
     await shot('flow-08-empty');
   });
 });

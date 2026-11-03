@@ -1,5 +1,5 @@
 import { HOST, PROJECT } from '../helpers/fixture';
-import { screenshotThemes } from '../helpers/screenshot';
+import { screenshotThemes, setThemeMode } from '../helpers/screenshot';
 import {
   byId,
   clickId,
@@ -80,8 +80,8 @@ describe('settings', () => {
       } catch {
         // Nothing to restore.
       }
-      document.querySelector<HTMLElement>('[data-testid="theme-system"]')?.click();
     });
+    await setThemeMode('system');
   });
 
   it('opens from the sidebar and changes the theme in sync with the header', async () => {
@@ -89,10 +89,11 @@ describe('settings', () => {
     await expect(byId('settings')).toHaveAttribute('aria-current', 'page');
     await clickId('settings-theme-dark');
     await browser.waitUntil(async () => (await effectiveTheme()) === 'dark', { timeout: 5000 });
-    await expect(byId('theme-dark')).toHaveAttribute('aria-pressed', 'true');
+    await expect(byId('theme-toggle')).toHaveAttribute('aria-label', 'Theme: Dark');
     expect(await stored('carapace.theme')).toBe('dark');
 
-    await clickId('theme-light');
+    await setThemeMode('light');
+    await expect(byId('theme-toggle')).toHaveAttribute('aria-label', 'Theme: Light');
     await browser.waitUntil(async () => (await effectiveTheme()) === 'light', { timeout: 5000 });
     await browser.waitUntil(() => radioChecked('settings-theme-light'), { timeout: 5000 });
     await shot('settings-01-page');

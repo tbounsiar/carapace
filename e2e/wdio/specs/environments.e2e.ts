@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { PROJECT } from '../helpers/fixture';
-import { screenshotThemes } from '../helpers/screenshot';
+import { screenshotThemes, shotWithMenu } from '../helpers/screenshot';
 import {
   addEnvironment,
   addPlainVariables,
@@ -89,10 +89,8 @@ describe('environments and variables', () => {
   });
 
   it('connects in the Dev environment', async () => {
-    await clickId('env-select');
-    await byId('env-option-Broken').waitForDisplayed({ timeout: 10000 });
-    await shot('env-04-selector');
-    await clickId('env-option-Dev');
+    await shotWithMenu('env-04-selector', 'env-select', 'env-option-Broken');
+    await selectEnvironment('Dev');
     await connect(HOST_NAME);
     await acceptHostKeyIfAsked();
     await waitStatus(HOST_NAME, 'Connected');

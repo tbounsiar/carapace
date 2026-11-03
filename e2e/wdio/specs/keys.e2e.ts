@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { HOST, PROJECT } from '../helpers/fixture';
-import { screenshot, screenshotThemes } from '../helpers/screenshot';
+import { screenshot, screenshotThemes, setThemeMode } from '../helpers/screenshot';
 import {
   byId,
   clickId,
@@ -120,10 +120,8 @@ describe('keys', () => {
     await clickId('host-key-pick');
     await byId(`host-key-option-${GEN}`).waitForDisplayed({ timeout: 10000 });
     // The theme switch closes the dropdown, so reopen it for each theme.
-    for (const mode of ['light', 'dark']) {
-      await browser.execute((m: string) => {
-        document.querySelector<HTMLElement>(`[data-testid="theme-${m}"]`)?.click();
-      }, mode);
+    for (const mode of ['light', 'dark'] as const) {
+      await setThemeMode(mode);
       await browser.pause(400);
       if (!(await byId(`host-key-option-${GEN}`).isExisting())) await clickId('host-key-pick');
       await byId(`host-key-option-${GEN}`).waitForDisplayed({ timeout: 10000 });
