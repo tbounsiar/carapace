@@ -15,6 +15,7 @@ import { injectContext } from '@taiga-ui/polymorpheus';
 import type { IpcErrorCode } from '../../../core/ipc/config.models';
 import { handleSaveError } from '../save-error';
 import { nameValidator } from '../validators';
+import { ErrorLink } from '../../../shared/error-link';
 
 export interface NameDialogData {
   readonly noun: string;
@@ -30,6 +31,7 @@ export interface NameDialogData {
 
 @Component({
   imports: [
+    ErrorLink,
     ReactiveFormsModule,
     TuiAutoFocus,
     TuiButton,

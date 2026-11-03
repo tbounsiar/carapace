@@ -14,6 +14,12 @@
   gap: 0.5rem;
 }
 
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
 .toggle {
   font-weight: bold;
 }
@@ -78,7 +84,7 @@
   }
 
   &._waiting {
-    color: var(--tui-text-warning);
+    color: var(--tui-status-warning);
     font-weight: bold;
   }
 }

@@ -113,7 +113,7 @@ describe('KeyImportDialog', () => {
     importKey.mockRejectedValueOnce(new IpcError('keychain_unavailable', 'No keychain'));
     await dialog.submit();
     expect(alerts.open).toHaveBeenCalledWith(
-      'No keychain',
+      expect.stringContaining('No keychain. '),
       expect.objectContaining({ label: 'Key not imported' }),
     );
   });

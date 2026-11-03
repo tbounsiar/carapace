@@ -322,7 +322,10 @@ describe('FilePane', () => {
     source.delete.mockRejectedValueOnce(new IpcError('not_empty', 'Directory not empty'));
     const calls = source.list.mock.calls.length;
     await key(byId('entry-notes.txt'), 'Delete');
-    expect(alerts.open).toHaveBeenCalledWith('Directory not empty', expect.anything());
+    expect(alerts.open).toHaveBeenCalledWith(
+      expect.stringContaining('Directory not empty. '),
+      expect.anything(),
+    );
     expect(source.list.mock.calls.length).toBe(calls + 1);
   });
 
@@ -346,7 +349,10 @@ describe('FilePane', () => {
     await setup();
     source.list.mockRejectedValueOnce(new IpcError('io', 'Read failed'));
     await click(byId('pane-refresh'));
-    expect(alerts.open).toHaveBeenCalledWith('Read failed', expect.anything());
+    expect(alerts.open).toHaveBeenCalledWith(
+      expect.stringContaining('Read failed. '),
+      expect.anything(),
+    );
     expect(byId('pane-error')).toBeNull();
     expect(rowNames()).toEqual(['entry-src', 'entry-notes.txt']);
   });

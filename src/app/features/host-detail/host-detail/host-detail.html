@@ -77,7 +77,7 @@
     <dl class="facts">
       <dt>Status</dt>
       <dd>
-        <span data-testid="host-detail-status" [tuiStatus]="status().color">
+        <span data-testid="host-detail-status" role="status" [tuiStatus]="status().color">
           {{ status().label }}
         </span>
       </dd>
@@ -135,7 +135,7 @@
 } @else {
   <tui-block-status size="m" data-testid="host-not-found">
     <h2>Host not found</h2>
-    It may have been deleted or moved.
+    <p>It may have been deleted. Pick another host in the sidebar.</p>
     <a tuiButton appearance="secondary" size="s" routerLink="/">Back to start</a>
   </tui-block-status>
 }

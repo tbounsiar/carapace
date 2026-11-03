@@ -21,7 +21,7 @@ import { CurrentProject } from '../../../shared/current-project';
 import { environmentMarker, type EnvironmentMarker } from '../../../shared/environment-kind';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../project-actions';
-import { notifyError } from '../save-error';
+import { errorText, notifyError } from '../save-error';
 import { isTreeKey, treeKeyAction, type VisibleRow } from '../tree-keys';
 import { nodeLabel, toNodes, type TreeNode } from '../tree-node';
 
@@ -75,14 +75,28 @@ export class ProjectTree implements OnInit {
   protected readonly loading = this.config.loading;
   protected readonly nodes = computed(() => toNodes(this.config.projects()));
   protected readonly openMenu = signal<string | null>(null);
+  /** Set when the config could not be read, so the sidebar does not claim there are no projects. */
+  protected readonly loadError = signal<string | null>(null);
 
   protected readonly childrenHandler: TuiHandler<TreeNode, readonly TreeNode[]> = (node) =>
     node.children;
   protected readonly trackBy = (_: number, node: TreeNode): string => this.key(node);
 
   ngOnInit(): void {
-    this.config.load().catch((err: unknown) => notifyError(this.alerts, err));
-    this.ssh.loadConnections().catch((err: unknown) => notifyError(this.alerts, err));
+    void this.reload();
+    this.ssh
+      .loadConnections()
+      .catch((err: unknown) => notifyError(this.alerts, err, 'Connections not loaded'));
+  }
+
+  protected async reload(): Promise<void> {
+    this.loadError.set(null);
+    try {
+      await this.config.load();
+    } catch (err) {
+      this.loadError.set(errorText(err));
+      notifyError(this.alerts, err, 'Projects not loaded');
+    }
   }
 
   protected onKeydown(event: KeyboardEvent): void {

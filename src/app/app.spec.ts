@@ -90,6 +90,30 @@ describe('App', () => {
     expect(link?.textContent).toContain('SSH keys');
   });
 
+  it('links the settings page from the sidebar footer', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'aside footer [data-testid="settings"]',
+    );
+    expect(link?.getAttribute('href')).toBe('/settings');
+    expect(link?.textContent).toContain('Settings');
+  });
+
+  it('keeps the header toggle in sync with a theme set elsewhere', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    TestBed.inject(ThemeService).setMode('dark');
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="theme-dark"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(el.querySelector('[data-testid="theme-system"]')?.getAttribute('aria-pressed')).toBe(
+      'false',
+    );
+  });
+
   it('shows the environment selector and a prod accent on the header', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();

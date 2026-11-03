@@ -109,7 +109,7 @@ describe('KeyActions', () => {
     store.deploy.mockRejectedValueOnce(new IpcError('invalid_input', 'authorized_keys is a link'));
     expect(await actions.deployTo(KEY, 'h1', true)).toBe(false);
     expect(lastToast()).toEqual([
-      'authorized_keys is a link',
+      expect.stringContaining('Authorized_keys is a link. '),
       expect.objectContaining({ label: 'Deploy failed', appearance: 'negative' }),
     ]);
     expect(config.updateHost).not.toHaveBeenCalled();

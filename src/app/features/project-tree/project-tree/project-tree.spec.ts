@@ -97,6 +97,8 @@ describe('ProjectTree', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    // Project actions import their dialogs lazily; load them once so a single settle() is enough.
+    await Promise.all([import('../name-dialog/name-dialog'), import('../host-dialog/host-dialog')]);
     projects.set([]);
     loading.set(false);
     states.set({});
@@ -115,6 +117,19 @@ describe('ProjectTree', () => {
 
   it('loads the configuration on init', () => {
     expect(config.load).toHaveBeenCalledOnce();
+  });
+
+  it('shows a failed load as an error with a retry, not as "no projects"', async () => {
+    fixture.destroy();
+    config.load.mockRejectedValueOnce(new IpcError('corrupt_config', 'bad file'));
+    fixture = TestBed.createComponent(Host);
+    await settle();
+    expect(byTestId('projects-error')?.textContent).toContain('Bad file.');
+    expect(el().textContent).not.toContain('No projects yet');
+    await click(byTestId('projects-retry'));
+    expect(config.load).toHaveBeenCalledTimes(3);
+    expect(byTestId('projects-error')).toBeNull();
+    expect(el().textContent).toContain('No projects yet');
   });
 
   it('shows a loader while loading', async () => {

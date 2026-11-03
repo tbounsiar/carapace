@@ -179,7 +179,7 @@ export class VariablesEditor {
       const saved = await this.config.setVariables(this.scope(), inputs);
       this.reset(saved);
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(this.alerts, err, 'Variables not saved');
       // The config may be stored even when a keychain write failed; show what was saved.
       await this.config.load().catch(() => undefined);
     } finally {

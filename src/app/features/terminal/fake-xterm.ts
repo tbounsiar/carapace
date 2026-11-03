@@ -1,5 +1,5 @@
 import type { ITheme } from '@xterm/xterm';
-import type { XtermFactory, XtermView } from './xterm-factory';
+import type { XtermAppearance, XtermFactory, XtermView } from './xterm-factory';
 
 /** Test double for xterm, which needs a canvas that jsdom lacks. */
 export class FakeXterm implements XtermView {
@@ -9,6 +9,7 @@ export class FakeXterm implements XtermView {
   readonly written: (Uint8Array | string)[] = [];
   theme: ITheme | null = null;
   fontFamily = '';
+  fontSize = 0;
   disposed = false;
   fits = 0;
   private dataListener: ((data: string) => void) | null = null;
@@ -30,9 +31,10 @@ export class FakeXterm implements XtermView {
     this.resizeListener = listener;
   }
 
-  setAppearance(theme: ITheme, fontFamily: string): void {
+  setAppearance({ theme, fontFamily, fontSize }: XtermAppearance): void {
     this.theme = theme;
     this.fontFamily = fontFamily;
+    this.fontSize = fontSize;
   }
 
   fit(): void {
@@ -61,10 +63,10 @@ export class FakeXterm implements XtermView {
 export class FakeXtermFactory implements Pick<XtermFactory, 'create'> {
   readonly created: FakeXterm[] = [];
 
-  create(theme: ITheme, fontFamily: string): XtermView {
+  create(appearance: XtermAppearance): Promise<XtermView> {
     const view = new FakeXterm();
-    view.setAppearance(theme, fontFamily);
+    view.setAppearance(appearance);
     this.created.push(view);
-    return view;
+    return Promise.resolve(view);
   }
 }

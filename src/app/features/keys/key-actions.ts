@@ -85,7 +85,7 @@ export class KeyActions {
         })
         .subscribe();
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(this.alerts, err, 'Passphrase not forgotten');
     }
   }
 
@@ -106,7 +106,7 @@ export class KeyActions {
       await this.store.delete(key.id, key.managed && decision.deleteFiles);
       return true;
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(this.alerts, err, 'Key not deleted');
       return false;
     }
   }

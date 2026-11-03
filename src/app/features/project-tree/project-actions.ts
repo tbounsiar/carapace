@@ -5,8 +5,8 @@ import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../core/ipc/config';
 import type { Environment, Host, HostInput, Project } from '../../core/ipc/config.models';
-import { HostDialog, type HostDialogData } from './host-dialog/host-dialog';
-import { NameDialog, type NameDialogData } from './name-dialog/name-dialog';
+import type { HostDialogData } from './host-dialog/host-dialog';
+import type { NameDialogData } from './name-dialog/name-dialog';
 import { notifyError } from './save-error';
 import type { TreeNode } from './tree-node';
 
@@ -18,23 +18,25 @@ export class ProjectActions {
   private readonly alerts = inject(TuiNotificationService);
 
   createProject(): void {
-    this.openNameDialog('New project', 'project', '', (name) => this.config.createProject(name));
+    void this.openNameDialog('New project', 'project', '', (name) =>
+      this.config.createProject(name),
+    );
   }
 
   addHost(project: Project): void {
-    this.openHostDialog('New host', project.id, null, (host) =>
+    void this.openHostDialog('New host', project.id, null, (host) =>
       this.config.createHost(project.id, host),
     );
   }
 
   addEnvironment(project: Project): void {
-    this.openNameDialog('New environment', 'environment', '', (name) =>
+    void this.openNameDialog('New environment', 'environment', '', (name) =>
       this.config.createEnvironment(project.id, name),
     );
   }
 
   renameEnvironment(project: Project, env: Environment): void {
-    this.openNameDialog('Rename environment', 'environment', env.name, (name) =>
+    void this.openNameDialog('Rename environment', 'environment', env.name, (name) =>
       this.config.renameEnvironment(project.id, env.id, name),
     );
   }
@@ -44,13 +46,14 @@ export class ProjectActions {
     return this.confirmDelete(
       `Delete environment "${env.name}"?`,
       'Its variables and the secrets saved for it are removed. Hosts stay in the project.',
+      'Environment not deleted',
       () => this.config.deleteEnvironment(project.id, env.id),
     );
   }
 
   edit(node: TreeNode): void {
     if (node.kind === 'project') {
-      this.openNameDialog('Rename project', 'project', node.project.name, (name) =>
+      void this.openNameDialog('Rename project', 'project', node.project.name, (name) =>
         this.config.renameProject(node.project.id, name),
       );
     } else {
@@ -60,7 +63,7 @@ export class ProjectActions {
 
   editHost(project: Project, host: Host): void {
     const { name, hostname, port, username, auth } = host;
-    this.openHostDialog(
+    void this.openHostDialog(
       'Edit host',
       project.id,
       { name, hostname, port, username, auth },
@@ -74,12 +77,14 @@ export class ProjectActions {
       return this.confirmDelete(
         `Delete project "${node.project.name}"?`,
         'It will be removed together with its environments, variables and hosts.',
+        'Project not deleted',
         () => this.config.deleteProject(node.project.id),
       );
     }
     return this.confirmDelete(
       `Delete host "${node.host.name}"?`,
       'This host will be removed.',
+      'Host not deleted',
       () => this.config.deleteHost(node.project.id, node.host.id),
     );
   }
@@ -87,6 +92,7 @@ export class ProjectActions {
   private async confirmDelete(
     label: string,
     content: string,
+    failure: string,
     run: () => Promise<void>,
   ): Promise<boolean> {
     const confirmed = await firstValueFrom(
@@ -109,17 +115,18 @@ export class ProjectActions {
       await run();
       return true;
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(this.alerts, err, failure);
       return false;
     }
   }
 
-  private openNameDialog(
+  private async openNameDialog(
     label: string,
     noun: string,
     initial: string,
     save: NameDialogData['save'],
-  ): void {
+  ): Promise<void> {
+    const { NameDialog } = await import('./name-dialog/name-dialog');
     this.dialogs
       .open<void>(new PolymorpheusComponent(NameDialog), {
         label,
@@ -129,12 +136,13 @@ export class ProjectActions {
       .subscribe();
   }
 
-  private openHostDialog(
+  private async openHostDialog(
     label: string,
     projectId: string,
     initial: HostInput | null,
     save: HostDialogData['save'],
-  ): void {
+  ): Promise<void> {
+    const { HostDialog } = await import('./host-dialog/host-dialog');
     this.dialogs
       .open<void>(new PolymorpheusComponent(HostDialog), {
         label,

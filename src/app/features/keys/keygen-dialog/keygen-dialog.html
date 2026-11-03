@@ -25,7 +25,7 @@
         data-testid="keygen-name"
       />
     </tui-textfield>
-    <tui-error formControlName="name" />
+    <tui-error appErrorLink formControlName="name" />
 
     <tui-textfield>
       <label tuiLabel>File name</label>
@@ -40,7 +40,7 @@
         tuiTooltip="Letters, digits, '.', '_' and '-'. The public key gets a .pub suffix."
       />
     </tui-textfield>
-    <tui-error formControlName="fileName" />
+    <tui-error appErrorLink formControlName="fileName" />
     <p class="note path" data-testid="keygen-path">
       Saved as <span class="mono">{{ pathPreview() }}</span> and
       <span class="mono">{{ pathPreview() }}.pub</span>
@@ -56,7 +56,7 @@
         data-testid="keygen-comment"
       />
     </tui-textfield>
-    <tui-error formControlName="comment" />
+    <tui-error appErrorLink formControlName="comment" />
 
     <tui-textfield>
       <label tuiLabel>Passphrase (optional)</label>
@@ -69,7 +69,7 @@
       />
       <tui-icon tuiPassword />
     </tui-textfield>
-    <tui-error formControlName="passphrase" />
+    <tui-error appErrorLink formControlName="passphrase" />
 
     <tui-textfield>
       <label tuiLabel>Confirm passphrase</label>
@@ -82,7 +82,7 @@
       />
       <tui-icon tuiPassword />
     </tui-textfield>
-    <tui-error formControlName="confirm" />
+    <tui-error appErrorLink formControlName="confirm" />
 
     <label class="check">
       <input tuiCheckbox type="checkbox" formControlName="remember" data-testid="keygen-remember" />

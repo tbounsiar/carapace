@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { type ConnectionTarget, connectionTarget } from '../../../core/ipc/connection';
 import { SshService } from '../../../core/ipc/ssh';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
+import { Settings } from '../../../core/settings/settings';
 import { TerminalIpc, type TerminalEvent } from '../../../core/ipc/terminal';
 import { HostConnector } from '../../host-connection/host-connector';
 import { FakeXtermFactory } from '../fake-xterm';
@@ -72,6 +73,21 @@ describe('TerminalPanel', () => {
     }).compileComponents();
   });
 
+  it('applies the font size from the settings live and refits', async () => {
+    localStorage.clear();
+    states.set({ 'h1@e1': 'connected' });
+    await setup();
+    await click('terminal-new');
+    const view = factory.created[0];
+    expect(view.fontSize).toBe(13);
+    const fits = view.fits;
+    TestBed.inject(Settings).setTerminalFontSize(20);
+    await fixture.whenStable();
+    expect(view.fontSize).toBe(20);
+    expect(view.fits).toBeGreaterThan(fits);
+    localStorage.clear();
+  });
+
   it('shows the empty state with a New terminal button', async () => {
     await setup();
     expect(byId('terminal-empty')).toBeTruthy();
@@ -107,6 +123,23 @@ describe('TerminalPanel', () => {
     expect(byId('terminal-tab-2')).toBeTruthy();
     expect(byId('terminal-view-2')).toBeTruthy();
     expect(factory.created[1].parent?.isConnected).toBe(true);
+  });
+
+  it('exposes the tabs as a tablist with the view as the panel of the active tab', async () => {
+    states.set({ 'h1@e1': 'connected' });
+    await setup();
+    await click('terminal-new');
+    await click('terminal-new');
+    expect(el().querySelector('tui-tabs')?.getAttribute('role')).toBe('tablist');
+    const first = byId('terminal-tab-1')!;
+    const second = byId('terminal-tab-2')!;
+    expect(first.getAttribute('role')).toBe('tab');
+    expect(first.getAttribute('aria-selected')).toBe('false');
+    expect(second.getAttribute('aria-selected')).toBe('true');
+    const panel = byId('terminal-view-2')!;
+    expect(panel.getAttribute('role')).toBe('tabpanel');
+    expect(panel.getAttribute('aria-labelledby')).toBe(second.id);
+    expect(second.getAttribute('aria-controls')).toBe(panel.id);
   });
 
   it('closes a tab with its close icon', async () => {

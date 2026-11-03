@@ -6,8 +6,9 @@ import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import { of } from 'rxjs';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { KeyStore } from '../../../core/ipc/key-store';
-import type { KeyView } from '../../../core/ipc/keys';
+import type { KeyType, KeyView } from '../../../core/ipc/keys';
 import { KEY } from '../../../core/ipc/keys.fixture';
+import { Settings } from '../../../core/settings/settings';
 import { KeygenDialog, keyFilePreview } from './keygen-dialog';
 
 interface DialogApi {
@@ -22,6 +23,7 @@ describe('KeygenDialog', () => {
   const keys = signal<KeyView[]>([{ ...KEY, name: 'taken' }]);
   const keysDir = signal<string | null>(null);
   const loadKeysDir = vi.fn(() => Promise.resolve());
+  const defaultKeyType = signal<KeyType>('ed25519');
 
   async function setup() {
     await TestBed.configureTestingModule({
@@ -34,6 +36,7 @@ describe('KeygenDialog', () => {
         },
         { provide: KeyStore, useValue: { keys, generate, keysDir, loadKeysDir } },
         { provide: TuiNotificationService, useValue: alerts },
+        { provide: Settings, useValue: { defaultKeyType } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(KeygenDialog);
@@ -49,6 +52,7 @@ describe('KeygenDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     keysDir.set(null);
+    defaultKeyType.set('ed25519');
   });
 
   it('builds the preview with the separator of the keys dir', () => {
@@ -87,6 +91,15 @@ describe('KeygenDialog', () => {
     expect(byId<HTMLInputElement>(el, 'keygen-passphrase').type).toBe('password');
     expect(byId<HTMLInputElement>(el, 'keygen-confirm').type).toBe('password');
     expect(byId(el, 'keygen-path').textContent).toContain('~/.carapace/keys/id_ed25519');
+  });
+
+  it('starts with the default key type from the settings', async () => {
+    defaultKeyType.set('rsa4096');
+    const { el, dialog } = await setup();
+    expect(dialog.form.getRawValue()).toEqual(
+      expect.objectContaining({ algorithm: 'rsa4096', name: 'id_rsa', fileName: 'id_rsa' }),
+    );
+    expect(byId(el, 'keygen-type-rsa').querySelector('input')!.checked).toBe(true);
   });
 
   it('follows the type until the name is edited, and the file name follows the name', async () => {
@@ -179,7 +192,7 @@ describe('KeygenDialog', () => {
     generate.mockRejectedValueOnce(new IpcError('io', 'Disk full'));
     await dialog.submit();
     expect(alerts.open).toHaveBeenCalledWith(
-      'Disk full',
+      expect.stringContaining('Disk full. '),
       expect.objectContaining({ appearance: 'negative' }),
     );
   });

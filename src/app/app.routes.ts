@@ -25,5 +25,10 @@ export const routes: Routes = [
     path: 'keys',
     loadComponent: () => import('./features/keys/keys-page/keys-page').then((m) => m.KeysPage),
   },
+  {
+    path: 'settings',
+    loadComponent: () =>
+      import('./features/settings/settings-page/settings-page').then((m) => m.SettingsPage),
+  },
   { path: '**', redirectTo: '' },
 ];

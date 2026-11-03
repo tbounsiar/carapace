@@ -28,7 +28,7 @@ import {
 import { TuiBadge, TuiBreadcrumbs } from '@taiga-ui/kit';
 import type { FileEntry, FileSource, Listing } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
-import { notifyError } from '../../project-tree/save-error';
+import { errorText, notifyError } from '../../project-tree/save-error';
 import { FileDialogs } from '../file-dialogs';
 import { DRAG_PLACEHOLDER, DRAG_TYPE, FileDrag } from '../file-drag';
 import {
@@ -417,7 +417,11 @@ export class FilePane {
     try {
       await source.delete(entry.path, entry.kind === 'dir');
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(
+        this.alerts,
+        err,
+        entry.kind === 'dir' ? 'Folder not deleted' : 'File not deleted',
+      );
     }
     await this.load(source, parent, { select: null });
   }
@@ -486,13 +490,13 @@ export class FilePane {
   /** A refused listing stays in the pane, so the previous path remains usable. */
   private fail(err: unknown): void {
     if (err instanceof IpcError && err.code === 'permission_denied') {
-      this.error.set(err.message);
+      this.error.set(errorText(err));
       return;
     }
     if (this.listing() === null) {
-      this.error.set(err instanceof IpcError ? err.message : 'Unexpected error');
+      this.error.set(errorText(err));
     }
-    notifyError(this.alerts, err);
+    notifyError(this.alerts, err, 'Folder not opened');
   }
 
   private focusActiveRow(): void {

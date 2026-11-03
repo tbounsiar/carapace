@@ -1,6 +1,12 @@
 import { Service } from '@angular/core';
-import { FitAddon } from '@xterm/addon-fit';
-import { type ITheme, Terminal } from '@xterm/xterm';
+import type { FitAddon } from '@xterm/addon-fit';
+import type { ITheme, Terminal } from '@xterm/xterm';
+
+export interface XtermAppearance {
+  readonly theme: ITheme;
+  readonly fontFamily: string;
+  readonly fontSize: number;
+}
 
 /** The part of xterm the terminal sessions rely on, so specs can run without a canvas. */
 export interface XtermView {
@@ -10,17 +16,18 @@ export interface XtermView {
   write(data: Uint8Array | string): void;
   onData(listener: (data: string) => void): void;
   onResize(listener: (size: { cols: number; rows: number }) => void): void;
-  setAppearance(theme: ITheme, fontFamily: string): void;
+  setAppearance(appearance: XtermAppearance): void;
   fit(): void;
   focus(): void;
   dispose(): void;
 }
 
 class Xterm implements XtermView {
-  private readonly fitAddon = new FitAddon();
-
-  constructor(private readonly terminal: Terminal) {
-    terminal.loadAddon(this.fitAddon);
+  constructor(
+    private readonly terminal: Terminal,
+    private readonly fitAddon: FitAddon,
+  ) {
+    terminal.loadAddon(fitAddon);
   }
 
   get cols(): number {
@@ -47,9 +54,10 @@ class Xterm implements XtermView {
     this.terminal.onResize(listener);
   }
 
-  setAppearance(theme: ITheme, fontFamily: string): void {
+  setAppearance({ theme, fontFamily, fontSize }: XtermAppearance): void {
     this.terminal.options.theme = theme;
     this.terminal.options.fontFamily = fontFamily;
+    this.terminal.options.fontSize = fontSize;
   }
 
   fit(): void {
@@ -67,17 +75,38 @@ class Xterm implements XtermView {
   }
 }
 
+type XtermModules = [typeof import('@xterm/xterm'), typeof import('@xterm/addon-fit')];
+
+/** xterm is loaded on the first terminal, so it stays out of the host page and initial bundles. */
 @Service()
 export class XtermFactory {
-  create(theme: ITheme, fontFamily: string): XtermView {
+  private modules: Promise<XtermModules> | null = null;
+
+  async create({ theme, fontFamily, fontSize }: XtermAppearance): Promise<XtermView> {
+    const [{ Terminal }, { FitAddon }] = await this.load();
     return new Xterm(
       new Terminal({
         theme,
         fontFamily,
-        fontSize: 13,
+        fontSize,
         cursorBlink: true,
         scrollback: 10000,
+        // Without a handler xterm opens OSC 8 links chosen by the server with window.open.
+        linkHandler: { activate: () => undefined },
       }),
+      new FitAddon(),
     );
+  }
+
+  private load(): Promise<XtermModules> {
+    if (!this.modules) {
+      const modules = Promise.all([import('@xterm/xterm'), import('@xterm/addon-fit')]);
+      // A failed chunk load may succeed on the next terminal.
+      modules.catch(() => {
+        this.modules = null;
+      });
+      this.modules = modules;
+    }
+    return this.modules;
   }
 }

@@ -1,6 +1,5 @@
 import { inject, Service, signal, type Signal } from '@angular/core';
 import { TuiNotificationService } from '@taiga-ui/core';
-import type { ITheme } from '@xterm/xterm';
 import type { EffectiveTheme } from '../../core/theme/theme';
 import { IpcError } from '../../core/ipc/ipc-error';
 import {
@@ -9,7 +8,8 @@ import {
   type TerminalEvent,
 } from '../../core/ipc/terminal';
 import { notifyError } from '../project-tree/save-error';
-import { XtermFactory, type XtermView } from './xterm-factory';
+import { DEFAULT_FONT_SIZE } from '../../core/settings/settings';
+import { type XtermAppearance, XtermFactory, type XtermView } from './xterm-factory';
 import { xtermFont, xtermTheme } from './xterm-theme';
 
 export type TerminalTabState = 'opening' | 'open' | 'ended';
@@ -62,8 +62,11 @@ export class TerminalSessions {
   private readonly _active = signal<Readonly<Record<string, number>>>({});
   private readonly counters = new Map<string, number>();
   private nextKey = 1;
-  private theme: ITheme | null = null;
-  private fontFamily = 'monospace';
+  private appearance: XtermAppearance = {
+    theme: {},
+    fontFamily: 'monospace',
+    fontSize: DEFAULT_FONT_SIZE,
+  };
 
   tabs(connectionId: string): readonly TerminalTab[] {
     return this._tabs()[connectionId] ?? [];
@@ -79,14 +82,21 @@ export class TerminalSessions {
   }
 
   async open(connectionId: string): Promise<TerminalTab | null> {
+    let view: XtermView;
+    try {
+      view = await this.factory.create(this.appearance);
+    } catch {
+      this.alerts
+        .open('The terminal component could not be loaded. Restart the app and try again.', {
+          label: 'Terminal not opened',
+          appearance: 'negative',
+        })
+        .subscribe();
+      return null;
+    }
     const n = (this.counters.get(connectionId) ?? 0) + 1;
     this.counters.set(connectionId, n);
-    const session = new Session(
-      this.nextKey++,
-      connectionId,
-      n,
-      this.factory.create(this.theme ?? {}, this.fontFamily),
-    );
+    const session = new Session(this.nextKey++, connectionId, n, view);
     session.view.onData((data) => this.send(session, data));
     session.view.onResize(() => this.syncSize(session));
     this._tabs.update((tabs) => ({
@@ -134,7 +144,7 @@ export class TerminalSessions {
         await this.ipc.close(terminalId);
       } catch (err) {
         if (!(err instanceof IpcError && err.code === 'not_found')) {
-          notifyError(this.alerts, err);
+          notifyError(this.alerts, err, 'Terminal not closed');
         }
       }
     }
@@ -165,12 +175,17 @@ export class TerminalSessions {
   }
 
   /** `source` must sit inside the themed `tui-root` so the Taiga tokens resolve for `effective`. */
-  applyTheme(source: Element, effective: EffectiveTheme): void {
-    this.theme = xtermTheme(source, effective);
-    this.fontFamily = xtermFont(source);
+  applyAppearance(source: Element, effective: EffectiveTheme, fontSize: number): void {
+    this.appearance = {
+      theme: xtermTheme(source, effective),
+      fontFamily: xtermFont(source),
+      fontSize,
+    };
     for (const sessions of Object.values(this._tabs())) {
       for (const session of sessions) {
-        session.view.setAppearance(this.theme, this.fontFamily);
+        session.view.setAppearance(this.appearance);
+        // A new font size changes the cell size, so the rows and columns must be refitted.
+        session.view.fit();
       }
     }
   }
@@ -189,7 +204,7 @@ export class TerminalSessions {
     } catch (err) {
       if (!run.cancelled) {
         session.run = null;
-        notifyError(this.alerts, err);
+        notifyError(this.alerts, err, 'Terminal not opened');
       }
       return false;
     }
@@ -246,7 +261,7 @@ export class TerminalSessions {
         await call(run.terminalId);
       } catch (err) {
         if (session.run === run) {
-          notifyError(this.alerts, err);
+          notifyError(this.alerts, err, 'Terminal input lost');
         }
       }
     });

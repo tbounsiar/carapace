@@ -95,7 +95,7 @@ describe('TransferQueue', () => {
     snapshot = () => Promise.reject(new IpcError('io', 'boom'));
     await queue.start();
     expect(alerts.open).toHaveBeenCalledWith(
-      'boom',
+      expect.stringContaining('Boom. '),
       expect.objectContaining({ label: 'Transfers unavailable' }),
     );
     snapshot = () => Promise.resolve([]);
@@ -159,7 +159,7 @@ describe('TransferQueue', () => {
     ipc.enqueue.mockRejectedValueOnce(new IpcError('not_connected', 'Not connected'));
     await queue.enqueue('h1@e1', 'upload', ['C:\\a'], '/srv');
     expect(alerts.open).toHaveBeenCalledWith(
-      'Not connected',
+      expect.stringContaining('Not connected. '),
       expect.objectContaining({ label: 'Transfer not started' }),
     );
     await queue.enqueue('h1@e1', 'upload', [], '/srv');
@@ -213,7 +213,7 @@ describe('TransferQueue', () => {
     vi.advanceTimersByTime(FAILURE_WINDOW_MS);
     expect(alerts.open).toHaveBeenCalledTimes(1);
     expect(alerts.open).toHaveBeenCalledWith(
-      'j1.txt: Disk full',
+      'j1.txt: Disk full. Check that the disk is available and not full, then try again.',
       expect.objectContaining({ label: 'Transfer failed' }),
     );
 
@@ -231,7 +231,7 @@ describe('TransferQueue', () => {
     vi.advanceTimersByTime(FAILURE_WINDOW_MS);
     expect(alerts.open).toHaveBeenCalledTimes(1);
     expect(alerts.open).toHaveBeenCalledWith(
-      'a.txt, b.txt, c.txt and 2 more. Not connected',
+      'a.txt, b.txt, c.txt and 2 more. Not connected. Connect to the host, then try again.',
       expect.objectContaining({ label: '5 transfers failed' }),
     );
   });

@@ -216,7 +216,10 @@ describe('VariablesEditor', () => {
     setVariables.mockRejectedValueOnce(new IpcError('invalid_input', 'Variable pw is invalid'));
     await type('var-value-1', 'typed');
     await save();
-    expect(alerts.open).toHaveBeenCalledWith('Variable pw is invalid', expect.anything());
+    expect(alerts.open).toHaveBeenCalledWith(
+      expect.stringContaining('Variable pw is invalid. '),
+      expect.anything(),
+    );
     expect(load).toHaveBeenCalledOnce();
     expect(input('var-value-1').value).toBe('typed');
     expect(fixture.componentInstance.editor().dirty()).toBe(true);

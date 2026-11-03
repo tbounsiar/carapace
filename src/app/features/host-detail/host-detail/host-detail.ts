@@ -191,7 +191,7 @@ export class HostDetail {
         })
         .subscribe();
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(this.alerts, err, 'Saved secret not forgotten');
     } finally {
       this.forgetting.set(false);
     }

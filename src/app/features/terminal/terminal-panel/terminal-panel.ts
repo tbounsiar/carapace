@@ -14,6 +14,7 @@ import { TuiAvatar, TuiButtonLoading, TuiTabs } from '@taiga-ui/kit';
 import { TuiBlockStatus } from '@taiga-ui/layout';
 import type { ConnectionTarget } from '../../../core/ipc/connection';
 import { SshService } from '../../../core/ipc/ssh';
+import { Settings } from '../../../core/settings/settings';
 import { ThemeService } from '../../../core/theme/theme';
 import { HostConnector } from '../../host-connection/host-connector';
 import { type TerminalTab, TerminalSessions } from '../terminal-sessions';
@@ -23,6 +24,8 @@ const ENDED_REASONS = {
   closed: 'The terminal was closed.',
   connectionLost: 'The connection was lost.',
 } as const;
+
+let panels = 0;
 
 @Component({
   imports: [
@@ -44,6 +47,7 @@ export class TerminalPanel {
   private readonly ssh = inject(SshService);
   private readonly connector = inject(HostConnector);
   private readonly theme = inject(ThemeService);
+  private readonly settings = inject(Settings);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly target = input.required<ConnectionTarget>();
@@ -51,6 +55,8 @@ export class TerminalPanel {
   readonly envName = input<string | null>(null);
 
   private readonly view = viewChild<ElementRef<HTMLElement>>('view');
+  private readonly uid = ++panels;
+  protected readonly panelId = `terminal-panel-${this.uid}`;
   private attached: TerminalTab | null = null;
 
   protected readonly busy = signal(false);
@@ -67,7 +73,11 @@ export class TerminalPanel {
 
   constructor() {
     afterRenderEffect(() => {
-      this.sessions.applyTheme(this.host.nativeElement, this.theme.effective());
+      this.sessions.applyAppearance(
+        this.host.nativeElement,
+        this.theme.effective(),
+        this.settings.terminalFontSize(),
+      );
     });
     afterRenderEffect((onCleanup) => {
       const container = this.view()?.nativeElement;
@@ -96,6 +106,10 @@ export class TerminalPanel {
     if (tab) {
       this.sessions.select(tab);
     }
+  }
+
+  protected tabId(tab: TerminalTab): string {
+    return `terminal-tab-${this.uid}-${tab.key}`;
   }
 
   protected title(tab: TerminalTab): string {

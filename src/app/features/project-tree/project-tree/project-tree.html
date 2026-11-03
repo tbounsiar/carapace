@@ -1,9 +1,25 @@
 @if (loading()) {
   <tui-loader class="loader" />
+} @else if (loadError(); as message) {
+  <tui-block-status size="m" class="empty" data-testid="projects-error">
+    <h2>Projects could not be loaded</h2>
+    <p>{{ message }}</p>
+    <button
+      tuiButton
+      appearance="primary"
+      size="s"
+      iconStart="@tui.refresh-cw"
+      type="button"
+      data-testid="projects-retry"
+      (click)="reload()"
+    >
+      Try again
+    </button>
+  </tui-block-status>
 } @else if (nodes().length === 0) {
   <tui-block-status size="m" class="empty">
     <h2>No projects yet</h2>
-    Projects group your hosts, environments and variables.
+    <p>Projects group your hosts, environments and variables.</p>
     <button
       tuiButton
       appearance="primary"

@@ -20,6 +20,7 @@ import { injectContext } from '@taiga-ui/polymorpheus';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Host, Project } from '../../../core/ipc/config.models';
 import type { KeyView } from '../../../core/ipc/keys';
+import { ErrorLink } from '../../../shared/error-link';
 
 export interface KeyDeployDialogData {
   readonly key: Pick<KeyView, 'name' | 'path'>;
@@ -39,6 +40,7 @@ function required(control: AbstractControl): ValidationErrors | null {
 
 @Component({
   imports: [
+    ErrorLink,
     ReactiveFormsModule,
     TuiButton,
     TuiButtonLoading,

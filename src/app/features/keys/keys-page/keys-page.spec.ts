@@ -70,13 +70,19 @@ describe('KeysPage', () => {
     expect(actions.import).toHaveBeenCalledOnce();
   });
 
-  it('notifies a failed load', async () => {
+  it('shows a failed load as an error with a retry, not as an empty list', async () => {
     load.mockRejectedValueOnce(new IpcError('io', 'Cannot read config'));
     await setup([]);
     expect(alerts.open).toHaveBeenCalledWith(
-      'Cannot read config',
+      expect.stringContaining('Cannot read config. '),
       expect.objectContaining({ label: 'Keys unavailable' }),
     );
+    expect(byId('keys-empty')).toBeNull();
+    expect(byId('keys-error')?.textContent).toContain('Cannot read config.');
+    load.mockResolvedValueOnce(undefined);
+    await click('keys-retry');
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(byId('keys-error')).toBeNull();
     expect(byId('keys-empty')).not.toBeNull();
   });
 

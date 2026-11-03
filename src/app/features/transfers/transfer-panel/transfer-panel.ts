@@ -31,6 +31,10 @@ export class TransferPanel {
   protected readonly queued = computed(
     () => this.jobs().filter((j) => j.state === 'queued').length,
   );
+  protected readonly done = computed(() => this.jobs().filter((j) => j.state === 'done').length);
+  protected readonly failed = computed(
+    () => this.jobs().filter((j) => j.state === 'failed').length,
+  );
   protected readonly canClear = computed(() => this.jobs().some((j) => isFinished(j.state)));
   protected readonly expanded = signal(false);
 

@@ -150,13 +150,17 @@ describe('TerminalSessions', () => {
     const tab = await sessions.open('h1@e1');
     expect(tab).toBeNull();
     expect(sessions.tabs('h1@e1')).toEqual([]);
-    expect(alerts.open).toHaveBeenCalledWith('Host is not connected', expect.anything());
+    expect(alerts.open).toHaveBeenCalledWith(
+      expect.stringContaining('Host is not connected. '),
+      expect.anything(),
+    );
   });
 
   it('closes a backend terminal whose tab was closed while opening', async () => {
     let resolve!: (id: string) => void;
     openResult = () => new Promise((r) => (resolve = r));
     const opening = sessions.open('h1@e1');
+    await flush();
     await sessions.close(sessions.tabs('h1@e1')[0]);
     resolve('t9');
     expect(await opening).toBeNull();
@@ -178,7 +182,10 @@ describe('TerminalSessions', () => {
     ipc.write.mockRejectedValueOnce(new IpcError('busy', 'Terminal input queue is full'));
     factory.created[0].type('x');
     await flush();
-    expect(alerts.open).toHaveBeenCalledWith('Terminal input queue is full', expect.anything());
+    expect(alerts.open).toHaveBeenCalledWith(
+      expect.stringContaining('Terminal input queue is full. '),
+      expect.anything(),
+    );
     expect(tab?.state()).toBe('open');
   });
 
@@ -196,16 +203,32 @@ describe('TerminalSessions', () => {
     expect(factory.created).toHaveLength(1);
   });
 
-  it('applies the theme to existing and new terminals', async () => {
+  it('applies the theme and font size to existing and new terminals, and refits', async () => {
     await sessions.open('h1@e1');
+    expect(factory.created[0].fontSize).toBe(13);
+    const fits = factory.created[0].fits;
     const source = document.createElement('div');
     source.style.setProperty('--tui-background-base', '#123456');
     document.body.append(source);
-    sessions.applyTheme(source, 'dark');
+    sessions.applyAppearance(source, 'dark', 18);
     expect(factory.created[0].theme?.background).toBe('#123456');
+    expect(factory.created[0].fontSize).toBe(18);
+    expect(factory.created[0].fits).toBe(fits + 1);
     await sessions.open('h1@e1');
     expect(factory.created[1].theme?.background).toBe('#123456');
     expect(factory.created[1].theme?.red).toBeTruthy();
+    expect(factory.created[1].fontSize).toBe(18);
     source.remove();
+  });
+
+  it('notifies and opens no tab when xterm fails to load', async () => {
+    vi.spyOn(factory, 'create').mockRejectedValueOnce(new Error('chunk'));
+    expect(await sessions.open('h1@e1')).toBeNull();
+    expect(sessions.tabs('h1@e1')).toEqual([]);
+    expect(alerts.open).toHaveBeenCalledWith(
+      expect.stringContaining('could not be loaded'),
+      expect.objectContaining({ label: 'Terminal not opened' }),
+    );
+    expect((await sessions.open('h1@e1'))?.n).toBe(1);
   });
 });

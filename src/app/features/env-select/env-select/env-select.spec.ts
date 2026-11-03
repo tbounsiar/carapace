@@ -110,6 +110,9 @@ describe('EnvSelect', () => {
     await open();
     byId('env-option-Dev')!.click();
     await settle();
-    expect(alerts.open).toHaveBeenCalledWith('Could not save', expect.anything());
+    expect(alerts.open).toHaveBeenCalledWith(
+      expect.stringContaining('Could not save. '),
+      expect.anything(),
+    );
   });
 });

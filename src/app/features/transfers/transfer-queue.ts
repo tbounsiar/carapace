@@ -11,7 +11,7 @@ import {
   type TransferEvent,
   type TransferView,
 } from '../../core/ipc/transfers';
-import { notifyError } from '../project-tree/save-error';
+import { errorText, notifyError } from '../project-tree/save-error';
 import { ConflictPrompter } from './conflict-prompter';
 
 /** Failures arriving within this window are reported together. */
@@ -122,7 +122,7 @@ export class TransferQueue {
       await this.ipc.cancel(jobId);
     } catch (err) {
       if (!(err instanceof IpcError && err.code === 'not_found')) {
-        notifyError(this.alerts, err);
+        notifyError(this.alerts, err, 'Transfer not cancelled');
       }
     }
   }
@@ -131,7 +131,7 @@ export class TransferQueue {
     try {
       await this.ipc.clearFinished();
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(this.alerts, err, 'Finished transfers not cleared');
     }
   }
 
@@ -201,7 +201,7 @@ export class TransferQueue {
       );
     } catch (err) {
       if (!(err instanceof IpcError && err.code === 'not_found')) {
-        notifyError(this.alerts, err);
+        notifyError(this.alerts, err, 'Conflict answer not sent');
       }
     }
   }
@@ -217,16 +217,18 @@ export class TransferQueue {
     this.failureTimer = null;
     if (failed.length <= MAX_SEPARATE_FAILURES) {
       for (const job of failed) {
-        const message = job.error?.message ?? 'Unexpected error';
         this.alerts
-          .open(`${job.name}: ${message}`, { label: 'Transfer failed', appearance: 'negative' })
+          .open(`${job.name}: ${errorText(job.error)}`, {
+            label: 'Transfer failed',
+            appearance: 'negative',
+          })
           .subscribe();
       }
       return;
     }
     const names = failed.slice(0, MAX_SEPARATE_FAILURES).map((j) => j.name);
     const rest = failed.length - names.length;
-    const reasons = [...new Set(failed.map((j) => j.error?.message ?? 'Unexpected error'))];
+    const reasons = [...new Set(failed.map((j) => errorText(j.error)))];
     const reason = reasons.length === 1 ? ` ${reasons[0]}` : '';
     this.alerts
       .open(`${names.join(', ')} and ${rest} more.${reason}`, {

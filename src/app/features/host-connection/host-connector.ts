@@ -58,7 +58,7 @@ export class HostConnector {
     try {
       await this.ssh.disconnect(connectionId);
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(this.alerts, err, 'Disconnect failed');
     }
   }
 
@@ -115,7 +115,7 @@ export class HostConnector {
           .subscribe();
       }
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(this.alerts, err, 'Host key not replaced');
     }
   }
 }

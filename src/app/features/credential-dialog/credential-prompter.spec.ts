@@ -19,6 +19,8 @@ describe('CredentialPrompter', () => {
     document.body.querySelector<T>(`app-credential-dialog [data-testid="${id}"]`)!;
 
   beforeEach(async () => {
+    // The prompter imports the dialog lazily; load it once so a single settle() is enough.
+    await import('./credential-dialog');
     await TestBed.configureTestingModule({
       imports: [Shell],
       providers: [provideTaiga()],

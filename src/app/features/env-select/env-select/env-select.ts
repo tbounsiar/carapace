@@ -46,7 +46,7 @@ export class EnvSelect {
     try {
       await this.config.setActiveEnvironment(project.id, environmentId);
     } catch (err) {
-      notifyError(this.alerts, err);
+      notifyError(this.alerts, err, 'Environment not changed');
     }
   }
 }

@@ -31,6 +31,8 @@ describe('ConflictDialog', () => {
     document.body.querySelector<T>(`app-conflict-dialog [data-testid="${id}"]`)!;
 
   beforeEach(async () => {
+    // The prompter imports the dialog lazily; load it once so a single settle() is enough.
+    await import('./conflict-dialog');
     await TestBed.configureTestingModule({
       imports: [Shell],
       providers: [provideTaiga()],

@@ -19,6 +19,7 @@ import { injectContext } from '@taiga-ui/polymorpheus';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { KeyStore } from '../../../core/ipc/key-store';
 import type { KeyType, KeyView } from '../../../core/ipc/keys';
+import { Settings } from '../../../core/settings/settings';
 import { notifyError } from '../../project-tree/save-error';
 import {
   commentValidator,
@@ -29,6 +30,7 @@ import {
   matchValidator,
   passphraseValidator,
 } from '../key-validators';
+import { ErrorLink } from '../../../shared/error-link';
 
 /** Shown until the backend tells the real directory. */
 export const KEYS_DIR_FALLBACK = '~/.carapace/keys/';
@@ -43,6 +45,7 @@ export function keyFilePreview(dir: string | null, fileName: string): string {
 
 @Component({
   imports: [
+    ErrorLink,
     ReactiveFormsModule,
     TuiAutoFocus,
     TuiButton,
@@ -71,10 +74,11 @@ export class KeygenDialog {
   private readonly names = (): string[] => this.store.keys().map((k) => k.name);
   private readonly fb = inject(NonNullableFormBuilder);
   private readonly passphrase = this.fb.control('', passphraseValidator);
+  private readonly initialType = inject(Settings).defaultKeyType();
   protected readonly form = this.fb.group({
-    algorithm: this.fb.control<KeyType>('ed25519'),
-    name: this.fb.control(DEFAULT_KEY_NAMES.ed25519, keyNameValidator(this.names)),
-    fileName: this.fb.control(fileNameFor(DEFAULT_KEY_NAMES.ed25519), fileNameValidator),
+    algorithm: this.fb.control<KeyType>(this.initialType),
+    name: this.fb.control(DEFAULT_KEY_NAMES[this.initialType], keyNameValidator(this.names)),
+    fileName: this.fb.control(fileNameFor(DEFAULT_KEY_NAMES[this.initialType]), fileNameValidator),
     comment: this.fb.control('carapace', commentValidator),
     passphrase: this.passphrase,
     confirm: this.fb.control(

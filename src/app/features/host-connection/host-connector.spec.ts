@@ -112,7 +112,7 @@ describe('HostConnector', () => {
   it('notifies the backend message as-is, including missing variables', async () => {
     ssh.connect.mockRejectedValue(new IpcError('missing_variables', 'Missing variables: host'));
     await connector.connect(target);
-    expect(alerts.open).toHaveBeenCalledWith('Missing variables: host', {
+    expect(alerts.open).toHaveBeenCalledWith(expect.stringContaining('Missing variables: host. '), {
       label: 'Missing variables',
       appearance: 'negative',
     });
@@ -210,7 +210,7 @@ describe('HostConnector', () => {
       ssh.connect.mockRejectedValue(fail('auth_failed'));
       await connector.connect(target);
       expect(credentials.ask).not.toHaveBeenCalled();
-      expect(alerts.open).toHaveBeenCalledWith('safe message', {
+      expect(alerts.open).toHaveBeenCalledWith(expect.stringContaining('Safe message. '), {
         label: 'Connection failed',
         appearance: 'negative',
       });

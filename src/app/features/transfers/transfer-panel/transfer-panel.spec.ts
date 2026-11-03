@@ -85,6 +85,19 @@ describe('TransferPanel', () => {
     expect(byId('transfer-state-later.txt')!.textContent).toContain('Queued');
   });
 
+  it('announces finished jobs through a status region', async () => {
+    await setup([
+      job('a.txt', { state: 'done' }),
+      job('b.txt', { state: 'done' }),
+      job('c.txt', { state: 'failed', error: { code: 'io', message: 'disk full' } }),
+    ]);
+    const status = el().querySelector('[role="status"]')!;
+    expect(status.querySelector('[data-testid="transfer-done"]')!.textContent).toContain('2 done');
+    expect(status.querySelector('[data-testid="transfer-failed"]')!.textContent).toContain(
+      '1 failed',
+    );
+  });
+
   it('offers cancel only while a job is active', async () => {
     await setup([
       job('a', { state: 'queued' }),

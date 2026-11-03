@@ -47,6 +47,11 @@ describe('host key dialogs', () => {
   };
 
   beforeEach(async () => {
+    // The prompter imports the dialog lazily; load it once so a single settle() is enough.
+    await Promise.all([
+      import('./host-key-dialog'),
+      import('./host-key-changed-dialog/host-key-changed-dialog'),
+    ]);
     await TestBed.configureTestingModule({
       imports: [Shell],
       providers: [provideTaiga()],

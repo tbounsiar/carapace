@@ -119,6 +119,7 @@ describe('HostDetail', () => {
     expect(byId('host-detail-auth')?.textContent).toContain('Private key file');
     expect(byId('host-detail-auth')?.textContent).toContain('~/.ssh/id_ed25519');
     expect(byId('host-detail-status')?.textContent).toContain('Not connected');
+    expect(byId('host-detail-status')?.getAttribute('role')).toBe('status');
   });
 
   it('shows the missing variables instead of an address', async () => {
@@ -181,7 +182,10 @@ describe('HostDetail', () => {
     await setup();
     byId('host-forget-secrets')!.click();
     await settle();
-    expect(alerts.open).toHaveBeenCalledWith('Keychain unavailable', expect.anything());
+    expect(alerts.open).toHaveBeenCalledWith(
+      expect.stringContaining('Keychain unavailable. '),
+      expect.anything(),
+    );
   });
 
   it('offers no forget action for an agent host', async () => {

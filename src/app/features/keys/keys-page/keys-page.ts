@@ -14,7 +14,7 @@ import { TuiAvatar, TuiBadge } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiHeader } from '@taiga-ui/layout';
 import { KeyStore } from '../../../core/ipc/key-store';
 import { keyTypeLabel, type KeyView } from '../../../core/ipc/keys';
-import { notifyError } from '../../project-tree/save-error';
+import { errorText, notifyError } from '../../project-tree/save-error';
 import { KeyActions } from '../key-actions';
 
 @Component({
@@ -43,13 +43,25 @@ export class KeysPage {
 
   protected readonly keys = this.store.keys;
   protected readonly loading = signal(true);
+  /** Set when the last load failed, so an empty list is not shown as "no keys". */
+  protected readonly loadError = signal<string | null>(null);
   protected readonly openMenu = signal<string | null>(null);
 
   constructor() {
-    this.store
-      .load()
-      .catch((err: unknown) => notifyError(this.alerts, err, 'Keys unavailable'))
-      .finally(() => this.loading.set(false));
+    void this.reload();
+  }
+
+  protected async reload(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      await this.store.load();
+    } catch (err) {
+      this.loadError.set(errorText(err));
+      notifyError(this.alerts, err, 'Keys unavailable');
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   protected typeLabel(key: KeyView): string {

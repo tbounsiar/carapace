@@ -3,6 +3,8 @@
     <tui-tabs
       size="m"
       class="tabs"
+      role="tablist"
+      aria-label="Terminals"
       [activeItemIndex]="activeIndex()"
       (activeItemIndexChange)="select($event)"
     >
@@ -10,7 +12,11 @@
         <button
           tuiTab
           type="button"
+          role="tab"
           aria-keyshortcuts="Delete"
+          [id]="tabId(tab)"
+          [attr.aria-selected]="tab === activeTab()"
+          [attr.aria-controls]="tab === activeTab() ? panelId : null"
           [attr.data-testid]="'terminal-tab-' + tab.n"
           (keydown.delete)="close(tab)"
         >
@@ -57,7 +63,14 @@
         </button>
       </div>
     }
-    <div #view class="view" [attr.data-testid]="'terminal-view-' + tab.n"></div>
+    <div
+      #view
+      class="view"
+      role="tabpanel"
+      [id]="panelId"
+      [attr.aria-labelledby]="tabId(tab)"
+      [attr.data-testid]="'terminal-view-' + tab.n"
+    ></div>
   }
 } @else {
   <tui-block-status size="m" data-testid="terminal-empty">

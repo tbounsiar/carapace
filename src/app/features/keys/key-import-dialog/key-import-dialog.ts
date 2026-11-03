@@ -25,9 +25,11 @@ import {
   keyNameValidator,
   passphraseValidator,
 } from '../key-validators';
+import { ErrorLink } from '../../../shared/error-link';
 
 @Component({
   imports: [
+    ErrorLink,
     ReactiveFormsModule,
     TuiAutoFocus,
     TuiButton,

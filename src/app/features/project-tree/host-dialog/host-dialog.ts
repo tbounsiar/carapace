@@ -34,6 +34,7 @@ import {
   secretReferenceValidator,
   templated,
 } from '../validators';
+import { ErrorLink } from '../../../shared/error-link';
 
 export interface HostDialogData {
   readonly projectId: string;
@@ -50,6 +51,7 @@ function reference(value: string | null): string | null {
 
 @Component({
   imports: [
+    ErrorLink,
     TuiActiveZone,
     ReactiveFormsModule,
     TuiAutoFocus,

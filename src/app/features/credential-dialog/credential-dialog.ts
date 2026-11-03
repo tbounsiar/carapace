@@ -17,6 +17,7 @@ import { injectContext } from '@taiga-ui/polymorpheus';
 import type { SecretKind } from '../../core/ipc/secrets';
 import type { Credential } from '../../core/ipc/ssh.models';
 import { secretValidator } from '../project-tree/validators';
+import { ErrorLink } from '../../shared/error-link';
 
 export interface CredentialDialogData {
   readonly kind: SecretKind;
@@ -27,6 +28,7 @@ export interface CredentialDialogData {
 
 @Component({
   imports: [
+    ErrorLink,
     ReactiveFormsModule,
     TuiAutoFocus,
     TuiButton,

@@ -3,7 +3,7 @@
     <label tuiLabel>Name</label>
     <input tuiAutoFocus tuiInput formControlName="name" data-testid="host-name" />
   </tui-textfield>
-  <tui-error formControlName="name" />
+  <tui-error appErrorLink formControlName="name" />
 
   <p class="note">
     Fields accept variables such as <code class="mono">{{ example }}</code
@@ -20,14 +20,14 @@
       <input tuiInput class="mono" formControlName="port" data-testid="host-port" />
     </tui-textfield>
   </fieldset>
-  <tui-error formControlName="hostname" />
-  <tui-error formControlName="port" />
+  <tui-error appErrorLink formControlName="hostname" />
+  <tui-error appErrorLink formControlName="port" />
 
   <tui-textfield>
     <label tuiLabel>Username</label>
     <input tuiInput class="mono" formControlName="username" data-testid="host-username" />
   </tui-textfield>
-  <tui-error formControlName="username" />
+  <tui-error appErrorLink formControlName="username" />
 
   <fieldset class="auth">
     <legend>Authentication</legend>
@@ -86,7 +86,7 @@
         </tui-data-list>
       </ng-template>
     </tui-textfield>
-    <tui-error formControlName="keyPath" />
+    <tui-error appErrorLink formControlName="keyPath" />
     <tui-textfield tuiChevron [stringify]="askLabel" [tuiTextfieldCleaner]="false">
       <label tuiLabel>Passphrase</label>
       <input
@@ -116,7 +116,7 @@
         }
       </tui-data-list>
     </tui-textfield>
-    <tui-error formControlName="passphrase" />
+    <tui-error appErrorLink formControlName="passphrase" />
   }
 
   @if (isPassword()) {
@@ -149,7 +149,7 @@
         }
       </tui-data-list>
     </tui-textfield>
-    <tui-error formControlName="password" />
+    <tui-error appErrorLink formControlName="password" />
   }
 
   @if (preview(); as p) {

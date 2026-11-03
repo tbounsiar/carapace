@@ -3,7 +3,7 @@ import { TuiDialogService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
 import type { Credential } from '../../core/ipc/ssh.models';
-import { CredentialDialog, type CredentialDialogData } from './credential-dialog';
+import type { CredentialDialogData } from './credential-dialog';
 
 @Service()
 export class CredentialPrompter {
@@ -11,6 +11,7 @@ export class CredentialPrompter {
 
   /** Null when the dialog is closed without submitting. */
   async ask(label: string, data: CredentialDialogData): Promise<Credential | null> {
+    const { CredentialDialog } = await import('./credential-dialog');
     return firstValueFrom(
       this.dialogs.open<Credential>(new PolymorpheusComponent(CredentialDialog), {
         label,

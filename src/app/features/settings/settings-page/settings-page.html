@@ -1,0 +1,73 @@
+<header tuiHeader="body-l" class="header">
+  <hgroup tuiTitle>
+    <h1 id="settings-title" data-testid="settings-title">Settings</h1>
+    <p tuiSubtitle>Preferences of this app on this computer. Changes apply right away.</p>
+  </hgroup>
+</header>
+
+<section tuiForm="m" class="form" aria-labelledby="settings-title">
+  <fieldset class="group">
+    <legend class="legend">Theme</legend>
+    <tui-segmented size="s">
+      @for (option of themeOptions; track option.value) {
+        <label [attr.data-testid]="'settings-theme-' + option.value">
+          <input
+            type="radio"
+            name="theme"
+            [value]="option.value"
+            [ngModel]="theme()"
+            (ngModelChange)="setTheme($event)"
+          />
+          <tui-icon [icon]="option.icon" />
+          {{ option.label }}
+        </label>
+      }
+    </tui-segmented>
+    <p class="note">System follows the light or dark setting of the operating system.</p>
+  </fieldset>
+
+  <fieldset class="group">
+    <legend class="legend">Default key type</legend>
+    <tui-segmented size="s">
+      @for (option of keyTypeOptions; track option.value) {
+        <label [attr.data-testid]="'settings-key-type-' + option.value">
+          <input
+            type="radio"
+            name="keyType"
+            [value]="option.value"
+            [ngModel]="keyType()"
+            (ngModelChange)="setKeyType($event)"
+          />
+          {{ option.label }}
+        </label>
+      }
+    </tui-segmented>
+    <p class="note">Preselected when you generate a key. Ed25519 is recommended.</p>
+  </fieldset>
+
+  <fieldset class="group">
+    <legend class="legend" id="settings-font-size-label">Terminal font size</legend>
+    <div class="size">
+      <input
+        tuiSlider
+        type="range"
+        name="fontSize"
+        class="slider"
+        aria-labelledby="settings-font-size-label"
+        aria-describedby="settings-font-size-hint"
+        data-testid="settings-font-size"
+        [min]="fontSizeMin"
+        [max]="fontSizeMax"
+        [step]="1"
+        [attr.aria-valuetext]="fontSize() + ' pixels'"
+        [ngModel]="fontSize()"
+        (ngModelChange)="setFontSize($event)"
+      />
+      <output class="value" data-testid="settings-font-size-value">{{ fontSize() }} px</output>
+    </div>
+    <p class="preview" aria-hidden="true" [style.font-size.px]="fontSize()">user@host:~$ ls -la</p>
+    <p class="note" id="settings-font-size-hint">
+      From {{ fontSizeMin }} to {{ fontSizeMax }} px. Open terminals update immediately.
+    </p>
+  </fieldset>
+</section>

@@ -2,13 +2,29 @@
   <span tuiAvatar="@tui.terminal" size="xl" tuiSlot="top"></span>
   <h1>Carapace</h1>
   <p class="line">SSH and SFTP, organized by project, with environments and variables.</p>
-  @if (hasProjects()) {
-    <p class="line">Select a host in the sidebar to connect.</p>
-    <p class="line">
-      Pick the environment at the top right: host fields such as host, port or user can use its
-      variables.
-    </p>
-  } @else {
+  @if (firstEmptyProject(); as project) {
+    <p class="line">{{ project.name }} has no hosts yet. Add one to connect to it.</p>
+  } @else if (hasProjects()) {
+    <div class="line">
+      <p>Select a host in the sidebar to connect.</p>
+      <p>
+        Pick the environment at the top right: host fields such as host, port or user can use its
+        variables.
+      </p>
+    </div>
+  }
+  @if (firstEmptyProject(); as project) {
+    <button
+      tuiButton
+      size="m"
+      iconStart="@tui.plus"
+      type="button"
+      data-testid="welcome-add-host"
+      (click)="addHost(project)"
+    >
+      Add host
+    </button>
+  } @else if (!hasProjects()) {
     <button
       tuiButton
       size="m"

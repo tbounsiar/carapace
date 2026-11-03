@@ -112,6 +112,7 @@
       size="s"
       class="table"
       role="grid"
+      aria-multiselectable="true"
       [attr.aria-label]="label() + ' files'"
       [sorter]="sorter()"
       [direction]="direction()"
@@ -206,7 +207,11 @@
           @if (listing()) {
             <tr>
               <td tuiTd class="empty" [attr.colspan]="columnCount()">
-                {{ hiddenCount() ? 'Only hidden items' : 'This folder is empty' }}
+                @if (hiddenCount()) {
+                  Only hidden items. Show hidden files to see them.
+                } @else {
+                  This folder is empty. Drop files here from the other pane, or create a folder.
+                }
               </td>
             </tr>
           }

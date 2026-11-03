@@ -1,7 +1,7 @@
 @if (notFound()) {
   <tui-block-status size="m" data-testid="vars-not-found">
     <h2>Project not found</h2>
-    It may have been deleted.
+    <p>It may have been deleted. Pick another project in the sidebar.</p>
     <a tuiButton appearance="secondary" size="s" routerLink="/">Back to start</a>
   </tui-block-status>
 } @else if (scope(); as scope) {

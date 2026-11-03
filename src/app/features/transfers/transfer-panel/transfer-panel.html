@@ -13,21 +13,33 @@
   >
     Transfers
   </button>
-  @if (running()) {
-    <span tuiBadge size="s" appearance="info" data-testid="transfer-running">
-      {{ running() }} running
-    </span>
-  }
-  @if (waiting()) {
-    <span tuiBadge size="s" appearance="warning" data-testid="transfer-waiting">
-      {{ waiting() }} waiting
-    </span>
-  }
-  @if (queued()) {
-    <span tuiBadge size="s" appearance="neutral" data-testid="transfer-queued">
-      {{ queued() }} queued
-    </span>
-  }
+  <span class="badges" role="status" aria-label="Transfer status">
+    @if (running()) {
+      <span tuiBadge size="s" appearance="info" data-testid="transfer-running">
+        {{ running() }} running
+      </span>
+    }
+    @if (waiting()) {
+      <span tuiBadge size="s" appearance="warning" data-testid="transfer-waiting">
+        {{ waiting() }} waiting
+      </span>
+    }
+    @if (queued()) {
+      <span tuiBadge size="s" appearance="neutral" data-testid="transfer-queued">
+        {{ queued() }} queued
+      </span>
+    }
+    @if (done()) {
+      <span tuiBadge size="s" appearance="positive" data-testid="transfer-done">
+        {{ done() }} done
+      </span>
+    }
+    @if (failed()) {
+      <span tuiBadge size="s" appearance="negative" data-testid="transfer-failed">
+        {{ failed() }} failed
+      </span>
+    }
+  </span>
   <button
     tuiButton
     appearance="flat-grayscale"
