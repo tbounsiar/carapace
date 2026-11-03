@@ -14,6 +14,21 @@ description = "Allows the generate_key command."
 commands.allow = ["generate_key"]
 
 [[permission]]
+identifier = "allow-check-key-location"
+description = "Allows the check_key_location command."
+commands.allow = ["check_key_location"]
+
+[[permission]]
+identifier = "allow-pick-key-folder"
+description = "Allows the pick_key_folder command (native folder picker opened from Rust)."
+commands.allow = ["pick_key_folder"]
+
+[[permission]]
+identifier = "allow-pick-key-file"
+description = "Allows the pick_key_file command (native file picker opened from Rust)."
+commands.allow = ["pick_key_file"]
+
+[[permission]]
 identifier = "allow-import-key"
 description = "Allows the import_key command."
 commands.allow = ["import_key"]

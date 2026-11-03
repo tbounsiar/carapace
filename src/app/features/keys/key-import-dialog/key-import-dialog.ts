@@ -1,4 +1,13 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  DestroyRef,
+  ElementRef,
+  inject,
+  Injector,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { TuiAutoFocus, TuiValidationError } from '@taiga-ui/cdk';
@@ -6,6 +15,7 @@ import {
   TuiButton,
   TuiCheckbox,
   TuiError,
+  TuiHint,
   TuiIcon,
   TuiInput,
   TuiNotificationService,
@@ -16,6 +26,7 @@ import { TuiButtonLoading, TuiPassword, TuiTooltip } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
 import { IpcError } from '../../../core/ipc/ipc-error';
+import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import { KeyStore } from '../../../core/ipc/key-store';
 import type { KeyView } from '../../../core/ipc/keys';
 import { notifyError } from '../../project-tree/save-error';
@@ -27,6 +38,11 @@ import {
 } from '../key-validators';
 import { ErrorLink } from '../../../shared/error-link';
 
+export interface KeyImportDialogData {
+  /** Prefills the path (a file just browsed elsewhere). */
+  readonly path?: string;
+}
+
 @Component({
   imports: [
     ErrorLink,
@@ -37,6 +53,7 @@ import { ErrorLink } from '../../../shared/error-link';
     TuiCheckbox,
     TuiError,
     TuiForm,
+    TuiHint,
     TuiIcon,
     TuiInput,
     TuiPassword,
@@ -50,20 +67,31 @@ import { ErrorLink } from '../../../shared/error-link';
 export class KeyImportDialog {
   private readonly store = inject(KeyStore);
   private readonly alerts = inject(TuiNotificationService);
-  protected readonly context = injectContext<TuiDialogContext<KeyView, void>>();
+  private readonly picker = inject(KeyFilePicker);
+  private readonly injector = inject(Injector);
+  protected readonly context =
+    injectContext<TuiDialogContext<KeyView, KeyImportDialogData | undefined>>();
+  private readonly initialPath = this.context.data?.path ?? '';
+  protected readonly prefilled = !!this.initialPath;
+  protected readonly picking = this.picker.picking;
+  private readonly pathInput = viewChild('pathInput', { read: ElementRef });
+  private readonly browseButton = viewChild('browseButton', { read: ElementRef });
 
   protected readonly saving = signal(false);
   private readonly names = (): string[] => this.store.keys().map((k) => k.name);
   private readonly fb = inject(NonNullableFormBuilder);
   protected readonly form = this.fb.group({
-    path: this.fb.control('', keyFilePathValidator),
-    name: this.fb.control('', keyNameValidator(this.names)),
+    path: this.fb.control(this.initialPath, keyFilePathValidator),
+    name: this.fb.control(baseName(this.initialPath), keyNameValidator(this.names)),
     passphrase: this.fb.control('', passphraseValidator),
     remember: this.fb.control({ value: false, disabled: true }),
   });
 
   constructor() {
     const c = this.form.controls;
+    if (this.prefilled) {
+      c.path.markAsTouched();
+    }
     const destroyRef = inject(DestroyRef);
     c.path.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe((path) => {
       if (!c.name.dirty) {
@@ -77,6 +105,31 @@ export class KeyImportDialog {
         c.remember.setValue(false);
         c.remember.disable();
       }
+    });
+  }
+
+  protected async browse(): Promise<void> {
+    const path = this.form.controls.path;
+    let picked: string | null;
+    try {
+      picked = await this.picker.pickFile(path.value.trim() || null);
+    } catch (err) {
+      notifyError(this.alerts, err, 'File picker not opened');
+      return;
+    }
+    if (picked === null) {
+      this.focusLater(this.browseButton());
+      return;
+    }
+    path.setValue(picked);
+    path.markAsDirty();
+    path.markAsTouched();
+    this.focusLater(this.pathInput());
+  }
+
+  private focusLater(ref: ElementRef | undefined): void {
+    afterNextRender(() => (ref?.nativeElement as HTMLElement | undefined)?.focus(), {
+      injector: this.injector,
     });
   }
 

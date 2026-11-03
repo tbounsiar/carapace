@@ -9,7 +9,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use super::migrate::{self, Dropped, LegacyProject, MigrationPlan};
-use super::model::{ConfigFile, Host, KeyEntry, Node, Project, Variable, VariableScope};
+use super::model::{ConfigFile, Host, KeyEntry, KeyOrigin, Node, Project, Variable, VariableScope};
 use super::validate::{self, same_name};
 
 mod nodes;
@@ -169,6 +169,14 @@ struct Probe {
     version: u32,
     #[serde(default)]
     projects: Vec<ProjectProbe>,
+    #[serde(default)]
+    keys: Vec<KeyProbe>,
+}
+
+#[derive(Deserialize)]
+struct KeyProbe {
+    #[serde(default, deserialize_with = "present")]
+    origin: bool,
 }
 
 /// Whether a project still carries the environment fields of a version 3 file written before
@@ -288,6 +296,7 @@ impl ConfigStore {
                 let mut cfg: ConfigFile =
                     serde_json::from_slice(&raw).map_err(|_| ConfigError::Corrupt)?;
                 validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
+                self.fix_origins(&mut cfg, &probe);
                 if probe.has_environments() {
                     let Dropped { plan, legacy } =
                         migrate::drop_environments(&mut cfg, &raw, false)
@@ -302,6 +311,7 @@ impl ConfigStore {
             2 => {
                 let mut cfg = migrate::from_v2(&raw, VERSION).map_err(|_| ConfigError::Corrupt)?;
                 validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
+                self.fix_origins(&mut cfg, &probe);
                 let Dropped { plan, legacy } = migrate::drop_environments(&mut cfg, &raw, true)
                     .map_err(|()| ConfigError::Corrupt)?;
                 self.before_save(&plan)?;
@@ -320,6 +330,37 @@ impl ConfigStore {
                 Ok(ConfigFile::default())
             }
             _ => Err(ConfigError::Corrupt),
+        }
+    }
+
+    /// Entries written before `origin` existed: files directly in the app's keys directory
+    /// were generated there, anything else was imported. Kept in memory; saved with the next
+    /// change.
+    fn fix_origins(&self, cfg: &mut ConfigFile, probe: &Probe) {
+        if probe.keys.len() != cfg.keys.len() || probe.keys.iter().all(|k| k.origin) {
+            return;
+        }
+        let dir = crate::keys::keys_dir(&self.dir);
+        let real = crate::fsutil::canonical(&dir).ok();
+        for (key, seen) in cfg.keys.iter_mut().zip(&probe.keys) {
+            if seen.origin {
+                continue;
+            }
+            let inside = std::path::Path::new(&key.path)
+                .parent()
+                .and_then(|p| p.to_str())
+                .is_some_and(|parent| {
+                    [Some(dir.as_path()), real.as_deref()]
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|d| d.to_str())
+                        .any(|d| same_path(parent, d))
+                });
+            key.origin = if inside {
+                KeyOrigin::Generated
+            } else {
+                KeyOrigin::Imported
+            };
         }
     }
 

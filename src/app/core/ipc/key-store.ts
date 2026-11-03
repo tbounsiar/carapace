@@ -5,6 +5,7 @@ import {
   type GenerateKeyRequest,
   type ImportKeyRequest,
   KeyIpc,
+  type KeyLocation,
   type KeyView,
 } from './keys';
 
@@ -46,6 +47,10 @@ export class KeyStore {
       .then((dir) => this._keysDir.set(dir))
       .finally(() => (this.pendingDir = null));
     return this.pendingDir;
+  }
+
+  checkLocation(dir: string | null, fileName: string): Promise<KeyLocation> {
+    return this.ipc.checkLocation(dir, fileName);
   }
 
   generate(request: GenerateKeyRequest): Promise<KeyView> {

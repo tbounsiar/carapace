@@ -5,6 +5,7 @@ import {
   fileNameFor,
   fileNameValidator,
   keyFilePathValidator,
+  keyFolderValidator,
   keyNameValidator,
   matchValidator,
   passphraseValidator,
@@ -76,6 +77,16 @@ describe('key validators', () => {
     expect(ok(keyFilePathValidator, '/home/me/id')).toBe(true);
     expect(ok(keyFilePathValidator, 'id_rsa')).toBe(false);
     expect(ok(keyFilePathValidator, '\\\\server\\share\\id')).toBe(false);
+  });
+
+  it('requires a full or ~/ key folder', () => {
+    const message = (value: string): string | undefined =>
+      keyFolderValidator(new FormControl(value))?.['invalid']?.message;
+    expect(message('')).toBe('Choose a folder for the key.');
+    expect(message('keys')).toBe('Use a full path, or one starting with ~/.');
+    expect(ok(keyFolderValidator, '~/.ssh')).toBe(true);
+    expect(ok(keyFolderValidator, 'D:/keys')).toBe(true);
+    expect(ok(keyFolderValidator, '/srv/keys')).toBe(true);
   });
 
   it('takes the base name of both separators', () => {

@@ -563,6 +563,63 @@ fn wire_format_is_camel_case() {
 }
 
 #[test]
+fn key_origin_is_filled_in_for_entries_written_without_it() {
+    let (d, s) = store();
+    let keys_dir = crate::keys::keys_dir(d.path());
+    let entry = |id: &str, path: &std::path::Path, origin: Option<&str>| {
+        let mut e = serde_json::json!({
+            "id": id, "name": id, "path": path.to_str().unwrap(), "managed": false,
+            "algorithm": "ed25519", "bits": null, "publicKey": "ssh-ed25519 AAAA",
+            "fingerprint": "SHA256:x", "comment": "", "encrypted": false
+        });
+        if let Some(o) = origin {
+            e["origin"] = o.into();
+        }
+        e
+    };
+    let other = d.path().join("elsewhere");
+    let file = serde_json::json!({
+        "version": 3,
+        "keys": [
+            entry("in", &keys_dir.join("a"), None),
+            entry("out", &other.join("b"), None),
+            entry("nested", &keys_dir.join("sub").join("c"), None),
+            entry("kept", &keys_dir.join("d"), Some("imported")),
+            entry("custom", &other.join("e"), Some("generated")),
+        ]
+    });
+    fs::write(d.path().join(FILE_NAME), file.to_string()).unwrap();
+    let origins: Vec<_> = s
+        .snapshot()
+        .unwrap()
+        .keys
+        .iter()
+        .map(|k| (k.id.clone(), k.origin))
+        .collect();
+    use crate::config::KeyOrigin::{Generated, Imported};
+    assert_eq!(
+        origins,
+        vec![
+            ("in".into(), Generated),
+            ("out".into(), Imported),
+            ("nested".into(), Imported),
+            ("kept".into(), Imported),
+            ("custom".into(), Generated),
+        ]
+    );
+    // Loading alone does not rewrite the file; the next change saves the origins.
+    assert_eq!(
+        fs::read_to_string(d.path().join(FILE_NAME)).unwrap(),
+        file.to_string()
+    );
+    s.rename_key("in", "renamed").unwrap();
+    let saved: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(d.path().join(FILE_NAME)).unwrap()).unwrap();
+    assert_eq!(saved["keys"][0]["origin"], "generated");
+    assert_eq!(saved["keys"][1]["origin"], "imported");
+}
+
+#[test]
 fn keys_default_to_empty_and_stay_unique() {
     let (d, s) = store();
     fs::write(d.path().join(FILE_NAME), r#"{"version":3,"projects":[]}"#).unwrap();
@@ -572,6 +629,7 @@ fn keys_default_to_empty_and_stay_unique() {
         name: name.into(),
         path: path.into(),
         managed: false,
+        origin: crate::config::KeyOrigin::Imported,
         algorithm: crate::config::KeyAlgorithm::Ed25519,
         bits: None,
         public_key: "ssh-ed25519 AAAA".into(),
@@ -651,12 +709,17 @@ fn expected_v3(v2: &serde_json::Value) -> serde_json::Value {
         }
         projects.push(serde_json::Value::Object(project));
     }
+    // The fixture's key paths are not under the test's app home, so both are imported.
+    let mut keys = v2["keys"].clone();
+    for k in keys.as_array_mut().unwrap() {
+        k["origin"] = "imported".into();
+    }
     serde_json::json!({
         "version": 3,
         "variables": v2["variables"],
         "projects": projects,
         "nodes": nodes,
-        "keys": v2["keys"],
+        "keys": keys,
     })
 }
 

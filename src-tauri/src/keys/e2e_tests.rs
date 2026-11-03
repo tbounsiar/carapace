@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use super::deploy::{read_capped, replace_file};
+use super::location::KeyDir;
 use super::*;
 use crate::sftp::SftpManager;
 use crate::ssh::test_server::{E2E_SERVER, isolated_manager, target};
@@ -79,7 +80,7 @@ async fn deployed_key_authenticates() {
     let original = read_capped(&remote, &authorized).await.unwrap();
 
     let generated = generate(
-        &keys_dir(dir.path()),
+        &KeyDir::managed(&keys_dir(dir.path())),
         "deployed",
         KeyType::Ed25519,
         "carapace-e2e-deployed",

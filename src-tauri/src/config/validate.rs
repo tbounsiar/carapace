@@ -96,7 +96,11 @@ pub(crate) fn key_path(value: &str) -> Result<(), String> {
     if value.chars().count() > 4096 || value.chars().any(char::is_control) {
         return Err("key path is invalid".into());
     }
-    if !value.starts_with("~/") && !is_local_absolute(value) {
+    let local = match value.strip_prefix("~/") {
+        Some(rest) => crate::fsutil::is_home_relative(rest),
+        None => is_local_absolute(value),
+    };
+    if !local {
         return Err("key path must be absolute or start with ~/".into());
     }
     Ok(())

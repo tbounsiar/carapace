@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { HOST, PROJECT } from '../helpers/fixture';
 import { screenshot, screenshotThemes, setThemeMode } from '../helpers/screenshot';
@@ -209,6 +209,128 @@ describe('keys', () => {
     expect(existsSync(privatePath())).toBe(false);
     expect(existsSync(`${privatePath()}.pub`)).toBe(false);
     await shot('keys-14-empty-again');
+  });
+
+  describe('key folder and key files', () => {
+    // OS pickers cannot be driven by WebDriver: Browse buttons are only checked, folders are typed.
+    const CUSTOM = 'e2e-custom';
+    const customDir = () => join(process.env['E2E_CARAPACE_HOME'] ?? '', 'custom-keys');
+    const customKey = () => join(customDir(), CUSTOM);
+    const text = (fragment: string) => $(`//*[contains(text(), "${fragment}")]`);
+
+    async function openGenerate(): Promise<void> {
+      await clickId('keys-generate');
+      await byId('keygen-folder').waitForDisplayed({ timeout: 10000 });
+    }
+
+    async function cancelDialog(): Promise<void> {
+      const button = $('//tui-dialog//button[normalize-space()="Cancel"]');
+      await button.click();
+      await button.waitForExist({ timeout: 10000, reverse: true });
+    }
+
+    before(() => mkdirSync(customDir(), { recursive: true }));
+
+    after(async () => {
+      rmSync(customDir(), { recursive: true, force: true });
+      await browser.execute(() => localStorage.removeItem('carapace.keyFolder'));
+    });
+
+    it('generates into a typed custom folder', async () => {
+      await clickId('ssh-keys');
+      await openGenerate();
+      await expect(byId('keygen-folder-browse')).toBeEnabled();
+      await expect(byId('keygen-folder-reset')).not.toExist();
+      await typeInto('keygen-name', CUSTOM);
+      await typeInto('keygen-folder', customDir());
+      await byId('keygen-folder-reset').waitForDisplayed({ timeout: 10000 });
+      await expect(byId('keygen-path')).toHaveText(expect.stringContaining(customKey()));
+      await shot('keys-15-generate-custom-folder');
+      await clickId('keygen-submit');
+      await waitGone('keygen-folder');
+
+      await byId(`key-badge-folder-${CUSTOM}`).waitForDisplayed({ timeout: 20000 });
+      await expect(byId(`key-badge-external-${CUSTOM}`)).not.toExist();
+      expect(existsSync(customKey())).toBe(true);
+      expect(existsSync(`${customKey()}.pub`)).toBe(true);
+      expect(readdirSync(customDir()).filter((f) => f.endsWith('.carapace-part'))).toEqual([]);
+      if (process.platform !== 'win32') {
+        expect(statSync(customKey()).mode & 0o077).toBe(0);
+      }
+    });
+
+    it('remembers the folder and reports folder problems before Generate', async () => {
+      await openGenerate();
+      await expect(byId('keygen-folder')).toHaveValue(customDir());
+      await typeInto('keygen-passphrase', passphrase);
+      await typeInto('keygen-confirm', passphrase);
+      await typeInto('keygen-folder', join(customDir(), 'missing'));
+      await text('This folder does not exist').waitForDisplayed({ timeout: 10000 });
+      await clickId('keygen-submit');
+      await expect(byId('keygen-folder')).toExist();
+      expect(((await byId('keygen-passphrase').getValue()) ?? '').length).toBe(passphrase.length);
+      await shot('keys-16-folder-error');
+
+      await typeInto('keygen-folder', customDir());
+      await typeInto('keygen-name', CUSTOM);
+      await text(`${CUSTOM} or ${CUSTOM}.pub already exists in this folder.`).waitForDisplayed({
+        timeout: 10000,
+      });
+
+      await clickId('keygen-folder-reset');
+      await waitGone('keygen-folder-reset');
+      await expect(byId('keygen-folder')).not.toHaveValue(customDir());
+      await cancelDialog();
+      await openGenerate();
+      await expect(byId('keygen-folder-reset')).not.toExist();
+      await cancelDialog();
+    });
+
+    it('registers a key, checks the host key path and confirms a template replace', async () => {
+      await clickId('keys-import');
+      await byId('keyimport-path').waitForDisplayed({ timeout: 10000 });
+      await expect(byId('keyimport-browse')).toBeEnabled();
+      await typeInto('keyimport-path', importedPath);
+      await clickId('keyimport-submit');
+      await waitGone('keyimport-path');
+      await byId(`key-row-${IMPORTED}`).waitForDisplayed({ timeout: 20000 });
+
+      await openHostKeyPath();
+      await expect(byId('host-key-browse')).toBeEnabled();
+      await typeInto('host-key-path', '~/.ssh/id_e2e.pub');
+      await text('This is a public key').waitForDisplayed({ timeout: 10000 });
+
+      await typeInto('host-key-path', '${key_path}');
+      for (const answer of ['Keep template', 'Replace']) {
+        await clickId('host-key-pick');
+        await clickId(`host-key-option-${IMPORTED}`);
+        const button = $(`//tui-dialog//button[normalize-space()="${answer}"]`);
+        await button.waitForClickable({ timeout: 10000 });
+        if (answer === 'Keep template') await shot('keys-18-host-template-confirm');
+        await button.click();
+        await button.waitForExist({ timeout: 10000, reverse: true });
+      }
+      await expect(byId('host-key-path')).toHaveValue(expect.stringContaining(IMPORTED));
+      await clickId('dialog-cancel');
+      await waitGone('host-key-path');
+    });
+
+    it('deletes a custom-folder key only when its files are ticked', async () => {
+      await clickId('ssh-keys');
+      await openKeyMenu(IMPORTED, 'key-delete');
+      await confirmDeleteDialog();
+      await waitGone(`key-row-${IMPORTED}`);
+
+      await openKeyMenu(CUSTOM, 'key-delete');
+      await expect(byId('key-delete-files')).not.toBeChecked();
+      await shot('keys-17-delete-custom-folder');
+      await clickId('key-delete-files');
+      await expect(byId('key-delete-files')).toBeChecked();
+      await confirmDeleteDialog();
+      await waitGone(`key-row-${CUSTOM}`);
+      expect(existsSync(customKey())).toBe(false);
+      expect(existsSync(`${customKey()}.pub`)).toBe(false);
+    });
   });
 });
 

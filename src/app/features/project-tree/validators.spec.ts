@@ -78,6 +78,9 @@ describe('form validators', () => {
     expect(ok(keyPathValidator, '~/.ssh/id_ed25519')).toBe(true);
     expect(ok(keyPathValidator, ' ')).toBe(false);
     expect(ok(keyPathValidator, '/home/u/.ssh/id')).toBe(true);
+    expect(keyPathValidator(new FormControl('~/.ssh/id_work.PUB'))?.['invalid']?.message).toBe(
+      'This is a public key. Choose the file without .pub.',
+    );
     expect(ok(keyPathValidator, 'C:\\Users\\u\\.ssh\\id')).toBe(true);
     expect(ok(keyPathValidator, 'id_ed25519')).toBe(false);
     expect(ok(keyPathValidator, '\\\\server\\share\\id')).toBe(false);

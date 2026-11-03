@@ -7,8 +7,10 @@ describe('KeyDeleteDialog', () => {
   const completeWith = vi.fn();
   const complete = vi.fn();
 
-  async function setup(managed: boolean) {
-    const data: KeyDeleteDialogData = { key: { name: 'main', path: '/keys/main', managed } };
+  async function setup(managed: boolean, origin: 'generated' | 'imported' = 'generated') {
+    const data: KeyDeleteDialogData = {
+      key: { name: 'main', path: '/keys/main', managed, origin },
+    };
     await TestBed.configureTestingModule({
       imports: [KeyDeleteDialog],
       providers: [
@@ -46,8 +48,22 @@ describe('KeyDeleteDialog', () => {
     expect(completeWith).toHaveBeenCalledWith({ deleteFiles: false });
   });
 
-  it('never deletes the file of an external key', async () => {
-    const { el } = await setup(false);
+  it('offers the files of a key generated in a custom folder, unchecked by default', async () => {
+    const { fixture, el } = await setup(false);
+    const box = el.querySelector<HTMLInputElement>('[data-testid="key-delete-files"]')!;
+    expect(box.checked).toBe(false);
+    expect(el.textContent).toContain('Other tools may use this key.');
+    expect(el.textContent).toContain('/keys/main');
+    button(el, 'Delete').click();
+    expect(completeWith).toHaveBeenLastCalledWith({ deleteFiles: false });
+    box.click();
+    await fixture.whenStable();
+    button(el, 'Delete').click();
+    expect(completeWith).toHaveBeenLastCalledWith({ deleteFiles: true });
+  });
+
+  it('never deletes the file of an imported key', async () => {
+    const { el } = await setup(false, 'imported');
     expect(el.querySelector('[data-testid="key-delete-files"]')).toBeNull();
     expect(el.textContent).toContain('The file stays at');
     button(el, 'Delete').click();

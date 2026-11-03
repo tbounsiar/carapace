@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ThemeService } from '../theme/theme';
-import { FONT_SIZE_STORAGE, KEY_TYPE_STORAGE, Settings } from './settings';
+import { FONT_SIZE_STORAGE, KEY_FOLDER_STORAGE, KEY_TYPE_STORAGE, Settings } from './settings';
 
 describe('Settings', () => {
   beforeEach(() => {
@@ -75,5 +75,29 @@ describe('Settings', () => {
     expect(TestBed.inject(ThemeService).mode()).toBe('dark');
     expect(settings.theme()).toBe('dark');
     expect(localStorage.getItem('carapace.theme')).toBe('dark');
+  });
+
+  it('remembers the key folder, clears it with null and ignores invalid values', () => {
+    const settings = create();
+    expect(settings.keyFolder()).toBeNull();
+    settings.setKeyFolder('C:\\Users\\me\\.ssh');
+    expect(localStorage.getItem(KEY_FOLDER_STORAGE)).toBe('C:\\Users\\me\\.ssh');
+    settings.setKeyFolder('relative/dir');
+    expect(settings.keyFolder()).toBe('C:\\Users\\me\\.ssh');
+
+    TestBed.resetTestingModule();
+    expect(create().keyFolder()).toBe('C:\\Users\\me\\.ssh');
+
+    TestBed.inject(Settings).setKeyFolder(null);
+    expect(localStorage.getItem(KEY_FOLDER_STORAGE)).toBeNull();
+    expect(TestBed.inject(Settings).keyFolder()).toBeNull();
+  });
+
+  it('falls back to the default folder on an invalid stored folder', () => {
+    localStorage.setItem(KEY_FOLDER_STORAGE, 'keys');
+    expect(create().keyFolder()).toBeNull();
+    TestBed.resetTestingModule();
+    localStorage.setItem(KEY_FOLDER_STORAGE, '~/keys');
+    expect(create().keyFolder()).toBe('~/keys');
   });
 });

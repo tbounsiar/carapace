@@ -1,10 +1,12 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { FormGroup } from '@angular/forms';
-import { provideTaiga, TuiNotificationService } from '@taiga-ui/core';
+import { provideTaiga, TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
+import { TUI_CONFIRM } from '@taiga-ui/kit';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
-import { of } from 'rxjs';
+import { type Observable, of } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
+import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import { KeyStore } from '../../../core/ipc/key-store';
 import type { KeyView } from '../../../core/ipc/keys';
 import { key } from '../../../core/ipc/keys.fixture';
@@ -41,7 +43,7 @@ interface DialogApi {
   form: FormGroup;
   secretReferences(): string[];
   submit(): Promise<void>;
-  pickKey(path: string): void;
+  pickKey(path: string): Promise<void>;
   testBlocker(): string | null;
 }
 
@@ -73,6 +75,10 @@ describe('HostDialog', () => {
   const variables = signal<VariableView[]>([plain('user', 'carapace'), secret('global_pw')]);
   const keys = signal<KeyView[]>([key({ name: 'main', path: '/keys/main' })]);
   const ensureLoaded = vi.fn(() => Promise.resolve());
+  const loaded = signal(true);
+  const picking = signal(false);
+  const pickFile = vi.fn<(current: string | null) => Promise<string | null>>();
+  const dialogs = { open: vi.fn<(content: unknown, options: unknown) => Observable<unknown>>() };
   const tester = { start: vi.fn<HostTester['start']>() };
   let runs: FakeRun[] = [];
 
@@ -101,7 +107,9 @@ describe('HostDialog', () => {
             findProject: (id: string) => projects().find((p) => p.id === id) ?? null,
           },
         },
-        { provide: KeyStore, useValue: { keys, ensureLoaded } },
+        { provide: KeyStore, useValue: { keys, ensureLoaded, loaded } },
+        { provide: KeyFilePicker, useValue: { picking, pickFile } },
+        { provide: TuiDialogService, useValue: dialogs },
         { provide: TuiNotificationService, useValue: alerts },
         { provide: HostTester, useValue: tester },
       ],
@@ -133,6 +141,10 @@ describe('HostDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     projects.set([PROJECT]);
+    keys.set([key({ name: 'main', path: '/keys/main' })]);
+    loaded.set(true);
+    picking.set(false);
+    dialogs.open.mockReturnValue(of(false));
     save.mockImplementation((host) => Promise.resolve({ ...host, id: 'h1' } as Host));
     runs = [];
     tester.start.mockImplementation(() => {
@@ -581,6 +593,165 @@ describe('HostDialog', () => {
       await runs[0].finish(success);
       await fixture.whenStable();
       expect(region(el).getAttribute('data-result')).toBe('cancelled');
+    });
+  });
+  describe('key file browse', () => {
+    const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
+    const keyHost = (keyPath: string): HostInput => ({
+      ...valid,
+      auth: { kind: 'key', keyPath, passphrase: null },
+    });
+    async function open(keyPath: string) {
+      const ctx = await setup(keyHost(keyPath));
+      await tick();
+      await ctx.fixture.whenStable();
+      return ctx;
+    }
+    const settle = async (fixture: { whenStable(): Promise<unknown> }) => {
+      await tick();
+      await fixture.whenStable();
+      await tick();
+    };
+    const confirmCalls = () =>
+      dialogs.open.mock.calls.filter(([content]) => content === TUI_CONFIRM);
+
+    it('fills a plain field from Browse, starting from its path, and focuses it', async () => {
+      const { fixture, el, dialog } = await open('~/.ssh/id_old');
+      const browse = byId(el, 'host-key-browse') as HTMLButtonElement;
+      expect(browse.getAttribute('aria-label')).toBe('Choose a key file');
+      pickFile.mockResolvedValue('C:\\Users\\me\\.ssh\\id_work');
+      browse.click();
+      await settle(fixture);
+      expect(pickFile).toHaveBeenCalledWith('~/.ssh/id_old');
+      expect(dialog.form.get('keyPath')!.value).toBe('C:\\Users\\me\\.ssh\\id_work');
+      expect(dialog.form.get('keyPath')!.dirty).toBe(true);
+      expect(confirmCalls()).toEqual([]);
+      expect(document.activeElement).toBe(byId(el, 'host-key-path'));
+    });
+
+    it('changes nothing on a cancelled pick and focuses Browse', async () => {
+      const { fixture, el, dialog } = await open('~/.ssh/id_old');
+      pickFile.mockResolvedValue(null);
+      byId(el, 'host-key-browse')!.click();
+      await settle(fixture);
+      expect(dialog.form.get('keyPath')!.value).toBe('~/.ssh/id_old');
+      expect(document.activeElement).toBe(byId(el, 'host-key-browse'));
+      expect(byId(el, 'host-key-register')).toBeNull();
+    });
+
+    it('disables Browse while a picker is open', async () => {
+      const { fixture, el } = await open('');
+      picking.set(true);
+      await fixture.whenStable();
+      expect((byId(el, 'host-key-browse') as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('asks before replacing a template, then replaces or keeps it', async () => {
+      const { fixture, el, dialog } = await open('${keys}/id');
+      pickFile.mockResolvedValue('/home/me/.ssh/id_work');
+      dialogs.open.mockReturnValueOnce(of(false));
+      byId(el, 'host-key-browse')!.click();
+      await settle(fixture);
+      expect(pickFile).toHaveBeenCalledWith(null);
+      const [, options] = confirmCalls()[0] as [
+        unknown,
+        { label: string; data: Record<string, string> },
+      ];
+      expect(options.label).toBe('Replace the template?');
+      expect(options.data['yes']).toBe('Replace');
+      expect(options.data['no']).toBe('Keep template');
+      expect(options.data['content']).toContain('<code>${keys}</code>');
+      expect(options.data['content']).toContain('<code>/home/me/.ssh/id_work</code>');
+      expect(dialog.form.get('keyPath')!.value).toBe('${keys}/id');
+      expect(document.activeElement).toBe(byId(el, 'host-key-browse'));
+      expect(byId(el, 'host-key-register')).toBeNull();
+
+      dialogs.open.mockReturnValueOnce(of(true));
+      byId(el, 'host-key-browse')!.click();
+      await settle(fixture);
+      expect(dialog.form.get('keyPath')!.value).toBe('/home/me/.ssh/id_work');
+    });
+
+    it('also confirms a registered key picked over a template', async () => {
+      const { dialog } = await open('${keys}/id');
+      dialogs.open.mockReturnValueOnce(of(false));
+      await dialog.pickKey('/keys/main');
+      expect(confirmCalls().length).toBe(1);
+      expect(dialog.form.get('keyPath')!.value).toBe('${keys}/id');
+      dialogs.open.mockReturnValueOnce(of(true));
+      await dialog.pickKey('/keys/main');
+      expect(dialog.form.get('keyPath')!.value).toBe('/keys/main');
+    });
+
+    it('treats $$ alone as a plain path', async () => {
+      const { dialog } = await open('/keys/a$$b');
+      await dialog.pickKey('/keys/main');
+      expect(confirmCalls()).toEqual([]);
+      expect(dialog.form.get('keyPath')!.value).toBe('/keys/main');
+    });
+
+    it('offers to register an unregistered browsed key until the path changes', async () => {
+      const { fixture, el, dialog } = await open('');
+      pickFile.mockResolvedValue('/keys/MAIN');
+      byId(el, 'host-key-browse')!.click();
+      await settle(fixture);
+      expect(byId(el, 'host-key-register')).not.toBeNull();
+      expect(byId(el, 'host-key-register-link')!.textContent).toBe('Register this key');
+
+      dialog.form.patchValue({ keyPath: '/keys/other' });
+      await fixture.whenStable();
+      expect(byId(el, 'host-key-register')).toBeNull();
+      dialog.form.patchValue({ keyPath: '/keys/MAIN' });
+      await fixture.whenStable();
+      expect(byId(el, 'host-key-register')).toBeNull();
+    });
+
+    it('shows no hint for a registered path or when the key list did not load', async () => {
+      const { fixture, el } = await open('');
+      pickFile.mockResolvedValue('/keys/main');
+      byId(el, 'host-key-browse')!.click();
+      await settle(fixture);
+      expect(byId(el, 'host-key-register')).toBeNull();
+
+      loaded.set(false);
+      pickFile.mockResolvedValue('/keys/new');
+      byId(el, 'host-key-browse')!.click();
+      await settle(fixture);
+      expect(byId(el, 'host-key-register')).toBeNull();
+    });
+
+    it('opens the import dialog prefilled and hides the hint once registered', async () => {
+      await import('../../keys/key-import-dialog/key-import-dialog');
+      const { fixture, el, dialog } = await open('');
+      pickFile.mockResolvedValue('/keys/new');
+      byId(el, 'host-key-browse')!.click();
+      await settle(fixture);
+
+      dialogs.open.mockReturnValueOnce(of(undefined));
+      byId(el, 'host-key-register-link')!.click();
+      await settle(fixture);
+      const [, options] = dialogs.open.mock.calls.at(-1) as [unknown, { data: unknown }];
+      expect(options.data).toEqual({ path: '/keys/new' });
+      expect(byId(el, 'host-key-register')).not.toBeNull();
+
+      const registered = key({ id: 'k9', name: 'new', path: '/keys/new', origin: 'imported' });
+      dialogs.open.mockReturnValueOnce(of(registered));
+      byId(el, 'host-key-register-link')!.click();
+      await settle(fixture);
+      expect(alerts.open).toHaveBeenCalledWith(
+        'new',
+        expect.objectContaining({ label: 'Key registered' }),
+      );
+      expect(byId(el, 'host-key-register')).toBeNull();
+      expect(dialog.form.get('keyPath')!.value).toBe('/keys/new');
+      expect(document.activeElement).toBe(byId(el, 'host-key-path'));
+    });
+
+    it('rejects a public key path', async () => {
+      const { dialog } = await open('~/.ssh/id_work.pub');
+      expect(dialog.form.get('keyPath')!.errors?.['invalid']?.message).toBe(
+        'This is a public key. Choose the file without .pub.',
+      );
     });
   });
 });

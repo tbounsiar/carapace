@@ -2,14 +2,28 @@
   <tui-textfield>
     <label tuiLabel>Private key path</label>
     <input
-      tuiAutoFocus
+      #pathInput
       tuiInput
       class="mono"
       autocomplete="off"
       placeholder="~/.ssh/id_ed25519"
       formControlName="path"
       data-testid="keyimport-path"
+      [tuiAutoFocus]="!prefilled"
     />
+    <button
+      #browseButton
+      tuiIconButton
+      appearance="icon"
+      size="xs"
+      iconStart="@tui.folder-open"
+      type="button"
+      aria-label="Choose a key file"
+      tuiHint="Choose a key file"
+      data-testid="keyimport-browse"
+      [disabled]="picking()"
+      (click)="browse()"
+    ></button>
     <tui-icon
       tuiTooltip="An OpenSSH private key. The file is not copied: it stays where it is and is only registered."
     />
@@ -18,7 +32,13 @@
 
   <tui-textfield>
     <label tuiLabel>Name</label>
-    <input tuiInput autocomplete="off" formControlName="name" data-testid="keyimport-name" />
+    <input
+      tuiInput
+      autocomplete="off"
+      formControlName="name"
+      data-testid="keyimport-name"
+      [tuiAutoFocus]="prefilled"
+    />
   </tui-textfield>
   <tui-error appErrorLink formControlName="name" />
 

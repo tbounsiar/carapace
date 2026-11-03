@@ -51,6 +51,7 @@ describe('KeyStore', () => {
       comment: 'carapace',
       passphrase: null,
       rememberPassphrase: false,
+      dir: null,
     });
     await store.import({ name: 'work', path: '/k', passphrase: null, rememberPassphrase: false });
     expect(store.keys()).toEqual([KEY, other]);

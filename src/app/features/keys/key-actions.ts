@@ -4,6 +4,7 @@ import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../core/ipc/config';
 import { hostTarget } from '../../core/ipc/connection';
+import { IpcError } from '../../core/ipc/ipc-error';
 import { KeyStore } from '../../core/ipc/key-store';
 import type { DeployResult, KeyView } from '../../core/ipc/keys';
 import { SshService } from '../../core/ipc/ssh';
@@ -103,9 +104,18 @@ export class KeyActions {
       return false;
     }
     try {
-      await this.store.delete(key.id, key.managed && decision.deleteFiles);
+      await this.store.delete(key.id, key.origin === 'generated' && decision.deleteFiles);
       return true;
     } catch (err) {
+      if (err instanceof IpcError && err.code === 'conflict') {
+        this.alerts
+          .open('The file at this path no longer holds this key. Nothing was deleted.', {
+            label: 'Key not deleted',
+            appearance: 'negative',
+          })
+          .subscribe();
+        return false;
+      }
       notifyError(this.alerts, err, 'Key not deleted');
       return false;
     }

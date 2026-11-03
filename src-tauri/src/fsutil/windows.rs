@@ -131,6 +131,18 @@ pub fn create_owner_only(path: &Path) -> io::Result<File> {
 }
 
 #[cfg(test)]
+pub(crate) fn create_dir_with_sddl(path: &Path, dacl: &str) -> io::Result<()> {
+    let sd = descriptor(dacl)?;
+    let sa = attributes(&sd);
+    let name = wide(path);
+    // SAFETY: `name` is NUL-terminated and `sa`/`sd` outlive the call.
+    if unsafe { CreateDirectoryW(name.as_ptr(), &sa) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
 pub(super) fn create_with_sddl(path: &Path, dacl: &str) -> io::Result<File> {
     create_with(path, &descriptor(dacl)?)
 }
@@ -240,14 +252,43 @@ fn sid_string(sid: PSID) -> io::Result<String> {
     Ok(s)
 }
 
+const FILE_READ_DATA: u32 = 0x1;
+const GENERIC_ALL: u32 = 0x1000_0000;
+
 pub fn readable_by_others(file: &File) -> io::Result<bool> {
     use std::os::windows::io::AsRawHandle;
+    granted_to_others(
+        file.as_raw_handle(),
+        FILE_READ_DATA | GENERIC_READ | GENERIC_ALL,
+    )
+}
+
+/// List (read data), add file, add subdirectory, delete child, delete, change the DACL or
+/// the owner, or the generic rights that imply them.
+pub fn dir_open_to_others(dir: &Path) -> io::Result<bool> {
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::AsRawHandle;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+    const DIR_RIGHTS: u32 = FILE_READ_DATA | 0x2 | 0x4 | 0x40 | 0x1_0000 | 0x4_0000 | 0x8_0000;
+    let handle = std::fs::OpenOptions::new()
+        .access_mode(0x0002_0000)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(dir)?;
+    granted_to_others(
+        handle.as_raw_handle(),
+        DIR_RIGHTS | GENERIC_READ | GENERIC_WRITE | GENERIC_ALL,
+    )
+}
+
+/// Whether an ACCESS_ALLOWED ACE that applies to the object itself grants any of `rights` to
+/// a SID other than the current user, SYSTEM and Administrators. Deny ACEs are not weighed.
+fn granted_to_others(handle: HANDLE, rights: u32) -> io::Result<bool> {
     const ACCESS_ALLOWED_ACE_TYPE: u8 = 0;
-    const FILE_READ_DATA: u32 = 0x1;
-    const GENERIC_ALL: u32 = 0x1000_0000;
+    const INHERIT_ONLY_ACE: u8 = 0x08;
     const SYSTEM: &str = "S-1-5-18";
     const ADMINISTRATORS: &str = "S-1-5-32-544";
-    let info = security_info(file.as_raw_handle(), DACL_SECURITY_INFORMATION)?;
+    let info = security_info(handle, DACL_SECURITY_INFORMATION)?;
     if info.dacl.is_null() {
         return Ok(true);
     }
@@ -274,13 +315,13 @@ pub fn readable_by_others(file: &File) -> io::Result<bool> {
         }
         // SAFETY: GetAce points at an ACE inside the ACL. Every ACE starts with the header;
         // mask and SID are only used for ACCESS_ALLOWED ACEs, whose layout this is.
-        let (kind, mask, sid) = unsafe {
+        let (kind, flags, mask, sid) = unsafe {
             let ace = &*ace.cast::<ACCESS_ALLOWED_ACE>();
             let sid: PSID = (&ace.SidStart as *const u32).cast_mut().cast();
-            (ace.Header.AceType, ace.Mask, sid)
+            (ace.Header.AceType, ace.Header.AceFlags, ace.Mask, sid)
         };
-        let reads = mask & (FILE_READ_DATA | GENERIC_READ | GENERIC_ALL) != 0;
-        if kind != ACCESS_ALLOWED_ACE_TYPE || !reads {
+        let applies = kind == ACCESS_ALLOWED_ACE_TYPE && flags & INHERIT_ONLY_ACE == 0;
+        if !applies || mask & rights == 0 {
             continue;
         }
         let who = sid_string(sid)?;

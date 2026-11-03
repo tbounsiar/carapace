@@ -2,13 +2,13 @@ use std::path::{Path, PathBuf};
 
 use secrecy::SecretString;
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 use super::error::CommandError;
 use super::resolve::required;
-use crate::config::{ConfigStore, KeyEntry};
-use crate::keys::{self, Deployed, KeyError, KeyInfo, KeyType};
+use crate::config::{ConfigStore, KeyEntry, KeyOrigin};
+use crate::keys::{self, Deployed, KeyError, KeyInfo, KeyLocation, KeyType, PickerGuard};
 use crate::secrets::{KeyPassKey, SecretStore, fits_keychain};
 use crate::sftp::SftpManager;
 use crate::ssh::SshManager;
@@ -32,6 +32,14 @@ pub struct DeployResult {
     pub added: bool,
     /// The key is already there, but only on lines with options; nothing was changed.
     pub restricted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyLocationView {
+    pub dir: String,
+    pub is_default: bool,
+    pub warning: Option<String>,
 }
 
 fn view(secrets: &SecretStore, key: KeyEntry) -> KeyView {
@@ -114,12 +122,19 @@ async fn blocking<T: Send + 'static>(
         .map_err(CommandError::from)
 }
 
-fn entry(name: &str, path: &Path, managed: bool, info: KeyInfo) -> Res<KeyEntry> {
+fn entry(
+    name: &str,
+    path: &Path,
+    managed: bool,
+    origin: KeyOrigin,
+    info: KeyInfo,
+) -> Res<KeyEntry> {
     Ok(KeyEntry {
         id: Uuid::new_v4().to_string(),
         name: name.to_owned(),
         path: display(path)?,
         managed,
+        origin,
         algorithm: info.algorithm,
         bits: info.bits,
         public_key: info.public_key,
@@ -155,6 +170,8 @@ fn register(
 pub(super) struct GenerateRequest {
     pub name: String,
     pub file_name: String,
+    /// `None` is the managed keys directory.
+    pub dir: Option<String>,
     pub algorithm: KeyType,
     pub comment: String,
     pub passphrase: Option<SecretString>,
@@ -169,6 +186,7 @@ async fn generate(
     let GenerateRequest {
         name,
         file_name,
+        dir,
         algorithm,
         comment,
         passphrase,
@@ -176,10 +194,11 @@ async fn generate(
     } = request;
     check_request(store, &name, passphrase.as_ref(), remember_passphrase)?;
     keys::validate_file_name(&file_name)?;
-    let dir = keys_dir_of(store);
+    let managed_dir = keys_dir_of(store);
     let (generated, passphrase) = {
-        let dir = dir.clone();
+        let managed_dir = managed_dir.clone();
         blocking(move || {
+            let dir = keys::key_dir(&managed_dir, dir.as_deref())?;
             let generated =
                 keys::generate(&dir, &file_name, algorithm, &comment, passphrase.as_ref());
             generated.map(|g| (g, passphrase))
@@ -187,7 +206,16 @@ async fn generate(
         .await?
     };
     let path_text = display(&generated.path)?;
-    let registered = entry(&name, &generated.path, true, generated.info).and_then(|e| {
+    let fingerprint = generated.info.fingerprint.clone();
+    let scope = generated.managed.then_some(managed_dir.as_path());
+    let registered = entry(
+        &name,
+        &generated.path,
+        generated.managed,
+        KeyOrigin::Generated,
+        generated.info,
+    )
+    .and_then(|e| {
         register(
             store,
             secrets,
@@ -198,7 +226,7 @@ async fn generate(
     // A key nobody can see in the list is not left behind, unless only the keychain failed.
     if let Err(e) = &registered
         && e.code != "keychain_unavailable"
-        && keys::remove_managed(&dir, &path_text).is_err()
+        && keys::remove_pair(&path_text, &fingerprint, scope).is_err()
     {
         log::warn!("could not remove the files of a key that was not registered");
     }
@@ -218,13 +246,77 @@ async fn import(
         keys::inspect(&path, passphrase.as_ref()).map(|found| (found, passphrase))
     })
     .await?;
-    let entry = entry(&name, &canonical, false, info)?;
+    let entry = entry(&name, &canonical, false, KeyOrigin::Imported, info)?;
     register(
         store,
         secrets,
         entry,
         passphrase.as_ref().filter(|_| remember_passphrase),
     )
+}
+
+async fn check_location(
+    store: &ConfigStore,
+    dir: Option<String>,
+    file_name: String,
+) -> Res<KeyLocationView> {
+    let managed = keys_dir_of(store);
+    let KeyLocation {
+        dir,
+        is_default,
+        warning,
+    } = blocking(move || keys::check_location(&managed, dir.as_deref(), &file_name)).await?;
+    Ok(KeyLocationView {
+        dir: display(&dir)?,
+        is_default,
+        warning,
+    })
+}
+
+fn busy() -> CommandError {
+    CommandError::new("busy", "a file picker is already open")
+}
+
+/// Opens a native picker parented to the main window. The dialog is built on the main thread
+/// (macOS requires it) and awaited on its own thread, like the OS dialog itself; the command
+/// only waits on a channel. The webview has no dialog permission: only these commands open
+/// pickers.
+async fn pick(
+    app: &AppHandle,
+    title: &'static str,
+    start: Option<PathBuf>,
+    folder: bool,
+    cancelled: tokio::sync::oneshot::Receiver<()>,
+) -> Res<Option<String>> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let mut dialog = rfd::AsyncFileDialog::new().set_title(title);
+        if let Some(start) = start {
+            dialog = dialog.set_directory(start);
+        }
+        if let Some(window) = handle.get_webview_window("main") {
+            dialog = dialog.set_parent(&window);
+        }
+        type Picked =
+            std::pin::Pin<Box<dyn std::future::Future<Output = Option<rfd::FileHandle>> + Send>>;
+        let picked: Picked = if folder {
+            Box::pin(dialog.pick_folder())
+        } else {
+            Box::pin(dialog.pick_file())
+        };
+        std::thread::spawn(move || {
+            let chosen = tauri::async_runtime::block_on(picked);
+            let _ = tx.send(chosen.map(|h| h.path().to_path_buf()));
+        });
+    })
+    .map_err(|_| CommandError::new("io", "the file picker could not be opened"))?;
+    let picked = tokio::select! {
+        picked = rx => picked
+            .map_err(|_| CommandError::new("io", "the file picker could not be opened"))?,
+        _ = cancelled => None,
+    };
+    Ok(picked.map(keys::picked_path).transpose()?)
 }
 
 fn rename(store: &ConfigStore, secrets: &SecretStore, key_id: &str, name: &str) -> Res<KeyView> {
@@ -243,19 +335,25 @@ fn find(store: &ConfigStore, key_id: &str) -> Res<KeyEntry> {
 
 fn delete(store: &ConfigStore, secrets: &SecretStore, key_id: &str, delete_files: bool) -> Res<()> {
     let found = find(store, key_id)?;
-    if delete_files && !found.managed {
+    if delete_files && found.origin != KeyOrigin::Generated {
         return Err(CommandError::new(
             "invalid_input",
             "the files of an imported key are never deleted",
         ));
     }
+    let managed_dir = keys_dir_of(store);
+    let scope = found.managed.then_some(managed_dir.as_path());
     // Keychain and files go first and any failure stops here, so the key stays listed and the
     // user can retry; deleting the config entry first could leave a secret or files nobody
-    // can see any more.
+    // can see any more. The files are checked before the keychain, so a refused deletion keeps
+    // the remembered passphrase too.
     let _lifecycle = secrets.lifecycle();
+    if delete_files {
+        keys::check_pair(&found.path, &found.fingerprint, scope)?;
+    }
     secrets.delete_key_passphrase(&KeyPassKey::new(&found.id)?)?;
     if delete_files {
-        keys::remove_managed(&keys_dir_of(store), &found.path)?;
+        keys::remove_pair(&found.path, &found.fingerprint, scope)?;
     }
     store.delete_key(key_id)?;
     Ok(())
@@ -300,7 +398,7 @@ pub async fn list_keys(
     list(&store, &secrets)
 }
 
-/// Flat arguments, like the other commands; that makes eight with the two states.
+/// Flat arguments, like the other commands; that makes nine with the two states.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn generate_key(
@@ -312,16 +410,59 @@ pub async fn generate_key(
     comment: String,
     passphrase: Option<SecretString>,
     remember_passphrase: bool,
+    dir: Option<String>,
 ) -> Res<KeyView> {
     let request = GenerateRequest {
         name,
         file_name,
+        dir,
         algorithm,
         comment,
         passphrase,
         remember_passphrase,
     };
     generate(&store, &secrets, request).await
+}
+
+#[tauri::command]
+pub async fn check_key_location(
+    store: State<'_, ConfigStore>,
+    dir: Option<String>,
+    file_name: String,
+) -> Res<KeyLocationView> {
+    check_location(&store, dir, file_name).await
+}
+
+#[tauri::command]
+pub async fn pick_key_folder(
+    app: AppHandle,
+    store: State<'_, ConfigStore>,
+    current: Option<String>,
+) -> Res<Option<String>> {
+    let (_open, cancelled) = PickerGuard::acquire().ok_or_else(busy)?;
+    let keys_dir = keys_dir_of(&store);
+    let start = blocking(move || Ok(keys::folder_start(current.as_deref(), &keys_dir))).await?;
+    pick(
+        &app,
+        "Choose a folder for the key pair",
+        start,
+        true,
+        cancelled,
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn pick_key_file(app: AppHandle, current: Option<String>) -> Res<Option<String>> {
+    let (_open, cancelled) = PickerGuard::acquire().ok_or_else(busy)?;
+    let start = blocking(move || {
+        Ok(keys::file_start(
+            current.as_deref(),
+            std::env::home_dir().as_deref(),
+        ))
+    })
+    .await?;
+    pick(&app, "Choose a private key file", start, false, cancelled).await
 }
 
 #[tauri::command]

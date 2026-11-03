@@ -161,14 +161,28 @@ describe('KeyActions', () => {
     expect(lastToast()[1]).toEqual(expect.objectContaining({ label: 'Passphrase forgotten' }));
   });
 
-  it('deletes after confirmation, files only for managed keys', async () => {
+  it('deletes after confirmation, files only for generated keys', async () => {
     dialogs.open.mockReturnValueOnce(of({ deleteFiles: true }));
     expect(await actions.remove(KEY)).toBe(true);
     expect(store.delete).toHaveBeenCalledWith('k1', true);
 
     dialogs.open.mockReturnValueOnce(of({ deleteFiles: true }));
-    await actions.remove(key({ id: 'k2', managed: false }));
+    await actions.remove(key({ id: 'k2', managed: false, origin: 'imported' }));
     expect(store.delete).toHaveBeenLastCalledWith('k2', false);
+
+    dialogs.open.mockReturnValueOnce(of({ deleteFiles: true }));
+    await actions.remove(key({ id: 'k3', managed: false, origin: 'generated' }));
+    expect(store.delete).toHaveBeenLastCalledWith('k3', true);
+  });
+
+  it('explains a delete refused because the file no longer holds the key', async () => {
+    dialogs.open.mockReturnValueOnce(of({ deleteFiles: true }));
+    store.delete.mockRejectedValueOnce(new IpcError('conflict', 'key file changed'));
+    expect(await actions.remove(KEY)).toBe(false);
+    expect(lastToast()).toEqual([
+      'The file at this path no longer holds this key. Nothing was deleted.',
+      expect.objectContaining({ label: 'Key not deleted', appearance: 'negative' }),
+    ]);
   });
 
   it('does nothing when the delete is cancelled', async () => {

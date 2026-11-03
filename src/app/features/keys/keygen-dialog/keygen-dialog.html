@@ -27,6 +27,46 @@
     </tui-textfield>
     <tui-error appErrorLink formControlName="name" />
 
+    <tui-textfield [tuiTextfieldCleaner]="false">
+      <label tuiLabel>Folder</label>
+      <input
+        #folderInput
+        tuiInput
+        class="mono"
+        autocomplete="off"
+        formControlName="folder"
+        data-testid="keygen-folder"
+        (blur)="checkNow()"
+      />
+      @if (showReset()) {
+        <button
+          tuiIconButton
+          appearance="icon"
+          size="xs"
+          iconStart="@tui.rotate-ccw"
+          type="button"
+          aria-label="Use the default folder"
+          tuiHint="Use the default folder"
+          data-testid="keygen-folder-reset"
+          (click)="resetFolder()"
+        ></button>
+      }
+      <button
+        #folderBrowse
+        tuiIconButton
+        appearance="icon"
+        size="xs"
+        iconStart="@tui.folder-open"
+        type="button"
+        aria-label="Choose a folder"
+        tuiHint="Choose a folder"
+        data-testid="keygen-folder-browse"
+        [disabled]="picking()"
+        (click)="browseFolder()"
+      ></button>
+    </tui-textfield>
+    <tui-error appErrorLink formControlName="folder" />
+
     <tui-textfield>
       <label tuiLabel>File name</label>
       <input
@@ -45,6 +85,17 @@
       Saved as <span class="mono">{{ pathPreview() }}</span> and
       <span class="mono">{{ pathPreview() }}.pub</span>
     </p>
+    @if (warning(); as text) {
+      <div
+        tuiNotification
+        appearance="warning"
+        size="s"
+        role="status"
+        data-testid="keygen-folder-warning"
+      >
+        {{ text }}
+      </div>
+    }
 
     <tui-textfield>
       <label tuiLabel>Comment</label>

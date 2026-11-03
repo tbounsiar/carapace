@@ -1,12 +1,16 @@
 <p>The key is removed from the list and any saved passphrase is forgotten.</p>
-@if (key.managed) {
+@if (generated) {
   <label class="check">
     <input tuiCheckbox type="checkbox" data-testid="key-delete-files" [formControl]="deleteFiles" />
     Also delete the key files
   </label>
   <p class="note">
     Deletes <span class="mono">{{ key.path }}</span> and its <span class="mono">.pub</span> file.
-    Servers that trust this key can no longer be reached with it.
+    @if (key.managed) {
+      Servers that trust this key can no longer be reached with it.
+    } @else {
+      Other tools may use this key.
+    }
   </p>
 } @else {
   <p class="note">

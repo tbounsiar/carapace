@@ -1,17 +1,31 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { TuiActiveZone } from '@taiga-ui/cdk';
-import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  ElementRef,
+  inject,
+  Injector,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
 import {
   TuiButton,
   TuiDataList,
+  TuiDialogService,
   TuiDropdown,
   TuiError,
   TuiHint,
   TuiIcon,
   TuiInput,
+  TuiLink,
   TuiLoader,
   TuiNotification,
   TuiNotificationService,
@@ -19,15 +33,28 @@ import {
   TuiTitle,
   type TuiDialogContext,
 } from '@taiga-ui/core';
-import { TuiButtonLoading, TuiChevron, TuiRadioList, TuiSelect, TuiTooltip } from '@taiga-ui/kit';
+import {
+  TUI_CONFIRM,
+  TuiButtonLoading,
+  TuiChevron,
+  type TuiConfirmData,
+  TuiRadioList,
+  TuiSelect,
+  TuiTooltip,
+} from '@taiga-ui/kit';
 import { type TuiStringHandler } from '@taiga-ui/cdk';
 import { TuiElasticContainer, TuiForm } from '@taiga-ui/layout';
-import { injectContext } from '@taiga-ui/polymorpheus';
+import { injectContext, PolymorpheusComponent } from '@taiga-ui/polymorpheus';
+import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
 import type { AuthMethod, Host, HostInput } from '../../../core/ipc/config.models';
+import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import { KeyStore } from '../../../core/ipc/key-store';
+import type { KeyView } from '../../../core/ipc/keys';
 import { AUTH_LABELS } from '../../../shared/auth-method';
 import {
+  hasReferences,
+  parseTemplate,
   previewHost,
   resolveTemplate,
   secretVariableNames,
@@ -40,7 +67,7 @@ import {
   testingView,
   type HostTestView,
 } from '../../host-test/host-test-view';
-import { handleSaveError } from '../save-error';
+import { handleSaveError, notifyError } from '../save-error';
 import {
   hostnameValidator,
   keyPathValidator,
@@ -65,6 +92,19 @@ export interface HostDialogData {
 
 export type AuthKind = AuthMethod['kind'];
 
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+/** Case-insensitive for Windows paths, which contain a backslash. */
+export function sameKeyPath(a: string, b: string): boolean {
+  return a.includes('\\') || b.includes('\\') ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
 function reference(value: string | null): string | null {
   const trimmed = value?.trim() ?? '';
   return trimmed ? trimmed : null;
@@ -88,6 +128,7 @@ function reference(value: string | null): string | null {
     TuiForm,
     TuiIcon,
     TuiInput,
+    TuiLink,
     TuiLoader,
     TuiNotification,
     TuiRadioList,
@@ -105,6 +146,9 @@ export class HostDialog {
   private readonly config = inject(ConfigService);
   private readonly keyStore = inject(KeyStore);
   private readonly tester = inject(HostTester);
+  private readonly picker = inject(KeyFilePicker);
+  private readonly dialogs = inject(TuiDialogService);
+  private readonly injector = inject(Injector);
   protected readonly context = injectContext<TuiDialogContext<void, HostDialogData>>();
 
   protected readonly authKinds: readonly AuthKind[] = ['password', 'key', 'agent'];
@@ -113,6 +157,11 @@ export class HostDialog {
   protected readonly saving = signal(false);
   protected readonly keys = this.keyStore.keys;
   protected readonly keyMenuOpen = signal(false);
+  protected readonly picking = this.picker.picking;
+  private readonly keyPathInput = viewChild('keyPathInput', { read: ElementRef });
+  private readonly keyBrowse = viewChild('keyBrowse', { read: ElementRef });
+  /** A browsed path that may need registering; cleared by any other edit of Key path. */
+  private readonly browsedPath = signal<string | null>(null);
   private readonly initial = this.context.data.initial;
   private readonly initialAuth = this.initial?.auth;
   private readonly fb = inject(NonNullableFormBuilder);
@@ -162,6 +211,14 @@ export class HostDialog {
       }
     }
     return refs;
+  });
+
+  protected readonly showRegister = computed(() => {
+    const path = this.browsedPath();
+    if (path === null || !this.keyStore.loaded() || this.value().keyPath !== path) {
+      return false;
+    }
+    return !this.keys().some((k) => sameKeyPath(k.path, path));
   });
 
   private readonly layers = computed(() => variableLayers(this.config.variables(), this.project()));
@@ -218,7 +275,15 @@ export class HostDialog {
         }
       });
     });
-    inject(DestroyRef).onDestroy(() => this.run?.abort());
+    const destroyRef = inject(DestroyRef);
+    this.form.controls.keyPath.valueChanges
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe((path) => {
+        if (path !== this.browsedPath()) {
+          this.browsedPath.set(null);
+        }
+      });
+    destroyRef.onDestroy(() => this.run?.abort());
   }
 
   protected toggleTest(): void {
@@ -260,12 +325,85 @@ export class HostDialog {
     this.testView.set(null);
   }
 
-  protected pickKey(path: string): void {
+  protected async pickKey(path: string): Promise<void> {
+    this.keyMenuOpen.set(false);
+    if (await this.replaceKeyPath(path)) {
+      this.focusLater(this.keyPathInput());
+    }
+  }
+
+  protected async browseKey(): Promise<void> {
+    const current = this.form.controls.keyPath.value.trim();
+    let picked: string | null;
+    try {
+      picked = await this.picker.pickFile(current && !hasReferences(current) ? current : null);
+    } catch (err) {
+      notifyError(this.alerts, err, 'File picker not opened');
+      return;
+    }
+    if (picked === null || !(await this.replaceKeyPath(picked))) {
+      this.focusLater(this.keyBrowse());
+      return;
+    }
+    this.browsedPath.set(picked);
+    this.focusLater(this.keyPathInput());
+  }
+
+  protected async registerKey(): Promise<void> {
+    const path = this.browsedPath();
+    if (path === null) {
+      return;
+    }
+    const { KeyImportDialog } = await import('../../keys/key-import-dialog/key-import-dialog');
+    const key = await firstValueFrom(
+      this.dialogs.open<KeyView>(new PolymorpheusComponent(KeyImportDialog), {
+        label: 'Import key',
+        size: 'm',
+        data: { path },
+      }),
+      { defaultValue: null },
+    );
+    if (key) {
+      this.alerts.open(key.name, { label: 'Key registered', appearance: 'positive' }).subscribe();
+      this.browsedPath.set(null);
+    }
+    this.focusLater(this.keyPathInput());
+  }
+
+  /** Asks first when the field holds a template; resolves false when the user keeps it. */
+  private async replaceKeyPath(path: string): Promise<boolean> {
     const keyPath = this.form.controls.keyPath;
+    const refs = parseTemplate(keyPath.value).flatMap((s) => ('ref' in s ? [`\${${s.ref}}`] : []));
+    if (refs.length) {
+      const code = (text: string): string => `<code>${escapeHtml(text)}</code>`;
+      const data: TuiConfirmData = {
+        content: `Key path uses ${refs.map(code).join(', ')}. Replace it with ${code(path)}? The host will no longer follow the variable.`,
+        yes: 'Replace',
+        no: 'Keep template',
+        appearance: 'primary',
+      };
+      const replace = await firstValueFrom(
+        this.dialogs.open<boolean>(TUI_CONFIRM, {
+          label: 'Replace the template?',
+          size: 's',
+          data,
+        }),
+        { defaultValue: false },
+      );
+      if (!replace) {
+        return false;
+      }
+    }
     keyPath.setValue(path);
     keyPath.markAsDirty();
     keyPath.markAsTouched();
-    this.keyMenuOpen.set(false);
+    return true;
+  }
+
+  private focusLater(ref: ElementRef | undefined): void {
+    afterNextRender(() => (ref?.nativeElement as HTMLElement | undefined)?.focus(), {
+      injector: this.injector,
+    });
   }
 
   protected label(kind: AuthKind): string {

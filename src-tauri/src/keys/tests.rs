@@ -8,6 +8,7 @@ use secrecy::SecretString;
 use super::deploy::replace_file;
 use super::file;
 use super::file::{MAX_KEY_FILE_BYTES, validate_comment};
+use super::location::KeyDir;
 use super::*;
 use crate::config::KeyAlgorithm;
 use crate::files::FsError;
@@ -41,7 +42,14 @@ fn path_str(path: &Path) -> String {
 fn generates_an_owner_only_ed25519_key_pair() {
     let home = tempfile::tempdir().unwrap();
     let dir = keys_dir(home.path());
-    let g = generate(&dir, "id_ed25519", KeyType::Ed25519, " me@box ", None).unwrap();
+    let g = generate(
+        &KeyDir::managed(&dir),
+        "id_ed25519",
+        KeyType::Ed25519,
+        " me@box ",
+        None,
+    )
+    .unwrap();
     assert_eq!(
         g.path,
         crate::fsutil::canonical(&dir.join("id_ed25519")).unwrap()
@@ -77,7 +85,14 @@ fn encrypted_key_decodes_only_with_its_passphrase() {
     let home = tempfile::tempdir().unwrap();
     let dir = keys_dir(home.path());
     let pp = passphrase();
-    let g = generate(&dir, "enc", KeyType::Ed25519, "c", Some(&pp)).unwrap();
+    let g = generate(
+        &KeyDir::managed(&dir),
+        "enc",
+        KeyType::Ed25519,
+        "c",
+        Some(&pp),
+    )
+    .unwrap();
     assert!(g.info.encrypted);
     let pem = text(&g.path);
     assert!(matches!(
@@ -105,14 +120,14 @@ fn encrypted_key_decodes_only_with_its_passphrase() {
 fn never_replaces_an_existing_file() {
     let home = tempfile::tempdir().unwrap();
     let dir = keys_dir(home.path());
-    generate(&dir, "a", KeyType::Ed25519, "", None).unwrap();
+    generate(&KeyDir::managed(&dir), "a", KeyType::Ed25519, "", None).unwrap();
     let before = text(&dir.join("a"));
-    let err = generate(&dir, "a", KeyType::Ed25519, "", None).unwrap_err();
+    let err = generate(&KeyDir::managed(&dir), "a", KeyType::Ed25519, "", None).unwrap_err();
     assert_eq!(err.code(), "already_exists");
     assert_eq!(text(&dir.join("a")), before);
     fs::write(dir.join("b.pub"), "x").unwrap();
     assert_eq!(
-        generate(&dir, "b", KeyType::Ed25519, "", None)
+        generate(&KeyDir::managed(&dir), "b", KeyType::Ed25519, "", None)
             .unwrap_err()
             .code(),
         "already_exists"
@@ -130,11 +145,37 @@ fn rejects_bad_names_comments_and_passphrases() {
         bad.extend(["CON", "nul.txt", "a."]);
     }
     for name in bad {
-        let err = generate(&dir, name, KeyType::Ed25519, "", None).unwrap_err();
+        let err = generate(&KeyDir::managed(&dir), name, KeyType::Ed25519, "", None).unwrap_err();
         assert_eq!(err.code(), "invalid_input", "{name:?}");
     }
     assert!(validate_file_name(&"a".repeat(64)).is_ok());
     assert!(validate_file_name("id_ed25519.work-1").is_ok());
+    for reserved in [
+        "x.pub",
+        "id.PUB",
+        "authorized_keys",
+        "Authorized_Keys2",
+        "config",
+        "known_hosts",
+        "KNOWN_HOSTS2",
+        "environment",
+        "rc",
+    ] {
+        let err = validate_file_name(reserved).unwrap_err();
+        assert_eq!(err.code(), "invalid_input", "{reserved}");
+        let err = generate(&KeyDir::managed(&dir), reserved, KeyType::Ed25519, "", None);
+        assert_eq!(err.unwrap_err().code(), "invalid_input");
+    }
+    assert_eq!(
+        validate_file_name("k.pub").unwrap_err().to_string(),
+        "A private key file name cannot end in .pub."
+    );
+    assert_eq!(
+        validate_file_name("config").unwrap_err().to_string(),
+        "This name is reserved. Choose another file name."
+    );
+    assert!(validate_file_name("config.work").is_ok());
+    assert!(validate_file_name("rc2").is_ok());
     assert!(validate_comment("a\nb").is_err());
     assert!(validate_comment(&"c".repeat(256)).is_err());
     assert!(validate_passphrase(&SecretString::from("")).is_err());
@@ -149,7 +190,14 @@ fn generates_an_encrypted_rsa_4096_key() {
     let home = tempfile::tempdir().unwrap();
     let dir = keys_dir(home.path());
     let started = Instant::now();
-    let g = generate(&dir, "id_rsa", KeyType::Rsa4096, "rsa", Some(&passphrase())).unwrap();
+    let g = generate(
+        &KeyDir::managed(&dir),
+        "id_rsa",
+        KeyType::Rsa4096,
+        "rsa",
+        Some(&passphrase()),
+    )
+    .unwrap();
     eprintln!("RSA 4096 generated in {:?}", started.elapsed());
     assert_eq!(g.info.algorithm, KeyAlgorithm::Rsa);
     assert_eq!(g.info.bits, Some(4096));
@@ -218,16 +266,18 @@ fn inspects_existing_keys() {
 fn removes_managed_files_only_inside_the_keys_dir() {
     let home = tempfile::tempdir().unwrap();
     let dir = keys_dir(home.path());
-    let g = generate(&dir, "k", KeyType::Ed25519, "", None).unwrap();
+    let g = generate(&KeyDir::managed(&dir), "k", KeyType::Ed25519, "", None).unwrap();
     let outside = write_key(home.path(), "k", "");
     assert_eq!(
-        remove_managed(&dir, &outside).unwrap_err().code(),
+        remove_pair(&outside, &g.info.fingerprint, Some(&dir))
+            .unwrap_err()
+            .code(),
         "invalid_input"
     );
     assert!(Path::new(&outside).exists());
-    remove_managed(&dir, &path_str(&g.path)).unwrap();
+    remove_pair(&path_str(&g.path), &g.info.fingerprint, Some(&dir)).unwrap();
     assert!(names(&dir).is_empty());
-    remove_managed(&dir, &path_str(&g.path)).unwrap();
+    remove_pair(&path_str(&g.path), &g.info.fingerprint, Some(&dir)).unwrap();
 }
 
 #[test]
@@ -245,7 +295,14 @@ fn warns_about_missing_or_exposed_key_files() {
         assert_eq!(permission_warning(&path), None);
     }
     let home = tempfile::tempdir().unwrap();
-    let g = generate(&keys_dir(home.path()), "own", KeyType::Ed25519, "", None).unwrap();
+    let g = generate(
+        &KeyDir::managed(&keys_dir(home.path())),
+        "own",
+        KeyType::Ed25519,
+        "",
+        None,
+    )
+    .unwrap();
     assert_eq!(permission_warning(&path_str(&g.path)), None);
 }
 
@@ -451,7 +508,14 @@ fn imported_comments_never_carry_control_characters() {
 fn deployable_line_comes_from_the_key_file() {
     let home = tempfile::tempdir().unwrap();
     let dir = keys_dir(home.path());
-    let g = generate(&dir, "k", KeyType::Ed25519, "orig", Some(&passphrase())).unwrap();
+    let g = generate(
+        &KeyDir::managed(&dir),
+        "k",
+        KeyType::Ed25519,
+        "orig",
+        Some(&passphrase()),
+    )
+    .unwrap();
     let path = path_str(&g.path);
     let line = deployable_line(&path, &g.info.public_key, "renamed\nevil").unwrap();
     let mut parts = g.info.public_key.split(' ');

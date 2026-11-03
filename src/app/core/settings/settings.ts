@@ -4,6 +4,8 @@ import { type ThemeMode, ThemeService } from '../theme/theme';
 
 export const KEY_TYPE_STORAGE = 'carapace.keyType';
 export const FONT_SIZE_STORAGE = 'carapace.terminalFontSize';
+export const KEY_FOLDER_STORAGE = 'carapace.keyFolder';
+export const KEY_FOLDER_MAX = 4096;
 
 export const DEFAULT_KEY_TYPE: KeyType = 'ed25519';
 export const FONT_SIZE_MIN = 10;
@@ -20,6 +22,17 @@ export function isFontSize(value: unknown): value is number {
     Number.isInteger(value) &&
     value >= FONT_SIZE_MIN &&
     value <= FONT_SIZE_MAX
+  );
+}
+
+const FOLDER_PATH = /^(\/|~\/|[A-Za-z]:[\\/])/;
+
+export function isKeyFolder(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= KEY_FOLDER_MAX &&
+    value.trim() === value &&
+    FOLDER_PATH.test(value)
   );
 }
 
@@ -59,6 +72,11 @@ export class Settings {
     read(FONT_SIZE_STORAGE, (raw) => Number(raw), isFontSize, DEFAULT_FONT_SIZE),
   );
 
+  /** Custom folder of the last successful generation; null is the managed keys folder. */
+  readonly keyFolder = signal<string | null>(
+    read<string | null>(KEY_FOLDER_STORAGE, (raw) => raw, isKeyFolder, null),
+  );
+
   setTheme(mode: ThemeMode): void {
     this.themeService.setMode(mode);
   }
@@ -78,5 +96,21 @@ export class Settings {
     }
     this.terminalFontSize.set(size);
     write(FONT_SIZE_STORAGE, String(size));
+  }
+
+  setKeyFolder(dir: string | null): void {
+    if (dir !== null && !isKeyFolder(dir)) {
+      return;
+    }
+    this.keyFolder.set(dir);
+    if (dir === null) {
+      try {
+        localStorage.removeItem(KEY_FOLDER_STORAGE);
+      } catch {
+        // See `write`.
+      }
+    } else {
+      write(KEY_FOLDER_STORAGE, dir);
+    }
   }
 }

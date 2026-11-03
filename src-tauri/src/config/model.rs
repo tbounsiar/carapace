@@ -211,8 +211,19 @@ pub enum KeyAlgorithm {
     Rsa,
 }
 
-/// A registered SSH key: public data and where the private key file is. `managed` keys were
-/// generated into the app's keys directory; others were imported by path and stay where they are.
+/// Who created the key files. Only generated keys may have their files deleted. Entries
+/// written before the field existed are fixed up on load (see `ConfigStore`); the default is the
+/// safe one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KeyOrigin {
+    Generated,
+    #[default]
+    Imported,
+}
+
+/// A registered SSH key: public data and where the private key file is. `managed` keys live in
+/// the app's keys directory; `origin` says whether the app generated the files.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyEntry {
@@ -220,6 +231,8 @@ pub struct KeyEntry {
     pub name: String,
     pub path: String,
     pub managed: bool,
+    #[serde(default)]
+    pub origin: KeyOrigin,
     pub algorithm: KeyAlgorithm,
     pub bits: Option<u32>,
     pub public_key: String,

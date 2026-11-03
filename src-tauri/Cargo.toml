@@ -31,6 +31,7 @@ keyring = "4.2.0"
 secrecy = { version = "0.10.3", features = ["serde"] }
 russh-sftp = "3.0.1"
 getrandom = { version = "0.4.3", features = ["sys_rng"] }
+rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal", "wayland", "common-controls-v6"] }
 
 [dev-dependencies]
 rand = "0.10"

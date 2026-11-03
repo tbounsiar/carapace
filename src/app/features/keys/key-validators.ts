@@ -99,6 +99,16 @@ export function keyFilePathValidator(control: AbstractControl): ValidationErrors
   return ABSOLUTE_PATH.test(value) ? null : fail('Use an absolute path or one starting with ~/');
 }
 
+export function keyFolderValidator(control: AbstractControl): ValidationErrors | null {
+  const value = String(control.value ?? '').trim();
+  if (!value) {
+    return fail('Choose a folder for the key.');
+  }
+  return ABSOLUTE_PATH.test(value) && !value.startsWith('\\\\')
+    ? null
+    : fail('Use a full path, or one starting with ~/.');
+}
+
 export function baseName(path: string): string {
   const parts = path.trim().split(/[\\/]/);
   return parts[parts.length - 1] ?? '';

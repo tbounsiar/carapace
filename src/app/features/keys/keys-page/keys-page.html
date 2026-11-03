@@ -86,15 +86,27 @@
                   Passphrase saved
                 </span>
               }
-              @if (!key.managed) {
+              @if (key.origin === 'imported') {
                 <span
                   tuiBadge
                   size="m"
                   appearance="neutral"
+                  tabindex="0"
                   [attr.data-testid]="'key-badge-external-' + key.name"
                   [tuiHint]="key.path"
                 >
                   External
+                </span>
+              } @else if (!key.managed) {
+                <span
+                  tuiBadge
+                  size="m"
+                  appearance="neutral"
+                  tabindex="0"
+                  [attr.data-testid]="'key-badge-folder-' + key.name"
+                  [tuiHint]="key.path"
+                >
+                  Custom folder
                 </span>
               }
               @if (key.warning) {

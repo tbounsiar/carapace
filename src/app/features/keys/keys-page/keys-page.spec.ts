@@ -95,11 +95,13 @@ describe('KeysPage', () => {
         algorithm: 'rsa',
         bits: 4096,
         managed: false,
+        origin: 'imported',
         encrypted: true,
         hasPassphrase: true,
         warning: 'Readable by other users',
         fingerprint: 'SHA256:xyz',
       }),
+      key({ id: 'k3', name: 'work', managed: false, path: '/home/me/.ssh/work' }),
     ]);
     expect(byId('keys-empty')).toBeNull();
     const plain = byId('key-row-id_ed25519')!;
@@ -107,6 +109,11 @@ describe('KeysPage', () => {
     expect(byId('key-fingerprint-id_ed25519')!.textContent!.trim()).toBe('SHA256:abc');
     expect(byId('key-badge-encrypted-id_ed25519')).toBeNull();
     expect(byId('key-badge-external-id_ed25519')).toBeNull();
+    expect(byId('key-badge-folder-id_ed25519')).toBeNull();
+    expect(byId('key-badge-folder-work')!.textContent).toContain('Custom folder');
+    expect(byId('key-badge-folder-work')!.getAttribute('tabindex')).toBe('0');
+    expect(byId('key-badge-external-work')).toBeNull();
+    expect(byId('key-badge-folder-legacy')).toBeNull();
 
     expect(byId('key-row-legacy')!.textContent).toContain('RSA 4096');
     expect(byId('key-badge-encrypted-legacy')!.textContent).toContain('Encrypted');

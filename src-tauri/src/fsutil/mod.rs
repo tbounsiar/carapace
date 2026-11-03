@@ -1,7 +1,10 @@
 //! Local file helpers for files that must never be readable by other users.
 
+mod pinned;
 #[cfg(windows)]
 mod windows;
+
+pub use pinned::{DirHandle, DirId, open_dir, open_for_delete};
 
 use std::fs::{self, File};
 use std::io::{self, ErrorKind, Read, Write};
@@ -141,6 +144,38 @@ pub fn readable_by_others(file: &File) -> io::Result<bool> {
     windows::readable_by_others(file)
 }
 
+/// Whether accounts other than the current user (and SYSTEM / Administrators on Windows) can
+/// list, add or remove entries in the directory. The directory itself is inspected, never a
+/// link's target.
+pub fn dir_open_to_others(dir: &Path) -> io::Result<bool> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        Ok(fs::symlink_metadata(dir)?.permissions().mode() & 0o066 != 0)
+    }
+    #[cfg(windows)]
+    {
+        windows::dir_open_to_others(dir)
+    }
+}
+
+/// Checks that an owner-only file can be created in `dir` by creating one under a temp name
+/// (the names `write_new` uses) and removing it at once.
+pub fn probe_writable(dir: &Path, name: &str) -> io::Result<()> {
+    for n in 0..MAX_TEMPS {
+        let temp = dir.join(temp_name(name, n));
+        match create_owner_only(&temp) {
+            Ok(file) => {
+                drop(file);
+                return fs::remove_file(&temp);
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(ErrorKind::AlreadyExists.into())
+}
+
 fn temp_name(name: &str, n: u32) -> String {
     if n == 0 {
         format!(".{name}.carapace-part")
@@ -187,27 +222,87 @@ pub fn write_new(dir: &Path, name: &str, data: &[u8], owner_only: bool) -> io::R
     }
 }
 
-/// Expands a leading `~/` (or `~\`) to the user's home directory.
-pub fn expand_tilde(path: &str) -> PathBuf {
-    if let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\"))
-        && let Some(home) = std::env::home_dir()
+/// An absolute path that stays on this machine: on Windows it must start with a drive
+/// (`C:\`, or its verbatim form), never a UNC or device prefix, because opening or even
+/// canonicalizing `\\host\share` authenticates to that host with the user's credentials.
+pub fn is_local_path(path: &Path) -> bool {
+    #[cfg(windows)]
     {
-        return home.join(rest);
+        use std::path::{Component, Prefix};
+        let drive = matches!(
+            path.components().next(),
+            Some(Component::Prefix(p)) if matches!(p.kind(), Prefix::Disk(_) | Prefix::VerbatimDisk(_))
+        );
+        drive && path.is_absolute()
     }
-    PathBuf::from(path)
+    #[cfg(not(windows))]
+    {
+        path.is_absolute()
+    }
+}
+
+/// What may follow `~/`: only plain components. A root, drive or UNC prefix would make
+/// `join` replace the home directory (`~///host/share`, `~/C:/x`).
+pub fn is_home_relative(rest: &str) -> bool {
+    use std::path::Component;
+    Path::new(rest).components().all(|c| {
+        matches!(
+            c,
+            Component::Normal(_) | Component::CurDir | Component::ParentDir
+        )
+    })
+}
+
+/// Expands a leading `~/` (or `~\`) to the user's home directory. `None` unless the result is
+/// a local absolute path (see `is_local_path`); callers refuse the input then.
+pub fn expand_local(raw: &str) -> Option<PathBuf> {
+    let path = match raw.strip_prefix("~/").or_else(|| raw.strip_prefix("~\\")) {
+        Some(rest) if is_home_relative(rest) => std::env::home_dir()?.join(rest),
+        Some(_) => return None,
+        None => PathBuf::from(raw),
+    };
+    is_local_path(&path).then_some(path)
 }
 
 /// `canonicalize` without the `\\?\` prefix Windows adds to drive paths.
 pub fn canonical(path: &Path) -> io::Result<PathBuf> {
-    let real = fs::canonicalize(path)?;
-    Ok(match real.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
-        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
-        _ => real,
-    })
+    Ok(strip_verbatim(fs::canonicalize(path)?))
 }
+
+/// Drops the `\\?\` prefix of a verbatim drive path; any other path is returned as is.
+pub fn strip_verbatim(path: PathBuf) -> PathBuf {
+    match path.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
+        _ => path,
+    }
+}
+
+/// Test inputs that must never reach the file system: they name another host, a device, a
+/// pipe, or escape the home directory through `~/`.
+#[cfg(all(test, windows))]
+pub(crate) const NON_LOCAL: &[&str] = &[
+    r"~///host/share",
+    r"~/\\host\share",
+    r"~/C:/x",
+    r"~/\x",
+    r"~\\\host\share",
+    r"\\?\UNC\host\share",
+    r"\\.\pipe\x",
+    r"\\host\share\k",
+    r"//host/share/k",
+    r"/\host\share\k",
+    r"\/host/share/k",
+    "relative",
+];
+#[cfg(all(test, unix))]
+pub(crate) const NON_LOCAL: &[&str] = &["~//etc/k", "~///host/share", "relative"];
 
 #[cfg(all(test, windows))]
 pub(crate) use windows::acl::is_owner_only;
+
+/// Test helper: a directory with the given DACL (`%ME%` = the current user's SID).
+#[cfg(all(test, windows))]
+pub(crate) use windows::create_dir_with_sddl;
 
 /// Whether the file is readable or writable by its owner only.
 #[cfg(all(test, unix))]
@@ -359,14 +454,72 @@ mod tests {
     }
 
     #[test]
+    fn non_local_paths_never_expand() {
+        for raw in NON_LOCAL {
+            assert_eq!(expand_local(raw), None, "{raw}");
+        }
+        #[cfg(windows)]
+        {
+            assert!(is_local_path(Path::new(r"C:\x")));
+            assert!(is_local_path(Path::new(r"\\?\C:\x")));
+            assert!(!is_local_path(Path::new(r"\\?\UNC\h\s")));
+            assert!(!is_local_path(Path::new(r"C:x")));
+        }
+    }
+
+    #[test]
+    fn probe_leaves_nothing_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join(".id.carapace-part"), b"leftover").unwrap();
+        probe_writable(dir.path(), "id").unwrap();
+        let names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, vec![".id.carapace-part"]);
+    }
+
+    #[test]
+    fn dir_exposure_follows_the_acl() {
+        let dir = tempfile::tempdir().unwrap();
+        let own = dir.path().join("own");
+        ensure_dir_owner_only(&own).unwrap();
+        assert!(!dir_open_to_others(&own).unwrap());
+        let shared = dir.path().join("shared");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::create_dir(&shared).unwrap();
+            fs::set_permissions(&shared, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        #[cfg(windows)]
+        create_dir_with_sddl(&shared, "D:P(A;OICI;FR;;;WD)(A;OICI;FA;;;%ME%)").unwrap();
+        assert!(dir_open_to_others(&shared).unwrap());
+        #[cfg(windows)]
+        {
+            let inherit_only = dir.path().join("inherit-only");
+            create_dir_with_sddl(&inherit_only, "D:P(A;OICIIO;FA;;;WD)(A;OICI;FA;;;%ME%)").unwrap();
+            assert!(!dir_open_to_others(&inherit_only).unwrap());
+        }
+    }
+
+    #[test]
     fn canonical_strips_the_verbatim_prefix() {
+        assert_eq!(
+            strip_verbatim(PathBuf::from(r"\\?\C:\k")),
+            PathBuf::from(r"C:\k")
+        );
+        assert_eq!(
+            strip_verbatim(PathBuf::from(r"\\?\UNC\s\k")),
+            PathBuf::from(r"\\?\UNC\s\k")
+        );
         let dir = tempfile::tempdir().unwrap();
         let c = canonical(dir.path()).unwrap();
         assert!(!c.to_string_lossy().starts_with(r"\\?\"));
         assert!(c.is_absolute());
-        assert_eq!(expand_tilde("/abs"), PathBuf::from("/abs"));
         if let Some(home) = std::env::home_dir() {
-            assert_eq!(expand_tilde("~/x"), home.join("x"));
+            assert_eq!(expand_local("~/x"), Some(home.join("x")));
+            assert_eq!(expand_local("~/a/../b"), Some(home.join("a/../b")));
         }
     }
 }

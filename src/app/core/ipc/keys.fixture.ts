@@ -6,6 +6,7 @@ export const KEY: KeyView = {
   name: 'id_ed25519',
   path: 'C:\\Users\\me\\.carapace\\keys\\id_ed25519',
   managed: true,
+  origin: 'generated',
   algorithm: 'ed25519',
   bits: null,
   publicKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA carapace',

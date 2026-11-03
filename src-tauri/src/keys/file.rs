@@ -12,6 +12,7 @@ use serde::Deserialize;
 use zeroize::Zeroizing;
 
 use super::error::KeyError;
+use super::location::{self, KeyDir};
 use crate::config::KeyAlgorithm;
 use crate::{config, fsutil, localfs};
 
@@ -21,6 +22,15 @@ const MAX_PASSPHRASE_CHARS: usize = 1024;
 const MAX_COMMENT_CHARS: usize = 255;
 const MAX_FILE_NAME_CHARS: usize = 64;
 const RSA_BITS: usize = 4096;
+const RESERVED_NAMES: &[&str] = &[
+    "authorized_keys",
+    "authorized_keys2",
+    "config",
+    "known_hosts",
+    "known_hosts2",
+    "environment",
+    "rc",
+];
 const MIN_RSA_BITS: u32 = 2048;
 
 /// What the user can generate: Ed25519, or RSA 4096 as the only alternative.
@@ -48,13 +58,36 @@ pub struct GeneratedKey {
     /// Canonical path of the private key file.
     pub path: PathBuf,
     pub info: KeyInfo,
+    /// Written into the managed keys directory.
+    pub managed: bool,
 }
 
 pub fn keys_dir(home: &Path) -> PathBuf {
     home.join("keys")
 }
 
+/// The name of a new private key file.
 pub fn validate_file_name(raw: &str) -> Result<&str, KeyError> {
+    let raw = name_syntax(raw)?;
+    let lower = raw.to_ascii_lowercase();
+    if lower.ends_with(".pub") {
+        return Err(KeyError::invalid(
+            "A private key file name cannot end in .pub.",
+        ));
+    }
+    // Files OpenSSH reads from ~/.ssh: a key written there under one of these names would be
+    // taken for configuration.
+    if RESERVED_NAMES.contains(&lower.as_str()) {
+        return Err(KeyError::invalid(
+            "This name is reserved. Choose another file name.",
+        ));
+    }
+    Ok(raw)
+}
+
+/// Charset and platform rules only; also what an existing generated key's name passes, so a
+/// pair generated before the reserved names were refused can still be deleted.
+fn name_syntax(raw: &str) -> Result<&str, KeyError> {
     let charset = raw
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
@@ -128,11 +161,12 @@ pub(super) fn info_of(public: &PublicKey, encrypted: bool) -> Result<KeyInfo, Ke
     })
 }
 
-/// Generates a key pair into `dir` (created owner-only if missing): `{file_name}` owner-only
-/// and `{file_name}.pub`, both written atomically without replacing anything. Blocking (RSA
-/// takes seconds); run it on the blocking pool.
+/// Generates a key pair into `dir`: `{file_name}` owner-only and `{file_name}.pub`, both
+/// written atomically without replacing anything. The managed directory is created owner-only
+/// if missing; a custom folder must already exist (see `key_dir`). Blocking (RSA takes
+/// seconds); run it on the blocking pool.
 pub fn generate(
-    dir: &Path,
+    dir: &KeyDir,
     file_name: &str,
     kind: KeyType,
     comment: &str,
@@ -143,17 +177,16 @@ pub fn generate(
     if let Some(p) = passphrase {
         validate_passphrase(p)?;
     }
-    if let Some(home) = dir.parent() {
-        fs::create_dir_all(home).map_err(|e| KeyError::io(e, home))?;
-    }
-    fsutil::ensure_dir_owner_only(dir).map_err(|e| KeyError::io(e, dir))?;
-    let pub_name = format!("{file_name}.pub");
-    for name in [file_name, pub_name.as_str()] {
-        let path = dir.join(name);
-        if fs::symlink_metadata(&path).is_ok() {
-            return Err(KeyError::AlreadyExists(path.display().to_string()));
+    let path = &dir.path;
+    if dir.managed {
+        if let Some(home) = path.parent() {
+            fs::create_dir_all(home).map_err(|e| KeyError::io(e, home))?;
         }
+        fsutil::ensure_dir_owner_only(path).map_err(|e| KeyError::io(e, path))?;
     }
+    let held = location::hold(dir)?;
+    location::ensure_free(path, file_name)?;
+    let pub_name = format!("{file_name}.pub");
 
     let mut rng = UnwrapErr(SysRng);
     let mut key = match kind {
@@ -174,15 +207,21 @@ pub fn generate(
         .map_err(|_| generation_failed())?;
     drop(key);
 
-    let private = fsutil::write_new(dir, file_name, pem.as_bytes(), true)
-        .map_err(|e| KeyError::io(e, &dir.join(file_name)))?;
+    location::recheck(dir, held.as_ref())?;
+    let private = fsutil::write_new(path, file_name, pem.as_bytes(), true)
+        .map_err(|e| location::write_error(e, dir, file_name))?;
     let public_line = format!("{}\n", info.public_key);
-    if let Err(e) = fsutil::write_new(dir, &pub_name, public_line.as_bytes(), false) {
+    if let Err(e) = fsutil::write_new(path, &pub_name, public_line.as_bytes(), false) {
         let _ = fs::remove_file(&private);
-        return Err(KeyError::io(e, &dir.join(&pub_name)));
+        return Err(location::write_error(e, dir, file_name));
     }
-    let path = fsutil::canonical(&private).map_err(|e| KeyError::io(e, &private))?;
-    Ok(GeneratedKey { path, info })
+    let canonical = fsutil::canonical(&private).map_err(|e| KeyError::io(e, &private))?;
+    drop(held);
+    Ok(GeneratedKey {
+        path: canonical,
+        info,
+        managed: dir.managed,
+    })
 }
 
 fn not_openssh(text: &str) -> KeyError {
@@ -219,9 +258,7 @@ fn parse_private(raw: &[u8]) -> Result<PrivateKey, KeyError> {
 
 /// The comment of the `.pub` file next to `path`, if it holds the same key.
 fn sibling_comment(path: &Path, public: &PublicKey) -> Option<String> {
-    let mut pub_path = path.as_os_str().to_owned();
-    pub_path.push(".pub");
-    let raw = read_key_file(Path::new(&pub_path), MAX_PUB_FILE_BYTES).ok()?;
+    let raw = read_key_file(&pub_path(path), MAX_PUB_FILE_BYTES).ok()?;
     let found = PublicKey::from_openssh(std::str::from_utf8(&raw).ok()?.trim()).ok()?;
     (found.key_data() == public.key_data()).then(|| found.comment().to_string())
 }
@@ -238,8 +275,12 @@ pub fn inspect(
     if let Some(p) = passphrase {
         validate_passphrase(p)?;
     }
-    let expanded = fsutil::expand_tilde(raw_path);
+    let expanded = fsutil::expand_local(raw_path)
+        .ok_or_else(|| KeyError::invalid("key path must be absolute or start with ~/"))?;
     let path = fsutil::canonical(&expanded).map_err(|e| KeyError::io(e, &expanded))?;
+    if !fsutil::is_local_path(&path) {
+        return Err(KeyError::invalid("key path must be on a local drive"));
+    }
     let key = parse_private(&read_key_file(&path, MAX_KEY_FILE_BYTES)?)?;
     let encrypted = key.is_encrypted();
     let mut public = key.public_key().clone();
@@ -316,28 +357,101 @@ pub fn permission_warning(path: &str) -> Option<String> {
     None
 }
 
-/// Deletes a managed key's two files. Refuses a path outside `dir`, so a tampered config
-/// cannot point the deletion elsewhere. Missing files are fine.
-pub fn remove_managed(dir: &Path, path: &str) -> Result<(), KeyError> {
+fn pub_path(path: &Path) -> PathBuf {
+    let mut p = path.as_os_str().to_owned();
+    p.push(".pub");
+    PathBuf::from(p)
+}
+
+fn delete_error(e: std::io::Error, path: &Path) -> KeyError {
+    match e.kind() {
+        ErrorKind::InvalidInput | ErrorKind::FileTooLarge => KeyError::NotThisKey,
+        _ => KeyError::io(e, path),
+    }
+}
+
+/// Reads one file of the pair for a deletion check: `None` when it is missing; a link, a
+/// non-regular or oversized file is not this key.
+fn read_for_delete(path: &Path, max: u64) -> Result<Option<Zeroizing<Vec<u8>>>, KeyError> {
+    match fsutil::read_regular_capped(path, max, false) {
+        Ok(raw) => Ok(Some(raw)),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(delete_error(e, path)),
+    }
+}
+
+fn fingerprint_of(public: &PublicKey) -> String {
+    public.fingerprint(HashAlg::Sha256).to_string()
+}
+
+fn private_holds(raw: &[u8], fingerprint: &str) -> Result<(), KeyError> {
+    let key = parse_private(raw).map_err(|_| KeyError::NotThisKey)?;
+    if fingerprint_of(key.public_key()) != fingerprint {
+        return Err(KeyError::NotThisKey);
+    }
+    Ok(())
+}
+
+fn public_holds(raw: &[u8], fingerprint: &str) -> Result<(), KeyError> {
+    let found = std::str::from_utf8(raw)
+        .ok()
+        .and_then(|t| PublicKey::from_openssh(t.trim()).ok())
+        .ok_or(KeyError::NotThisKey)?;
+    if fingerprint_of(&found) != fingerprint {
+        return Err(KeyError::NotThisKey);
+    }
+    Ok(())
+}
+
+/// Checks that the files of a generated key pair may be deleted: the private key at `path`
+/// (no link followed) holds the key with `fingerprint`, and so does its `.pub` sibling.
+/// Missing files are fine. With `managed`, the path must also be directly in that directory,
+/// so a tampered config cannot point the deletion elsewhere.
+pub fn check_pair(path: &str, fingerprint: &str, managed: Option<&Path>) -> Result<(), KeyError> {
     let path = Path::new(path);
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or_else(|| KeyError::invalid("the key is not in the keys directory"))?;
-    validate_file_name(name)?;
-    let inside = match (path.parent().map(fsutil::canonical), fsutil::canonical(dir)) {
-        (Some(Ok(parent)), Ok(dir)) => parent == dir,
-        _ => false,
-    };
-    if !inside {
-        return Err(KeyError::invalid("the key is not in the keys directory"));
+        .filter(|_| fsutil::is_local_path(path))
+        .ok_or_else(|| KeyError::invalid("the key files cannot be located"))?;
+    name_syntax(name)?;
+    if let Some(dir) = managed {
+        let inside = match (path.parent().map(fsutil::canonical), fsutil::canonical(dir)) {
+            (Some(Ok(parent)), Ok(dir)) => parent == dir,
+            _ => false,
+        };
+        if !inside {
+            return Err(KeyError::invalid("the key is not in the keys directory"));
+        }
     }
-    let public = path.with_file_name(format!("{name}.pub"));
-    for p in [path, public.as_path()] {
-        match fs::remove_file(p) {
-            Ok(()) => {}
-            Err(e) if e.kind() == ErrorKind::NotFound => {}
-            Err(e) => return Err(KeyError::io(e, p)),
+    if let Some(raw) = read_for_delete(path, MAX_KEY_FILE_BYTES)? {
+        private_holds(&raw, fingerprint)?;
+    }
+    if let Some(raw) = read_for_delete(&pub_path(path), MAX_PUB_FILE_BYTES)? {
+        public_holds(&raw, fingerprint)?;
+    }
+    Ok(())
+}
+
+/// Deletes a generated key's two files once `check_pair` passed. Each file is opened once,
+/// checked again from that handle and deleted through it, so a link or junction swapped into
+/// the path after the check cannot make it delete another file. Missing files are fine.
+pub fn remove_pair(path: &str, fingerprint: &str, managed: Option<&Path>) -> Result<(), KeyError> {
+    check_pair(path, fingerprint, managed)?;
+    let path = Path::new(path);
+    let public = pub_path(path);
+    let open = |p: &Path, max: u64| fsutil::open_for_delete(p, max).map_err(|e| delete_error(e, p));
+    let private = open(path, MAX_KEY_FILE_BYTES)?;
+    if let Some((_, raw)) = &private {
+        private_holds(raw, fingerprint)?;
+    }
+    let public_file = open(&public, MAX_PUB_FILE_BYTES)?;
+    if let Some((_, raw)) = &public_file {
+        public_holds(raw, fingerprint)?;
+    }
+    for (doomed, p) in [(private, path), (public_file, public.as_path())] {
+        if let Some((doomed, _)) = doomed {
+            doomed.delete().map_err(|e| delete_error(e, p))?;
         }
     }
     Ok(())

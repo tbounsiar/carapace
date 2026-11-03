@@ -37,6 +37,7 @@ describe('KeyIpc', () => {
       comment: 'carapace',
       passphrase: 'pw',
       rememberPassphrase: false,
+      dir: '/srv/keys',
     });
     await ipc.import({
       name: 'work',
@@ -54,12 +55,27 @@ describe('KeyIpc', () => {
           comment: 'carapace',
           passphrase: 'pw',
           rememberPassphrase: false,
+          dir: '/srv/keys',
         },
       },
       {
         cmd: 'import_key',
         args: { name: 'work', path: '~/.ssh/id_rsa', passphrase: null, rememberPassphrase: false },
       },
+    ]);
+  });
+
+  it('checks a key location, null being the default folder', async () => {
+    onCall = () => ({ dir: '/home/me/.ssh', isDefault: false, warning: null });
+    expect(await ipc.checkLocation('~/.ssh', 'id_work')).toEqual({
+      dir: '/home/me/.ssh',
+      isDefault: false,
+      warning: null,
+    });
+    await ipc.checkLocation(null, 'id');
+    expect(calls).toEqual([
+      { cmd: 'check_key_location', args: { dir: '~/.ssh', fileName: 'id_work' } },
+      { cmd: 'check_key_location', args: { dir: null, fileName: 'id' } },
     ]);
   });
 

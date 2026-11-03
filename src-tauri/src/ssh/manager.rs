@@ -1128,7 +1128,9 @@ fn forget_if_unchanged(
 /// elsewhere), so they are followed.
 fn read_key_file(key_path: &str) -> Result<Zeroizing<String>, SshError> {
     use std::io::ErrorKind;
-    let path = crate::fsutil::expand_tilde(key_path);
+    let path = crate::fsutil::expand_local(key_path).ok_or_else(|| {
+        SshError::InvalidInput("the private key path must be absolute or start with ~/".into())
+    })?;
     match crate::fsutil::read_regular_capped(&path, crate::keys::MAX_KEY_FILE_BYTES, true) {
         Ok(mut raw) => String::from_utf8(std::mem::take(&mut *raw))
             .map(Zeroizing::new)

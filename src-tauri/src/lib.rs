@@ -59,10 +59,15 @@ pub fn run() {
             }
         })
         .on_window_event(|window, event| {
-            if matches!(event, WindowEvent::Destroyed)
-                && let Some(terminals) = window.try_state::<terminal::TerminalManager>()
-            {
+            if !matches!(event, WindowEvent::Destroyed) {
+                return;
+            }
+            if let Some(terminals) = window.try_state::<terminal::TerminalManager>() {
                 terminals.close_all();
+            }
+            // The picker is parented to this window; its answer may never come.
+            if window.label() == "main" {
+                keys::cancel_picker();
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -108,6 +113,9 @@ pub fn run() {
             commands::keys::keys_dir,
             commands::keys::list_keys,
             commands::keys::generate_key,
+            commands::keys::check_key_location,
+            commands::keys::pick_key_folder,
+            commands::keys::pick_key_file,
             commands::keys::import_key,
             commands::keys::rename_key,
             commands::keys::delete_key,

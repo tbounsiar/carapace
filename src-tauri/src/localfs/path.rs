@@ -128,6 +128,13 @@ mod tests {
         }
     }
 
+    #[test]
+    fn never_resolves_a_network_or_device_path() {
+        for raw in crate::fsutil::NON_LOCAL {
+            assert!(resolve(raw).is_err(), "{raw}");
+        }
+    }
+
     #[cfg(unix)]
     #[test]
     fn resolves_unix_paths() {

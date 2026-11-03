@@ -106,6 +106,9 @@ export function keyPathValidator(control: AbstractControl): ValidationErrors | n
   if (value.startsWith('\\\\')) {
     return fail('Network paths are not supported');
   }
+  if (value.toLowerCase().endsWith('.pub')) {
+    return fail('This is a public key. Choose the file without .pub.');
+  }
   return ABSOLUTE_PATH.test(value) ? null : fail('Use an absolute path or one starting with ~/');
 }
 

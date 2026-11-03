@@ -51,6 +51,7 @@
     >
       <label tuiLabel>Key path</label>
       <input
+        #keyPathInput
         tuiInput
         class="mono"
         formControlName="keyPath"
@@ -71,6 +72,19 @@
         [attr.aria-expanded]="keyMenuOpen()"
         (click)="keyMenuOpen.set(!keyMenuOpen())"
       ></button>
+      <button
+        #keyBrowse
+        tuiIconButton
+        appearance="icon"
+        size="xs"
+        iconStart="@tui.folder-open"
+        type="button"
+        aria-label="Choose a key file"
+        tuiHint="Choose a key file"
+        data-testid="host-key-browse"
+        [disabled]="picking()"
+        (click)="browseKey()"
+      ></button>
       <ng-template #keyMenu>
         <tui-data-list size="s" emptyContent="No registered keys. Add one in SSH keys.">
           @for (key of keys(); track key.id) {
@@ -90,6 +104,22 @@
       </ng-template>
     </tui-textfield>
     <tui-error appErrorLink formControlName="keyPath" />
+    @if (showRegister()) {
+      <div tuiNotification appearance="neutral" size="s" data-testid="host-key-register">
+        <span tuiTitle>
+          Not in SSH keys. Register it to remember its passphrase and deploy it.
+          <span tuiSubtitle>
+            <button
+              tuiLink
+              type="button"
+              data-testid="host-key-register-link"
+              [textContent]="'Register this key'"
+              (click)="registerKey()"
+            ></button>
+          </span>
+        </span>
+      </div>
+    }
     <tui-textfield tuiChevron [stringify]="askLabel" [tuiTextfieldCleaner]="false">
       <label tuiLabel>Passphrase</label>
       <input

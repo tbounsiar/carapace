@@ -6,7 +6,7 @@ import { injectContext } from '@taiga-ui/polymorpheus';
 import type { KeyView } from '../../../core/ipc/keys';
 
 export interface KeyDeleteDialogData {
-  readonly key: Pick<KeyView, 'name' | 'path' | 'managed'>;
+  readonly key: Pick<KeyView, 'name' | 'path' | 'managed' | 'origin'>;
 }
 
 export interface KeyDeleteDecision {
@@ -23,9 +23,11 @@ export class KeyDeleteDialog {
   protected readonly context =
     injectContext<TuiDialogContext<KeyDeleteDecision, KeyDeleteDialogData>>();
   protected readonly key = this.context.data.key;
-  protected readonly deleteFiles = new FormControl(true, { nonNullable: true });
+  protected readonly generated = this.key.origin === 'generated';
+  // A custom folder is a shared place (~/.ssh) where other tools may rely on the file.
+  protected readonly deleteFiles = new FormControl(this.key.managed, { nonNullable: true });
 
   protected confirm(): void {
-    this.context.completeWith({ deleteFiles: this.key.managed && this.deleteFiles.value });
+    this.context.completeWith({ deleteFiles: this.generated && this.deleteFiles.value });
   }
 }

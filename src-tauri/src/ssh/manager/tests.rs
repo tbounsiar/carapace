@@ -599,11 +599,28 @@ fn credential_is_ignored_for_agent_and_plain_keys() {
 fn unreadable_and_garbage_key_files() {
     let mut env = env(1, Duration::from_secs(1), |_| TargetAuth::Agent);
     env.target.auth = TargetAuth::Key {
-        key_path: "does-not-exist".into(),
+        key_path: env
+            ._dir
+            .path()
+            .join("does-not-exist")
+            .to_string_lossy()
+            .into_owned(),
         passphrase: None,
         registered: Vec::new(),
     };
     assert_eq!(load(&env, None).err(), Some(SshError::Io));
+    for raw in crate::fsutil::NON_LOCAL {
+        env.target.auth = TargetAuth::Key {
+            key_path: (*raw).into(),
+            passphrase: None,
+            registered: Vec::new(),
+        };
+        assert_eq!(
+            load(&env, None).err().map(|e| e.code()),
+            Some("invalid_input"),
+            "{raw}"
+        );
+    }
 
     let garbage = env._dir.path().join("garbage");
     std::fs::write(&garbage, "not a key").unwrap();
