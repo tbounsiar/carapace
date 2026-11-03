@@ -41,7 +41,11 @@
   </fieldset>
 
   @if (isKey()) {
-    <tui-textfield>
+    <tui-textfield
+      [tuiDropdown]="keyMenu"
+      [tuiDropdownManual]="keyMenuOpen()"
+      (tuiActiveZoneChange)="$event || keyMenuOpen.set(false)"
+    >
       <label tuiLabel>Key path</label>
       <input
         tuiInput
@@ -50,6 +54,37 @@
         placeholder="~/.ssh/id_ed25519"
         data-testid="host-key-path"
       />
+      <button
+        tuiIconButton
+        appearance="icon"
+        size="xs"
+        iconStart="@tui.key-round"
+        type="button"
+        aria-label="Pick a registered key"
+        data-testid="host-key-pick"
+        [tuiHint]="
+          keyMenuOpen() ? null : keys().length ? 'Pick a registered key' : 'No registered keys yet'
+        "
+        [attr.aria-expanded]="keyMenuOpen()"
+        (click)="keyMenuOpen.set(!keyMenuOpen())"
+      ></button>
+      <ng-template #keyMenu>
+        <tui-data-list size="s" emptyContent="No registered keys. Add one in SSH keys.">
+          @for (key of keys(); track key.id) {
+            <button
+              tuiOption
+              type="button"
+              [attr.data-testid]="'host-key-option-' + key.name"
+              (click)="pickKey(key.path)"
+            >
+              <span class="key-option">
+                <span>{{ key.name }}</span>
+                <span class="mono key-path" [attr.title]="key.path">{{ key.path }}</span>
+              </span>
+            </button>
+          }
+        </tui-data-list>
+      </ng-template>
     </tui-textfield>
     <tui-error formControlName="keyPath" />
     <tui-textfield tuiChevron [stringify]="askLabel" [tuiTextfieldCleaner]="false">

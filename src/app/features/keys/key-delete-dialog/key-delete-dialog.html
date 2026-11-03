@@ -1,0 +1,30 @@
+<p>The key is removed from the list and any saved passphrase is forgotten.</p>
+@if (key.managed) {
+  <label class="check">
+    <input tuiCheckbox type="checkbox" data-testid="key-delete-files" [formControl]="deleteFiles" />
+    Also delete the key files
+  </label>
+  <p class="note">
+    Deletes <span class="mono">{{ key.path }}</span> and its <span class="mono">.pub</span> file.
+    Servers that trust this key can no longer be reached with it.
+  </p>
+} @else {
+  <p class="note">
+    The file stays at <span class="mono">{{ key.path }}</span
+    >: it was imported, not generated here.
+  </p>
+}
+<footer>
+  <button
+    tuiAutoFocus
+    tuiButton
+    appearance="secondary"
+    type="button"
+    (click)="context.$implicit.complete()"
+  >
+    Cancel
+  </button>
+  <button tuiButton appearance="primary-destructive" type="button" (click)="confirm()">
+    Delete
+  </button>
+</footer>

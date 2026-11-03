@@ -1,0 +1,16 @@
+.mono {
+  font-family: var(--app-font-mono);
+}
+
+.note {
+  margin: 0;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: var(--tui-typography-body-s);
+}

@@ -1,0 +1,27 @@
+.type {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.mono {
+  font-family: var(--app-font-mono);
+}
+
+.note {
+  margin: 0;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+}
+
+.path {
+  overflow-wrap: anywhere;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: var(--tui-typography-body-s);
+}

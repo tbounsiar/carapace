@@ -5,6 +5,9 @@ import { provideTaiga, TuiNotificationService } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import { of } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
+import { KeyStore } from '../../../core/ipc/key-store';
+import type { KeyView } from '../../../core/ipc/keys';
+import { key } from '../../../core/ipc/keys.fixture';
 import type { Host, HostInput, Project, VariableView } from '../../../core/ipc/config.models';
 import { HostDialog, type HostDialogData } from './host-dialog';
 
@@ -37,6 +40,7 @@ interface DialogApi {
   form: FormGroup;
   secretReferences(): string[];
   submit(): Promise<void>;
+  pickKey(path: string): void;
 }
 
 describe('HostDialog', () => {
@@ -45,6 +49,8 @@ describe('HostDialog', () => {
   const alerts = { open: vi.fn(() => of(undefined)) };
   const projects = signal<Project[]>([PROJECT]);
   const variables = signal<VariableView[]>([plain('user', 'carapace'), secret('global_pw')]);
+  const keys = signal<KeyView[]>([key({ name: 'main', path: '/keys/main' })]);
+  const ensureLoaded = vi.fn(() => Promise.resolve());
 
   async function setup(initial: HostInput | null = null) {
     await TestBed.configureTestingModule({
@@ -56,6 +62,7 @@ describe('HostDialog', () => {
           useValue: { data: { projectId: 'p1', initial, save }, completeWith, $implicit: {} },
         },
         { provide: ConfigService, useValue: { projects, variables } },
+        { provide: KeyStore, useValue: { keys, ensureLoaded } },
         { provide: TuiNotificationService, useValue: alerts },
       ],
     }).compileComponents();
@@ -139,6 +146,25 @@ describe('HostDialog', () => {
       auth: { kind: 'key', keyPath: '~/.ssh/id', passphrase: null },
     });
     expect(completeWith).toHaveBeenCalledOnce();
+  });
+
+  it('inserts a registered key path from the picker, typing still works', async () => {
+    const { fixture, el, dialog } = await setup(valid);
+    expect(ensureLoaded).toHaveBeenCalled();
+    expect(byId(el, 'host-key-pick')).toBeNull();
+    dialog.form.patchValue({ authKind: 'key' });
+    await fixture.whenStable();
+    expect(byId(el, 'host-key-pick')!.getAttribute('aria-label')).toBe('Pick a registered key');
+    dialog.pickKey('/keys/main');
+    expect(dialog.form.get('keyPath')!.value).toBe('/keys/main');
+    expect(dialog.form.get('keyPath')!.dirty).toBe(true);
+    await dialog.submit();
+    expect(save).toHaveBeenLastCalledWith({
+      ...valid,
+      auth: { kind: 'key', keyPath: '/keys/main', passphrase: null },
+    });
+    dialog.form.patchValue({ keyPath: '${keys}/id' });
+    expect(dialog.form.valid).toBe(true);
   });
 
   it('keeps the dialog open when the save fails', async () => {

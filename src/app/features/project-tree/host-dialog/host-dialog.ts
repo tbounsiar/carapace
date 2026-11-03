@@ -1,3 +1,4 @@
+import { TuiActiveZone } from '@taiga-ui/cdk';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
@@ -5,7 +6,9 @@ import { TuiAutoFocus } from '@taiga-ui/cdk';
 import {
   TuiButton,
   TuiDataList,
+  TuiDropdown,
   TuiError,
+  TuiHint,
   TuiIcon,
   TuiInput,
   TuiNotificationService,
@@ -18,6 +21,7 @@ import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
 import { ConfigService } from '../../../core/ipc/config';
 import type { AuthMethod, Host, HostInput } from '../../../core/ipc/config.models';
+import { KeyStore } from '../../../core/ipc/key-store';
 import { AUTH_LABELS } from '../../../shared/auth-method';
 import { previewHost, secretVariableNames, variableLayers } from '../../../shared/template';
 import { handleSaveError } from '../save-error';
@@ -46,13 +50,16 @@ function reference(value: string | null): string | null {
 
 @Component({
   imports: [
+    TuiActiveZone,
     ReactiveFormsModule,
     TuiAutoFocus,
     TuiButton,
     TuiButtonLoading,
     TuiChevron,
     TuiDataList,
+    TuiDropdown,
     TuiError,
+    TuiHint,
     TuiForm,
     TuiIcon,
     TuiInput,
@@ -68,12 +75,15 @@ function reference(value: string | null): string | null {
 export class HostDialog {
   private readonly alerts = inject(TuiNotificationService);
   private readonly config = inject(ConfigService);
+  private readonly keyStore = inject(KeyStore);
   protected readonly context = injectContext<TuiDialogContext<void, HostDialogData>>();
 
   protected readonly authKinds: readonly AuthKind[] = ['password', 'key', 'agent'];
   protected readonly example = '${host}';
 
   protected readonly saving = signal(false);
+  protected readonly keys = this.keyStore.keys;
+  protected readonly keyMenuOpen = signal(false);
   private readonly initial = this.context.data.initial;
   private readonly initialAuth = this.initial?.auth;
   private readonly fb = inject(NonNullableFormBuilder);
@@ -140,11 +150,21 @@ export class HostDialog {
   });
 
   constructor() {
+    // The picker is optional: without the key list the path is still typed by hand.
+    this.keyStore.ensureLoaded().catch(() => undefined);
     effect(() => {
       const keyPath = this.form.controls.keyPath;
       keyPath.setValidators(this.isKey() ? templated('Key path', keyPathValidator) : []);
       keyPath.updateValueAndValidity();
     });
+  }
+
+  protected pickKey(path: string): void {
+    const keyPath = this.form.controls.keyPath;
+    keyPath.setValue(path);
+    keyPath.markAsDirty();
+    keyPath.markAsTouched();
+    this.keyMenuOpen.set(false);
   }
 
   protected label(kind: AuthKind): string {

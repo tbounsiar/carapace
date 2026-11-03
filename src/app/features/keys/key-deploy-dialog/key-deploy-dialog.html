@@ -1,0 +1,45 @@
+<form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
+  <p class="note">
+    Appends the public key of <strong>{{ key.name }}</strong> to
+    <span class="mono">~/.ssh/authorized_keys</span> on the host, in its project's active
+    environment. You connect first, as usual.
+  </p>
+
+  <tui-textfield tuiChevron [stringify]="stringify" [tuiTextfieldCleaner]="false">
+    <label tuiLabel>Host</label>
+    <input tuiSelect placeholder="Pick a host" formControlName="hostId" data-testid="deploy-host" />
+    <tui-data-list *tuiDropdown size="s" emptyContent="No hosts yet">
+      @for (project of projects(); track project.id) {
+        <tui-opt-group [label]="project.name">
+          @for (host of project.hosts; track host.id) {
+            <button
+              tuiOption
+              type="button"
+              [value]="host.id"
+              [attr.data-testid]="'deploy-host-option-' + host.name"
+            >
+              {{ label(project, host) }}
+            </button>
+          }
+        </tui-opt-group>
+      }
+    </tui-data-list>
+  </tui-textfield>
+  <tui-error formControlName="hostId" />
+
+  <label class="check">
+    <input tuiCheckbox type="checkbox" formControlName="useKey" data-testid="deploy-use" />
+    Use this key for the host
+  </label>
+  <p class="note">
+    Sets the host's authentication to this key (<span class="mono">{{ key.path }}</span
+    >).
+  </p>
+
+  <footer>
+    <button tuiButton appearance="secondary" type="button" (click)="context.$implicit.complete()">
+      Cancel
+    </button>
+    <button tuiButton type="submit" data-testid="deploy-submit" [loading]="busy()">Deploy</button>
+  </footer>
+</form>

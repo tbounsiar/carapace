@@ -1,0 +1,111 @@
+<tui-loader [overlay]="true" [loading]="saving()">
+  <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
+    <fieldset class="type">
+      <legend>Type</legend>
+      <tui-segmented size="s">
+        <label data-testid="keygen-type-ed25519">
+          <input type="radio" value="ed25519" formControlName="algorithm" />
+          Ed25519
+        </label>
+        <label data-testid="keygen-type-rsa">
+          <input type="radio" value="rsa4096" formControlName="algorithm" />
+          RSA 4096
+        </label>
+      </tui-segmented>
+      <p class="note">Ed25519 is recommended. RSA 4096 is slower, for servers without Ed25519.</p>
+    </fieldset>
+
+    <tui-textfield>
+      <label tuiLabel>Name</label>
+      <input
+        tuiAutoFocus
+        tuiInput
+        autocomplete="off"
+        formControlName="name"
+        data-testid="keygen-name"
+      />
+    </tui-textfield>
+    <tui-error formControlName="name" />
+
+    <tui-textfield>
+      <label tuiLabel>File name</label>
+      <input
+        tuiInput
+        class="mono"
+        autocomplete="off"
+        formControlName="fileName"
+        data-testid="keygen-file"
+      />
+      <tui-icon
+        tuiTooltip="Letters, digits, '.', '_' and '-'. The public key gets a .pub suffix."
+      />
+    </tui-textfield>
+    <tui-error formControlName="fileName" />
+    <p class="note path" data-testid="keygen-path">
+      Saved as <span class="mono">{{ pathPreview() }}</span> and
+      <span class="mono">{{ pathPreview() }}.pub</span>
+    </p>
+
+    <tui-textfield>
+      <label tuiLabel>Comment</label>
+      <input
+        tuiInput
+        class="mono"
+        autocomplete="off"
+        formControlName="comment"
+        data-testid="keygen-comment"
+      />
+    </tui-textfield>
+    <tui-error formControlName="comment" />
+
+    <tui-textfield>
+      <label tuiLabel>Passphrase (optional)</label>
+      <input
+        tuiInput
+        type="password"
+        autocomplete="new-password"
+        formControlName="passphrase"
+        data-testid="keygen-passphrase"
+      />
+      <tui-icon tuiPassword />
+    </tui-textfield>
+    <tui-error formControlName="passphrase" />
+
+    <tui-textfield>
+      <label tuiLabel>Confirm passphrase</label>
+      <input
+        tuiInput
+        type="password"
+        autocomplete="new-password"
+        formControlName="confirm"
+        data-testid="keygen-confirm"
+      />
+      <tui-icon tuiPassword />
+    </tui-textfield>
+    <tui-error formControlName="confirm" />
+
+    <label class="check">
+      <input tuiCheckbox type="checkbox" formControlName="remember" data-testid="keygen-remember" />
+      Remember passphrase in the system keychain
+    </label>
+
+    @if (saving() && isRsa()) {
+      <p class="note" role="status">Generating an RSA key takes a few seconds.</p>
+    }
+
+    <footer>
+      <button
+        tuiButton
+        appearance="secondary"
+        type="button"
+        [disabled]="saving()"
+        (click)="context.$implicit.complete()"
+      >
+        Cancel
+      </button>
+      <button tuiButton type="submit" data-testid="keygen-submit" [loading]="saving()">
+        Generate
+      </button>
+    </footer>
+  </form>
+</tui-loader>

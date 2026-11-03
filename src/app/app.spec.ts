@@ -80,6 +80,16 @@ describe('App', () => {
     expect(link?.getAttribute('href')).toBe('/variables');
   });
 
+  it('links the SSH keys page from the sidebar footer', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const link = (fixture.nativeElement as HTMLElement).querySelector(
+      'aside footer [data-testid="ssh-keys"]',
+    );
+    expect(link?.getAttribute('href')).toBe('/keys');
+    expect(link?.textContent).toContain('SSH keys');
+  });
+
   it('shows the environment selector and a prod accent on the header', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();

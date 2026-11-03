@@ -21,5 +21,9 @@ export const routes: Routes = [
     canDeactivate: [unsavedChangesGuard],
   },
   { path: 'variables', loadComponent: variablesPage, canDeactivate: [unsavedChangesGuard] },
+  {
+    path: 'keys',
+    loadComponent: () => import('./features/keys/keys-page/keys-page').then((m) => m.KeysPage),
+  },
   { path: '**', redirectTo: '' },
 ];

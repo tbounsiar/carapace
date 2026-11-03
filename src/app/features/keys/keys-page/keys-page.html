@@ -1,0 +1,214 @@
+<header tuiHeader="body-l" class="header">
+  <hgroup tuiTitle>
+    <h1 data-testid="keys-title">SSH keys</h1>
+    <p tuiSubtitle>
+      Generate or register private keys, then deploy their public key to a host. Private keys never
+      leave this machine.
+    </p>
+  </hgroup>
+  @if (keys().length) {
+    <div class="actions">
+      <button
+        tuiButton
+        size="s"
+        iconStart="@tui.plus"
+        type="button"
+        data-testid="keys-generate"
+        (click)="actions.generate()"
+      >
+        Generate key
+      </button>
+      <button
+        tuiButton
+        appearance="secondary"
+        size="s"
+        iconStart="@tui.file-input"
+        type="button"
+        data-testid="keys-import"
+        (click)="actions.import()"
+      >
+        Import key
+      </button>
+    </div>
+  }
+</header>
+
+@if (keys().length) {
+  <table tuiTable size="s" class="table" aria-label="SSH keys">
+    <thead tuiThead>
+      <tr>
+        <th tuiTh>Name</th>
+        <th tuiTh class="col-type">Type</th>
+        <th tuiTh>Fingerprint</th>
+        <th tuiTh>Comment</th>
+        <th tuiTh>Status</th>
+        <th tuiTh class="col-menu" aria-label="Actions"></th>
+      </tr>
+    </thead>
+    <tbody tuiTbody>
+      @for (key of keys(); track key.id) {
+        <tr [attr.data-testid]="'key-row-' + key.name">
+          <td tuiTd>
+            <span class="name">{{ key.name }}</span>
+          </td>
+          <td tuiTd>{{ typeLabel(key) }}</td>
+          <td tuiTd>
+            <span
+              class="mono fingerprint"
+              [attr.title]="key.fingerprint"
+              [attr.data-testid]="'key-fingerprint-' + key.name"
+            >
+              {{ key.fingerprint }}
+            </span>
+          </td>
+          <td tuiTd>
+            <span class="mono comment">{{ key.comment }}</span>
+          </td>
+          <td tuiTd>
+            <span class="badges">
+              @if (key.encrypted) {
+                <span
+                  tuiBadge
+                  size="m"
+                  appearance="info"
+                  [attr.data-testid]="'key-badge-encrypted-' + key.name"
+                >
+                  Encrypted
+                </span>
+              }
+              @if (key.hasPassphrase) {
+                <span
+                  tuiBadge
+                  size="m"
+                  appearance="positive"
+                  [attr.data-testid]="'key-badge-saved-' + key.name"
+                >
+                  Passphrase saved
+                </span>
+              }
+              @if (!key.managed) {
+                <span
+                  tuiBadge
+                  size="m"
+                  appearance="neutral"
+                  [attr.data-testid]="'key-badge-external-' + key.name"
+                  [tuiHint]="key.path"
+                >
+                  External
+                </span>
+              }
+              @if (key.warning) {
+                <tui-icon
+                  icon="@tui.triangle-alert"
+                  class="warning"
+                  tabindex="0"
+                  role="img"
+                  [attr.aria-label]="key.warning"
+                  [attr.data-testid]="'key-warning-' + key.name"
+                  [tuiHint]="key.warning"
+                />
+              }
+            </span>
+          </td>
+          <td tuiTd class="menu">
+            <button
+              tuiIconButton
+              appearance="flat-grayscale"
+              size="xs"
+              iconStart="@tui.ellipsis"
+              type="button"
+              [attr.aria-label]="'Actions for ' + key.name"
+              [attr.data-testid]="'key-menu-' + key.name"
+              [tuiDropdown]="menu"
+              [tuiDropdownOpen]="openMenu() === key.id"
+              (tuiDropdownOpenChange)="setMenu(key, $event)"
+            >
+              Actions
+            </button>
+            <ng-template #menu let-close>
+              <tui-data-list size="s">
+                <button
+                  tuiOption
+                  iconStart="@tui.copy"
+                  type="button"
+                  data-testid="key-copy"
+                  (click)="close(); actions.copyPublicKey(key)"
+                >
+                  Copy public key
+                </button>
+                <button
+                  tuiOption
+                  iconStart="@tui.upload"
+                  type="button"
+                  data-testid="key-deploy"
+                  (click)="close(); actions.deploy(key)"
+                >
+                  Deploy to host...
+                </button>
+                <button
+                  tuiOption
+                  iconStart="@tui.pencil"
+                  type="button"
+                  data-testid="key-rename"
+                  (click)="close(); actions.rename(key)"
+                >
+                  Rename
+                </button>
+                @if (key.hasPassphrase) {
+                  <button
+                    tuiOption
+                    iconStart="@tui.lock-open"
+                    type="button"
+                    data-testid="key-forget"
+                    (click)="close(); actions.forgetPassphrase(key)"
+                  >
+                    Forget passphrase
+                  </button>
+                }
+                <hr />
+                <button
+                  tuiOption
+                  iconStart="@tui.trash"
+                  type="button"
+                  data-testid="key-delete"
+                  (click)="close(); actions.remove(key)"
+                >
+                  Delete
+                </button>
+              </tui-data-list>
+            </ng-template>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+} @else if (loading()) {
+  <tui-loader size="m" class="loader" />
+} @else {
+  <tui-block-status size="m" data-testid="keys-empty">
+    <span tuiAvatar="@tui.key-round" size="l" tuiSlot="top"></span>
+    <h2>No SSH keys yet</h2>
+    <p>Generate a new Ed25519 key, or register a private key you already have.</p>
+    <button
+      tuiButton
+      size="s"
+      iconStart="@tui.plus"
+      type="button"
+      data-testid="keys-generate"
+      (click)="actions.generate()"
+    >
+      Generate key
+    </button>
+    <button
+      tuiButton
+      appearance="secondary"
+      size="s"
+      iconStart="@tui.file-input"
+      type="button"
+      data-testid="keys-import"
+      (click)="actions.import()"
+    >
+      Import key
+    </button>
+  </tui-block-status>
+}

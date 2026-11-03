@@ -34,3 +34,18 @@
     font-size: 1rem;
   }
 }
+
+.key-option {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.key-path {
+  font: var(--tui-typography-body-xs);
+  font-family: var(--app-font-mono);
+  color: var(--tui-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

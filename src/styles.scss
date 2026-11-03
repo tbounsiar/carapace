@@ -7,3 +7,8 @@
 .terminal-host {
   block-size: 100%;
 }
+
+/* Edge/WebView2 adds its own reveal button to password inputs; Taiga's tuiPassword already provides one. */
+input[type='password']::-ms-reveal {
+  display: none;
+}

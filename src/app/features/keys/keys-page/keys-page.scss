@@ -1,0 +1,69 @@
+:host {
+  display: block;
+}
+
+.header {
+  margin-block-end: var(--tui-padding-l);
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.table {
+  inline-size: 100%;
+}
+
+.col-type {
+  inline-size: 6rem;
+}
+
+.col-menu {
+  inline-size: 2.5rem;
+}
+
+.name {
+  font-weight: bold;
+  overflow-wrap: break-word;
+}
+
+.mono {
+  font-family: var(--app-font-mono);
+}
+
+.fingerprint,
+.comment {
+  font: var(--tui-typography-body-s);
+  font-family: var(--app-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.fingerprint {
+  /* A SHA256 fingerprint is one token: keep it on one line, the column ellipsizes. */
+  display: block;
+  max-inline-size: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.warning {
+  font-size: 1rem;
+  color: var(--tui-status-warning);
+}
+
+.menu {
+  text-align: end;
+}
+
+.loader {
+  margin-block-start: var(--tui-padding-l);
+}
