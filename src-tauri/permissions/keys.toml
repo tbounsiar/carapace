@@ -1,0 +1,39 @@
+[[permission]]
+identifier = "allow-keys-dir"
+description = "Allows the keys_dir command."
+commands.allow = ["keys_dir"]
+
+[[permission]]
+identifier = "allow-list-keys"
+description = "Allows the list_keys command."
+commands.allow = ["list_keys"]
+
+[[permission]]
+identifier = "allow-generate-key"
+description = "Allows the generate_key command."
+commands.allow = ["generate_key"]
+
+[[permission]]
+identifier = "allow-import-key"
+description = "Allows the import_key command."
+commands.allow = ["import_key"]
+
+[[permission]]
+identifier = "allow-rename-key"
+description = "Allows the rename_key command."
+commands.allow = ["rename_key"]
+
+[[permission]]
+identifier = "allow-delete-key"
+description = "Allows the delete_key command."
+commands.allow = ["delete_key"]
+
+[[permission]]
+identifier = "allow-forget-key-passphrase"
+description = "Allows the forget_key_passphrase command."
+commands.allow = ["forget_key_passphrase"]
+
+[[permission]]
+identifier = "allow-deploy-public-key"
+description = "Allows the deploy_public_key command."
+commands.allow = ["deploy_public_key"]

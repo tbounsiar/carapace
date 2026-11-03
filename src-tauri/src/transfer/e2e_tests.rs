@@ -65,6 +65,7 @@ async fn connected() -> World {
         TargetAuth::Key {
             key_path: key_path(),
             passphrase: None,
+            registered: Vec::new(),
         },
     );
     let (tx, mut rx) = mpsc::unbounded_channel();

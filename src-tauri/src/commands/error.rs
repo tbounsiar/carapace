@@ -2,6 +2,7 @@ use serde::Serialize;
 
 use crate::config::ConfigError;
 use crate::files::FsError;
+use crate::keys::KeyError;
 use crate::secrets::SecretError;
 use crate::ssh::SshError;
 use crate::terminal::TerminalError;
@@ -28,6 +29,7 @@ impl From<ConfigError> for CommandError {
             ConfigError::NotFound(_) => "not_found",
             ConfigError::InvalidInput(_) => "invalid_input",
             ConfigError::Conflict(_) => "conflict",
+            ConfigError::Exists(_) => "already_exists",
             ConfigError::Io => "io",
             ConfigError::Corrupt => "corrupt_config",
         };
@@ -63,6 +65,12 @@ impl From<FsError> for CommandError {
     }
 }
 
+impl From<KeyError> for CommandError {
+    fn from(e: KeyError) -> Self {
+        Self::new(e.code(), e.to_string())
+    }
+}
+
 impl From<SecretError> for CommandError {
     fn from(e: SecretError) -> Self {
         Self::new(e.code(), e.to_string())
@@ -79,6 +87,7 @@ mod tests {
             (ConfigError::NotFound("project"), "not_found"),
             (ConfigError::InvalidInput("bad".into()), "invalid_input"),
             (ConfigError::Conflict("host"), "conflict"),
+            (ConfigError::Exists("key"), "already_exists"),
             (ConfigError::Io, "io"),
             (ConfigError::Corrupt, "corrupt_config"),
         ];
@@ -138,6 +147,23 @@ mod tests {
             (FsError::InvalidInput("bad".into()), "invalid_input"),
             (FsError::Io(p()), "io"),
             (FsError::Network, "network"),
+        ];
+        for (err, code) in cases {
+            assert_eq!(CommandError::from(err).code, code);
+        }
+    }
+
+    #[test]
+    fn maps_key_codes() {
+        let cases = [
+            (KeyError::invalid("bad"), "invalid_input"),
+            (KeyError::AlreadyExists("/k".into()), "already_exists"),
+            (KeyError::NotFound("/k".into()), "not_found"),
+            (KeyError::InvalidPassphrase, "invalid_passphrase"),
+            (KeyError::TooLarge("/k".into()), "too_large"),
+            (KeyError::PermissionDenied("/k".into()), "permission_denied"),
+            (KeyError::Io("/k".into()), "io"),
+            (KeyError::Fs(FsError::NotConnected), "not_connected"),
         ];
         for (err, code) in cases {
             assert_eq!(CommandError::from(err).code, code);

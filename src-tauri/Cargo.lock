@@ -520,6 +520,7 @@ name = "carapace"
 version = "0.1.0"
 dependencies = [
  "data-encoding",
+ "getrandom 0.4.3",
  "hmac",
  "keyring",
  "libc",

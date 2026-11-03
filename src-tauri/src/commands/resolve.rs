@@ -2,8 +2,8 @@ use serde::Serialize;
 
 use super::error::CommandError;
 use crate::config::{ConfigFile, ConfigStore, Environment, Host, Project};
-use crate::secrets::{SavedKey, SecretError, VarKey};
-use crate::ssh::{Target, TargetAuth};
+use crate::secrets::{KeyPassKey, SavedKey, SecretError, VarKey};
+use crate::ssh::{RegisteredKey, Target, TargetAuth};
 use crate::vars::{Layers, Level, Resolution, ResolvedAuth, SecretRef, resolve_host};
 
 type Res<T> = Result<T, CommandError>;
@@ -78,6 +78,23 @@ fn secret_key(r: Option<SecretRef>) -> Result<Option<VarKey>, SecretError> {
     r.map(|r| var_key(&r.level, &r.name)).transpose()
 }
 
+/// Registered keys with a remembered passphrase are not known here (the keychain is read at
+/// connect time); every encrypted registered key is a candidate, matched by fingerprint
+/// against the key file the connect actually reads.
+pub(super) fn registered_keys(config: &ConfigFile) -> Vec<RegisteredKey> {
+    config
+        .keys
+        .iter()
+        .filter(|k| k.encrypted)
+        .filter_map(|k| {
+            Some(RegisteredKey {
+                fingerprint: k.fingerprint.clone(),
+                passphrase: KeyPassKey::new(&k.id).ok()?,
+            })
+        })
+        .collect()
+}
+
 /// Resolves the host for `environment_id` (None: no environment layer) into a connect target.
 /// Fails with `missing_variables` or `invalid_input` before any network call.
 pub(super) fn target(
@@ -99,6 +116,7 @@ pub(super) fn target(
             key_path,
             passphrase,
         } => TargetAuth::Key {
+            registered: registered_keys(&config),
             key_path,
             passphrase: secret_key(passphrase)?,
         },

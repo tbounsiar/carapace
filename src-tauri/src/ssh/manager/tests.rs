@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use super::*;
 use crate::secrets::MemoryBackend;
 use crate::ssh::test_server::*;
@@ -50,6 +52,7 @@ fn key_auth(dir: &Path) -> TargetAuth {
     TargetAuth::Key {
         key_path: path.to_string_lossy().into_owned(),
         passphrase: None,
+        registered: Vec::new(),
     }
 }
 
@@ -323,6 +326,7 @@ fn encrypted_key_auth(dir: &Path) -> TargetAuth {
     TargetAuth::Key {
         key_path: path.to_string_lossy().into_owned(),
         passphrase: None,
+        registered: Vec::new(),
     }
 }
 
@@ -446,6 +450,69 @@ fn encrypted_key_needs_the_right_passphrase() {
     assert!(env.mem.accounts().iter().all(|a| !a.ends_with("password")));
 }
 
+#[test]
+fn registered_key_passphrase_comes_after_the_saved_one() {
+    const KEY_ID: &str = "00000000-0000-4000-8000-0000000000c1";
+    let mut env = env(1, Duration::from_secs(1), encrypted_key_auth);
+    let registered = KeyPassKey::new(KEY_ID).unwrap();
+    let other = KeyPassKey::new("00000000-0000-4000-8000-0000000000c2").unwrap();
+    let fingerprint = ed25519(9)
+        .public_key()
+        .fingerprint(HashAlg::Sha256)
+        .to_string();
+    if let TargetAuth::Key { registered: r, .. } = &mut env.target.auth {
+        *r = vec![
+            RegisteredKey {
+                fingerprint: "SHA256:another-key".into(),
+                passphrase: other.clone(),
+            },
+            RegisteredKey {
+                fingerprint,
+                passphrase: registered.clone(),
+            },
+        ];
+    }
+    env.secrets
+        .set_key_passphrase(&other, &SecretString::from(PASSPHRASE))
+        .unwrap();
+    assert_eq!(
+        load(&env, None).err(),
+        Some(SshError::SecretRequired),
+        "only the key whose fingerprint the file holds counts"
+    );
+    env.secrets
+        .set_key_passphrase(&registered, &SecretString::from(PASSPHRASE))
+        .unwrap();
+    let loaded = load(&env, None).unwrap();
+    assert!(loaded.remember.is_none());
+
+    store_secret(&env, SecretKind::Passphrase, "stale");
+    assert_eq!(
+        load(&env, None).err(),
+        Some(SshError::InvalidPassphrase),
+        "the saved connection secret is tried first"
+    );
+    assert_eq!(stored(&env, SecretKind::Passphrase), None);
+    assert!(load(&env, None).is_ok());
+    assert_eq!(
+        load(&env, credential("nope", false)).err(),
+        Some(SshError::InvalidPassphrase),
+        "a typed passphrase wins"
+    );
+
+    env.secrets
+        .delete_saved(&env.target.saved, SecretKind::Passphrase)
+        .unwrap();
+    env.secrets
+        .set_key_passphrase(&registered, &SecretString::from("stale"))
+        .unwrap();
+    assert_eq!(load(&env, None).err(), Some(SshError::InvalidPassphrase));
+    assert!(
+        env.secrets.has_key_passphrase(&registered).unwrap(),
+        "a remembered key passphrase is managed from the keys page, never dropped here"
+    );
+}
+
 #[tokio::test]
 async fn wrong_passphrase_fails_before_any_network() {
     let env = env(1, Duration::from_secs(1), encrypted_key_auth);
@@ -493,6 +560,7 @@ fn unreadable_and_garbage_key_files() {
     env.target.auth = TargetAuth::Key {
         key_path: "does-not-exist".into(),
         passphrase: None,
+        registered: Vec::new(),
     };
     assert_eq!(load(&env, None).err(), Some(SshError::Io));
 
@@ -501,6 +569,7 @@ fn unreadable_and_garbage_key_files() {
     env.target.auth = TargetAuth::Key {
         key_path: garbage.to_string_lossy().into_owned(),
         passphrase: None,
+        registered: Vec::new(),
     };
     assert_eq!(
         load(&env, None).err().map(|e| e.code()),
@@ -770,6 +839,7 @@ fn connection_ids_and_bound_targets() {
         TargetAuth::Key {
             key_path: "~/.ssh/id".into(),
             passphrase: None,
+            registered: Vec::new(),
         },
     );
     assert_eq!(k.bound_to(SecretKind::Passphrase), "~/.ssh/id");

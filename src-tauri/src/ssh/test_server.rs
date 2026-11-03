@@ -347,5 +347,6 @@ fn key_file(dir: &Path) -> TargetAuth {
     TargetAuth::Key {
         key_path: path.to_string_lossy().into_owned(),
         passphrase: None,
+        registered: Vec::new(),
     }
 }

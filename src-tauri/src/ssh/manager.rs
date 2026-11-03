@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -19,7 +19,7 @@ use zeroize::Zeroizing;
 
 use super::error::SshError;
 use super::known_hosts::{HostKeyStatus, KnownHosts, fingerprint};
-use crate::secrets::{SavedKey, SecretKind, SecretStore, VarKey, fits_saved};
+use crate::secrets::{KeyPassKey, SavedKey, SecretKind, SecretStore, VarKey, fits_saved};
 
 pub type Emit = Arc<dyn Fn(ConnectEvent) + Send + Sync>;
 
@@ -77,7 +77,8 @@ pub struct ConnectionInfo {
 }
 
 /// Where a password or passphrase comes from when none is typed: the secret variable the host
-/// field references (if any), then the secret saved for this connection.
+/// field references (if any), then the secret saved for this connection, then (passphrase
+/// only) the one remembered for the registered key whose public key the file holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetAuth {
     Password {
@@ -86,8 +87,18 @@ pub enum TargetAuth {
     Key {
         key_path: String,
         passphrase: Option<VarKey>,
+        registered: Vec<RegisteredKey>,
     },
     Agent,
+}
+
+/// A registered key with a remembered passphrase. It is matched by the fingerprint of the
+/// file actually read at connect time, never by path, so a file swapped in after resolution
+/// never gets another key's passphrase.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegisteredKey {
+    pub fingerprint: String,
+    pub passphrase: KeyPassKey,
 }
 
 /// A host resolved for one environment (or none): what a connection is made from.
@@ -417,6 +428,7 @@ enum Source {
     Typed,
     Variable,
     Saved,
+    Key,
 }
 
 struct Loaded {
@@ -701,20 +713,12 @@ impl SshManager {
     }
 }
 
-fn expand_home(path: &str) -> PathBuf {
-    if let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\"))
-        && let Some(home) = std::env::home_dir()
-    {
-        return home.join(rest);
-    }
-    PathBuf::from(path)
-}
-
 fn provided_or_stored(
     secrets: &SecretStore,
     target: &Target,
     kind: SecretKind,
     variable: Option<&VarKey>,
+    registered: Option<&KeyPassKey>,
     credential: Option<Credential>,
 ) -> Result<Resolved, SshError> {
     if let Some(c) = credential {
@@ -736,14 +740,23 @@ fn provided_or_stored(
             source: Source::Variable,
         });
     }
-    match secrets.get_saved(&target.saved, kind, &target.bound_to(kind))? {
-        Some(value) => Ok(Resolved {
+    if let Some(value) = secrets.get_saved(&target.saved, kind, &target.bound_to(kind))? {
+        return Ok(Resolved {
             value,
             remember: None,
             source: Source::Saved,
-        }),
-        None => Err(SshError::SecretRequired),
+        });
     }
+    if let Some(key) = registered
+        && let Some(value) = secrets.get_key_passphrase(key)?
+    {
+        return Ok(Resolved {
+            value,
+            remember: None,
+            source: Source::Key,
+        });
+    }
+    Err(SshError::SecretRequired)
 }
 
 /// Drops a saved secret the server or the key file rejected, unless it was replaced meanwhile.
@@ -766,12 +779,39 @@ fn forget_if_unchanged(
     }
 }
 
+/// One bounded handle on a regular file; host key paths may be links (`~/.ssh/id` pointing
+/// elsewhere), so they are followed.
 fn read_key_file(key_path: &str) -> Result<Zeroizing<String>, SshError> {
-    match std::fs::read_to_string(expand_home(key_path)) {
-        Ok(t) => Ok(Zeroizing::new(t)),
-        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => Err(unparseable_key()),
+    use std::io::ErrorKind;
+    let path = crate::fsutil::expand_tilde(key_path);
+    match crate::fsutil::read_regular_capped(&path, crate::keys::MAX_KEY_FILE_BYTES, true) {
+        Ok(mut raw) => String::from_utf8(std::mem::take(&mut *raw))
+            .map(Zeroizing::new)
+            .map_err(|e| {
+                drop(Zeroizing::new(e.into_bytes()));
+                unparseable_key()
+            }),
+        Err(e) if e.kind() == ErrorKind::InvalidInput => Err(SshError::InvalidInput(
+            "the private key path is not a regular file".into(),
+        )),
+        Err(e) if e.kind() == ErrorKind::FileTooLarge => Err(SshError::InvalidInput(
+            "the private key file is too large".into(),
+        )),
         Err(_) => Err(SshError::Io),
     }
+}
+
+/// The remembered passphrase of the registered key the file's public header matches.
+fn registered_for<'a>(text: &str, registered: &'a [RegisteredKey]) -> Option<&'a KeyPassKey> {
+    if registered.is_empty() {
+        return None;
+    }
+    let public = russh::keys::ssh_key::PrivateKey::from_openssh(text).ok()?;
+    let fingerprint = public.public_key().fingerprint(HashAlg::Sha256).to_string();
+    registered
+        .iter()
+        .find(|r| r.fingerprint == fingerprint)
+        .map(|r| &r.passphrase)
 }
 
 fn unparseable_key() -> SshError {
@@ -797,6 +837,7 @@ fn load_credentials(
                 target,
                 SecretKind::Password,
                 variable.as_ref(),
+                None,
                 credential,
             )?;
             Ok(Loaded {
@@ -808,8 +849,10 @@ fn load_credentials(
         TargetAuth::Key {
             key_path,
             passphrase,
+            registered,
         } => {
             let text = read_key_file(key_path)?;
+            let remembered = registered_for(&text, registered);
             let (key, remember) = match russh::keys::decode_secret_key(&text, None) {
                 Ok(key) => (key, None),
                 Err(KeyError::KeyIsEncrypted) => {
@@ -818,6 +861,7 @@ fn load_credentials(
                         target,
                         SecretKind::Passphrase,
                         passphrase.as_ref(),
+                        remembered,
                         credential,
                     )?;
                     match russh::keys::decode_secret_key(&text, Some(r.value.expose_secret())) {

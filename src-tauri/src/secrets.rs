@@ -113,6 +113,27 @@ impl SavedKey {
     }
 }
 
+/// The keychain entry of a passphrase remembered for a registered key (`key/{keyId}/passphrase`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyPassKey {
+    account: String,
+}
+
+impl KeyPassKey {
+    pub fn new(key_id: &str) -> Result<Self, SecretError> {
+        if !is_uuid(key_id) {
+            return Err(SecretError::InvalidScope);
+        }
+        Ok(Self {
+            account: format!("key/{key_id}/passphrase"),
+        })
+    }
+
+    pub fn account(&self) -> &str {
+        &self.account
+    }
+}
+
 /// Messages are fixed strings: keychain errors can embed the stored bytes, so they are never forwarded.
 #[derive(Debug, Error, PartialEq)]
 pub enum SecretError {
@@ -231,6 +252,34 @@ impl SecretStore {
     }
 
     pub fn delete_var(&self, key: &VarKey) -> Result<(), SecretError> {
+        self.backend.delete(key.account())
+    }
+
+    pub fn get_key_passphrase(
+        &self,
+        key: &KeyPassKey,
+    ) -> Result<Option<SecretString>, SecretError> {
+        self.backend.get(key.account())
+    }
+
+    /// keyring has no existence check that skips the value, so it is read into a
+    /// `SecretString` and zeroized right away.
+    pub fn has_key_passphrase(&self, key: &KeyPassKey) -> Result<bool, SecretError> {
+        Ok(self.get_key_passphrase(key)?.is_some())
+    }
+
+    pub fn set_key_passphrase(
+        &self,
+        key: &KeyPassKey,
+        value: &SecretString,
+    ) -> Result<(), SecretError> {
+        if !fits_keychain(value) {
+            return Err(SecretError::TooLong);
+        }
+        self.backend.set(key.account(), value)
+    }
+
+    pub fn delete_key_passphrase(&self, key: &KeyPassKey) -> Result<(), SecretError> {
         self.backend.delete(key.account())
     }
 
@@ -652,6 +701,30 @@ mod tests {
         assert_eq!(mem.accounts(), vec!["var/global/keep".to_string()]);
         assert_eq!(
             store.delete_legacy("p", E, H),
+            Err(SecretError::InvalidScope)
+        );
+    }
+
+    #[test]
+    fn key_passphrase_round_trip() {
+        let (store, mem) = MemoryBackend::store();
+        let k = KeyPassKey::new(H).unwrap();
+        assert_eq!(k.account(), format!("key/{H}/passphrase"));
+        assert!(!store.has_key_passphrase(&k).unwrap());
+        store.set_key_passphrase(&k, &s("pp")).unwrap();
+        assert_eq!(
+            expose(store.get_key_passphrase(&k).unwrap()).as_deref(),
+            Some("pp")
+        );
+        assert_eq!(
+            store.set_key_passphrase(&k, &s(&"a".repeat(MAX_SECRET_UTF16_UNITS + 1))),
+            Err(SecretError::TooLong)
+        );
+        store.delete_key_passphrase(&k).unwrap();
+        assert!(mem.accounts().is_empty());
+        assert_eq!(KeyPassKey::new("k/x"), Err(SecretError::InvalidScope));
+        assert_eq!(
+            KeyPassKey::new(&H.to_uppercase()),
             Err(SecretError::InvalidScope)
         );
     }

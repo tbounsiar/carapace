@@ -1,5 +1,6 @@
 pub mod config;
 pub mod error;
+pub mod keys;
 pub mod localfs;
 mod resolve;
 pub mod secrets;

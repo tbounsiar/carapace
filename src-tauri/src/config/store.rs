@@ -7,7 +7,9 @@ use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
 
-use super::model::{ConfigFile, Environment, Host, HostInput, Project, Variable, VariableScope};
+use super::model::{
+    ConfigFile, Environment, Host, HostInput, KeyEntry, Project, Variable, VariableScope,
+};
 use super::validate::{self, same_name};
 
 const FILE_NAME: &str = "config.json";
@@ -23,6 +25,8 @@ pub enum ConfigError {
     InvalidInput(String),
     #[error("{0} already exists")]
     Conflict(&'static str),
+    #[error("{0} already exists")]
+    Exists(&'static str),
     #[error("could not read or write the configuration file")]
     Io,
     #[error("the configuration file is unreadable or has an unsupported format")]
@@ -102,12 +106,38 @@ fn host_name_taken(p: &Project, name: &str, except: Option<&str>) -> bool {
         .any(|h| Some(h.id.as_str()) != except && same_name(&h.name, name))
 }
 
+fn key_mut<'a>(cfg: &'a mut ConfigFile, id: &str) -> Result<&'a mut KeyEntry, ConfigError> {
+    cfg.keys
+        .iter_mut()
+        .find(|k| k.id == id)
+        .ok_or(ConfigError::NotFound("key"))
+}
+
+fn key_name_taken(cfg: &ConfigFile, name: &str, except: Option<&str>) -> bool {
+    cfg.keys
+        .iter()
+        .any(|k| Some(k.id.as_str()) != except && same_name(&k.name, name))
+}
+
+/// Paths are stored canonical; Windows paths compare case-insensitively.
+fn same_path(a: &str, b: &str) -> bool {
+    if cfg!(windows) {
+        same_name(a, b)
+    } else {
+        a == b
+    }
+}
+
 #[derive(Deserialize)]
 struct Probe {
     version: u32,
 }
 
 impl ConfigStore {
+    pub fn dir(&self) -> &std::path::Path {
+        &self.dir
+    }
+
     pub fn new(dir: PathBuf) -> Self {
         Self {
             dir,
@@ -401,6 +431,45 @@ impl ConfigStore {
             host.username = v.username;
             host.auth = v.auth;
             Ok(host.clone())
+        })
+    }
+
+    /// `entry.name` is validated and trimmed; names and paths must be unique.
+    pub fn add_key(&self, mut entry: KeyEntry) -> Result<KeyEntry, ConfigError> {
+        entry.name = validate::key_name(&entry.name)?;
+        self.mutate(|cfg| {
+            if key_name_taken(cfg, &entry.name, None) {
+                return Err(ConfigError::Exists("a key with this name"));
+            }
+            if cfg.keys.iter().any(|k| same_path(&k.path, &entry.path)) {
+                return Err(ConfigError::Exists("a key with this file"));
+            }
+            cfg.keys.push(entry.clone());
+            Ok(entry)
+        })
+    }
+
+    pub fn rename_key(&self, key_id: &str, name: &str) -> Result<KeyEntry, ConfigError> {
+        let name = validate::key_name(name)?;
+        self.mutate(|cfg| {
+            key_mut(cfg, key_id)?;
+            if key_name_taken(cfg, &name, Some(key_id)) {
+                return Err(ConfigError::Exists("a key with this name"));
+            }
+            let key = key_mut(cfg, key_id)?;
+            key.name = name;
+            Ok(key.clone())
+        })
+    }
+
+    pub fn delete_key(&self, key_id: &str) -> Result<KeyEntry, ConfigError> {
+        self.mutate(|cfg| {
+            let i = cfg
+                .keys
+                .iter()
+                .position(|k| k.id == key_id)
+                .ok_or(ConfigError::NotFound("key"))?;
+            Ok(cfg.keys.remove(i))
         })
     }
 

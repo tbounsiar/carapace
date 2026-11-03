@@ -60,6 +60,11 @@ impl Remote {
         self.session.ended.clone()
     }
 
+    /// Whether `rename_replace` is atomic on this server (`posix-rename@openssh.com`).
+    pub fn has_posix_rename(&self) -> bool {
+        self.posix_rename
+    }
+
     /// Normalized absolute path, `""` being the home directory.
     pub fn absolute(&self, raw: &str) -> Result<String, FsError> {
         self.resolve(raw)

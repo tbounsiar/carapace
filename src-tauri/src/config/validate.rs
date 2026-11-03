@@ -24,6 +24,18 @@ pub(super) fn name(raw: &str) -> Result<String, ConfigError> {
     Ok(trimmed.to_string())
 }
 
+pub(crate) fn key_name(raw: &str) -> Result<String, ConfigError> {
+    let trimmed = raw.trim();
+    let len = trimmed.chars().count();
+    if !(1..=64).contains(&len) {
+        return Err(invalid("key name must be 1 to 64 characters"));
+    }
+    if trimmed.chars().any(char::is_control) {
+        return Err(invalid("key name must not contain control characters"));
+    }
+    Ok(trimmed.to_string())
+}
+
 fn token(value: &str, max: usize, label: &str) -> Result<(), String> {
     let len = value.chars().count();
     if len == 0 || len > max {

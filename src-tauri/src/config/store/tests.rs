@@ -605,3 +605,45 @@ fn wire_format_is_camel_case() {
     let g: VariableScope = serde_json::from_str(r#"{"kind":"global"}"#).unwrap();
     assert_eq!(g, VariableScope::Global);
 }
+
+#[test]
+fn keys_default_to_empty_and_stay_unique() {
+    let (d, s) = store();
+    fs::write(d.path().join(FILE_NAME), r#"{"version":2,"projects":[]}"#).unwrap();
+    assert!(s.snapshot().unwrap().keys.is_empty());
+    let key = |id: &str, name: &str, path: &str| KeyEntry {
+        id: id.into(),
+        name: name.into(),
+        path: path.into(),
+        managed: false,
+        algorithm: crate::config::KeyAlgorithm::Ed25519,
+        bits: None,
+        public_key: "ssh-ed25519 AAAA".into(),
+        fingerprint: "SHA256:x".into(),
+        comment: String::new(),
+        encrypted: false,
+    };
+    s.add_key(key("1", " a ", "/k/a")).unwrap();
+    assert_eq!(s.snapshot().unwrap().keys[0].name, "a");
+    assert!(matches!(
+        s.add_key(key("2", "A", "/k/b")),
+        Err(ConfigError::Exists(_))
+    ));
+    assert!(matches!(
+        s.add_key(key("2", "b", "/k/a")),
+        Err(ConfigError::Exists(_))
+    ));
+    invalid(s.add_key(key("2", &"x".repeat(65), "/k/c")));
+    s.add_key(key("2", "b", "/k/b")).unwrap();
+    assert!(matches!(
+        s.rename_key("2", "A"),
+        Err(ConfigError::Exists(_))
+    ));
+    assert_eq!(s.rename_key("2", "c").unwrap().name, "c");
+    assert!(matches!(
+        s.delete_key("9"),
+        Err(ConfigError::NotFound("key"))
+    ));
+    assert_eq!(s.delete_key("1").unwrap().path, "/k/a");
+    assert_eq!(s.snapshot().unwrap().keys.len(), 1);
+}

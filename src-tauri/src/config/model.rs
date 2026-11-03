@@ -115,12 +115,42 @@ pub struct ConfigFile {
     pub variables: Vec<Variable>,
     #[serde(default)]
     pub projects: Vec<Project>,
+    #[serde(default)]
+    pub keys: Vec<KeyEntry>,
 }
 
 impl ConfigFile {
     pub fn project(&self, id: &str) -> Option<&Project> {
         self.projects.iter().find(|p| p.id == id)
     }
+
+    pub fn key(&self, id: &str) -> Option<&KeyEntry> {
+        self.keys.iter().find(|k| k.id == id)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KeyAlgorithm {
+    Ed25519,
+    Rsa,
+}
+
+/// A registered SSH key: public data and where the private key file is. `managed` keys were
+/// generated into the app's keys directory; others were imported by path and stay where they are.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyEntry {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub managed: bool,
+    pub algorithm: KeyAlgorithm,
+    pub bits: Option<u32>,
+    pub public_key: String,
+    pub fingerprint: String,
+    pub comment: String,
+    pub encrypted: bool,
 }
 
 impl Default for ConfigFile {
@@ -129,6 +159,7 @@ impl Default for ConfigFile {
             version: super::store::VERSION,
             variables: Vec::new(),
             projects: Vec::new(),
+            keys: Vec::new(),
         }
     }
 }

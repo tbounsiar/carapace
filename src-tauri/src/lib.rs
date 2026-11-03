@@ -1,6 +1,8 @@
 mod commands;
 mod config;
 mod files;
+mod fsutil;
+mod keys;
 mod localfs;
 mod secrets;
 mod sftp;
@@ -100,6 +102,14 @@ pub fn run() {
             commands::transfer::answer_conflict,
             commands::transfer::clear_finished_transfers,
             commands::secrets::forget_saved_secrets,
+            commands::keys::keys_dir,
+            commands::keys::list_keys,
+            commands::keys::generate_key,
+            commands::keys::import_key,
+            commands::keys::rename_key,
+            commands::keys::delete_key,
+            commands::keys::forget_key_passphrase,
+            commands::keys::deploy_public_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

@@ -1,6 +1,8 @@
 //! Tests against the disposable sshd in `e2e/sshd`. Run only with `CARAPACE_E2E=1`
 //! after `node e2e/sshd/setup.mjs up`.
 
+use std::path::PathBuf;
+
 use super::*;
 use crate::secrets::MemoryBackend;
 use crate::ssh::test_server::{E2E_SERVER as SERVER, target};
@@ -82,6 +84,7 @@ fn key_auth(name: &str) -> TargetAuth {
     TargetAuth::Key {
         key_path: key_path(name),
         passphrase: None,
+        registered: Vec::new(),
     }
 }
 

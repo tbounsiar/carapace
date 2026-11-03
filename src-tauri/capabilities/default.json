@@ -42,6 +42,14 @@
     "allow-enqueue-transfers",
     "allow-cancel-transfer",
     "allow-answer-conflict",
-    "allow-clear-finished-transfers"
+    "allow-clear-finished-transfers",
+    "allow-keys-dir",
+    "allow-list-keys",
+    "allow-generate-key",
+    "allow-import-key",
+    "allow-rename-key",
+    "allow-delete-key",
+    "allow-forget-key-passphrase",
+    "allow-deploy-public-key"
   ]
 }
