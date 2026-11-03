@@ -66,10 +66,18 @@ fn windows_component(raw: &str) -> Result<(), FsError> {
         .unwrap_or(raw)
         .trim_end()
         .to_ascii_uppercase();
-    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || ((stem.starts_with("COM") || stem.starts_with("LPT"))
-            && stem.len() == 4
-            && stem.as_bytes()[3].is_ascii_digit());
+    let numbered = |rest: &str| {
+        // Windows also reserves the superscript digits ¹ ² ³.
+        let mut chars = rest.chars();
+        matches!((chars.next(), chars.next()), (Some(c), None) if c.is_ascii_digit() || "¹²³".contains(c))
+    };
+    let reserved = matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || stem
+        .strip_prefix("COM")
+        .or_else(|| stem.strip_prefix("LPT"))
+        .is_some_and(numbered);
     if reserved {
         return Err(FsError::invalid(format!("{raw} is a reserved name")));
     }
@@ -152,12 +160,33 @@ mod tests {
         assert!(name("notes.txt").is_ok());
         if cfg!(windows) {
             for bad in [
-                "a:b", "a?", "x.", "x ", "CON", "con.txt", "COM1", "lpt9.log",
+                "a:b",
+                "a?",
+                "x.",
+                "x ",
+                "CON",
+                "con.txt",
+                "COM1",
+                "lpt9.log",
+                "COM¹",
+                "com².txt",
+                "LPT³",
+                "lpt¹ .log",
+                "CONIN$",
+                "conout$.txt",
+                "CONIN$ .x",
+                "COM3 ",
             ] {
                 assert_eq!(name(bad).unwrap_err().code(), "invalid_input", "{bad}");
             }
-            assert!(name("COM10").is_ok());
-            assert!(name("console").is_ok());
+            for bad in [r"C:\x\COM²", r"C:\x\conin$.txt\y", r"C:\x\LPT¹.a.b"] {
+                assert_eq!(resolve(bad).unwrap_err().code(), "invalid_input", "{bad}");
+            }
+            for ok in [
+                "COM10", "console", "COM⁴", "COM¹¹", "CONIN", "CONIN$1", "LPT",
+            ] {
+                assert!(name(ok).is_ok(), "{ok}");
+            }
         }
     }
 }

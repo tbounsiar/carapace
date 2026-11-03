@@ -1,0 +1,24 @@
+[[permission]]
+identifier = "allow-subscribe-transfers"
+description = "Allows the subscribe_transfers command."
+commands.allow = ["subscribe_transfers"]
+
+[[permission]]
+identifier = "allow-enqueue-transfers"
+description = "Allows the enqueue_transfers command."
+commands.allow = ["enqueue_transfers"]
+
+[[permission]]
+identifier = "allow-cancel-transfer"
+description = "Allows the cancel_transfer command."
+commands.allow = ["cancel_transfer"]
+
+[[permission]]
+identifier = "allow-answer-conflict"
+description = "Allows the answer_conflict command."
+commands.allow = ["answer_conflict"]
+
+[[permission]]
+identifier = "allow-clear-finished-transfers"
+description = "Allows the clear_finished_transfers command."
+commands.allow = ["clear_finished_transfers"]

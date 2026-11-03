@@ -37,6 +37,11 @@
     "allow-local-list",
     "allow-local-mkdir",
     "allow-local-rename",
-    "allow-local-delete"
+    "allow-local-delete",
+    "allow-subscribe-transfers",
+    "allow-enqueue-transfers",
+    "allow-cancel-transfer",
+    "allow-answer-conflict",
+    "allow-clear-finished-transfers"
   ]
 }

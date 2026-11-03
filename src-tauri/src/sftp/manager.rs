@@ -16,8 +16,11 @@ use super::path::{file_name, join, normalize, parent};
 use crate::files::{self, EntryKind, FileEntry, FsError, Listing, MAX_DEPTH, MAX_ENTRIES};
 use crate::ssh::{SessionRef, SshManager};
 
+pub use io::RemoteMeta;
+
 const OPEN_TIMEOUT: Duration = Duration::from_secs(15);
 const REQUEST_TIMEOUT_SECS: u64 = 30;
+const MAX_NAME_BYTES: usize = 255;
 
 type Slot = Arc<tokio::sync::Mutex<Option<Arc<Remote>>>>;
 type Entries = Vec<(String, FileAttributes)>;
@@ -28,11 +31,13 @@ pub struct SftpManager {
     slots: Mutex<HashMap<String, Slot>>,
 }
 
-struct Remote {
+pub struct Remote {
     raw: RawSftpSession,
     session: SessionRef,
     home: String,
     broken: AtomicBool,
+    /// The server announced `posix-rename@openssh.com` (rename that replaces the target).
+    posix_rename: bool,
     /// Dropped with the `Remote`, which ends its watcher task.
     _alive: oneshot::Sender<()>,
 }
@@ -128,6 +133,12 @@ impl Remote {
 
     /// Entries of `path` without `.`/`..`; more than `cap` of them -> `too_large`.
     async fn read_dir(&self, path: &str, cap: usize) -> Result<Entries, FsError> {
+        Ok(self.read_dir_counted(path, cap).await?.0)
+    }
+
+    /// `read_dir`, plus how many entries were dropped for an unusable name (they count towards
+    /// `cap`).
+    async fn read_dir_counted(&self, path: &str, cap: usize) -> Result<(Entries, u64), FsError> {
         let handle = self
             .raw
             .opendir(path)
@@ -141,27 +152,39 @@ impl Remote {
         result
     }
 
-    async fn read_handle(&self, handle: &str, path: &str, cap: usize) -> Result<Entries, FsError> {
+    async fn read_handle(
+        &self,
+        handle: &str,
+        path: &str,
+        cap: usize,
+    ) -> Result<(Entries, u64), FsError> {
         let mut out = Vec::new();
+        let mut dropped = 0usize;
         loop {
             match self.raw.readdir(handle).await {
                 Ok(name) => {
                     for f in name.files {
-                        // A hostile server could send names that address other paths.
-                        if f.filename.is_empty()
-                            || f.filename == "."
-                            || f.filename == ".."
-                            || f.filename.contains(['/', '\0'])
-                        {
+                        if f.filename == "." || f.filename == ".." {
                             continue;
                         }
-                        if out.len() == cap {
+                        if out.len() + dropped >= cap {
                             return Err(FsError::TooLarge(path.into()));
+                        }
+                        // A hostile server could send names that address other paths, or names
+                        // long enough to exhaust memory.
+                        if f.filename.is_empty()
+                            || f.filename.len() > MAX_NAME_BYTES
+                            || f.filename.contains(['/', '\0'])
+                        {
+                            dropped += 1;
+                            continue;
                         }
                         out.push((f.filename, f.attrs));
                     }
                 }
-                Err(SftpError::Status(s)) if s.status_code == StatusCode::Eof => return Ok(out),
+                Err(SftpError::Status(s)) if s.status_code == StatusCode::Eof => {
+                    return Ok((out, dropped as u64));
+                }
                 Err(e) => return Err(self.fail(e, path)),
             }
         }
@@ -271,15 +294,17 @@ async fn open(session: SessionRef) -> Result<(Remote, oneshot::Receiver<()>), Fs
             ..Default::default()
         },
     );
-    if !matches!(timeout(OPEN_TIMEOUT, raw.init()).await, Ok(Ok(_))) {
-        return Err(lost(&session));
-    }
+    let version = match timeout(OPEN_TIMEOUT, raw.init()).await {
+        Ok(Ok(v)) => v,
+        _ => return Err(lost(&session)),
+    };
     let (alive, gone) = oneshot::channel();
     let mut remote = Remote {
         raw,
         session,
         home: String::new(),
         broken: AtomicBool::new(false),
+        posix_rename: version.extensions.contains_key(io::POSIX_RENAME),
         _alive: alive,
     };
     remote.home = remote.realpath(".").await.map_err(|e| match e {
@@ -312,6 +337,15 @@ impl SftpManager {
         watch_end(Arc::downgrade(&slot), &remote, gone);
         *current = Some(remote.clone());
         Ok(remote)
+    }
+
+    /// The connection's shared SFTP channel, for modules doing their own file I/O on it.
+    pub async fn channel(
+        &self,
+        ssh: &SshManager,
+        connection_id: &str,
+    ) -> Result<Arc<Remote>, FsError> {
+        self.remote(ssh, connection_id).await
     }
 
     #[cfg(test)]
@@ -461,5 +495,6 @@ fn watch_end(
 
 #[cfg(test)]
 mod e2e_tests;
+mod io;
 #[cfg(test)]
 mod tests;

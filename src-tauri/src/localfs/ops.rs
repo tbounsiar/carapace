@@ -14,7 +14,7 @@ const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
 #[cfg(windows)]
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
 
-fn fail(e: io::Error, path: &Path) -> FsError {
+pub(crate) fn fail(e: io::Error, path: &Path) -> FsError {
     let p = path.display().to_string();
     match e.kind() {
         ErrorKind::NotFound => FsError::NotFound(p),
@@ -39,7 +39,7 @@ fn exists(path: &Path) -> Result<bool, FsError> {
 
 /// Anything that redirects elsewhere: symlinks, and on Windows every reparse point (junctions,
 /// mount points, cloud placeholders). Deleting one removes only the link.
-fn is_link(meta: &Metadata) -> bool {
+pub(crate) fn is_link(meta: &Metadata) -> bool {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
@@ -52,7 +52,7 @@ fn is_link(meta: &Metadata) -> bool {
 }
 
 /// Removes the link itself. Windows directory links and junctions are directories to the OS.
-fn remove_link(path: &Path, meta: &Metadata) -> Result<(), FsError> {
+pub(crate) fn remove_link(path: &Path, meta: &Metadata) -> Result<(), FsError> {
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;

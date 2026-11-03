@@ -10,3 +10,5 @@ HostKey /etc/ssh/ssh_host_ed25519_key
 HostKey /etc/ssh/ssh_host_rsa_key
 LogLevel ERROR
 Subsystem sftp internal-sftp
+# Parallel e2e tests open many connections at once; the default (10:30:100) drops some.
+MaxStartups 100

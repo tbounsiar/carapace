@@ -22,7 +22,7 @@ tauri-plugin-log = "2"
 uuid = { version = "1.29.0", features = ["v4", "serde"] }
 thiserror = "2.0.21"
 russh = { version = "0.65.0", default-features = false, features = ["ring", "rsa", "flate2"] }
-tokio = { version = "1.54.1", features = ["rt", "time", "sync", "macros", "fs", "net"] }
+tokio = { version = "1.54.1", features = ["rt", "time", "sync", "macros", "fs", "net", "io-util"] }
 hmac = "0.13"
 sha1 = "0.11"
 data-encoding = "2"
@@ -33,6 +33,7 @@ russh-sftp = "3.0.1"
 
 [dev-dependencies]
 rand = "0.10"
+sha2 = "0.11.1"
 tempfile = "3.27.0"
 
 [target."cfg(windows)".dependencies]

@@ -6,7 +6,10 @@ mod secrets;
 mod sftp;
 mod ssh;
 mod terminal;
+mod transfer;
 mod vars;
+
+use std::sync::Arc;
 
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, WindowEvent};
@@ -27,6 +30,9 @@ pub fn run() {
             app.manage(ssh::SshManager::new(&home, secrets.clone()));
             app.manage(terminal::TerminalManager::default());
             app.manage(sftp::SftpManager::default());
+            app.manage(transfer::TransferManager::new(Arc::new(
+                commands::transfer::AppConnections(app.handle().clone()),
+            )));
             let store = config::ConfigStore::new(home);
             // Loading moves a version 1 file aside; its keychain entries go with it.
             let _ = store.snapshot();
@@ -38,10 +44,15 @@ pub fn run() {
         // Terminal events are bound to the page that opened them; a reload or a closed window
         // would otherwise leave shells running with nobody reading their output.
         .on_page_load(|webview, payload| {
-            if payload.event() == PageLoadEvent::Started
-                && let Some(terminals) = webview.try_state::<terminal::TerminalManager>()
-            {
+            if payload.event() != PageLoadEvent::Started {
+                return;
+            }
+            if let Some(terminals) = webview.try_state::<terminal::TerminalManager>() {
                 terminals.close_all();
+            }
+            // Transfers keep running; the reloaded page subscribes again.
+            if let Some(transfers) = webview.try_state::<transfer::TransferManager>() {
+                transfers.unsubscribe();
             }
         })
         .on_window_event(|window, event| {
@@ -83,6 +94,11 @@ pub fn run() {
             commands::localfs::local_mkdir,
             commands::localfs::local_rename,
             commands::localfs::local_delete,
+            commands::transfer::subscribe_transfers,
+            commands::transfer::enqueue_transfers,
+            commands::transfer::cancel_transfer,
+            commands::transfer::answer_conflict,
+            commands::transfer::clear_finished_transfers,
             commands::secrets::forget_saved_secrets,
         ])
         .run(tauri::generate_context!())
