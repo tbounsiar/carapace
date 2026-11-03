@@ -173,6 +173,7 @@
                 [attr.aria-label]="'Actions for ' + row.entry.name"
                 [attr.data-testid]="'entry-menu-' + row.entry.name"
                 [tuiDropdown]="menu"
+                tuiDropdownAlign="end"
                 [tuiDropdownOpen]="openMenu() === row.entry.path"
                 (tuiDropdownOpenChange)="setMenu(row.entry, $event)"
               >

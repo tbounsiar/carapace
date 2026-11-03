@@ -120,6 +120,7 @@
               [attr.aria-label]="'Actions for ' + key.name"
               [attr.data-testid]="'key-menu-' + key.name"
               [tuiDropdown]="menu"
+              tuiDropdownAlign="end"
               [tuiDropdownOpen]="openMenu() === key.id"
               (tuiDropdownOpenChange)="setMenu(key, $event)"
             >

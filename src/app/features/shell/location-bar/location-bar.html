@@ -38,6 +38,7 @@
     [attr.data-testid]="menu.id"
     [attr.aria-label]="'Actions for ' + menu.name"
     [tuiDropdown]="entries"
+    tuiDropdownAlign="end"
     [tuiDropdownOpen]="menuOpen()"
     (tuiDropdownOpenChange)="menuOpen.set($event)"
   >
