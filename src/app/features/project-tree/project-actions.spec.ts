@@ -110,6 +110,7 @@ describe('ProjectActions', () => {
     const data = lastData<HostDialogData>();
     expect(data.projectId).toBe('p1');
     expect(data.location).toBe('Payments / Backend / Legacy');
+    expect(data.hostId).toBeNull();
     actions.addHost({ projectId: null, parentId: null });
     await settle();
     expect(lastData<HostDialogData>().location).toBe('Home');
@@ -161,6 +162,7 @@ describe('ProjectActions', () => {
     Object.assign(config, { updateHost: vi.fn(() => Promise.resolve(web)) });
     actions.editHost(web, { sidebarFocus: false });
     await settle();
+    expect(lastData<HostDialogData>().hostId).toBe('h2');
     await lastData<{ save: (input: unknown) => Promise<unknown> }>().save({});
     expect(TestBed.inject(SidebarState).focusRequest()).toBeNull();
   });

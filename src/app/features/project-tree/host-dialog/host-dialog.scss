@@ -51,3 +51,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.test {
+  margin-inline-end: auto;
+}
+
+.testing {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-wrap: anywhere;
+}
+
+[tuiTitle] {
+  overflow-wrap: anywhere;
+}

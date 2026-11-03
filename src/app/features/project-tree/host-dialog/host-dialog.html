@@ -177,7 +177,75 @@
     </p>
   }
 
+  <tui-elastic-container
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+    data-testid="host-test-result"
+    [attr.data-result]="testView()?.state ?? null"
+    [attr.data-code]="testView()?.code ?? null"
+  >
+    @if (testView(); as view) {
+      @switch (view.state) {
+        @case ('testing') {
+          <div tuiNotification appearance="neutral" icon="" size="s">
+            <span class="testing">
+              <tui-loader size="xs" [inheritColor]="true" />
+              <span data-testid="host-test-title">
+                <ng-container *ngTemplateOutlet="parts; context: { $implicit: view.title }" />
+              </span>
+            </span>
+          </div>
+        }
+        @case ('cancelled') {
+          <div tuiNotification appearance="neutral" icon="@tui.circle-slash" size="s">
+            <span data-testid="host-test-title">
+              <ng-container *ngTemplateOutlet="parts; context: { $implicit: view.title }" />
+            </span>
+          </div>
+        }
+        @default {
+          <div
+            tuiNotification
+            size="s"
+            [appearance]="view.state === 'success' ? 'positive' : 'negative'"
+          >
+            <div tuiTitle>
+              <span data-testid="host-test-title">
+                <ng-container *ngTemplateOutlet="parts; context: { $implicit: view.title }" />
+              </span>
+              <div tuiSubtitle data-testid="host-test-detail">
+                <ng-container *ngTemplateOutlet="parts; context: { $implicit: view.detail }" />
+              </div>
+            </div>
+          </div>
+        }
+      }
+    }
+  </tui-elastic-container>
+  <ng-template #parts let-parts>
+    @for (part of parts; track $index) {
+      <span [class.mono]="part.mono">{{ part.text }}</span>
+    }
+  </ng-template>
+
   <footer>
+    <button
+      tuiButton
+      appearance="flat"
+      type="button"
+      class="test"
+      tuiHintDescribe
+      data-testid="host-test"
+      [iconStart]="testing() ? '@tui.x' : '@tui.plug-zap'"
+      [attr.aria-disabled]="!testing() && testBlocker() ? 'true' : null"
+      [attr.data-testing]="testing() ? 'true' : null"
+      [tuiAppearanceState]="!testing() && testBlocker() ? 'disabled' : null"
+      [tuiHint]="testing() ? null : testBlocker()"
+      (click)="toggleTest()"
+    >
+      {{ testing() ? 'Cancel test' : 'Test connection' }}
+    </button>
     <button
       tuiButton
       appearance="secondary"

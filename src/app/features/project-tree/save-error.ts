@@ -29,6 +29,7 @@ const NEXT_STEP: Readonly<Record<IpcErrorCode, string>> = {
   not_empty: 'Empty the folder first.',
   too_large: 'Choose a smaller file.',
   missing_variables: 'Define them in the global or project variables.',
+  cancelled: 'Start it again when ready.',
   unknown: 'Try again. Restart the app if it keeps happening.',
 };
 
@@ -50,10 +51,14 @@ export function errorText(err: unknown): string {
   if (!isCode(code) || code === 'unknown' || typeof message !== 'string' || !message.trim()) {
     return `${UNEXPECTED} ${NEXT_STEP.unknown}`;
   }
+  return `${sentence(message)} ${NEXT_STEP[code]}`;
+}
+
+/** A backend message (a lower-case fragment) as a sentence. */
+export function sentence(message: string): string {
   const raw = message.trim();
   const capitalized = raw.charAt(0).toUpperCase() + raw.slice(1);
-  const sentence = /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
-  return `${sentence} ${NEXT_STEP[code]}`;
+  return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
 }
 
 /** `label` names what failed ("Connection failed", "Folder not deleted"). */

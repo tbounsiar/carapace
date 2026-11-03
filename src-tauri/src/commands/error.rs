@@ -114,6 +114,12 @@ mod tests {
             (SshError::AuthFailed("no".into()), "auth_failed"),
             (SshError::SecretRequired, "secret_required"),
             (SshError::InvalidPassphrase, "invalid_passphrase"),
+            (
+                SshError::PassphraseRefused("no".into()),
+                "invalid_passphrase",
+            ),
+            (SshError::Cancelled, "cancelled"),
+            (SshError::Busy, "busy"),
             (SshError::KeychainUnavailable, "keychain_unavailable"),
             (SshError::Timeout, "timeout"),
             (SshError::Network, "network"),

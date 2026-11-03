@@ -84,6 +84,18 @@ describe('host key dialogs', () => {
       expect(await result).toBe(true);
     });
 
+    it('uses a custom accept label during a test', async () => {
+      const result = prompter.ask(unknown, { acceptLabel: 'Accept and test' });
+      await settle();
+      const accept = dialog(sel).querySelector<HTMLButtonElement>(
+        '[data-testid="host-key-accept"]',
+      )!;
+      expect(accept.textContent?.trim()).toBe('Accept and test');
+      accept.click();
+      await settle();
+      expect(await result).toBe(true);
+    });
+
     it('resolves false on reject', async () => {
       const result = prompter.ask(unknown);
       await settle();

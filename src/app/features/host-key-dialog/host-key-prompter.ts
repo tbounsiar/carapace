@@ -3,19 +3,28 @@ import { TuiDialogService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
 import type { HostKeyChanged, HostKeyPrompt } from '../../core/ipc/ssh.models';
+import type { HostKeyDialogData } from './host-key-dialog';
+
+export interface HostKeyAskOptions {
+  /** "Accept and test" during a connection test. */
+  readonly acceptLabel?: string;
+}
 
 @Service()
 export class HostKeyPrompter {
   private readonly dialogs = inject(TuiDialogService);
 
   /** True only on an explicit accept; any other way of closing the dialog is a reject. */
-  async ask(prompt: HostKeyPrompt): Promise<boolean> {
+  async ask(prompt: HostKeyPrompt, options: HostKeyAskOptions = {}): Promise<boolean> {
     const { HostKeyDialog } = await import('./host-key-dialog');
     const result = await firstValueFrom(
       this.dialogs.open<boolean>(new PolymorpheusComponent(HostKeyDialog), {
         label: 'Unknown host key',
         size: 'm',
-        data: prompt,
+        data: {
+          ...prompt,
+          acceptLabel: options.acceptLabel ?? 'Accept and connect',
+        } satisfies HostKeyDialogData,
       }),
       { defaultValue: false },
     );

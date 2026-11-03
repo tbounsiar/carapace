@@ -284,3 +284,143 @@ async fn home_host_connects_with_global_variables_only() {
     let info = w.connect(target).await.unwrap();
     assert_eq!(info.connection_id, host);
 }
+
+impl World {
+    /// Tests a host form, accepting the host key if asked.
+    async fn test_draft(
+        &self,
+        draft: &HostInput,
+        project: Option<&str>,
+        host: Option<&str>,
+    ) -> Result<crate::ssh::HostTestResult, CommandError> {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let emit: crate::ssh::Emit = Arc::new(move |e| {
+            let _ = tx.send(e);
+        });
+        let (project, host) = (project.map(str::to_owned), host.map(str::to_owned));
+        let run = run_test(
+            &self.store,
+            &self.ssh,
+            draft,
+            &project,
+            &host,
+            "e2e-test",
+            emit,
+            None,
+        );
+        tokio::pin!(run);
+        loop {
+            tokio::select! {
+                done = &mut run => return done,
+                Some(event) = rx.recv() => {
+                    if let ConnectEvent::HostKeyPrompt { request_id, .. } = event {
+                        self.ssh.answer_host_key(&request_id, true).unwrap();
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn draft(auth: AuthMethod) -> HostInput {
+    HostInput {
+        name: "draft".into(),
+        hostname: "${host}".into(),
+        port: "${port}".into(),
+        username: "${user}".into(),
+        auth,
+    }
+}
+
+#[tokio::test]
+async fn host_form_tests_against_the_sshd_without_registering_anything() {
+    if !enabled() {
+        return;
+    }
+    let _g = E2E_SERVER.read().await;
+    let w = World::new();
+    let p = w.project(
+        "e2e",
+        &[
+            plain("host", "127.0.0.1"),
+            plain("port", "2222"),
+            Variable {
+                name: "pw".into(),
+                kind: VariableKind::Secret,
+                value: None,
+            },
+        ],
+    );
+    let r = w
+        .test_draft(&draft(key_auth()), Some(&p), None)
+        .await
+        .unwrap();
+    assert_eq!(r.address, "carapace@127.0.0.1:2222");
+    let json = serde_json::to_value(&r).unwrap();
+    assert_eq!(json["authKind"], "key");
+    assert_eq!(json["secretSource"], serde_json::Value::Null);
+    assert!(w.ssh.list().await.is_empty());
+
+    let pw = AuthMethod::Password {
+        password: Some("${pw}".into()),
+    };
+    let var = VarKey::project(&p, "pw").unwrap();
+    w.secrets
+        .set_var(&var, &SecretString::from(work_file("password")))
+        .unwrap();
+    let r = w
+        .test_draft(&draft(pw.clone()), Some(&p), None)
+        .await
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(&r).unwrap()["secretSource"],
+        "variable"
+    );
+
+    w.secrets
+        .set_var(&var, &SecretString::from("not-the-password"))
+        .unwrap();
+    let e = w.test_draft(&draft(pw), Some(&p), None).await.unwrap_err();
+    assert_eq!(
+        (e.code, e.message.as_str()),
+        (
+            "auth_failed",
+            "the password from variable pw was refused by the server"
+        )
+    );
+    assert!(w.secrets.has_var(&var).unwrap());
+
+    let saved = w.host(Some(&p), "ui", key_auth());
+    let info = w.connect(w.target(&saved)).await.unwrap();
+    w.test_draft(&draft(key_auth()), Some(&p), Some(&saved))
+        .await
+        .unwrap();
+    assert_eq!(w.ssh.list().await, vec![info]);
+}
+
+#[tokio::test]
+async fn host_form_test_reports_a_changed_key() {
+    if !enabled() {
+        return;
+    }
+    let _g = E2E_SERVER.read().await;
+    let w = World::new();
+    std::fs::write(
+        w._dir.path().join("known_hosts"),
+        format!(
+            "[127.0.0.1]:2222 {}\n",
+            crate::ssh::test_server::ed25519(81)
+                .public_key()
+                .to_openssh()
+                .unwrap()
+        ),
+    )
+    .unwrap();
+    let p = w.project("e2e", &endpoint("2222"));
+    let e = w
+        .test_draft(&draft(key_auth()), Some(&p), None)
+        .await
+        .unwrap_err();
+    assert_eq!(e.code, "host_key_changed");
+    assert!(w.ssh.list().await.is_empty());
+}

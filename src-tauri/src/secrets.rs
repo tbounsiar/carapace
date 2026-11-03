@@ -77,6 +77,11 @@ impl VarKey {
     pub fn account(&self) -> &str {
         &self.account
     }
+
+    /// The variable name: the last account segment (names never contain `/`).
+    pub fn name(&self) -> &str {
+        self.account.rsplit('/').next().unwrap_or_default()
+    }
 }
 
 /// The keychain entries of secrets remembered from the credential prompt for one host
@@ -377,6 +382,23 @@ impl SecretStore {
             }
             None => Ok(None),
         }
+    }
+
+    /// Like `get_saved` but never deletes: a mismatched or unparseable entry reads as absent
+    /// and stays, so testing an edited, unsaved form cannot drop the host's saved secret.
+    pub fn peek_saved(
+        &self,
+        key: &SavedKey,
+        kind: SecretKind,
+        target: &str,
+    ) -> Result<Option<SecretString>, SecretError> {
+        let Some(raw) = self.backend.get(&key.account(kind))? else {
+            return Ok(None);
+        };
+        Ok(serde_json::from_str::<SavedIn>(raw.expose_secret())
+            .ok()
+            .filter(|saved| saved.target == target)
+            .map(|saved| saved.secret))
     }
 
     pub fn set_saved(

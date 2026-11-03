@@ -74,6 +74,27 @@ impl KnownHosts {
     /// Replaces any app-file entry for the same host and algorithm, then appends the new key.
     pub fn trust(&self, host: &str, port: u16, key: &PublicKey) -> Result<(), SshError> {
         let _guard = self.write_lock.lock().map_err(|_| SshError::Io)?;
+        self.trust_locked(host, port, key)
+    }
+
+    /// Checks and trusts under one write lock, for a key the user accepted as unknown: a key
+    /// trusted meanwhile by another connect or test is never silently replaced. Returns the
+    /// status found; the key was written only for `Unknown`.
+    pub fn trust_if_unknown(
+        &self,
+        host: &str,
+        port: u16,
+        key: &PublicKey,
+    ) -> Result<HostKeyStatus, SshError> {
+        let _guard = self.write_lock.lock().map_err(|_| SshError::Io)?;
+        let status = self.check(host, port, key)?;
+        if status == HostKeyStatus::Unknown {
+            self.trust_locked(host, port, key)?;
+        }
+        Ok(status)
+    }
+
+    fn trust_locked(&self, host: &str, port: u16, key: &PublicKey) -> Result<(), SshError> {
         let pattern = host_pattern(host, port);
         let algorithm = key.algorithm().to_string();
         let existing = match fs::read_to_string(&self.app_file) {

@@ -109,7 +109,8 @@ export type CommandErrorCode =
   | 'already_exists'
   | 'not_empty'
   | 'too_large'
-  | 'missing_variables';
+  | 'missing_variables'
+  | 'cancelled';
 
 export type IpcErrorCode = CommandErrorCode | 'unknown';
 

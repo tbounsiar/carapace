@@ -324,7 +324,11 @@ fn credential(secret: &str, remember: bool) -> Option<Credential> {
 
 fn stored(env: &Env, kind: SecretKind) -> Option<String> {
     env.secrets
-        .get_saved(&env.target.saved, kind, &env.target.bound_to(kind))
+        .get_saved(
+            env.target.saved.as_ref().unwrap(),
+            kind,
+            &env.target.bound_to(kind),
+        )
         .unwrap()
         .map(|s| s.expose_secret().to_owned())
 }
@@ -332,7 +336,7 @@ fn stored(env: &Env, kind: SecretKind) -> Option<String> {
 fn store_secret(env: &Env, kind: SecretKind, value: &str) {
     env.secrets
         .set_saved(
-            &env.target.saved,
+            env.target.saved.as_ref().unwrap(),
             kind,
             &env.target.bound_to(kind),
             &SecretString::from(value),
@@ -370,7 +374,7 @@ async fn connect_once(
 }
 
 fn load(env: &Env, credential: Option<Credential>) -> Result<Loaded, SshError> {
-    load_credentials(&env.secrets, &env.target, credential)
+    load_credentials(&env.secrets, &env.target, credential, Purpose::Connect)
 }
 
 #[tokio::test]
@@ -396,7 +400,13 @@ async fn typed_password_connects_and_is_stored_only_when_asked() {
     );
     assert_eq!(
         env.mem.accounts(),
-        vec![env.target.saved.account(SecretKind::Password)]
+        vec![
+            env.target
+                .saved
+                .as_ref()
+                .unwrap()
+                .account(SecretKind::Password)
+        ]
     );
 }
 
@@ -532,7 +542,7 @@ fn registered_key_passphrase_comes_after_the_saved_one() {
     );
 
     env.secrets
-        .delete_saved(&env.target.saved, SecretKind::Passphrase)
+        .delete_saved(env.target.saved.as_ref().unwrap(), SecretKind::Passphrase)
         .unwrap();
     env.secrets
         .set_key_passphrase(&registered, &SecretString::from("stale"))
@@ -803,7 +813,13 @@ async fn variable_without_value_falls_back_to_the_saved_secret_then_asks() {
     assert!(!env.secrets.has_var(&var_key()).unwrap());
     assert_eq!(
         env.mem.accounts(),
-        vec![env.target.saved.account(SecretKind::Password)]
+        vec![
+            env.target
+                .saved
+                .as_ref()
+                .unwrap()
+                .account(SecretKind::Password)
+        ]
     );
     env.manager.disconnect("h1").await.unwrap();
     connect_once(&env, None).await.unwrap();
@@ -871,3 +887,5 @@ fn connection_ids_and_bound_targets() {
     );
     assert_eq!(k.bound_to(SecretKind::Passphrase), "~/.ssh/id");
 }
+
+mod probe;

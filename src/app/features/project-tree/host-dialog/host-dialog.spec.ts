@@ -9,6 +9,8 @@ import { KeyStore } from '../../../core/ipc/key-store';
 import type { KeyView } from '../../../core/ipc/keys';
 import { key } from '../../../core/ipc/keys.fixture';
 import type { Host, HostInput, Project, VariableView } from '../../../core/ipc/config.models';
+import { IpcError } from '../../../core/ipc/ipc-error';
+import { HostTester, type HostTestOutcome, type HostTestRun } from '../../host-test/host-tester';
 import { HostDialog, type HostDialogData } from './host-dialog';
 
 const plain = (name: string, value: string): VariableView => ({
@@ -40,6 +42,27 @@ interface DialogApi {
   secretReferences(): string[];
   submit(): Promise<void>;
   pickKey(path: string): void;
+  testBlocker(): string | null;
+}
+
+interface FakeRun {
+  run: HostTestRun;
+  abort: ReturnType<typeof vi.fn>;
+  finish(outcome: HostTestOutcome): Promise<void>;
+}
+
+function fakeRun(): FakeRun {
+  let resolve: (outcome: HostTestOutcome) => void = () => undefined;
+  const outcome = new Promise<HostTestOutcome>((r) => (resolve = r));
+  const abort = vi.fn(() => resolve({ kind: 'aborted' }));
+  return {
+    run: { outcome, abort },
+    abort,
+    finish: async (o) => {
+      resolve(o);
+      await outcome;
+    },
+  };
 }
 
 describe('HostDialog', () => {
@@ -50,8 +73,14 @@ describe('HostDialog', () => {
   const variables = signal<VariableView[]>([plain('user', 'carapace'), secret('global_pw')]);
   const keys = signal<KeyView[]>([key({ name: 'main', path: '/keys/main' })]);
   const ensureLoaded = vi.fn(() => Promise.resolve());
+  const tester = { start: vi.fn<HostTester['start']>() };
+  let runs: FakeRun[] = [];
 
-  async function setup(initial: HostInput | null = null, projectId: string | null = 'p1') {
+  async function setup(
+    initial: HostInput | null = null,
+    projectId: string | null = 'p1',
+    hostId: string | null = null,
+  ) {
     await TestBed.configureTestingModule({
       imports: [HostDialog],
       providers: [
@@ -59,7 +88,7 @@ describe('HostDialog', () => {
         {
           provide: POLYMORPHEUS_CONTEXT,
           useValue: {
-            data: { projectId, location: 'Shop / Backend', initial, save },
+            data: { projectId, hostId, location: 'Shop / Backend', initial, save },
             completeWith,
             $implicit: {},
           },
@@ -74,6 +103,7 @@ describe('HostDialog', () => {
         },
         { provide: KeyStore, useValue: { keys, ensureLoaded } },
         { provide: TuiNotificationService, useValue: alerts },
+        { provide: HostTester, useValue: tester },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(HostDialog);
@@ -104,6 +134,12 @@ describe('HostDialog', () => {
     vi.clearAllMocks();
     projects.set([PROJECT]);
     save.mockImplementation((host) => Promise.resolve({ ...host, id: 'h1' } as Host));
+    runs = [];
+    tester.start.mockImplementation(() => {
+      const run = fakeRun();
+      runs.push(run);
+      return run.run;
+    });
   });
 
   it('defaults the port to 22 and password auth asked when connecting', async () => {
@@ -307,6 +343,244 @@ describe('HostDialog', () => {
       dialog.form.patchValue({ hostname: '${host}' });
       await fixture.whenStable();
       expect(preview(el)).toContain('Missing: host');
+    });
+  });
+
+  describe('test connection', () => {
+    const keyHost: HostInput = {
+      name: 'ui',
+      hostname: '${host}',
+      port: '${port}',
+      username: '${user}',
+      auth: { kind: 'key', keyPath: '/keys/${user}', passphrase: null },
+    };
+    const button = (el: HTMLElement): HTMLButtonElement =>
+      byId(el, 'host-test') as HTMLButtonElement;
+    const region = (el: HTMLElement): HTMLElement => byId(el, 'host-test-result')!;
+    const squash = (node: HTMLElement | null): string =>
+      node?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+    const title = (el: HTMLElement): string => squash(byId(el, 'host-test-title'));
+    const detail = (el: HTMLElement): string => squash(byId(el, 'host-test-detail'));
+    const success: HostTestOutcome = {
+      kind: 'success',
+      result: {
+        address: 'carapace@127.0.0.1:2223',
+        authKind: 'key',
+        secretSource: null,
+        durationMs: 5,
+      },
+      durationMs: 412,
+    };
+
+    async function started(initial: HostInput = keyHost, hostId: string | null = null) {
+      const ctx = await setup(initial, 'p1', hostId);
+      button(ctx.el).click();
+      await ctx.fixture.whenStable();
+      return ctx;
+    }
+
+    it('is the first footer button, a flat non-submit button', async () => {
+      const { el } = await setup(keyHost);
+      const footer = el.querySelector('footer')!;
+      expect(footer.firstElementChild).toBe(button(el));
+      expect(button(el).type).toBe('button');
+      expect(button(el).getAttribute('data-appearance')).toBe('flat');
+      expect(button(el).textContent?.trim()).toBe('Test connection');
+      expect(byId(el, 'dialog-save')!.getAttribute('type')).toBe('submit');
+      expect(el.querySelectorAll('button[type="submit"]')).toHaveLength(1);
+      expect(button(el).getAttribute('aria-disabled')).toBeNull();
+    });
+
+    it('has an always present live region, empty when idle', async () => {
+      const { el } = await setup(keyHost);
+      expect(region(el).getAttribute('role')).toBe('status');
+      expect(region(el).getAttribute('aria-live')).toBe('polite');
+      expect(region(el).hasAttribute('data-result')).toBe(false);
+      expect(region(el).querySelector('[tuiNotification]')).toBeNull();
+    });
+
+    it('is not testable with missing variables, and says why', async () => {
+      const { fixture, el, dialog } = await setup(keyHost);
+      dialog.form.patchValue({ hostname: '${nope}' });
+      await fixture.whenStable();
+      expect(button(el).getAttribute('aria-disabled')).toBe('true');
+      expect(button(el).getAttribute('data-state')).toBe('disabled');
+      expect(button(el).disabled).toBe(false);
+      expect(dialog.testBlocker()).toBe('Define the missing variables to test the connection.');
+      button(el).click();
+      await fixture.whenStable();
+      expect(tester.start).not.toHaveBeenCalled();
+      expect(region(el).hasAttribute('data-result')).toBe(false);
+    });
+
+    it('is not testable with a preview error or an invalid field', async () => {
+      const { fixture, el, dialog } = await setup(keyHost);
+      const fix = 'Fix the highlighted fields to test the connection.';
+      dialog.form.patchValue({ username: '${db_pw}' });
+      await fixture.whenStable();
+      expect(dialog.testBlocker()).toBe(fix);
+      dialog.form.patchValue({ username: '${user}', hostname: 'a b' });
+      await fixture.whenStable();
+      expect(dialog.testBlocker()).toBe(fix);
+      dialog.form.patchValue({ hostname: '${host}', keyPath: '' });
+      await fixture.whenStable();
+      expect(dialog.testBlocker()).toBe(fix);
+      expect(button(el).getAttribute('aria-disabled')).toBe('true');
+      dialog.form.patchValue({ authKind: 'agent' });
+      await fixture.whenStable();
+      expect(dialog.testBlocker()).toBeNull();
+    });
+
+    it('is not testable once the project is gone', async () => {
+      const { fixture, dialog } = await setup(keyHost);
+      projects.set([]);
+      await fixture.whenStable();
+      expect(dialog.testBlocker()).toBe('This project no longer exists.');
+    });
+
+    it('is testable without a name', async () => {
+      const { dialog } = await setup({ ...keyHost, name: '' });
+      expect(dialog.form.get('name')!.invalid).toBe(true);
+      expect(dialog.testBlocker()).toBeNull();
+    });
+
+    it('tests the draft in the dialog scope, resolved like the preview', async () => {
+      await started({ ...keyHost, name: ' ui ' }, 'h7');
+      expect(tester.start).toHaveBeenCalledWith({
+        host: { ...keyHost, name: 'ui' },
+        projectId: 'p1',
+        hostId: 'h7',
+        address: 'carapace@127.0.0.1:2223',
+        keyPath: '/keys/carapace',
+      });
+    });
+
+    it('turns into Cancel test while testing and shows what is tested', async () => {
+      const { el } = await started();
+      expect(button(el).textContent?.trim()).toBe('Cancel test');
+      expect(button(el).getAttribute('data-testing')).toBe('true');
+      expect(button(el).getAttribute('aria-disabled')).toBeNull();
+      expect(region(el).getAttribute('data-result')).toBe('testing');
+      expect(title(el)).toBe('Testing carapace@127.0.0.1:2223...');
+      expect(region(el).querySelector('tui-loader')).not.toBeNull();
+    });
+
+    it('cancels from the same button', async () => {
+      const { fixture, el } = await started();
+      button(el).click();
+      await fixture.whenStable();
+      expect(runs[0].abort).toHaveBeenCalledOnce();
+      expect(region(el).getAttribute('data-result')).toBe('cancelled');
+      expect(title(el)).toBe('Test cancelled.');
+      expect(button(el).textContent?.trim()).toBe('Test connection');
+      expect(button(el).hasAttribute('data-testing')).toBe(false);
+    });
+
+    it('shows a success', async () => {
+      const { fixture, el } = await started();
+      await runs[0].finish(success);
+      await fixture.whenStable();
+      expect(region(el).getAttribute('data-result')).toBe('success');
+      expect(region(el).querySelector('[tuiNotification]')!.getAttribute('data-appearance')).toBe(
+        'positive',
+      );
+      expect(title(el)).toBe('Connected as carapace@127.0.0.1:2223');
+      expect(detail(el)).toBe('Private key file · 412 ms');
+      expect(button(el).textContent?.trim()).toBe('Test connection');
+    });
+
+    it.each([
+      ['network', 'Could not reach 127.0.0.1:2223'],
+      ['auth_failed', 'The server refused the key'],
+      ['host_key_rejected', 'Host key not accepted'],
+      ['host_key_changed', 'Host key has changed'],
+      ['timeout', 'No answer from 127.0.0.1:2223'],
+    ] as const)('shows a %s failure', async (code, expected) => {
+      const { fixture, el } = await started();
+      await runs[0].finish({
+        kind: 'failure',
+        error: new IpcError(code, 'connection refused'),
+        origin: 'stored',
+      });
+      await fixture.whenStable();
+      expect(region(el).getAttribute('data-result')).toBe('failure');
+      expect(region(el).getAttribute('data-code')).toBe(code);
+      expect(region(el).querySelector('[tuiNotification]')!.getAttribute('data-appearance')).toBe(
+        'negative',
+      );
+      expect(title(el)).toBe(expected);
+      expect(detail(el)).not.toBe('');
+    });
+
+    it('shows a cancelled prompt as a cancelled test', async () => {
+      const { fixture, el } = await started();
+      await runs[0].finish({ kind: 'cancelled' });
+      await fixture.whenStable();
+      expect(region(el).getAttribute('data-result')).toBe('cancelled');
+    });
+
+    it('clears the result when a value changes', async () => {
+      const { fixture, el, dialog } = await started();
+      await runs[0].finish(success);
+      await fixture.whenStable();
+      dialog.form.patchValue({ port: '2224' });
+      await fixture.whenStable();
+      expect(region(el).hasAttribute('data-result')).toBe(false);
+      expect(region(el).querySelector('[tuiNotification]')).toBeNull();
+    });
+
+    it('clears the result when the resolved address changes', async () => {
+      const { fixture, el } = await started();
+      await runs[0].finish(success);
+      await fixture.whenStable();
+      projects.set([
+        { ...PROJECT, variables: [...PROJECT.variables.slice(1), plain('host', '::1')] },
+      ]);
+      await fixture.whenStable();
+      expect(region(el).hasAttribute('data-result')).toBe(false);
+    });
+
+    it('keeps the result while the values stay the same', async () => {
+      const { fixture, el, dialog } = await started();
+      await runs[0].finish(success);
+      await fixture.whenStable();
+      dialog.form.patchValue({ port: '${port}' });
+      await fixture.whenStable();
+      expect(region(el).getAttribute('data-result')).toBe('success');
+    });
+
+    it('aborts a running test on an edit and shows no result', async () => {
+      const { fixture, el, dialog } = await started();
+      dialog.form.patchValue({ name: 'other' });
+      await fixture.whenStable();
+      expect(runs[0].abort).toHaveBeenCalledOnce();
+      expect(region(el).hasAttribute('data-result')).toBe(false);
+      expect(button(el).textContent?.trim()).toBe('Test connection');
+    });
+
+    it('aborts a running test before saving', async () => {
+      const { dialog } = await started();
+      save.mockImplementationOnce((host) => {
+        expect(runs[0].abort).toHaveBeenCalledOnce();
+        return Promise.resolve({ ...host, id: 'h1' } as Host);
+      });
+      await dialog.submit();
+      expect(save).toHaveBeenCalledOnce();
+      expect(completeWith).toHaveBeenCalledOnce();
+    });
+
+    it('aborts a running test when the dialog closes', async () => {
+      const { fixture } = await started();
+      fixture.destroy();
+      expect(runs[0].abort).toHaveBeenCalledOnce();
+    });
+
+    it('ignores the outcome of a cancelled run', async () => {
+      const { fixture, el } = await started();
+      button(el).click();
+      await runs[0].finish(success);
+      await fixture.whenStable();
+      expect(region(el).getAttribute('data-result')).toBe('cancelled');
     });
   });
 });

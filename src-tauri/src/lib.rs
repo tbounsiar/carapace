@@ -84,6 +84,8 @@ pub fn run() {
             commands::ssh::replace_host_key,
             commands::ssh::disconnect_host,
             commands::ssh::list_connections,
+            commands::ssh::test_host,
+            commands::ssh::cancel_host_test,
             commands::terminal::open_terminal,
             commands::terminal::write_terminal,
             commands::terminal::resize_terminal,

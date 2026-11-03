@@ -390,7 +390,7 @@ async fn password_auth_with_the_right_password() {
     trust_first_use_with(&env, typed(&password)).await;
     env.secrets
         .set_saved(
-            &env.target.saved,
+            env.target.saved.as_ref().unwrap(),
             SecretKind::Password,
             &env.target.bound_to(SecretKind::Password),
             &SecretString::from(password),

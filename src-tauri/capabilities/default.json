@@ -24,6 +24,8 @@
     "allow-replace-host-key",
     "allow-disconnect-host",
     "allow-list-connections",
+    "allow-test-host",
+    "allow-cancel-host-test",
     "allow-open-terminal",
     "allow-write-terminal",
     "allow-resize-terminal",

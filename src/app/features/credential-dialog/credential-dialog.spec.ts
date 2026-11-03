@@ -75,4 +75,35 @@ describe('CredentialDialog', () => {
     expect(complete).toHaveBeenCalledOnce();
     expect(completeWith).not.toHaveBeenCalled();
   });
+
+  describe('for a test', () => {
+    const data: CredentialDialogData = {
+      kind: 'password',
+      subject: 'deploy@web:22',
+      error: null,
+      forTest: true,
+    };
+
+    it('offers no remember option and says the value is not saved', async () => {
+      const { el } = await setup(data);
+      expect(byId(el, 'credential-remember')).toBeNull();
+      expect(byId(el, 'credential-test-note').textContent?.trim()).toBe(
+        'Used for this test only. It is not saved.',
+      );
+      expect(byId(el, 'credential-submit').textContent?.trim()).toBe('Test');
+    });
+
+    it('never asks to remember the value', async () => {
+      const { dialog } = await setup(data);
+      dialog.form.setValue({ secret: 's3cret', remember: true });
+      dialog.submit();
+      expect(completeWith).toHaveBeenCalledWith({ secret: 's3cret', remember: false });
+    });
+  });
+
+  it('keeps the remember option and the Connect label for a connection', async () => {
+    const { el } = await setup();
+    expect(byId(el, 'credential-test-note')).toBeNull();
+    expect(byId(el, 'credential-submit').textContent?.trim()).toBe('Connect');
+  });
 });

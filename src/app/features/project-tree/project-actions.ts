@@ -161,6 +161,7 @@ export class ProjectActions {
         }
         return updated;
       },
+      host.id,
     );
   }
 
@@ -251,6 +252,7 @@ export class ProjectActions {
     container: Container,
     initial: HostInput | null,
     save: HostDialogData['save'],
+    hostId: string | null = null,
   ): Promise<void> {
     const { HostDialog } = await import('./host-dialog/host-dialog');
     this.dialogs
@@ -259,6 +261,7 @@ export class ProjectActions {
         size: 'm',
         data: {
           projectId: container.projectId,
+          hostId,
           location: this.locationText(container),
           initial,
           save,

@@ -1,10 +1,10 @@
 use serde::Serialize;
 
 use super::error::CommandError;
-use crate::config::{ConfigFile, ConfigStore, Host, Project};
+use crate::config::{ConfigFile, ConfigStore, Host, HostInput, Project};
 use crate::secrets::{KeyPassKey, SavedKey, SecretError, VarKey};
 use crate::ssh::{RegisteredKey, Target, TargetAuth};
-use crate::vars::{Layers, Level, Resolution, ResolvedAuth, SecretRef, resolve_host};
+use crate::vars::{Layers, Level, Resolution, ResolvedAuth, ResolvedHost, SecretRef, resolve_host};
 
 type Res<T> = Result<T, CommandError>;
 
@@ -83,6 +83,69 @@ pub(super) fn target(store: &ConfigStore, host_id: &str) -> Res<Target> {
     let config = store.snapshot()?;
     let at = locate(&config, host_id)?;
     let resolved = at.resolution().complete()?;
+    build(
+        &config,
+        resolved,
+        &at.host.id,
+        at.host.project_id.clone(),
+        Some(SavedKey::new(&at.host.id)?),
+    )
+}
+
+/// Resolves an unsaved host form in the scope `project_id` (None: Home), with the same rules
+/// as a saved host. Only with `host_id` (a host of that same scope) is its saved connection
+/// secret a candidate.
+pub(super) fn draft_target(
+    store: &ConfigStore,
+    draft: &HostInput,
+    project_id: Option<&str>,
+    host_id: Option<&str>,
+) -> Res<Target> {
+    let valid = crate::config::validate::host(draft)?;
+    let config = store.snapshot()?;
+    let project = match project_id {
+        Some(id) => Some(config.project(id).ok_or_else(|| not_found("project"))?),
+        None => None,
+    };
+    let saved = match host_id {
+        Some(id) => {
+            let host = config.host(id).ok_or_else(|| not_found("host"))?;
+            if host.project_id.as_deref() != project_id {
+                let scope = if project_id.is_some() {
+                    "this project"
+                } else {
+                    "Home"
+                };
+                return Err(CommandError::new(
+                    "invalid_input",
+                    format!("the host does not belong to {scope}"),
+                ));
+            }
+            Some(SavedKey::new(id)?)
+        }
+        None => None,
+    };
+    let host = Host {
+        id: host_id.unwrap_or_default().to_owned(),
+        name: valid.name,
+        project_id: project_id.map(str::to_owned),
+        parent_id: None,
+        hostname: valid.hostname,
+        port: valid.port,
+        username: valid.username,
+        auth: valid.auth,
+    };
+    let resolved = resolve_host(&host, Layers::of(&config, project)).complete()?;
+    build(&config, resolved, &host.id, host.project_id.clone(), saved)
+}
+
+fn build(
+    config: &ConfigFile,
+    resolved: ResolvedHost,
+    host_id: &str,
+    project_id: Option<String>,
+    saved: Option<SavedKey>,
+) -> Res<Target> {
     let auth = match resolved.auth {
         ResolvedAuth::Agent => TargetAuth::Agent,
         ResolvedAuth::Password { password } => TargetAuth::Password {
@@ -92,16 +155,16 @@ pub(super) fn target(store: &ConfigStore, host_id: &str) -> Res<Target> {
             key_path,
             passphrase,
         } => TargetAuth::Key {
-            registered: registered_keys(&config),
+            registered: registered_keys(config),
             key_path,
             passphrase: secret_key(passphrase)?,
         },
     };
     Ok(Target {
-        connection_id: at.host.id.clone(),
-        host_id: at.host.id.clone(),
-        project_id: at.host.project_id.clone(),
-        saved: SavedKey::new(&at.host.id)?,
+        connection_id: host_id.to_owned(),
+        host_id: host_id.to_owned(),
+        project_id,
+        saved,
         hostname: resolved.hostname,
         port: resolved.port,
         username: resolved.username,

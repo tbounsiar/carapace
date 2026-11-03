@@ -28,7 +28,7 @@ pub fn target(connection_id: &str, port: u16, username: &str, auth: TargetAuth) 
         connection_id: connection_id.into(),
         host_id: TEST_HOST_ID.into(),
         project_id: None,
-        saved: SavedKey::new(TEST_HOST_ID).unwrap(),
+        saved: Some(SavedKey::new(TEST_HOST_ID).unwrap()),
         hostname: "127.0.0.1".into(),
         port,
         username: username.into(),
@@ -48,6 +48,7 @@ struct Shared {
     closed_channels: Arc<AtomicUsize>,
     flood_sent: Arc<AtomicUsize>,
     sftp_opens: Arc<AtomicUsize>,
+    open_sessions: Arc<AtomicUsize>,
     fs: MemFs,
 }
 
@@ -65,6 +66,11 @@ impl TestServer {
     /// SFTP subsystem channels opened so far.
     pub fn sftp_opens(&self) -> usize {
         self.shared.sftp_opens.load(Ordering::SeqCst)
+    }
+
+    /// Client connections the server is still serving.
+    pub fn open_sessions(&self) -> usize {
+        self.shared.open_sessions.load(Ordering::SeqCst)
     }
 
     /// The tree served over SFTP, shared by every connection.
@@ -279,10 +285,13 @@ pub async fn start_server(seed: u8) -> TestServer {
                 channels: HashMap::new(),
                 sftp: HashSet::new(),
             };
+            let open = accepted.open_sessions.clone();
+            open.fetch_add(1, Ordering::SeqCst);
             tokio::spawn(async move {
                 if let Ok(session) = server::run_stream(config, socket, handler).await {
                     let _ = session.await;
                 }
+                open.fetch_sub(1, Ordering::SeqCst);
             });
         }
     });

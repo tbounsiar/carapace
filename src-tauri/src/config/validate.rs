@@ -131,7 +131,7 @@ fn secret_field(template: &Option<Template>, label: &str) -> Result<(), ConfigEr
     }
 }
 
-pub(super) struct ValidHost {
+pub(crate) struct ValidHost {
     pub name: String,
     pub hostname: Template,
     pub port: Template,
@@ -139,7 +139,7 @@ pub(super) struct ValidHost {
     pub auth: AuthMethod,
 }
 
-pub(super) fn host(input: &HostInput) -> Result<ValidHost, ConfigError> {
+pub(crate) fn host(input: &HostInput) -> Result<ValidHost, ConfigError> {
     let name = name(&input.name)?;
     plain_field(&input.hostname, "hostname", hostname)?;
     plain_field(&input.port, "port", |v| port(v).map(|_| ()))?;

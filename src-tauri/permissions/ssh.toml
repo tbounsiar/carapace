@@ -22,3 +22,13 @@ commands.allow = ["list_connections"]
 identifier = "allow-replace-host-key"
 description = "Allows the replace_host_key command."
 commands.allow = ["replace_host_key"]
+
+[[permission]]
+identifier = "allow-test-host"
+description = "Allows the test_host command."
+commands.allow = ["test_host"]
+
+[[permission]]
+identifier = "allow-cancel-host-test"
+description = "Allows the cancel_host_test command."
+commands.allow = ["cancel_host_test"]

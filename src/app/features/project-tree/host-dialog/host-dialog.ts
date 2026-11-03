@@ -1,5 +1,6 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { TuiActiveZone } from '@taiga-ui/cdk';
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, effect, inject, signal, untracked } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
@@ -11,19 +12,34 @@ import {
   TuiHint,
   TuiIcon,
   TuiInput,
+  TuiLoader,
+  TuiNotification,
   TuiNotificationService,
   TuiTextfield,
+  TuiTitle,
   type TuiDialogContext,
 } from '@taiga-ui/core';
 import { TuiButtonLoading, TuiChevron, TuiRadioList, TuiSelect, TuiTooltip } from '@taiga-ui/kit';
 import { type TuiStringHandler } from '@taiga-ui/cdk';
-import { TuiForm } from '@taiga-ui/layout';
+import { TuiElasticContainer, TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
 import { ConfigService } from '../../../core/ipc/config';
 import type { AuthMethod, Host, HostInput } from '../../../core/ipc/config.models';
 import { KeyStore } from '../../../core/ipc/key-store';
 import { AUTH_LABELS } from '../../../shared/auth-method';
-import { previewHost, secretVariableNames, variableLayers } from '../../../shared/template';
+import {
+  previewHost,
+  resolveTemplate,
+  secretVariableNames,
+  variableLayers,
+} from '../../../shared/template';
+import { HostTester, type HostTestDraft, type HostTestRun } from '../../host-test/host-tester';
+import {
+  CANCELLED_VIEW,
+  outcomeView,
+  testingView,
+  type HostTestView,
+} from '../../host-test/host-test-view';
 import { handleSaveError } from '../save-error';
 import {
   hostnameValidator,
@@ -39,6 +55,8 @@ import { ErrorLink } from '../../../shared/error-link';
 export interface HostDialogData {
   /** Scope of the host: null is Home (global variables only). */
   readonly projectId: string | null;
+  /** The saved host being edited, null for a new one. */
+  readonly hostId: string | null;
   /** "Home / Backend", shown read-only. */
   readonly location: string;
   readonly initial: HostInput | null;
@@ -55,6 +73,7 @@ function reference(value: string | null): string | null {
 @Component({
   imports: [
     ErrorLink,
+    NgTemplateOutlet,
     TuiActiveZone,
     ReactiveFormsModule,
     TuiAutoFocus,
@@ -63,14 +82,18 @@ function reference(value: string | null): string | null {
     TuiChevron,
     TuiDataList,
     TuiDropdown,
+    TuiElasticContainer,
     TuiError,
     TuiHint,
     TuiForm,
     TuiIcon,
     TuiInput,
+    TuiLoader,
+    TuiNotification,
     TuiRadioList,
     TuiSelect,
     TuiTextfield,
+    TuiTitle,
     TuiTooltip,
   ],
   selector: 'app-host-dialog',
@@ -81,6 +104,7 @@ export class HostDialog {
   private readonly alerts = inject(TuiNotificationService);
   private readonly config = inject(ConfigService);
   private readonly keyStore = inject(KeyStore);
+  private readonly tester = inject(HostTester);
   protected readonly context = injectContext<TuiDialogContext<void, HostDialogData>>();
 
   protected readonly authKinds: readonly AuthKind[] = ['password', 'key', 'agent'];
@@ -140,13 +164,42 @@ export class HostDialog {
     return refs;
   });
 
+  private readonly layers = computed(() => variableLayers(this.config.variables(), this.project()));
+
   protected readonly preview = computed(() => {
     this.value();
-    const project = this.project();
-    if (this.context.data.projectId && !project) {
+    if (this.context.data.projectId && !this.project()) {
       return null;
     }
-    return previewHost(this.toHostInput(), variableLayers(this.config.variables(), project));
+    return previewHost(this.toHostInput(), this.layers());
+  });
+
+  /** Why the form cannot be tested yet; null when it can. */
+  protected readonly testBlocker = computed(() => {
+    this.value();
+    const preview = this.preview();
+    if (!preview) {
+      return 'This project no longer exists.';
+    }
+    if (preview.missing.length) {
+      return 'Define the missing variables to test the connection.';
+    }
+    const { hostname, port, username, keyPath } = this.form.controls;
+    const fields = this.isKey() ? [hostname, port, username, keyPath] : [hostname, port, username];
+    if (preview.errors.length || fields.some((field) => field.invalid)) {
+      return 'Fix the highlighted fields to test the connection.';
+    }
+    return null;
+  });
+
+  protected readonly testView = signal<HostTestView | null>(null);
+  protected readonly testing = computed(() => this.testView()?.state === 'testing');
+  private run: HostTestRun | null = null;
+  /** The form values a shown or running test belongs to. */
+  private testedKey: string | null = null;
+  private readonly draftKey = computed(() => {
+    this.value();
+    return JSON.stringify([this.toHostInput(), this.preview()]);
   });
 
   constructor() {
@@ -157,6 +210,54 @@ export class HostDialog {
       keyPath.setValidators(this.isKey() ? templated('Key path', keyPathValidator) : []);
       keyPath.updateValueAndValidity();
     });
+    effect(() => {
+      const key = this.draftKey();
+      untracked(() => {
+        if (this.testedKey !== null && key !== this.testedKey) {
+          this.resetTest();
+        }
+      });
+    });
+    inject(DestroyRef).onDestroy(() => this.run?.abort());
+  }
+
+  protected toggleTest(): void {
+    if (this.testing()) {
+      this.run?.abort();
+      this.run = null;
+      this.testView.set(CANCELLED_VIEW);
+      return;
+    }
+    const preview = this.preview();
+    if (this.testBlocker() || !preview) {
+      return;
+    }
+    const host = this.toHostInput();
+    const draft: HostTestDraft = {
+      host,
+      projectId: this.context.data.projectId,
+      hostId: this.context.data.hostId ?? null,
+      address: preview.address,
+      keyPath:
+        host.auth.kind === 'key' ? resolveTemplate(host.auth.keyPath, this.layers()).value : '',
+    };
+    const run = this.tester.start(draft);
+    this.run = run;
+    this.testedKey = this.draftKey();
+    this.testView.set(testingView(draft));
+    void run.outcome.then((outcome) => {
+      if (this.run === run) {
+        this.run = null;
+        this.testView.set(outcomeView(outcome, draft));
+      }
+    });
+  }
+
+  private resetTest(): void {
+    this.run?.abort();
+    this.run = null;
+    this.testedKey = null;
+    this.testView.set(null);
   }
 
   protected pickKey(path: string): void {
@@ -172,6 +273,9 @@ export class HostDialog {
   }
 
   protected async submit(): Promise<void> {
+    if (this.testing()) {
+      this.resetTest();
+    }
     this.form.markAllAsTouched();
     if (this.form.invalid || this.saving()) {
       return;

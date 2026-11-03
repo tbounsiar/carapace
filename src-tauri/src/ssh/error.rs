@@ -23,6 +23,13 @@ pub enum SshError {
     SecretRequired,
     #[error("the passphrase does not unlock the private key")]
     InvalidPassphrase,
+    /// A stored passphrase that does not unlock the key, with where it came from.
+    #[error("{0}")]
+    PassphraseRefused(String),
+    #[error("the test was cancelled")]
+    Cancelled,
+    #[error("too many connection tests are running")]
+    Busy,
     #[error("the system keychain is not available")]
     KeychainUnavailable,
     #[error("the connection timed out")]
@@ -47,7 +54,9 @@ impl SshError {
             Self::HostKeyRevoked => "host_key_revoked",
             Self::AuthFailed(_) => "auth_failed",
             Self::SecretRequired => "secret_required",
-            Self::InvalidPassphrase => "invalid_passphrase",
+            Self::InvalidPassphrase | Self::PassphraseRefused(_) => "invalid_passphrase",
+            Self::Cancelled => "cancelled",
+            Self::Busy => "busy",
             Self::KeychainUnavailable => "keychain_unavailable",
             Self::Timeout => "timeout",
             Self::Network => "network",

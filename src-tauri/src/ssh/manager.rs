@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use russh::client::{self, AuthResult, Handle};
 use russh::keys::agent::AgentIdentity;
@@ -103,12 +103,13 @@ pub struct RegisteredKey {
 /// A resolved host: what a connection is made from. `connection_id` is the host id.
 /// `project_id` is the host's scope (None: Home); it is part of the comparison done by
 /// `still_current`, so a host moved to another scope during a connect is stale.
+/// `saved` is `None` for an unsaved draft: no saved connection secret is a candidate then.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
     pub connection_id: String,
     pub host_id: String,
     pub project_id: Option<String>,
-    pub saved: SavedKey,
+    pub saved: Option<SavedKey>,
     pub hostname: String,
     pub port: u16,
     pub username: String,
@@ -132,6 +133,44 @@ impl Target {
             state: ConnectState::Connected,
         }
     }
+
+    fn auth_kind(&self) -> AuthKind {
+        match self.auth {
+            TargetAuth::Password { .. } => AuthKind::Password,
+            TargetAuth::Key { .. } => AuthKind::Key,
+            TargetAuth::Agent => AuthKind::Agent,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AuthKind {
+    Password,
+    Key,
+    Agent,
+}
+
+/// Where the secret that authenticated came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SecretSource {
+    Typed,
+    Variable,
+    Saved,
+    KeyPassphrase,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostTestResult {
+    /// `user@host:port`, resolved.
+    pub address: String,
+    pub auth_kind: AuthKind,
+    /// `None` for the agent and unencrypted keys.
+    pub secret_source: Option<SecretSource>,
+    /// Connect and authentication time, host key prompts excluded.
+    pub duration_ms: u64,
 }
 
 /// A password or passphrase typed by the user for one connect attempt.
@@ -181,6 +220,7 @@ enum Rejection {
 #[derive(Default)]
 struct Shared {
     in_prompt: AtomicBool,
+    prompt_time: Mutex<Duration>,
     // Held while writing known_hosts so a finished connect can never be followed by a write.
     closed: Mutex<bool>,
     request_id: Mutex<Option<String>>,
@@ -222,11 +262,17 @@ impl Drop for PendingGuard {
     }
 }
 
-struct InPrompt(Arc<Shared>);
+struct InPrompt {
+    shared: Arc<Shared>,
+    since: Instant,
+}
 
 impl Drop for InPrompt {
     fn drop(&mut self) {
-        self.0.in_prompt.store(false, Ordering::SeqCst);
+        self.shared.in_prompt.store(false, Ordering::SeqCst);
+        if let Ok(mut total) = self.shared.prompt_time.lock() {
+            *total += self.since.elapsed();
+        }
     }
 }
 
@@ -287,10 +333,67 @@ pub struct ClientHandler {
     port: u16,
     known_hosts: Arc<KnownHosts>,
     pending: Pending,
-    changed: ChangedKeys,
+    /// `None` for a test: a changed key it meets is never offered to `replace_host_key`.
+    changed: Option<ChangedKeys>,
     emit: Emit,
     prompt_timeout: Duration,
     shared: Arc<Shared>,
+}
+
+impl ClientHandler {
+    /// `Some(true)` for a known key, `Some(false)` for a refusal (reason stored, changed key
+    /// remembered for replace on a connect and reported), `None` for an unknown key.
+    fn verdict(&self, status: Result<HostKeyStatus, SshError>, key: &PublicKey) -> Option<bool> {
+        let status = match status {
+            Ok(status) => status,
+            Err(SshError::UserKnownHostsUnreadable(kind)) => {
+                self.shared
+                    .reject(Rejection::UserKnownHostsUnreadable(kind));
+                return Some(false);
+            }
+            Err(_) => {
+                self.shared.reject(Rejection::Io);
+                return Some(false);
+            }
+        };
+        match status {
+            HostKeyStatus::Known => Some(true),
+            HostKeyStatus::Unknown => None,
+            HostKeyStatus::Revoked => {
+                self.shared.reject(Rejection::Revoked);
+                Some(false)
+            }
+            HostKeyStatus::Changed { known_fingerprints } => {
+                if let Some(changed) = &self.changed {
+                    match changed.lock() {
+                        Ok(mut map) => {
+                            map.insert(
+                                self.connection_id.clone(),
+                                ChangedKey {
+                                    hostname: self.hostname.clone(),
+                                    port: self.port,
+                                    key: key.clone(),
+                                },
+                            );
+                        }
+                        Err(_) => {
+                            self.shared.reject(Rejection::Io);
+                            return Some(false);
+                        }
+                    }
+                }
+                self.shared.reject(Rejection::Changed);
+                (self.emit)(ConnectEvent::HostKeyChanged {
+                    hostname: self.hostname.clone(),
+                    port: self.port,
+                    algorithm: key.algorithm().to_string(),
+                    fingerprint: fingerprint(key),
+                    known_fingerprints,
+                });
+                Some(false)
+            }
+        }
+    }
 }
 
 impl client::Handler for ClientHandler {
@@ -317,52 +420,9 @@ impl client::Handler for ClientHandler {
                 PublicKey::new(cert.public_key().clone(), "")
             }
         };
-        let status = match self.known_hosts.check(&self.hostname, self.port, &key) {
-            Ok(status) => status,
-            Err(SshError::UserKnownHostsUnreadable(kind)) => {
-                self.shared
-                    .reject(Rejection::UserKnownHostsUnreadable(kind));
-                return Ok(false);
-            }
-            Err(_) => {
-                self.shared.reject(Rejection::Io);
-                return Ok(false);
-            }
-        };
-        match status {
-            HostKeyStatus::Known => return Ok(true),
-            HostKeyStatus::Unknown => {}
-            HostKeyStatus::Revoked => {
-                self.shared.reject(Rejection::Revoked);
-                return Ok(false);
-            }
-            HostKeyStatus::Changed { known_fingerprints } => {
-                match self.changed.lock() {
-                    Ok(mut map) => {
-                        map.insert(
-                            self.connection_id.clone(),
-                            ChangedKey {
-                                hostname: self.hostname.clone(),
-                                port: self.port,
-                                key: key.clone(),
-                            },
-                        );
-                    }
-                    Err(_) => {
-                        self.shared.reject(Rejection::Io);
-                        return Ok(false);
-                    }
-                }
-                self.shared.reject(Rejection::Changed);
-                (self.emit)(ConnectEvent::HostKeyChanged {
-                    hostname: self.hostname.clone(),
-                    port: self.port,
-                    algorithm: key.algorithm().to_string(),
-                    fingerprint: fingerprint(&key),
-                    known_fingerprints,
-                });
-                return Ok(false);
-            }
+        let status = self.known_hosts.check(&self.hostname, self.port, &key);
+        if let Some(verdict) = self.verdict(status, &key) {
+            return Ok(verdict);
         }
 
         let request_id = Uuid::new_v4().to_string();
@@ -382,7 +442,10 @@ impl client::Handler for ClientHandler {
             *slot = Some(request_id.clone());
         }
         self.shared.in_prompt.store(true, Ordering::SeqCst);
-        let _in_prompt = InPrompt(self.shared.clone());
+        let _in_prompt = InPrompt {
+            shared: self.shared.clone(),
+            since: Instant::now(),
+        };
         (self.emit)(ConnectEvent::HostKeyPrompt {
             request_id,
             status: PromptStatus::Unknown,
@@ -412,13 +475,16 @@ impl client::Handler for ClientHandler {
             self.shared.reject(Rejection::Rejected);
             return Ok(false);
         }
-        let stored = self.known_hosts.trust(&self.hostname, self.port, &key);
+        // Re-checked with the write: another connect or test may have trusted a key for this
+        // host while the user was deciding.
+        let stored = self
+            .known_hosts
+            .trust_if_unknown(&self.hostname, self.port, &key);
         drop(closed);
-        if stored.is_err() {
-            self.shared.reject(Rejection::Io);
-            return Ok(false);
-        }
-        Ok(true)
+        Ok(match stored {
+            Ok(HostKeyStatus::Unknown) => true,
+            other => self.verdict(other, &key).unwrap_or(false),
+        })
     }
 }
 
@@ -428,18 +494,48 @@ enum Credentials {
     Agent,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Source {
     Typed,
-    Variable,
+    /// The secret variable's name.
+    Variable(String),
     Saved,
     Key,
+}
+
+impl Source {
+    fn public(&self) -> SecretSource {
+        match self {
+            Self::Typed => SecretSource::Typed,
+            Self::Variable(_) => SecretSource::Variable,
+            Self::Saved => SecretSource::Saved,
+            Self::Key => SecretSource::KeyPassphrase,
+        }
+    }
+
+    /// Names a stored secret for an error message, never its value; `None` when typed.
+    fn describe(&self, kind: SecretKind) -> Option<String> {
+        match self {
+            Self::Typed => None,
+            Self::Variable(name) => Some(format!("the {kind} from variable {name}")),
+            Self::Saved => Some(format!("the saved {kind}")),
+            Self::Key => Some("the remembered key passphrase".into()),
+        }
+    }
+}
+
+/// A test never forgets a refused saved secret, and its errors say which stored secret failed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Purpose {
+    Connect,
+    Test,
 }
 
 struct Loaded {
     credentials: Credentials,
     remember: Option<(SecretKind, SecretString)>,
-    source: Source,
+    /// `None` when no secret is involved (agent, unencrypted key).
+    source: Option<Source>,
 }
 
 struct Resolved {
@@ -467,6 +563,71 @@ fn forget_connection(conn: Connection) {
     mark_ended(&conn.ended, SessionEnd::Lost);
 }
 
+/// A second handle on a test's socket. russh runs the handshake in a spawned task that would
+/// outlive a cancelled test; shutting the socket down ends that task at once.
+struct SocketCloser {
+    socket: std::net::TcpStream,
+    armed: bool,
+}
+
+impl Drop for SocketCloser {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self.socket.shutdown(std::net::Shutdown::Both);
+        }
+    }
+}
+
+fn closable(stream: TcpStream) -> Result<(TcpStream, SocketCloser), SshError> {
+    let socket = stream.into_std().map_err(|_| SshError::Network)?;
+    let second = socket.try_clone().map_err(|_| SshError::Network)?;
+    let stream = TcpStream::from_std(socket).map_err(|_| SshError::Network)?;
+    Ok((
+        stream,
+        SocketCloser {
+            socket: second,
+            armed: true,
+        },
+    ))
+}
+
+/// An authenticated session, not registered anywhere yet.
+struct Opened {
+    handle: Handle<ClientHandler>,
+    ended: EndSignal,
+    shared: Arc<Shared>,
+    guard: ConnectGuard,
+    socket: Option<SocketCloser>,
+}
+
+type Tests = Mutex<HashMap<String, (u64, oneshot::Sender<()>)>>;
+
+/// Each test holds a TCP connection and maybe a prompt; a few at once is plenty for one form.
+const MAX_TESTS: usize = 4;
+
+/// A registered test; dropping it unregisters the id.
+pub struct TestTicket<'a> {
+    _guard: TestGuard<'a>,
+    cancelled: oneshot::Receiver<()>,
+}
+
+/// Unregisters a test, unless a later test reused its id after a cancel.
+struct TestGuard<'a> {
+    tests: &'a Tests,
+    id: String,
+    token: u64,
+}
+
+impl Drop for TestGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut map) = self.tests.lock()
+            && map.get(&self.id).is_some_and(|(t, _)| *t == self.token)
+        {
+            map.remove(&self.id);
+        }
+    }
+}
+
 pub struct SshManager {
     known_hosts: Arc<KnownHosts>,
     timeouts: Timeouts,
@@ -475,6 +636,8 @@ pub struct SshManager {
     pending: Pending,
     changed: ChangedKeys,
     secrets: SecretStore,
+    tests: Tests,
+    next_test: AtomicU64,
 }
 
 impl SshManager {
@@ -496,6 +659,8 @@ impl SshManager {
             host_locks: Default::default(),
             pending: Default::default(),
             changed: Default::default(),
+            tests: Default::default(),
+            next_test: AtomicU64::new(0),
         }
     }
 
@@ -610,80 +775,26 @@ impl SshManager {
             credentials,
             remember,
             source,
-        } = load_credentials(&self.secrets, target, credential)?;
+        } = load_blocking(&self.secrets, target, credential, Purpose::Connect).await?;
         if let Ok(mut map) = self.changed.lock() {
             map.remove(&target.connection_id);
         }
-        emit(ConnectEvent::Status {
-            state: ConnectState::Connecting,
-        });
-
-        let stream = timeout(
-            self.timeouts.connect,
-            TcpStream::connect((target.hostname.as_str(), target.port)),
-        )
-        .await
-        .map_err(|_| SshError::Timeout)?
-        .map_err(|_| SshError::Network)?;
-
-        let ended: EndSignal = Arc::new(watch::channel(None).0);
-        let shared = Arc::new(Shared::default());
-        let _end = ConnectGuard {
-            shared: shared.clone(),
-            pending: self.pending.clone(),
-        };
-        let handler = ClientHandler {
-            ended: ended.clone(),
-            connection_id: target.connection_id.clone(),
-            hostname: target.hostname.clone(),
-            port: target.port,
-            known_hosts: self.known_hosts.clone(),
-            pending: self.pending.clone(),
-            changed: self.changed.clone(),
-            emit: emit.clone(),
-            prompt_timeout: self.timeouts.prompt,
-            shared: shared.clone(),
-        };
-        let config = Arc::new(client::Config {
-            keepalive_interval: Some(Duration::from_secs(30)),
-            ..Default::default()
-        });
-
-        let handshake = client::connect_stream(config, stream, handler);
-        tokio::pin!(handshake);
-        // The connect timeout does not run while the user is deciding on a host key.
-        let mut handle = loop {
-            match timeout(self.timeouts.connect, &mut handshake).await {
-                Ok(Ok(handle)) => break handle,
-                Ok(Err(_)) => return Err(shared.error()),
-                Err(_) if shared.in_prompt.load(Ordering::SeqCst) => continue,
-                Err(_) => return Err(SshError::Timeout),
+        let Opened {
+            handle,
+            ended,
+            guard: _guard,
+            ..
+        } = match self.open(target, &credentials, &emit, false).await {
+            Ok(opened) => opened,
+            Err(e) => {
+                if let (SshError::AuthFailed(_), Some(Source::Saved), Credentials::Password(p)) =
+                    (&e, &source, &credentials)
+                {
+                    forget_if_unchanged(&self.secrets, target, SecretKind::Password, p);
+                }
+                return Err(e);
             }
         };
-
-        emit(ConnectEvent::Status {
-            state: ConnectState::Authenticating,
-        });
-        let auth = timeout(
-            self.timeouts.connect,
-            authenticate(&mut handle, &target.username, &credentials),
-        )
-        .await;
-        let outcome = match auth {
-            Ok(r) => r,
-            Err(_) => Err(SshError::Timeout),
-        };
-        if let Err(e) = outcome {
-            let _ = handle
-                .disconnect(russh::Disconnect::ByApplication, "", "en")
-                .await;
-            if let (SshError::AuthFailed(_), Source::Saved, Credentials::Password(p)) =
-                (&e, source, &credentials)
-            {
-                forget_if_unchanged(&self.secrets, target, SecretKind::Password, p);
-            }
-            return Err(e);
-        }
 
         // The host-key prompt can last minutes; the host may have been edited, moved or deleted
         // meanwhile. Checked under the lifecycle lock, which deletes and moves hold while they
@@ -694,12 +805,15 @@ impl SshManager {
         let current = {
             let _lifecycle = self.secrets.lifecycle();
             let current = still_current();
-            if current && let Some((kind, secret)) = remember {
+            if current
+                && let Some((kind, secret)) = remember
+                && let Some(saved) = &target.saved
+            {
                 let bound = target.bound_to(kind);
                 if fits_saved(&bound, &secret)
                     && self
                         .secrets
-                        .set_saved(&target.saved, kind, &bound, &secret)
+                        .set_saved(saved, kind, &bound, &secret)
                         .is_err()
                 {
                     log::warn!(
@@ -735,6 +849,203 @@ impl SshManager {
         });
         Ok(info)
     }
+
+    /// TCP connect, handshake with the host key check, authentication. `test` keeps a changed
+    /// key away from `replace_host_key` and makes the socket closable from outside russh.
+    async fn open(
+        &self,
+        target: &Target,
+        credentials: &Credentials,
+        emit: &Emit,
+        test: bool,
+    ) -> Result<Opened, SshError> {
+        emit(ConnectEvent::Status {
+            state: ConnectState::Connecting,
+        });
+
+        let stream = timeout(
+            self.timeouts.connect,
+            TcpStream::connect((target.hostname.as_str(), target.port)),
+        )
+        .await
+        .map_err(|_| SshError::Timeout)?
+        .map_err(|_| SshError::Network)?;
+        let (stream, socket) = if test {
+            let (stream, closer) = closable(stream)?;
+            (stream, Some(closer))
+        } else {
+            (stream, None)
+        };
+
+        let ended: EndSignal = Arc::new(watch::channel(None).0);
+        let shared = Arc::new(Shared::default());
+        let guard = ConnectGuard {
+            shared: shared.clone(),
+            pending: self.pending.clone(),
+        };
+        let handler = ClientHandler {
+            ended: ended.clone(),
+            connection_id: target.connection_id.clone(),
+            hostname: target.hostname.clone(),
+            port: target.port,
+            known_hosts: self.known_hosts.clone(),
+            pending: self.pending.clone(),
+            changed: (!test).then(|| self.changed.clone()),
+            emit: emit.clone(),
+            prompt_timeout: self.timeouts.prompt,
+            shared: shared.clone(),
+        };
+        let config = Arc::new(client::Config {
+            keepalive_interval: Some(Duration::from_secs(30)),
+            ..Default::default()
+        });
+
+        let handshake = client::connect_stream(config, stream, handler);
+        tokio::pin!(handshake);
+        // The connect timeout does not run while the user is deciding on a host key.
+        let mut handle = loop {
+            match timeout(self.timeouts.connect, &mut handshake).await {
+                Ok(Ok(handle)) => break handle,
+                Ok(Err(_)) => return Err(shared.error()),
+                Err(_) if shared.in_prompt.load(Ordering::SeqCst) => continue,
+                Err(_) => return Err(SshError::Timeout),
+            }
+        };
+
+        emit(ConnectEvent::Status {
+            state: ConnectState::Authenticating,
+        });
+        let auth = timeout(
+            self.timeouts.connect,
+            authenticate(&mut handle, &target.username, credentials),
+        )
+        .await;
+        let outcome = match auth {
+            Ok(r) => r,
+            Err(_) => Err(SshError::Timeout),
+        };
+        if let Err(e) = outcome {
+            let _ = handle
+                .disconnect(russh::Disconnect::ByApplication, "", "en")
+                .await;
+            return Err(e);
+        }
+        Ok(Opened {
+            handle,
+            ended,
+            shared,
+            guard,
+            socket,
+        })
+    }
+
+    /// Registers a test before anything else runs, so a `cancel_test` sent at any point
+    /// afterwards is seen. A running id is `invalid_input`; more than `MAX_TESTS` is `busy`.
+    pub fn start_test(&self, test_id: &str) -> Result<TestTicket<'_>, SshError> {
+        let token = self.next_test.fetch_add(1, Ordering::Relaxed);
+        let (tx, cancelled) = oneshot::channel();
+        let mut tests = self.tests.lock().map_err(|_| SshError::Io)?;
+        if tests.contains_key(test_id) {
+            return Err(SshError::InvalidInput(
+                "a test with this id is already running".into(),
+            ));
+        }
+        if tests.len() >= MAX_TESTS {
+            return Err(SshError::Busy);
+        }
+        tests.insert(test_id.to_owned(), (token, tx));
+        Ok(TestTicket {
+            _guard: TestGuard {
+                tests: &self.tests,
+                id: test_id.to_owned(),
+                token,
+            },
+            cancelled,
+        })
+    }
+
+    /// Connects, checks the host key and authenticates like `connect`, then disconnects.
+    /// Nothing is registered, remembered or forgotten.
+    pub async fn probe(
+        &self,
+        ticket: TestTicket<'_>,
+        target: &Target,
+        credential: Option<Credential>,
+        emit: Emit,
+    ) -> Result<HostTestResult, SshError> {
+        let TestTicket { _guard, cancelled } = ticket;
+        tokio::select! {
+            biased;
+            _ = cancelled => Err(SshError::Cancelled),
+            result = self.run_probe(target, credential, emit) => result,
+        }
+    }
+
+    /// Dropping the test's future closes its socket and resolves its host key prompt as
+    /// rejected (`ConnectGuard`). An unknown id is not an error.
+    pub fn cancel_test(&self, test_id: &str) -> Result<(), SshError> {
+        let entry = self.tests.lock().map_err(|_| SshError::Io)?.remove(test_id);
+        if let Some((_, tx)) = entry {
+            let _ = tx.send(());
+        }
+        Ok(())
+    }
+
+    async fn run_probe(
+        &self,
+        target: &Target,
+        credential: Option<Credential>,
+        emit: Emit,
+    ) -> Result<HostTestResult, SshError> {
+        let started = Instant::now();
+        let credential = credential.map(|c| Credential {
+            secret: c.secret,
+            remember: false,
+        });
+        let Loaded {
+            credentials,
+            source,
+            ..
+        } = load_blocking(&self.secrets, target, credential, Purpose::Test).await?;
+        let Opened {
+            handle,
+            shared,
+            mut socket,
+            ..
+        } = match self.open(target, &credentials, &emit, true).await {
+            Ok(opened) => opened,
+            Err(SshError::AuthFailed(message)) => {
+                let who = match (&credentials, &source) {
+                    (Credentials::Password(_), Some(s)) => s.describe(SecretKind::Password),
+                    _ => None,
+                };
+                return Err(SshError::AuthFailed(match who {
+                    Some(who) => format!("{who} was refused by the server"),
+                    None => message,
+                }));
+            }
+            Err(e) => return Err(e),
+        };
+        let _ = handle
+            .disconnect(russh::Disconnect::ByApplication, "", "en")
+            .await;
+        drop(handle);
+        // A clean end: russh sends the disconnect and closes the socket itself.
+        if let Some(s) = socket.as_mut() {
+            s.armed = false;
+        }
+        emit(ConnectEvent::Status {
+            state: ConnectState::Connected,
+        });
+        let prompts = shared.prompt_time.lock().map(|t| *t).unwrap_or_default();
+        let elapsed = started.elapsed().saturating_sub(prompts);
+        Ok(HostTestResult {
+            address: format!("{}@{}:{}", target.username, target.hostname, target.port),
+            auth_kind: target.auth_kind(),
+            secret_source: source.as_ref().map(Source::public),
+            duration_ms: u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX),
+        })
+    }
 }
 
 fn provided_or_stored(
@@ -744,6 +1055,7 @@ fn provided_or_stored(
     variable: Option<&VarKey>,
     registered: Option<&KeyPassKey>,
     credential: Option<Credential>,
+    purpose: Purpose,
 ) -> Result<Resolved, SshError> {
     if let Some(c) = credential {
         let remember = c
@@ -761,10 +1073,16 @@ fn provided_or_stored(
         return Ok(Resolved {
             value,
             remember: None,
-            source: Source::Variable,
+            source: Source::Variable(key.name().to_owned()),
         });
     }
-    if let Some(value) = secrets.get_saved(&target.saved, kind, &target.bound_to(kind))? {
+    let bound = target.bound_to(kind);
+    let saved = match (&target.saved, purpose) {
+        (None, _) => None,
+        (Some(key), Purpose::Connect) => secrets.get_saved(key, kind, &bound)?,
+        (Some(key), Purpose::Test) => secrets.peek_saved(key, kind, &bound)?,
+    };
+    if let Some(value) = saved {
         return Ok(Resolved {
             value,
             remember: None,
@@ -791,9 +1109,12 @@ fn forget_if_unchanged(
     kind: SecretKind,
     rejected: &SecretString,
 ) {
+    let Some(saved) = &target.saved else {
+        return;
+    };
     let bound = target.bound_to(kind);
     if secrets
-        .forget_saved_if_unchanged(&target.saved, kind, &bound, rejected)
+        .forget_saved_if_unchanged(saved, kind, &bound, rejected)
         .is_err()
     {
         log::warn!(
@@ -842,18 +1163,33 @@ fn unparseable_key() -> SshError {
     SshError::InvalidInput("the private key file could not be parsed".into())
 }
 
+/// Keychain and key file reads block; they run off the async workers. A cancelled test drops
+/// the join handle and lets the read finish on its own (it only reads).
+async fn load_blocking(
+    secrets: &SecretStore,
+    target: &Target,
+    credential: Option<Credential>,
+    purpose: Purpose,
+) -> Result<Loaded, SshError> {
+    let (secrets, target) = (secrets.clone(), target.clone());
+    tokio::task::spawn_blocking(move || load_credentials(&secrets, &target, credential, purpose))
+        .await
+        .map_err(|_| SshError::Io)?
+}
+
 /// Resolves everything authentication needs before any network traffic.
 fn load_credentials(
     secrets: &SecretStore,
     target: &Target,
     credential: Option<Credential>,
+    purpose: Purpose,
 ) -> Result<Loaded, SshError> {
     use russh::keys::Error as KeyError;
     match &target.auth {
         TargetAuth::Agent => Ok(Loaded {
             credentials: Credentials::Agent,
             remember: None,
-            source: Source::Typed,
+            source: None,
         }),
         TargetAuth::Password { variable } => {
             let r = provided_or_stored(
@@ -863,11 +1199,12 @@ fn load_credentials(
                 variable.as_ref(),
                 None,
                 credential,
+                purpose,
             )?;
             Ok(Loaded {
                 credentials: Credentials::Password(r.value),
                 remember: r.remember,
-                source: r.source,
+                source: Some(r.source),
             })
         }
         TargetAuth::Key {
@@ -877,8 +1214,8 @@ fn load_credentials(
         } => {
             let text = read_key_file(key_path)?;
             let remembered = registered_for(&text, registered);
-            let (key, remember) = match russh::keys::decode_secret_key(&text, None) {
-                Ok(key) => (key, None),
+            let (key, remember, source) = match russh::keys::decode_secret_key(&text, None) {
+                Ok(key) => (key, None, None),
                 Err(KeyError::KeyIsEncrypted) => {
                     let r = provided_or_stored(
                         secrets,
@@ -887,12 +1224,13 @@ fn load_credentials(
                         passphrase.as_ref(),
                         remembered,
                         credential,
+                        purpose,
                     )?;
                     match russh::keys::decode_secret_key(&text, Some(r.value.expose_secret())) {
-                        Ok(key) => (key, r.remember),
+                        Ok(key) => (key, r.remember, Some(r.source)),
                         Err(KeyError::IO(_)) => return Err(SshError::Io),
                         Err(_) => {
-                            if r.source == Source::Saved {
+                            if purpose == Purpose::Connect && r.source == Source::Saved {
                                 forget_if_unchanged(
                                     secrets,
                                     target,
@@ -900,7 +1238,16 @@ fn load_credentials(
                                     &r.value,
                                 );
                             }
-                            return Err(SshError::InvalidPassphrase);
+                            let who = match purpose {
+                                Purpose::Connect => None,
+                                Purpose::Test => r.source.describe(SecretKind::Passphrase),
+                            };
+                            return Err(match who {
+                                Some(who) => SshError::PassphraseRefused(format!(
+                                    "{who} does not unlock the private key"
+                                )),
+                                None => SshError::InvalidPassphrase,
+                            });
                         }
                     }
                 }
@@ -910,7 +1257,7 @@ fn load_credentials(
             Ok(Loaded {
                 credentials: Credentials::Key(Arc::new(key)),
                 remember,
-                source: Source::Typed,
+                source,
             })
         }
     }

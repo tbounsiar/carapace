@@ -11,6 +11,9 @@ import {
   disconnect,
   goHome,
   hostStatus,
+  openMenu,
+  testHost,
+  testResult,
   waitForApp,
   waitGone,
   waitStatus,
@@ -67,6 +70,16 @@ describe('ssh flow', () => {
     await disconnect(HOST.name);
     await waitStatus(HOST.name, 'Not connected');
     rotateHostKey();
+    await openMenu('host', HOST.name, 'menu-edit');
+    await byId('host-name').waitForDisplayed({ timeout: 10000 });
+    await testHost();
+    const result = await testResult();
+    expect(result).toMatchObject({ result: 'failure', code: 'host_key_changed' });
+    expect(result.title).toBe('Host key has changed');
+    await expect(byId('host-key-replace')).not.toExist();
+    await shot('test-06-changed-key');
+    await clickId('dialog-cancel');
+    await waitGone('host-name');
     await connect(HOST.name);
     await byId('host-key-replace').waitForClickable({ timeout: 30000 });
     const known = await byId('known').getText();

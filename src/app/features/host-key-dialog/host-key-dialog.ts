@@ -4,6 +4,10 @@ import { TuiButton, TuiNotification, type TuiDialogContext } from '@taiga-ui/cor
 import { injectContext } from '@taiga-ui/polymorpheus';
 import type { HostKeyPrompt } from '../../core/ipc/ssh.models';
 
+export interface HostKeyDialogData extends HostKeyPrompt {
+  readonly acceptLabel: string;
+}
+
 @Component({
   imports: [TuiAutoFocus, TuiButton, TuiNotification],
   selector: 'app-host-key-dialog',
@@ -11,6 +15,6 @@ import type { HostKeyPrompt } from '../../core/ipc/ssh.models';
   templateUrl: './host-key-dialog.html',
 })
 export class HostKeyDialog {
-  protected readonly context = injectContext<TuiDialogContext<boolean, HostKeyPrompt>>();
+  protected readonly context = injectContext<TuiDialogContext<boolean, HostKeyDialogData>>();
   protected readonly prompt = this.context.data;
 }

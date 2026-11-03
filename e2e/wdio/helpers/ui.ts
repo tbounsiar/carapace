@@ -112,7 +112,8 @@ export interface HostInput {
   auth?: 'password' | 'key';
 }
 
-export async function fillHost(host: HostInput, beforeSave?: () => Promise<void>): Promise<void> {
+/** Fills the open host dialog without saving it. */
+export async function fillHostFields(host: HostInput): Promise<void> {
   await typeInto('host-name', host.name);
   await typeInto('host-hostname', host.hostname);
   await typeInto('host-port', host.port);
@@ -123,6 +124,10 @@ export async function fillHost(host: HostInput, beforeSave?: () => Promise<void>
     await byId('host-auth').$('label=Private key file').click();
     await typeInto('host-key-path', host.keyPath ?? '');
   }
+}
+
+export async function fillHost(host: HostInput, beforeSave?: () => Promise<void>): Promise<void> {
+  await fillHostFields(host);
   await beforeSave?.();
   await clickId('dialog-save');
   await waitGone('host-name');
@@ -214,4 +219,39 @@ export async function deleteNode(kind: string, name: string): Promise<void> {
   await openMenu(kind, name, 'menu-delete');
   await confirmDelete();
   await waitGone(`tree-${kind}-${name}`);
+}
+
+/** Starts a test from the host dialog footer. */
+export async function testHost(): Promise<void> {
+  await clickId('host-test');
+  await browser.waitUntil(
+    async () => (await byId('host-test-result').getAttribute('data-result')) !== null,
+    { timeout: 10000, timeoutMsg: 'the test did not start' },
+  );
+}
+
+export interface TestResult {
+  result: string;
+  code: string | null;
+  title: string;
+  detail: string;
+}
+
+/** Waits for the end of the running test and reads its result region. */
+export async function testResult(timeout = 30000): Promise<TestResult> {
+  const region = byId('host-test-result');
+  await browser.waitUntil(
+    async () => {
+      const result = await region.getAttribute('data-result');
+      return result !== null && result !== 'testing';
+    },
+    { timeout, timeoutMsg: 'the test never ended' },
+  );
+  const detail = byId('host-test-detail');
+  return {
+    result: (await region.getAttribute('data-result')) ?? '',
+    code: await region.getAttribute('data-code'),
+    title: await textOf('host-test-title'),
+    detail: (await detail.isExisting()) ? await textOf('host-test-detail') : '',
+  };
 }
