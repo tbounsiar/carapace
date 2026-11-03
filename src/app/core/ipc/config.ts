@@ -28,6 +28,7 @@ export class ConfigService {
   private readonly _nodes = signal<ConfigNode[]>([]);
   private readonly _loading = signal(false);
   private readonly _loaded = signal(false);
+  private readonly _loadError = signal<unknown>(null);
 
   /** Global variables. */
   readonly variables = this._variables.asReadonly();
@@ -37,16 +38,22 @@ export class ConfigService {
   readonly loading = this._loading.asReadonly();
   /** True once a load succeeded; before that an unknown id may just not be loaded yet. */
   readonly loaded = this._loaded.asReadonly();
+  /** The error of the last failed load, null once a load starts again. */
+  readonly loadError = this._loadError.asReadonly();
   readonly hosts = computed(() => this._nodes().filter((n): n is Host => n.kind === 'host'));
 
   async load(): Promise<void> {
     this._loading.set(true);
+    this._loadError.set(null);
     try {
       const config = await invokeCommand<ConfigView>('get_config');
       this._variables.set(config.variables);
       this._projects.set(config.projects);
       this._nodes.set(config.nodes);
       this._loaded.set(true);
+    } catch (err) {
+      this._loadError.set(err);
+      throw err;
     } finally {
       this._loading.set(false);
     }

@@ -73,14 +73,17 @@ describe('App', () => {
     expect(typeof color.color).toBe('string');
   });
 
-  it('shows the project items only inside a project', async () => {
+  it('names the project in the selector, with the filter and New in the aside header', async () => {
     config.projects.set([project('p1', 'Shop')]);
     const fixture = await setup();
     await TestBed.inject(Router).navigateByUrl('/projects/p1');
     await fixture.whenStable();
     expect(byId('project-select')?.textContent?.trim()).toBe('Shop');
-    expect(byId('project-variables')).not.toBeNull();
-    expect(byId('aside-project')?.textContent).toContain('Shop');
+    expect(byId('aside-project')).toBeNull();
+    expect(byId('project-variables')).toBeNull();
+    const header = el().querySelector('aside[tuiNavigationAside] > header')!;
+    expect(header.querySelector('[data-testid="sidebar-filter"]')).not.toBeNull();
+    expect(header.querySelector('[data-testid="aside-new"]')).not.toBeNull();
   });
 
   it('links the global pages from the aside footer', async () => {

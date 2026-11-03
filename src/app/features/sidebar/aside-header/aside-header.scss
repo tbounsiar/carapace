@@ -1,9 +1,10 @@
 :host {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.name {
+.filter {
+  flex: 1;
   min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }

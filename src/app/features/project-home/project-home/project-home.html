@@ -1,15 +1,30 @@
-@if (project(); as project) {
+@if (notFound()) {
+  <tui-block-status size="m" data-testid="project-not-found">
+    <h2>Project not found</h2>
+    <p>It may have been deleted.</p>
+    <a tuiButton appearance="secondary" size="s" routerLink="/">Go to Home</a>
+  </tui-block-status>
+} @else {
+  @let current = project();
   <section class="page" data-testid="project-home">
     <header tuiHeader>
-      <hgroup tuiTitle>
-        <h1 data-testid="project-home-title">{{ project.name }}</h1>
-        <p tuiSubtitle>{{ summary() }}</p>
-        @if (!empty()) {
-          <p tuiSubtitle>Pick a host in the sidebar.</p>
-        }
+      <hgroup tuiTitle class="titles">
+        <h1
+          tuiHintOverflow
+          class="ellipsis"
+          data-testid="project-home-title"
+          [tuiSkeleton]="!current"
+          [textContent]="current?.name ?? 'Project'"
+        ></h1>
+        <p
+          tuiSubtitle
+          data-testid="project-home-stats"
+          [tuiSkeleton]="!current"
+          [textContent]="current ? stats() : 'No hosts yet'"
+        ></p>
       </hgroup>
-      @if (!empty()) {
-        <div tuiAccessories>
+      <aside tuiAccessories class="accessories">
+        @if (!empty() || !current) {
           <button
             tuiButton
             appearance="primary"
@@ -17,57 +32,101 @@
             iconStart="@tui.server"
             type="button"
             data-testid="project-home-new-host"
+            [disabled]="!current"
             (click)="newHost()"
           >
             New host
           </button>
-          <button
-            tuiButton
-            appearance="secondary"
-            size="s"
-            iconStart="@tui.folder-plus"
-            type="button"
-            data-testid="project-home-new-collection"
-            (click)="newCollection()"
-          >
-            New collection
-          </button>
-        </div>
-      }
-    </header>
-    @if (empty()) {
-      <tui-block-status size="m" data-testid="project-empty">
-        <h2>This project is empty</h2>
-        <p>Add hosts here, or create collections to group them.</p>
+        }
         <button
-          tuiButton
-          appearance="primary"
+          tuiIconButton
+          appearance="secondary"
           size="s"
-          iconStart="@tui.server"
+          iconStart="@tui.ellipsis"
           type="button"
-          data-testid="project-home-new-host"
-          (click)="newHost()"
+          tuiDropdownAlign="end"
+          aria-label="Project actions"
+          data-testid="project-menu"
+          [disabled]="!current"
+          [attr.aria-expanded]="menuOpen()"
+          [tuiDropdown]="menu"
+          [tuiDropdownOpen]="menuOpen()"
+          (tuiDropdownOpenChange)="menuOpen.set($event)"
         >
-          New host
+          Project actions
         </button>
+      </aside>
+    </header>
+
+    <tui-tabs aria-label="Project">
+      <a
+        tuiTab
+        routerLink="."
+        routerLinkActive
+        data-testid="project-tab-hosts"
+        [routerLinkActiveOptions]="{ exact: true }"
+      >
+        Hosts
+      </a>
+      <a tuiTab routerLink="variables" routerLinkActive data-testid="project-tab-variables">
+        Variables
+      </a>
+    </tui-tabs>
+
+    @if (loadError(); as message) {
+      <tui-block-status size="m" data-testid="dashboard-error">
+        <h2>Hosts could not be loaded</h2>
+        <p>{{ message }}</p>
         <button
           tuiButton
           appearance="secondary"
           size="s"
-          iconStart="@tui.folder-plus"
+          iconStart="@tui.refresh-cw"
           type="button"
-          data-testid="project-home-new-collection"
-          (click)="newCollection()"
+          data-testid="dashboard-retry"
+          (click)="retry()"
         >
-          New collection
+          Try again
         </button>
       </tui-block-status>
+    } @else {
+      <router-outlet />
     }
   </section>
-} @else if (notFound()) {
-  <tui-block-status size="m" data-testid="project-not-found">
-    <h2>Project not found</h2>
-    <p>It may have been deleted.</p>
-    <a tuiButton appearance="secondary" size="s" routerLink="/">Go to Home</a>
-  </tui-block-status>
 }
+
+<ng-template #menu>
+  <tui-data-list size="s" role="menu" aria-label="Project actions">
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.folder-plus"
+      data-testid="project-home-new-collection"
+      (click)="newCollection()"
+    >
+      New collection
+    </button>
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.pencil"
+      data-testid="project-rename"
+      (click)="rename()"
+    >
+      Rename
+    </button>
+    <hr />
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.trash"
+      data-testid="project-delete"
+      (click)="remove()"
+    >
+      Delete
+    </button>
+  </tui-data-list>
+</ng-template>

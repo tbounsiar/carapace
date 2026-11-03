@@ -1,0 +1,53 @@
+<search tuiSearch>
+  <fieldset tuiTextfieldSize="s" class="fields">
+    <tui-textfield iconStart="@tui.search" class="search" [tuiTextfieldCleaner]="true">
+      <input
+        #field
+        tuiInput
+        type="text"
+        autocomplete="off"
+        aria-keyshortcuts="Control+F"
+        data-testid="hosts-search"
+        [placeholder]="placeholder()"
+        [attr.aria-label]="placeholder()"
+        [value]="query()"
+        (input)="onInput($event)"
+        (keydown)="onKeydown($event)"
+      />
+    </tui-textfield>
+    <span class="filters">
+      <tui-segmented
+        size="s"
+        role="radiogroup"
+        aria-label="Show"
+        [activeItemIndex]="connectedOnly() ? 1 : 0"
+      >
+        <label>
+          <input
+            type="radio"
+            value="all"
+            data-testid="hosts-filter-all"
+            [name]="name"
+            [checked]="!connectedOnly()"
+            (change)="connectedOnly.set(false)"
+          />
+          All
+        </label>
+        <label>
+          <input
+            type="radio"
+            value="connected"
+            data-testid="hosts-filter-connected"
+            [name]="name"
+            [checked]="connectedOnly()"
+            (change)="connectedOnly.set(true)"
+          />
+          Connected
+        </label>
+      </tui-segmented>
+      @if (count(); as count) {
+        <span role="status" class="count" data-testid="hosts-count">{{ count }}</span>
+      }
+    </span>
+  </fieldset>
+</search>

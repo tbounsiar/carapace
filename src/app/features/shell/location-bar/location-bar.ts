@@ -42,8 +42,6 @@ interface Location {
   readonly collections: readonly Collection[];
   readonly current: string | null;
   readonly host: Host | null;
-  /** The project home: its menu sits at the end of the bar. */
-  readonly projectHome: Project | null;
 }
 
 /** Breadcrumbs of the current route in the main subheader, with the page menu at its end. */
@@ -79,7 +77,6 @@ export class LocationBar {
       collections: [],
       current: null,
       host: null,
-      projectHome: null,
     };
     switch (route.kind) {
       case 'home':
@@ -90,8 +87,8 @@ export class LocationBar {
           return { ...none, current: this.config.loaded() ? 'Project not found' : null };
         }
         return route.variables
-          ? { ...none, project, current: 'Project variables' }
-          : { ...none, current: project.name, projectHome: project };
+          ? { ...none, project, current: 'Variables' }
+          : { ...none, current: project.name };
       }
       case 'host': {
         const found = this.config.findHost(route.hostId);
@@ -143,29 +140,9 @@ export class LocationBar {
     this.sidebar.focus(collection.id);
   }
 
-  /** The "…" menu of the project home or of a host page; its last entry deletes. */
+  /** The "…" menu of a host page (the project dashboard has its own); its last entry deletes. */
   protected readonly pageMenu = computed<PageMenu | null>(() => {
-    const { projectHome, host } = this.location();
-    if (projectHome) {
-      return {
-        id: 'project-menu',
-        name: projectHome.name,
-        entries: [
-          {
-            id: 'project-rename',
-            label: 'Rename project',
-            icon: '@tui.pencil',
-            run: () => this.actions.renameProject(projectHome),
-          },
-          {
-            id: 'project-delete',
-            label: 'Delete project',
-            icon: '@tui.trash',
-            run: () => void this.actions.deleteProject(projectHome),
-          },
-        ],
-      };
-    }
+    const { host } = this.location();
     if (host) {
       return {
         id: 'host-menu',

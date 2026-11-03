@@ -6,8 +6,12 @@ import {
   countNodes,
   countText,
   descendants,
+  filterTree,
+  firstHost,
+  hostMatches,
   hostsOf,
   scopeTree,
+  type TreeCollection,
 } from './node-tree';
 
 const NODES = [
@@ -72,5 +76,38 @@ describe('node-tree', () => {
     expect(canMoveInto(NODES, backend, { projectId: 'p1', parentId: 'c3' })).toBe(false);
     expect(canMoveInto(NODES, backend, { projectId: 'p1', parentId: 'c2' })).toBe(true);
     expect(canMoveInto(NODES, NODES[0], { projectId: 'p1', parentId: 'c1' })).toBe(true);
+  });
+
+  describe('filtering', () => {
+    const nodes = [
+      collection('b', 'Backend', 'p1'),
+      collection('l', 'Legacy', 'p1', 'b'),
+      collection('e', 'Empty', 'p1'),
+      host('h1', 'api-1', 'p1', 'l'),
+      host('h2', 'web', 'p1', 'b'),
+      { ...host('h3', 'bastion', 'p1'), hostname: '10.0.0.1' },
+    ];
+    const tree = () => scopeTree(nodes, 'p1');
+
+    it('matches the host name or the raw hostname, case-insensitively', () => {
+      expect(hostMatches(nodes[3] as never, 'API')).toBe(true);
+      expect(hostMatches(nodes[5] as never, '10.0')).toBe(true);
+      expect(hostMatches(nodes[4] as never, 'api')).toBe(false);
+    });
+
+    it('keeps matches with their ancestors and drops empty collections', () => {
+      const filtered = filterTree(tree(), (h) => hostMatches(h, 'api'));
+      expect(filtered.map((i) => i.id)).toEqual(['b']);
+      const backend = filtered[0] as TreeCollection;
+      expect(backend.children.map((i) => i.id)).toEqual(['l']);
+      expect((backend.children[0] as TreeCollection).children.map((i) => i.id)).toEqual(['h1']);
+      expect(filterTree(tree(), () => false)).toEqual([]);
+    });
+
+    it('finds the first host in display order', () => {
+      expect(firstHost(tree())?.id).toBe('h1');
+      expect(firstHost(filterTree(tree(), (h) => h.id === 'h3'))?.id).toBe('h3');
+      expect(firstHost([])).toBeNull();
+    });
   });
 });

@@ -26,6 +26,11 @@ import {
 } from './node-tree';
 import { notifyError } from './save-error';
 
+/** `sidebarFocus: false` when the action comes from outside the sidebar, which keeps its own focus. */
+export interface HostActionOptions {
+  readonly sidebarFocus?: boolean;
+}
+
 /** Create, edit and delete flows for projects, collections and hosts. */
 @Service()
 export class ProjectActions {
@@ -143,7 +148,7 @@ export class ProjectActions {
     });
   }
 
-  editHost(host: Host): void {
+  editHost(host: Host, { sidebarFocus = true }: HostActionOptions = {}): void {
     const { name, hostname, port, username, auth } = host;
     void this.openHostDialog(
       'Edit host',
@@ -151,14 +156,16 @@ export class ProjectActions {
       { name, hostname, port, username, auth },
       async (input) => {
         const updated = await this.config.updateHost(host.id, input);
-        this.sidebar.focus(host.id);
+        if (sidebarFocus) {
+          this.sidebar.focus(host.id);
+        }
         return updated;
       },
     );
   }
 
   /** Resolves true when the host was deleted. */
-  async deleteHost(host: Host): Promise<boolean> {
+  async deleteHost(host: Host, { sidebarFocus = true }: HostActionOptions = {}): Promise<boolean> {
     const next = this.focusAfterDelete(host);
     const deleted = await this.confirmDelete(
       'Delete host?',
@@ -168,7 +175,7 @@ export class ProjectActions {
     );
     if (deleted) {
       this.leaveDeleted(new Set([host.id]), host.projectId);
-      if (next) {
+      if (next && sidebarFocus) {
         this.sidebar.focus(next);
       }
     }

@@ -146,10 +146,11 @@ export interface VariableRow {
   value: string;
 }
 
+/** The project dashboard's Variables tab. */
 export async function openProjectVariables(project: string): Promise<void> {
   await enterProject(project);
-  await clickId('project-variables');
-  await byId('vars-title').waitForDisplayed({ timeout: 10000 });
+  await clickId('project-tab-variables');
+  await byId('vars-add').waitForDisplayed({ timeout: 10000 });
 }
 
 export async function openGlobalVariables(): Promise<void> {

@@ -5,26 +5,33 @@
     <a tuiButton appearance="secondary" size="s" routerLink="/">Back to start</a>
   </tui-block-status>
 } @else if (scope(); as scope) {
-  <header tuiHeader="body-l" class="header">
-    <hgroup tuiTitle>
-      <h1 data-testid="vars-title">
-        @if (project(); as project) {
-          {{ project.name }}: variables
-        } @else {
-          Global variables
-        }
-      </h1>
-      <p tuiSubtitle>
-        Host fields use them as <span class="mono">{{ example }}</span
-        >.
-        @if (project()) {
-          Project variables win over global ones.
-        } @else {
-          Projects can override them.
-        }
-      </p>
-    </hgroup>
-  </header>
+  @if (embedded()) {
+    <p tuiSubtitle class="description">
+      Host fields use them as <span class="mono">{{ example }}</span
+      >. Project variables win over global ones.
+    </p>
+  } @else {
+    <header tuiHeader="body-l" class="header">
+      <hgroup tuiTitle>
+        <h1 data-testid="vars-title">
+          @if (project(); as project) {
+            {{ project.name }}: variables
+          } @else {
+            Global variables
+          }
+        </h1>
+        <p tuiSubtitle>
+          Host fields use them as <span class="mono">{{ example }}</span
+          >.
+          @if (project()) {
+            Project variables win over global ones.
+          } @else {
+            Projects can override them.
+          }
+        </p>
+      </hgroup>
+    </header>
+  }
 
   <section [attr.aria-label]="project() ? 'Project variables' : 'Global variables'">
     <app-variables-editor [scope]="scope" [variables]="variables()" />

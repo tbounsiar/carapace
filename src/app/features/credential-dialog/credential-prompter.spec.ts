@@ -18,9 +18,11 @@ describe('CredentialPrompter', () => {
   const byId = <T extends HTMLElement>(id: string): T =>
     document.body.querySelector<T>(`app-credential-dialog [data-testid="${id}"]`)!;
 
+  // The prompter imports the dialog lazily; load it once so a single settle() is enough. The
+  // cold import can exceed the default hook timeout on a busy machine.
+  beforeAll(() => import('./credential-dialog'), 60_000);
+
   beforeEach(async () => {
-    // The prompter imports the dialog lazily; load it once so a single settle() is enough.
-    await import('./credential-dialog');
     await TestBed.configureTestingModule({
       imports: [Shell],
       providers: [provideTaiga()],

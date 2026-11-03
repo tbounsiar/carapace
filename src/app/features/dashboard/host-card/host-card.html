@@ -1,0 +1,131 @@
+@let current = host();
+@let state = status();
+<article
+  tuiCardLarge="compact"
+  appearance="outline-grayscale"
+  tuiDropdownContext
+  [tuiDropdown]="menu"
+  [attr.aria-labelledby]="nameId"
+  [attr.data-testid]="'card-host-' + current.name"
+>
+  <header tuiHeader="body-l">
+    <hgroup tuiTitle>
+      <h3 class="name">
+        <a
+          #nameLink
+          tuiLink
+          tuiHintOverflow
+          class="ellipsis"
+          [id]="nameId"
+          [routerLink]="['/hosts', current.id]"
+          [attr.data-testid]="'card-open-' + current.name"
+          [textContent]="current.name"
+        ></a>
+      </h3>
+      <p
+        tuiSubtitle
+        tuiHintOverflow
+        class="ellipsis mono"
+        [class._missing]="!preview().ok"
+        [attr.data-testid]="'card-address-' + current.name"
+        [textContent]="preview().text"
+      ></p>
+    </hgroup>
+    <aside tuiAccessories>
+      <span
+        tuiDropdownAlign="end"
+        [tuiDropdown]="menu"
+        [tuiDropdownOpen]="menuOpen()"
+        (tuiDropdownOpenChange)="menuOpen.set($event)"
+      >
+        <button
+          #menuButton
+          tuiIconButton
+          appearance="flat-grayscale"
+          size="xs"
+          iconStart="@tui.ellipsis"
+          type="button"
+          [attr.aria-expanded]="menuOpen()"
+          [attr.aria-label]="'Actions for ' + current.name"
+          [attr.data-testid]="'card-menu-' + current.name"
+        >
+          Actions
+        </button>
+      </span>
+    </aside>
+  </header>
+  <p class="meta">
+    <span class="status" [attr.data-testid]="'card-status-' + current.name">
+      @if (state.loading) {
+        <tui-loader size="xs" />
+        <span>{{ state.label }}…</span>
+      } @else {
+        <span [tuiStatus]="state.color">{{ state.label }}</span>
+      }
+    </span>
+    <span aria-hidden="true">·</span>
+    <span>{{ authLabel() }}</span>
+  </p>
+  <footer class="actions">
+    @if (connected()) {
+      <button
+        tuiButton
+        appearance="secondary"
+        size="s"
+        iconStart="@tui.square-terminal"
+        type="button"
+        [attr.aria-label]="'Open terminal on ' + current.name"
+        [attr.data-testid]="'card-terminal-' + current.name"
+        (click)="openTerminal()"
+      >
+        Terminal
+      </button>
+      <button
+        tuiButton
+        appearance="secondary"
+        size="s"
+        iconStart="@tui.folder-open"
+        type="button"
+        [attr.aria-label]="'Browse files on ' + current.name"
+        [attr.data-testid]="'card-files-' + current.name"
+        (click)="openFiles()"
+      >
+        Files
+      </button>
+    } @else {
+      <button
+        tuiButton
+        appearance="secondary"
+        size="s"
+        iconStart="@tui.plug"
+        type="button"
+        [loading]="state.busy"
+        [attr.aria-label]="'Connect ' + current.name"
+        [attr.data-testid]="'card-connect-' + current.name"
+        (click)="connect()"
+      >
+        Connect
+      </button>
+    }
+  </footer>
+</article>
+
+<ng-template #menu let-close>
+  <tui-data-list size="s" role="menu" [attr.aria-label]="'Actions for ' + current.name">
+    @for (entry of menuEntries(); track entry.id) {
+      @if (entry.separated) {
+        <hr />
+      }
+      <button
+        tuiOption
+        type="button"
+        role="menuitem"
+        [iconStart]="entry.icon"
+        [attr.data-testid]="entry.id"
+        (click)="close(); run(entry)"
+      >
+        {{ entry.label }}
+      </button>
+    }
+  </tui-data-list>
+</ng-template>

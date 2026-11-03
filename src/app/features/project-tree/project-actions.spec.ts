@@ -35,7 +35,13 @@ describe('ProjectActions', () => {
   const settle = () => new Promise((r) => setTimeout(r));
   const lastData = <T>(): T => opened[opened.length - 1].data as T;
 
-  beforeEach(async () => {
+  // Cold imports of the lazy dialogs can exceed the default hook timeout on a busy machine.
+  beforeAll(
+    () => Promise.all([import('./name-dialog/name-dialog'), import('./host-dialog/host-dialog')]),
+    60_000,
+  );
+
+  beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
     opened = [];
@@ -57,8 +63,6 @@ describe('ProjectActions', () => {
         { provide: TuiNotificationService, useValue: alerts },
       ],
     });
-    await import('./name-dialog/name-dialog');
-    await import('./host-dialog/host-dialog');
     actions = TestBed.inject(ProjectActions);
   });
 
@@ -148,6 +152,17 @@ describe('ProjectActions', () => {
     expect(opened[0].label).toBe('Delete host?');
     expect(navigate).toHaveBeenCalledWith(['/projects', 'p1']);
     expect(TestBed.inject(SidebarState).focusRequest()).toBe('h2');
+  });
+
+  it('leaves the sidebar focus alone for host actions started elsewhere', async () => {
+    await actions.deleteHost(config.findHost('h1')!.host, { sidebarFocus: false });
+    expect(TestBed.inject(SidebarState).focusRequest()).toBeNull();
+    const web = config.findHost('h2')!.host;
+    Object.assign(config, { updateHost: vi.fn(() => Promise.resolve(web)) });
+    actions.editHost(web, { sidebarFocus: false });
+    await settle();
+    await lastData<{ save: (input: unknown) => Promise<unknown> }>().save({});
+    expect(TestBed.inject(SidebarState).focusRequest()).toBeNull();
   });
 
   it('notifies a failed delete', async () => {

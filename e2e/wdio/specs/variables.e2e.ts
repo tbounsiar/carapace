@@ -78,10 +78,9 @@ describe('variables', () => {
   it('defines project variables, one overriding a global one', async () => {
     await createProject(PROJECT);
     await openProjectVariables(PROJECT);
-    await expect(byId('vars-title')).toHaveText(`${PROJECT}: variables`);
-    await expect(byId('project-variables')).toHaveText(
-      expect.stringContaining('Project variables'),
-    );
+    await expect(byId('vars-title')).not.toExist();
+    await expect(byId('project-home-title')).toHaveText(PROJECT);
+    await expect(byId('project-tab-variables')).toHaveElementClass('_active');
     await expect(byId('vars-empty')).toExist();
     await addPlainVariables([
       { name: 'host', value: '127.0.0.1' },
@@ -159,7 +158,8 @@ describe('variables', () => {
     const keep = $('//tui-dialog//button[contains(normalize-space(),"Keep editing")]');
     await keep.waitForClickable({ timeout: 10000 });
     await keep.click();
-    await expect(byId('vars-title')).toExist();
+    await expect(byId('vars-add')).toExist();
+    await expect(byId('project-tab-variables')).toHaveElementClass('_active');
     await clickId('home-link');
     const discard = $('//tui-dialog//button[normalize-space()="Discard"]');
     await discard.waitForClickable({ timeout: 10000 });

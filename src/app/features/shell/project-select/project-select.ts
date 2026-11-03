@@ -49,6 +49,11 @@ export class ProjectSelect {
     void this.router.navigate(project ? ['/projects', project.id] : ['/']);
   }
 
+  protected openVariables(project: Project): void {
+    this.open.set(false);
+    void this.router.navigate(['/projects', project.id, 'variables']);
+  }
+
   protected newProject(): void {
     this.open.set(false);
     this.actions.createProject();

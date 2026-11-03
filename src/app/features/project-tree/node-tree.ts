@@ -163,3 +163,40 @@ export function canMoveInto(
   }
   return !descendants(nodes, node.id).some((n) => n.id === target.parentId);
 }
+
+/** Case-insensitive substring on the host name or its raw hostname field. */
+export function hostMatches(host: Host, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  return host.name.toLowerCase().includes(q) || host.hostname.toLowerCase().includes(q);
+}
+
+/** The items keeping only matching hosts and the collections above them. */
+export function filterTree(items: readonly TreeItem[], keep: (host: Host) => boolean): TreeItem[] {
+  const result: TreeItem[] = [];
+  for (const item of items) {
+    if (item.kind === 'host') {
+      if (keep(item.host)) {
+        result.push(item);
+      }
+    } else {
+      const children = filterTree(item.children, keep);
+      if (children.length) {
+        result.push({ ...item, children });
+      }
+    }
+  }
+  return result;
+}
+
+/** The first host in display order. */
+export function firstHost(items: readonly TreeItem[]): Host | null {
+  for (const item of items) {
+    if (item.kind === 'collection') {
+      const found = firstHost(item.children);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return items.find((i): i is TreeHost => i.kind === 'host')?.host ?? null;
+}

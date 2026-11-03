@@ -1,0 +1,84 @@
+@if (!loaded()) {
+  <div class="grid" aria-hidden="true">
+    @for (item of placeholders; track item) {
+      <div
+        tuiCardLarge="compact"
+        appearance="outline-grayscale"
+        class="placeholder"
+        [tuiSkeleton]="true"
+      ></div>
+    }
+  </div>
+} @else if (empty()) {
+  <tui-block-status size="m" data-testid="project-empty">
+    <h2>This project is empty</h2>
+    <p>Add hosts here, or create collections to group them.</p>
+    <button
+      tuiButton
+      appearance="primary"
+      size="s"
+      iconStart="@tui.server"
+      type="button"
+      data-testid="project-home-new-host"
+      (click)="newHost()"
+    >
+      New host
+    </button>
+    <button
+      tuiButton
+      appearance="secondary"
+      size="s"
+      iconStart="@tui.folder-plus"
+      type="button"
+      data-testid="project-home-new-collection"
+      (click)="newCollection()"
+    >
+      New collection
+    </button>
+  </tui-block-status>
+} @else if (noHosts()) {
+  <tui-block-status size="m" data-testid="project-no-hosts">
+    <h2>No hosts yet</h2>
+    <p>Add a host at the top level or in one of the collections.</p>
+  </tui-block-status>
+} @else {
+  <app-hosts-toolbar
+    [count]="count()"
+    [(query)]="query"
+    [(connectedOnly)]="connectedOnly"
+    (submitted)="openFirst()"
+  />
+  @if (visible().length) {
+    <app-host-groups [groups]="visible()" (lastRemoved)="focusSearch()" />
+  } @else if (trimmedQuery()) {
+    <tui-block-status size="m" data-testid="hosts-no-match">
+      <h2>No host matches “{{ trimmedQuery() }}”</h2>
+      <p>Search looks at host names, addresses and collection names.</p>
+      <button
+        tuiButton
+        appearance="flat"
+        size="s"
+        type="button"
+        data-testid="hosts-clear-search"
+        (click)="clearSearch()"
+      >
+        Clear search
+      </button>
+    </tui-block-status>
+  } @else {
+    <tui-block-status size="m" data-testid="hosts-none-connected">
+      <h2>No connected hosts</h2>
+      <p>Connect a host from its card or the sidebar.</p>
+      <button
+        tuiButton
+        appearance="flat"
+        size="s"
+        type="button"
+        data-testid="hosts-show-all"
+        (click)="showAll()"
+      >
+        Show all
+      </button>
+    </tui-block-status>
+  }
+}

@@ -13,6 +13,7 @@ import { HostConnector } from '../../host-connection/host-connector';
 import { MoveLauncher } from '../../project-tree/move-launcher';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { SidebarDrag } from '../sidebar-drag';
+import { SidebarFilter } from '../sidebar-filter';
 import { SidebarState } from '../sidebar-state';
 import { SidebarTree } from './sidebar-tree';
 
@@ -250,6 +251,67 @@ describe('SidebarTree', () => {
     });
   });
 
+  describe('filtered', () => {
+    let filter: SidebarFilter;
+
+    beforeEach(async () => {
+      await setup();
+      filter = TestBed.inject(SidebarFilter);
+    });
+
+    it('shows matches with their collections open, without saving the expanded state', async () => {
+      filter.set('pi');
+      await settle();
+      expect(byId('tree-collection-Lab')?.getAttribute('aria-expanded')).toBe('true');
+      expect(byId('open-host-pi-hole')).not.toBeNull();
+      expect(byId('tree-host-my-vps')).toBeNull();
+      expect(byId('projects-section')).toBeNull();
+      expect(TestBed.inject(SidebarState).isOpen('c1')).toBe(false);
+
+      byId('tree-collection-Lab')!.click();
+      await settle();
+      expect(byId('tree-collection-Lab')?.getAttribute('aria-expanded')).not.toBe('true');
+      expect(TestBed.inject(SidebarState).isOpen('c1')).toBe(false);
+
+      filter.clear();
+      await settle();
+      expect(byId('tree-collection-Lab')?.getAttribute('aria-expanded')).not.toBe('true');
+      expect(byId('tree-host-my-vps')).not.toBeNull();
+    });
+
+    it('keeps the projects whose name matches', async () => {
+      filter.set('shop');
+      await settle();
+      const section = byId('projects-section')!;
+      expect(section.querySelectorAll('[data-testid^="tree-project-"]').length).toBe(1);
+      expect(byId('tree-project-Shop')).not.toBeNull();
+      expect(byId('tree-collection-Lab')).toBeNull();
+    });
+
+    it('shows the no-match state and clears the filter from it', async () => {
+      filter.set('zzz');
+      await settle();
+      expect(byId('sidebar-no-match')?.textContent).toContain('No host matches “zzz”');
+      const before = filter.fieldFocus();
+      byId('sidebar-clear-filter')!.click();
+      await settle();
+      expect(filter.query()).toBe('');
+      expect(filter.fieldFocus()).toBe(before + 1);
+      expect(byId('tree-collection-Lab')).not.toBeNull();
+    });
+
+    it('moves between the field and the first row', async () => {
+      filter.set('pi');
+      await settle();
+      filter.focusTree();
+      await settle();
+      expect(document.activeElement).toBe(byId('tree-collection-Lab'));
+      const before = filter.fieldFocus();
+      await key(byId('tree-collection-Lab')!, 'ArrowUp');
+      expect(filter.fieldFocus()).toBe(before + 1);
+    });
+  });
+
   describe('in a project', () => {
     beforeEach(async () => {
       await setup();
@@ -316,6 +378,7 @@ describe('SidebarTree', () => {
     config.nodes.set([]);
     await setup();
     expect(byId('sidebar-empty')?.textContent).toContain('Nothing here yet');
+    config.loaded.set(false);
     vi.spyOn(config, 'load').mockRejectedValueOnce(new IpcError('io', 'disk gone'));
     fixture.destroy();
     fixture = TestBed.createComponent(Host);

@@ -84,7 +84,7 @@ describe('migration from a v2 config', () => {
     });
     expect((await rootHosts()).sort()).toEqual(['api', 'bastion', 'db']);
     await expect(byId('env-select')).not.toExist();
-    await byId('project-variables').waitForDisplayed({ timeout: 10000 });
+    await byId('project-tab-variables').waitForDisplayed({ timeout: 10000 });
     await shot('migr-02-payments');
   });
 

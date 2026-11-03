@@ -20,6 +20,8 @@ export class VariablesPage implements LeaveGuarded {
 
   /** Absent on the global variables route. */
   readonly projectId = input<string>();
+  /** A tab of the project dashboard, whose header already names the project and handles not-found. */
+  readonly embedded = input(false);
 
   private readonly editor = viewChild(VariablesEditor);
   protected readonly example = '${name}';
@@ -29,7 +31,7 @@ export class VariablesPage implements LeaveGuarded {
     return id ? (this.config.projects().find((p) => p.id === id) ?? null) : null;
   });
   protected readonly notFound = computed(
-    () => !!this.projectId() && !this.project() && !this.config.loading(),
+    () => !this.embedded() && !!this.projectId() && !this.project() && !this.config.loading(),
   );
 
   protected readonly scope = computed<VariableScope | null>(() => {

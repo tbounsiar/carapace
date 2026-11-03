@@ -8,3 +8,17 @@
   gap: var(--tui-padding-l);
   padding-block-start: var(--tui-padding-l);
 }
+
+.titles {
+  min-inline-size: 0;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accessories {
+  flex: none;
+}

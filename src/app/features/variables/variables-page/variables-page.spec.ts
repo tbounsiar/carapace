@@ -81,6 +81,11 @@ describe('VariablesPage', () => {
               canDeactivate: [unsavedChangesGuard],
             },
             { path: 'variables', component: VariablesPage, canDeactivate: [unsavedChangesGuard] },
+            {
+              path: 'tab/:projectId',
+              component: VariablesPage,
+              data: { embedded: true },
+            },
             { path: 'elsewhere', component: Blank },
           ],
           withComponentInputBinding(),
@@ -139,5 +144,14 @@ describe('VariablesPage', () => {
   it('shows a not-found state for an unknown project', async () => {
     await go('/projects/nope/variables');
     expect(byId('vars-not-found')?.textContent).toContain('Project not found');
+  });
+
+  it('drops its own heading as a dashboard tab', async () => {
+    await go('/tab/p1');
+    expect(byId('vars-title')).toBeNull();
+    expect(document.body.textContent).toContain('Project variables win over global ones.');
+    expect(value('var-value-0')).toBe('example.com');
+    await go('/tab/nope');
+    expect(byId('vars-not-found')).toBeNull();
   });
 });

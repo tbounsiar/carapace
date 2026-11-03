@@ -8,3 +8,39 @@
   gap: var(--tui-padding-l);
   padding-block-start: var(--tui-padding-l);
 }
+
+.accessories {
+  flex: none;
+}
+
+.projects {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 0.75rem;
+}
+
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+
+.placeholder {
+  block-size: 8.5rem;
+}
+
+.card-title {
+  min-inline-size: 0;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

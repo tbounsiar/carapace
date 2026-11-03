@@ -1,0 +1,15 @@
+@for (group of groups(); track group.id; let i = $index) {
+  <section class="group" [attr.aria-labelledby]="headingId(i)" [attr.data-testid]="group.testId">
+    <header tuiHeader="body-l">
+      <h2 tuiTitle class="heading" [id]="headingId(i)">
+        <tui-icon icon="@tui.folder" class="icon" />
+        <span class="path" tuiHintOverflow [textContent]="group.label"></span>
+      </h2>
+    </header>
+    <div class="grid">
+      @for (host of group.hosts; track host.id) {
+        <app-host-card [host]="host" (deleted)="onDeleted($event)" />
+      }
+    </div>
+  </section>
+}

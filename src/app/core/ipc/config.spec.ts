@@ -222,6 +222,7 @@ describe('ConfigService', () => {
       throw { code: 'missing_variables', message: 'Missing variables: host' };
     };
     await expect(service.load()).rejects.toMatchObject({ code: 'missing_variables' });
+    expect(service.loadError()).toMatchObject({ code: 'missing_variables' });
     handler = () => {
       throw 'boom';
     };

@@ -48,6 +48,7 @@ export function fakeConfig() {
   const variables = signal<VariableView[]>([]);
   const loading = signal(false);
   const loaded = signal(true);
+  const loadError = signal<unknown>(null);
   const findNode = (id: string): ConfigNode | null => nodes().find((n) => n.id === id) ?? null;
   const findProject = (id: string): Project | null => projects().find((p) => p.id === id) ?? null;
   return {
@@ -56,6 +57,7 @@ export function fakeConfig() {
     variables,
     loading,
     loaded,
+    loadError,
     hosts: computed(() => nodes().filter((n): n is Host => n.kind === 'host')),
     findNode,
     findProject,

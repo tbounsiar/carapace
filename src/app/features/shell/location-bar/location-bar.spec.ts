@@ -89,18 +89,16 @@ describe('LocationBar', () => {
     expect(moves.openDialog).toHaveBeenCalledWith(config.findNode('h1'));
   });
 
-  it('offers Rename and Delete on the project home', async () => {
+  it('leaves the project actions to the project dashboard', async () => {
     await go('/projects/p1');
     expect(crumbs()).toEqual(['Home', 'Payments']);
-    byId('project-menu')!.click();
-    await settle();
-    byId('project-delete')!.click();
-    expect(actions.deleteProject).toHaveBeenCalledWith(config.findProject('p1'));
+    expect(byId('project-menu')).toBeNull();
   });
 
   it('names the variables and global pages', async () => {
     await go('/projects/p1/variables');
-    expect(crumbs()).toEqual(['Home', 'Payments', 'Project variables']);
+    expect(crumbs()).toEqual(['Home', 'Payments', 'Variables']);
+    expect(byId('project-menu')).toBeNull();
     await go('/keys');
     expect(crumbs()).toEqual(['Home', 'SSH keys']);
     expect(byId('host-menu')).toBeNull();

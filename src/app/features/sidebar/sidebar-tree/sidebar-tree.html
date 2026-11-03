@@ -27,10 +27,24 @@
       }}
     </p>
   </tui-block-status>
+} @else if (filter.noMatch()) {
+  <tui-block-status size="m" data-testid="sidebar-no-match">
+    <h2>No host matches “{{ filter.query().trim() }}”</h2>
+    <button
+      tuiButton
+      appearance="flat"
+      size="s"
+      type="button"
+      data-testid="sidebar-clear-filter"
+      (click)="clearFilter()"
+    >
+      Clear filter
+    </button>
+  </tui-block-status>
 } @else {
   <ng-container *ngTemplateOutlet="list; context: { $implicit: items(), depth: 0 }" />
 
-  @if (isHome()) {
+  @if (isHome() && (!filter.active() || projectRows().length)) {
     @if (items().length) {
       <hr />
     }

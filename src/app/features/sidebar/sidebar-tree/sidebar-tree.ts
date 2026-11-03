@@ -6,6 +6,7 @@ import {
   effect,
   ElementRef,
   inject,
+  linkedSignal,
   signal,
   untracked,
   type OnInit,
@@ -35,18 +36,12 @@ import {
 import { CurrentScope } from '../../../shared/current-scope';
 import { HostConnector } from '../../host-connection/host-connector';
 import { MoveLauncher } from '../../project-tree/move-launcher';
-import {
-  ancestors,
-  byName,
-  plural,
-  scopeTree,
-  type Container,
-  type TreeItem,
-} from '../../project-tree/node-tree';
+import { ancestors, plural, type Container, type TreeItem } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { errorText, notifyError } from '../../project-tree/save-error';
 import { isTreeKey, treeKeyAction, type VisibleRow } from '../../project-tree/tree-keys';
 import { SIDEBAR_DRAG_PLACEHOLDER, SIDEBAR_DRAG_TYPE, SidebarDrag } from '../sidebar-drag';
+import { SidebarFilter } from '../sidebar-filter';
 import { SidebarState } from '../sidebar-state';
 
 /** Collections deeper than this are not indented further, so labels keep their width. */
@@ -96,6 +91,7 @@ export function projectKey(projectId: string): string {
   ],
   selector: 'app-sidebar-tree',
   host: {
+    id: 'sidebar-tree',
     'data-testid': 'sidebar-tree',
     '[class._drop-root]': 'dropTarget() === rootDrop',
     '(keydown)': 'onKeydown($event)',
@@ -118,19 +114,27 @@ export class SidebarTree implements OnInit {
   private readonly scope = inject(CurrentScope);
   private readonly state = inject(SidebarState);
   private readonly drag = inject(SidebarDrag);
+  protected readonly filter = inject(SidebarFilter);
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
 
   protected readonly rootDrop = ROOT_DROP;
   protected readonly theme = inject(ThemeService).effective;
   protected readonly loading = computed(() => this.config.loading() && !this.config.loaded());
-  protected readonly loadError = signal<string | null>(null);
+  private readonly failure = signal<string | null>(null);
+  /** Cleared by any later successful load, including a retry from a dashboard. */
+  protected readonly loadError = computed(() => (this.config.loaded() ? null : this.failure()));
   protected readonly isHome = this.scope.isHome;
-  protected readonly items = computed(() => scopeTree(this.config.nodes(), this.scope.projectId()));
-  protected readonly projects = computed(() => [...this.config.projects()].sort(byName));
+  protected readonly items = this.filter.visibleItems;
   protected readonly empty = computed(
-    () => this.items().length === 0 && (!this.isHome() || this.projects().length === 0),
+    () =>
+      this.filter.items().length === 0 && (!this.isHome() || this.filter.projects().length === 0),
   );
+  /** Collections the user collapsed while filtering; filtering shows every match's ancestors open. */
+  private readonly collapsedWhileFiltering = linkedSignal<string, ReadonlySet<string>>({
+    source: this.filter.query,
+    computation: () => new Set(),
+  });
 
   protected readonly menuKey = signal<string | null>(null);
   protected readonly selectedProject = signal<string | null>(null);
@@ -142,7 +146,7 @@ export class SidebarTree implements OnInit {
   /** Projects at Home, with "2 open connections" when they have some. */
   protected readonly projectRows = computed(() => {
     const counts = connectedCounts(this.config.hosts(), this.ssh.states());
-    return this.projects().map((project) => {
+    return this.filter.visibleProjects().map((project) => {
       const open = counts.get(project.id) ?? 0;
       return {
         project,
@@ -164,11 +168,12 @@ export class SidebarTree implements OnInit {
   protected readonly rows = computed<Row[]>(() => {
     const rows: Row[] = [];
     this.state.expanded();
+    this.collapsedWhileFiltering();
     const walk = (items: readonly TreeItem[], parent: number): void => {
       for (const item of items) {
         const index = rows.length;
         if (item.kind === 'collection') {
-          const open = this.state.isOpen(item.id);
+          const open = this.isOpen(item.id);
           rows.push({ key: item.id, node: item.collection, project: null, parent, expanded: open });
           if (open) {
             walk(item.children, index);
@@ -180,7 +185,7 @@ export class SidebarTree implements OnInit {
     };
     walk(this.items(), -1);
     if (this.isHome()) {
-      for (const project of this.projects()) {
+      for (const project of this.filter.visibleProjects()) {
         rows.push({ key: projectKey(project.id), node: null, project, parent: -1, expanded: null });
       }
     }
@@ -335,6 +340,18 @@ export class SidebarTree implements OnInit {
       }
     });
 
+    let treeFocus = this.filter.treeFocus();
+    effect(() => {
+      const request = this.filter.treeFocus();
+      if (request !== treeFocus) {
+        treeFocus = request;
+        const first = untracked(() => this.rows()[0]);
+        if (first) {
+          this.state.focus(first.key);
+        }
+      }
+    });
+
     afterRenderEffect(() => {
       const route = this.scope.route();
       if (route.kind === 'host') {
@@ -351,22 +368,44 @@ export class SidebarTree implements OnInit {
   }
 
   protected async reload(): Promise<void> {
-    this.loadError.set(null);
+    this.failure.set(null);
     try {
       await this.config.load();
       this.scope.restore();
     } catch (err) {
-      this.loadError.set(errorText(err));
+      this.failure.set(errorText(err));
       notifyError(this.alerts, err, 'Hosts not loaded');
     }
   }
 
   protected isOpen(collectionId: string): boolean {
-    return this.state.isOpen(collectionId);
+    return this.filter.active()
+      ? !this.collapsedWhileFiltering().has(collectionId)
+      : this.state.isOpen(collectionId);
   }
 
+  /** While filtering, the saved expanded state is left untouched. */
   protected setOpen(collectionId: string, open: boolean): void {
-    this.state.setOpen(collectionId, open);
+    if (!this.filter.active()) {
+      this.state.setOpen(collectionId, open);
+      return;
+    }
+    if (this.isOpen(collectionId) !== open) {
+      this.collapsedWhileFiltering.update((set) => {
+        const next = new Set(set);
+        if (open) {
+          next.delete(collectionId);
+        } else {
+          next.add(collectionId);
+        }
+        return next;
+      });
+    }
+  }
+
+  protected clearFilter(): void {
+    this.filter.clear();
+    this.filter.focusField();
   }
 
   protected indented(depth: number): boolean {
@@ -487,6 +526,11 @@ export class SidebarTree implements OnInit {
     const row = rows[current];
     const plain = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
     const target = this.targetOf(row);
+    if (event.key === 'ArrowUp' && plain && current === 0) {
+      event.preventDefault();
+      this.filter.focusField();
+      return;
+    }
     if (isTreeKey(event.key) && plain) {
       event.preventDefault();
       const action = treeKeyAction(event.key, rows, current);
@@ -494,7 +538,7 @@ export class SidebarTree implements OnInit {
         this.itemElement(rows[action.index].key)?.focus();
       } else if (action.kind === 'toggle') {
         const toggled = rows[action.index];
-        this.state.setOpen(toggled.key, !toggled.expanded);
+        this.setOpen(toggled.key, !toggled.expanded);
       }
       return;
     }
@@ -651,11 +695,11 @@ export class SidebarTree implements OnInit {
     }
     this.clearHover();
     const collectionId = target.parentId;
-    if (key === ROOT_DROP || !collectionId || this.state.isOpen(collectionId)) {
+    if (key === ROOT_DROP || !collectionId || this.isOpen(collectionId)) {
       return;
     }
     this.hoverKey = key;
-    this.hoverTimer = setTimeout(() => this.state.setOpen(collectionId, true), EXPAND_ON_HOVER_MS);
+    this.hoverTimer = setTimeout(() => this.setOpen(collectionId, true), EXPAND_ON_HOVER_MS);
   }
 
   private clearHover(): void {

@@ -157,7 +157,7 @@ describe('collections', () => {
     await expect(byId('project-select')).toHaveText('Home');
     await expect(byId('sidebar-empty')).toHaveText(expect.stringContaining('Nothing here yet'));
     await byId('welcome-new-project').waitForDisplayed({ timeout: 10000 });
-    await expect(byId('project-variables')).not.toExist();
+    await expect(byId('sidebar-filter')).toBeDisabled();
     await shot('coll-01-home-empty');
   });
 
@@ -218,7 +218,8 @@ describe('collections', () => {
     await browser.waitUntil(async () => (await currentScope()) === PROJECT, { timeout: 10000 });
     await byId('project-home').waitForDisplayed({ timeout: 10000 });
     await waitCrumbs(['Home', PROJECT]);
-    await expect(byId('aside-project')).toHaveText(expect.stringContaining(PROJECT));
+    await expect(byId('project-home-title')).toHaveText(PROJECT);
+    await expect(byId('aside-project')).not.toExist();
     await expect(byId('tree-collection-Lab')).not.toExist();
     await shot('coll-04-project-home');
 
@@ -244,10 +245,20 @@ describe('collections', () => {
   });
 
   it('offers project variables inside the project only', async () => {
-    await clickId('project-variables');
-    await expect(byId('vars-title')).toHaveText(`${PROJECT}: variables`);
+    await clickId('project-tab-variables');
+    await byId('vars-add').waitForDisplayed({ timeout: 10000 });
+    await waitCrumbs(['Home', PROJECT, 'Variables']);
+    await clickId('project-tab-hosts');
+    await byId('card-host-api').waitForDisplayed({ timeout: 10000 });
+    await clickId('project-select');
+    await clickId('project-option-variables');
+    await byId('vars-add').waitForDisplayed({ timeout: 10000 });
+    await expect(byId('project-tab-variables')).toHaveElementClass('_active');
     await goHome();
-    await expect(byId('project-variables')).not.toExist();
+    await clickId('project-select');
+    await byId('project-option-new').waitForDisplayed({ timeout: 10000 });
+    await expect(byId('project-option-variables')).not.toExist();
+    await clickId('project-select');
   });
 
   it('moves a host within Home and undoes it', async () => {

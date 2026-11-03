@@ -1,6 +1,37 @@
 <section class="page" data-testid="welcome">
-  @if (!loaded()) {
-    <!-- Nothing until the config is known, so the empty state never flashes. -->
+  @if (loadError(); as message) {
+    <tui-block-status size="m" data-testid="dashboard-error">
+      <h2>Hosts could not be loaded</h2>
+      <p>{{ message }}</p>
+      <button
+        tuiButton
+        appearance="secondary"
+        size="s"
+        iconStart="@tui.refresh-cw"
+        type="button"
+        data-testid="dashboard-retry"
+        (click)="retry()"
+      >
+        Try again
+      </button>
+    </tui-block-status>
+  } @else if (!loaded()) {
+    <header tuiHeader aria-hidden="true">
+      <hgroup tuiTitle>
+        <h1 [tuiSkeleton]="true">Home</h1>
+        <p tuiSubtitle [tuiSkeleton]="true">No hosts yet</p>
+      </hgroup>
+    </header>
+    <div class="grid" aria-hidden="true">
+      @for (item of placeholders; track item) {
+        <div
+          tuiCardLarge="compact"
+          appearance="outline-grayscale"
+          class="placeholder"
+          [tuiSkeleton]="true"
+        ></div>
+      }
+    </div>
   } @else if (empty()) {
     <tui-block-status size="m" class="empty">
       <h1>Nothing here yet</h1>
@@ -42,10 +73,125 @@
   } @else {
     <header tuiHeader>
       <hgroup tuiTitle>
-        <h1>Home</h1>
-        <p tuiSubtitle>Hosts and collections outside projects, and your projects.</p>
-        <p tuiSubtitle data-testid="home-hint">{{ hint() }}</p>
+        <h1 data-testid="home-title">Home</h1>
+        <p tuiSubtitle data-testid="home-stats">{{ stats() }}</p>
       </hgroup>
+      <aside tuiAccessories class="accessories">
+        <button
+          tuiButton
+          appearance="primary"
+          size="s"
+          iconStart="@tui.server"
+          type="button"
+          data-testid="home-new-host"
+          (click)="addHost()"
+        >
+          New host
+        </button>
+        <button
+          tuiButton
+          appearance="secondary"
+          size="s"
+          iconStart="@tui.folder-plus"
+          type="button"
+          data-testid="home-new-collection"
+          (click)="addCollection()"
+        >
+          New collection
+        </button>
+      </aside>
     </header>
+
+    <app-hosts-toolbar
+      placeholder="Search hosts and projects"
+      [count]="count()"
+      [(query)]="query"
+      [(connectedOnly)]="connectedOnly"
+      (submitted)="openFirst()"
+    />
+
+    @if (nothingVisible()) {
+      @if (trimmedQuery()) {
+        <tui-block-status size="m" data-testid="hosts-no-match">
+          <h2>No host or project matches “{{ trimmedQuery() }}”</h2>
+          <p>Search looks at host names, addresses and collection names.</p>
+          <button
+            tuiButton
+            appearance="flat"
+            size="s"
+            type="button"
+            data-testid="hosts-clear-search"
+            (click)="clearSearch()"
+          >
+            Clear search
+          </button>
+        </tui-block-status>
+      } @else {
+        <tui-block-status size="m" data-testid="hosts-none-connected">
+          <h2>No connected hosts</h2>
+          <p>Connect a host from its card or the sidebar.</p>
+          <button
+            tuiButton
+            appearance="flat"
+            size="s"
+            type="button"
+            data-testid="hosts-show-all"
+            (click)="showAll()"
+          >
+            Show all
+          </button>
+        </tui-block-status>
+      }
+    } @else {
+      @if (showProjects()) {
+        <section class="projects" aria-labelledby="home-projects-heading">
+          <header tuiHeader="body-l">
+            <h2 tuiTitle id="home-projects-heading">Projects</h2>
+          </header>
+          <div class="project-grid">
+            @for (card of projectCards(); track card.project.id) {
+              <a
+                tuiCardLarge="compact"
+                tuiHeader
+                appearance="outline-grayscale"
+                [routerLink]="['/projects', card.project.id]"
+                [attr.data-testid]="'project-card-' + card.project.name"
+              >
+                <h3 tuiTitle class="card-title">
+                  <span class="ellipsis" [textContent]="card.project.name"></span>
+                  <span tuiSubtitle>{{ card.summary }}</span>
+                </h3>
+                <aside tuiAccessories>
+                  @if (card.connections; as connections) {
+                    <span
+                      role="img"
+                      tuiStatus="var(--tui-status-positive)"
+                      [attr.aria-label]="connections"
+                    ></span>
+                  }
+                  <tui-icon icon="@tui.arrow-right" />
+                </aside>
+              </a>
+            }
+            <button
+              tuiCardLarge="compact"
+              tuiHeader
+              appearance="outline-grayscale"
+              type="button"
+              data-testid="home-new-project"
+              (click)="createProject()"
+            >
+              <h3 tuiTitle>New project</h3>
+              <aside tuiAccessories>
+                <tui-icon icon="@tui.plus" />
+              </aside>
+            </button>
+          </div>
+        </section>
+      }
+      @if (hasHosts()) {
+        <app-host-groups [groups]="visible()" (lastRemoved)="focusSearch()" />
+      }
+    }
   }
 </section>

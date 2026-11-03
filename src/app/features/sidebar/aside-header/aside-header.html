@@ -1,24 +1,26 @@
-@if (project(); as project) {
-  <a
-    tuiAsideItem
-    iconStart="@tui.folder-kanban"
-    data-testid="aside-project"
-    [routerLink]="['/projects', project.id]"
-    [routerLinkActiveOptions]="{ exact: true }"
-  >
-    <span class="name" tuiHintOverflow>{{ project.name }}</span>
-  </a>
-  <a
-    tuiAsideItem
-    iconStart="@tui.variable"
-    data-testid="project-variables"
-    [routerLink]="['/projects', project.id, 'variables']"
-  >
-    Project variables
-  </a>
-}
-<div
-  class="dropdown"
+<tui-textfield
+  tuiTextfieldSize="s"
+  iconStart="@tui.search"
+  class="filter"
+  [tuiTextfieldCleaner]="true"
+>
+  <input
+    #field
+    tuiInput
+    type="text"
+    autocomplete="off"
+    placeholder="Filter hosts"
+    aria-label="Filter hosts"
+    aria-controls="sidebar-tree"
+    aria-keyshortcuts="Control+K"
+    data-testid="sidebar-filter"
+    [value]="filter.query()"
+    [disabled]="!filter.enabled()"
+    (input)="onInput($event)"
+    (keydown)="onKeydown($event)"
+  />
+</tui-textfield>
+<span
   tuiDropdownAppearance=""
   [attr.tuiTheme]="theme()"
   [tuiDropdown]="menu"
@@ -26,18 +28,20 @@
   (tuiDropdownOpenChange)="newOpen.set($event)"
 >
   <button
-    tuiAsideItem
-    tuiChevron
-    appearance="primary"
+    tuiIconButton
+    appearance="secondary-grayscale"
+    size="s"
     iconStart="@tui.plus"
     type="button"
+    tuiHint="New"
+    aria-label="New"
     data-testid="aside-new"
     [attr.aria-expanded]="newOpen()"
     [disabled]="!loaded()"
   >
     New
   </button>
-</div>
+</span>
 <ng-template #menu>
   <tui-data-list size="s" role="menu" aria-label="New">
     <button
@@ -60,7 +64,7 @@
     >
       New collection
     </button>
-    @if (!project()) {
+    @if (isHome()) {
       <button
         tuiOption
         type="button"

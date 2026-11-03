@@ -1,0 +1,51 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+article {
+  block-size: 100%;
+  box-sizing: border-box;
+}
+
+.name {
+  min-inline-size: 0;
+}
+
+.ellipsis {
+  display: block;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--app-font-mono);
+}
+
+._missing {
+  color: var(--tui-text-negative);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

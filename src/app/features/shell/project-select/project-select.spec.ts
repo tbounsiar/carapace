@@ -82,4 +82,20 @@ describe('ProjectSelect', () => {
     byId('project-option-new')!.click();
     expect(actions.createProject).toHaveBeenCalledOnce();
   });
+
+  it('offers the project variables only inside a project', async () => {
+    byId('project-select')!.click();
+    await settle();
+    expect(byId('project-option-variables')).toBeNull();
+    byId('project-select')!.click();
+    await settle();
+    await TestBed.inject(Router).navigateByUrl('/projects/p2');
+    await settle();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    byId('project-select')!.click();
+    await settle();
+    expect(byId('project-option-variables')?.textContent?.trim()).toBe('Project variables');
+    byId('project-option-variables')!.click();
+    expect(navigate).toHaveBeenCalledWith(['/projects', 'p2', 'variables']);
+  });
 });

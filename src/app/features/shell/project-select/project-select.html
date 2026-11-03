@@ -61,6 +61,18 @@
       </button>
     }
     <hr />
+    @if (current(); as project) {
+      <button
+        tuiOption
+        type="button"
+        role="menuitem"
+        iconStart="@tui.variable"
+        data-testid="project-option-variables"
+        (click)="openVariables(project)"
+      >
+        Project variables
+      </button>
+    }
     <button
       tuiOption
       type="button"

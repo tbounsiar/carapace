@@ -1,80 +1,193 @@
-import { signal } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideTaiga } from '@taiga-ui/core';
+import { provideRouter, Router } from '@angular/router';
+import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
-import type { ConfigNode, Project } from '../../../core/ipc/config.models';
+import { collection, fakeConfig, host, project } from '../../../core/ipc/config.fixture';
+import { IpcError } from '../../../core/ipc/ipc-error';
+import { SshService } from '../../../core/ipc/ssh';
+import type { ConnectionState } from '../../../core/ipc/ssh.models';
+import { HostConnector } from '../../host-connection/host-connector';
+import { HostLauncher } from '../../host-connection/host-launcher';
+import { MoveLauncher } from '../../project-tree/move-launcher';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { Welcome } from './welcome';
 
-const shop: Project = {
-  id: 'p1',
-  name: 'Shop',
-  variables: [],
-};
+@Component({
+  imports: [TuiRoot, Welcome],
+  template: '<tui-root><app-welcome /></tui-root>',
+})
+class Shell {}
+
+@Component({ template: '' })
+class Blank {}
 
 describe('Welcome (Home page)', () => {
-  const projects = signal<Project[]>([]);
-  const nodes = signal<ConfigNode[]>([]);
-  const loaded = signal(true);
+  let fixture: ComponentFixture<Shell>;
+  let config: ReturnType<typeof fakeConfig>;
+  const states = signal<Record<string, ConnectionState>>({});
   const actions = { createProject: vi.fn(), addHost: vi.fn(), addCollection: vi.fn() };
-  let fixture: ComponentFixture<Welcome>;
-  const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
-  const byId = (id: string): HTMLButtonElement | null =>
-    el().querySelector<HTMLButtonElement>(`[data-testid="${id}"]`);
+  const launcher = { open: vi.fn(), openTerminal: vi.fn() };
+  const byId = <T extends HTMLElement = HTMLElement>(id: string): T | null =>
+    document.body.querySelector<T>(`[data-testid="${id}"]`);
+  const settle = async () => {
+    await fixture.whenStable();
+    await new Promise((r) => setTimeout(r));
+    await fixture.whenStable();
+  };
+  const search = async (text: string) => {
+    const input = byId<HTMLInputElement>('hosts-search')!;
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    await settle();
+  };
 
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    projects.set([]);
-    nodes.set([]);
-    loaded.set(true);
+  async function setup(): Promise<void> {
     await TestBed.configureTestingModule({
-      imports: [Welcome],
+      imports: [Shell],
       providers: [
         provideTaiga(),
-        { provide: ConfigService, useValue: { projects, nodes, loaded } },
+        provideRouter([{ path: '**', component: Blank }]),
+        { provide: ConfigService, useValue: config },
+        { provide: SshService, useValue: { states } },
+        { provide: HostConnector, useValue: { connect: vi.fn(), disconnect: vi.fn() } },
+        { provide: HostLauncher, useValue: launcher },
         { provide: ProjectActions, useValue: actions },
+        { provide: MoveLauncher, useValue: { openDialog: vi.fn() } },
       ],
     }).compileComponents();
-    fixture = TestBed.createComponent(Welcome);
-    await fixture.whenStable();
+    fixture = TestBed.createComponent(Shell);
+    await settle();
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    states.set({});
+    config = fakeConfig();
+    config.projects.set([project('p2', 'Shop'), project('p1', 'Payments')]);
+    config.nodes.set([
+      collection('c1', 'Lab'),
+      host('h1', 'pi-hole', null, 'c1'),
+      host('h2', 'my-vps'),
+      host('h3', 'api', 'p1'),
+      host('h4', 'web', 'p1'),
+    ]);
   });
 
-  it('offers a project, a Home host or a collection when Home is empty', () => {
-    expect(el().textContent).toContain('Nothing here yet');
+  it('offers a project, a Home host or a collection when Home is empty', async () => {
+    config.projects.set([]);
+    config.nodes.set([]);
+    await setup();
+    expect(byId('welcome')?.textContent).toContain('Nothing here yet');
     byId('welcome-new-project')!.click();
     byId('welcome-add-host')!.click();
     byId('welcome-new-collection')!.click();
     expect(actions.createProject).toHaveBeenCalledOnce();
     expect(actions.addHost).toHaveBeenCalledWith({ projectId: null, parentId: null });
     expect(actions.addCollection).toHaveBeenCalledWith({ projectId: null, parentId: null });
+    expect(byId('home-title')).toBeNull();
+    expect(byId('hosts-search')).toBeNull();
   });
 
-  it('shows the Home header and the sidebar hint once something exists', async () => {
-    projects.set([shop]);
-    await fixture.whenStable();
-    expect(el().querySelector('h1')?.textContent).toBe('Home');
-    expect(byId('home-hint')?.textContent).toBe('Double-click a project to open it.');
-    nodes.set([
-      {
-        kind: 'host',
-        id: 'h1',
-        name: 'vps',
-        projectId: null,
-        parentId: null,
-        hostname: 'h',
-        port: '22',
-        username: 'u',
-        auth: { kind: 'agent' },
-      },
+  it('shows the header with stats and the Home actions', async () => {
+    states.set({ h2: 'connected', h3: 'connected' });
+    await setup();
+    expect(byId('home-title')?.textContent).toBe('Home');
+    expect(byId('home-stats')?.textContent).toBe(
+      '2 hosts · 1 collection · 1 connected · 2 projects',
+    );
+    expect(byId('home-hint')).toBeNull();
+    byId('home-new-host')!.click();
+    byId('home-new-collection')!.click();
+    expect(actions.addHost).toHaveBeenCalledWith({ projectId: null, parentId: null });
+    expect(actions.addCollection).toHaveBeenCalledWith({ projectId: null, parentId: null });
+  });
+
+  it('lists the projects first, ending with New project, then the Home hosts', async () => {
+    states.set({ h3: 'connected' });
+    await setup();
+    const order = [
+      ...document.body.querySelectorAll(
+        '[data-testid^="project-card-"], [data-testid="home-new-project"], [data-testid^="host-group-"]',
+      ),
+    ].map((e) => e.getAttribute('data-testid'));
+    expect(order).toEqual([
+      'project-card-Payments',
+      'project-card-Shop',
+      'home-new-project',
+      'host-group-Home',
+      'host-group-Home/Lab',
     ]);
-    await fixture.whenStable();
-    expect(byId('home-hint')?.textContent).toContain('Pick a host in the sidebar');
-    expect(byId('welcome-new-project')).toBeNull();
+    const payments = byId('project-card-Payments')!;
+    expect(payments.getAttribute('href')).toBe('/projects/p1');
+    expect(payments.textContent).toContain('2 hosts · 1 connected');
+    expect(payments.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
+      '1 open connection',
+    );
+    expect(byId('project-card-Shop')?.textContent).toContain('0 hosts');
+    byId('home-new-project')!.click();
+    expect(actions.createProject).toHaveBeenCalledOnce();
   });
 
-  it('shows nothing before the config is loaded', async () => {
-    loaded.set(false);
-    await fixture.whenStable();
-    expect(el().textContent?.trim()).toBe('');
+  it('filters projects and hosts together', async () => {
+    await setup();
+    await search('pay');
+    expect(byId('project-card-Payments')).not.toBeNull();
+    expect(byId('project-card-Shop')).toBeNull();
+    expect(byId('host-group-Home')).toBeNull();
+    await search('pi');
+    expect(byId('home-new-project')).toBeNull();
+    expect(byId('card-host-pi-hole')).not.toBeNull();
+    expect(byId('hosts-count')?.textContent).toBe('1 of 2 hosts');
+    await search('zzz');
+    expect(byId('hosts-no-match')?.textContent).toContain('No host or project matches “zzz”');
+  });
+
+  it('keeps projects with open connections under Connected', async () => {
+    states.set({ h3: 'connected' });
+    await setup();
+    byId('hosts-filter-connected')!.click();
+    await settle();
+    expect(byId('project-card-Payments')).not.toBeNull();
+    expect(byId('project-card-Shop')).toBeNull();
+    expect(byId('host-group-Home')).toBeNull();
+    states.set({});
+    await settle();
+    expect(byId('hosts-none-connected')).not.toBeNull();
+  });
+
+  it('opens a terminal on the first host with Enter, else enters the first project', async () => {
+    await setup();
+    const input = () => byId('hosts-search')!;
+    const enter = () =>
+      input().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await search('vps');
+    enter();
+    expect(launcher.openTerminal).toHaveBeenCalledWith(config.findNode('h2'));
+    await search('shop');
+    enter();
+    await settle();
+    expect(TestBed.inject(Router).url).toBe('/projects/p2');
+  });
+
+  it('hides the host groups when Home has projects only', async () => {
+    config.nodes.set([host('h3', 'api', 'p1')]);
+    await setup();
+    expect(byId('project-card-Payments')).not.toBeNull();
+    expect(document.body.querySelector('[data-testid^="host-group-"]')).toBeNull();
+    expect(byId('home-stats')?.textContent).toBe('No hosts yet · 2 projects');
+  });
+
+  it('shows skeletons until the config is loaded, then the error state', async () => {
+    config.loaded.set(false);
+    await setup();
+    expect(byId('welcome-new-project')).toBeNull();
+    expect(document.body.querySelectorAll('.placeholder._skeleton').length).toBe(6);
+    config.loadError.set(new IpcError('io', 'disk gone'));
+    await settle();
+    expect(byId('dashboard-error')?.textContent).toContain('Hosts could not be loaded');
+    const load = vi.spyOn(config, 'load');
+    byId('dashboard-retry')!.click();
+    expect(load).toHaveBeenCalledOnce();
   });
 });
