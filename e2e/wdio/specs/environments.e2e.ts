@@ -129,7 +129,7 @@ describe('environments and variables', () => {
     });
     await connect('bad');
     await waitPageText('missing_var');
-    expect(await pageText()).toContain('missing variables');
+    expect((await pageText()).toLowerCase()).toContain('missing variables');
     await waitStatus('bad', 'Connection failed');
   });
 
