@@ -97,7 +97,8 @@ impl World {
     fn host(&self, name: &str, auth: AuthMethod) -> String {
         self.store
             .create_host(
-                &self.project,
+                Some(&self.project),
+                None,
                 &HostInput {
                     name: name.into(),
                     hostname: "${host}".into(),
@@ -111,7 +112,7 @@ impl World {
     }
 
     fn target(&self, host: &str, env: &str) -> Target {
-        resolve::target(&self.store, &self.project, host, Some(env)).unwrap()
+        resolve::target(&self.store, host, Some(env)).unwrap()
     }
 
     /// Connects and accepts the host key if asked, like a user trusting it on first use.
@@ -188,7 +189,7 @@ async fn two_environments_give_two_concurrent_connections_of_one_host() {
     assert!(w.ssh.session(&a.connection_id).await.is_some());
     assert_eq!(w.ssh.list().await, vec![a]);
 
-    let missing = resolve::target(&w.store, &w.project, &host, None).unwrap_err();
+    let missing = resolve::target(&w.store, &host, None).unwrap_err();
     assert_eq!(missing.code, "missing_variables");
 }
 
@@ -225,4 +226,46 @@ async fn password_from_a_secret_environment_variable() {
     );
     let info = w.connect(w.target(&host, &dev)).await.unwrap();
     assert_eq!(info.connection_id, format!("{host}@{dev}"));
+}
+
+#[tokio::test]
+async fn home_host_connects_with_global_variables_and_no_environment() {
+    if !enabled() {
+        return;
+    }
+    let _g = E2E_SERVER.read().await;
+    let w = World::new();
+    w.store
+        .set_variables(
+            &VariableScope::Global,
+            &[
+                plain("user", "carapace"),
+                plain("keys", &work_dir()),
+                plain("host", "127.0.0.1"),
+                plain("port", "2222"),
+            ],
+        )
+        .unwrap();
+    let host = w
+        .store
+        .create_host(
+            None,
+            None,
+            &HostInput {
+                name: "home".into(),
+                hostname: "${host}".into(),
+                port: "${port}".into(),
+                username: "${user}".into(),
+                auth: key_auth(),
+            },
+        )
+        .unwrap()
+        .id;
+    let target = resolve::target(&w.store, &host, None).unwrap();
+    let info = w.connect(target).await.unwrap();
+    assert_eq!(info.connection_id, format!("{host}@none"));
+    assert!(info.environment_id.is_none());
+    let dev = w.env("Dev", &[]);
+    let err = resolve::target(&w.store, &host, Some(&dev)).unwrap_err();
+    assert_eq!(err.code, "invalid_input");
 }

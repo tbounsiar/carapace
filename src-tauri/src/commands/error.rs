@@ -28,7 +28,7 @@ impl From<ConfigError> for CommandError {
         let code = match e {
             ConfigError::NotFound(_) => "not_found",
             ConfigError::InvalidInput(_) => "invalid_input",
-            ConfigError::Conflict(_) => "conflict",
+            ConfigError::Conflict(_) | ConfigError::NameTaken(_) => "conflict",
             ConfigError::Exists(_) => "already_exists",
             ConfigError::Io => "io",
             ConfigError::Corrupt => "corrupt_config",
@@ -87,6 +87,7 @@ mod tests {
             (ConfigError::NotFound("project"), "not_found"),
             (ConfigError::InvalidInput("bad".into()), "invalid_input"),
             (ConfigError::Conflict("host"), "conflict"),
+            (ConfigError::NameTaken("x".into()), "conflict"),
             (ConfigError::Exists("key"), "already_exists"),
             (ConfigError::Io, "io"),
             (ConfigError::Corrupt, "corrupt_config"),
@@ -103,6 +104,7 @@ mod tests {
     fn maps_ssh_codes() {
         let cases = [
             (SshError::NotFound("host"), "not_found"),
+            (SshError::HostChanged, "not_found"),
             (SshError::InvalidInput("bad".into()), "invalid_input"),
             (SshError::HostKeyRejected, "host_key_rejected"),
             (SshError::HostKeyChanged, "host_key_changed"),

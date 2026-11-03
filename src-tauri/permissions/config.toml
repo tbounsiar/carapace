@@ -62,3 +62,23 @@ commands.allow = ["delete_host"]
 identifier = "allow-resolve-host"
 description = "Allows the resolve_host command."
 commands.allow = ["resolve_host"]
+
+[[permission]]
+identifier = "allow-create-collection"
+description = "Allows the create_collection command."
+commands.allow = ["create_collection"]
+
+[[permission]]
+identifier = "allow-rename-collection"
+description = "Allows the rename_collection command."
+commands.allow = ["rename_collection"]
+
+[[permission]]
+identifier = "allow-delete-collection"
+description = "Allows the delete_collection command."
+commands.allow = ["delete_collection"]
+
+[[permission]]
+identifier = "allow-move-node"
+description = "Allows the move_node command."
+commands.allow = ["move_node"]

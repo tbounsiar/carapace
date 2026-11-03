@@ -27,6 +27,7 @@ pub fn target(connection_id: &str, port: u16, username: &str, auth: TargetAuth) 
     Target {
         connection_id: connection_id.into(),
         host_id: TEST_HOST_ID.into(),
+        project_id: None,
         environment_id: None,
         saved: SavedKey::new(TEST_HOST_ID, None).unwrap(),
         hostname: "127.0.0.1".into(),

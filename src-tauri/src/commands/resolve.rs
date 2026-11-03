@@ -24,7 +24,7 @@ fn not_found(what: &str) -> CommandError {
 
 pub(super) struct Located<'a> {
     pub config: &'a ConfigFile,
-    pub project: &'a Project,
+    pub project: Option<&'a Project>,
     pub host: &'a Host,
     pub environment: Option<&'a Environment>,
 }
@@ -38,26 +38,48 @@ impl Located<'_> {
     }
 }
 
+/// The environment a host of `project` (None: Home) may use: none for a Home host, one of
+/// its project's otherwise. An id that exists in no project is `not_found`.
+pub(super) fn scope_environment<'a>(
+    config: &ConfigFile,
+    project: Option<&'a Project>,
+    environment_id: Option<&str>,
+) -> Res<Option<&'a Environment>> {
+    let Some(id) = environment_id else {
+        return Ok(None);
+    };
+    required("environmentId", id)?;
+    let Some(project) = project else {
+        return Err(CommandError::new(
+            "invalid_input",
+            "a host outside a project has no environment",
+        ));
+    };
+    if let Some(e) = project.environment(id) {
+        return Ok(Some(e));
+    }
+    if config.projects.iter().any(|p| p.environment(id).is_some()) {
+        return Err(CommandError::new(
+            "invalid_input",
+            "the environment belongs to another project",
+        ));
+    }
+    Err(not_found("environment"))
+}
+
+/// Finds the host by id and derives its scope from the host itself.
 pub(super) fn locate<'a>(
     config: &'a ConfigFile,
-    project_id: &str,
     host_id: &str,
     environment_id: Option<&str>,
 ) -> Res<Located<'a>> {
-    required("projectId", project_id)?;
     required("hostId", host_id)?;
-    let project = config
-        .project(project_id)
-        .ok_or_else(|| not_found("project"))?;
-    let host = project.host(host_id).ok_or_else(|| not_found("host"))?;
-    let environment = match environment_id {
-        Some(id) => Some(
-            project
-                .environment(id)
-                .ok_or_else(|| not_found("environment"))?,
-        ),
+    let host = config.host(host_id).ok_or_else(|| not_found("host"))?;
+    let project = match host.project_id.as_deref() {
+        Some(id) => Some(config.project(id).ok_or_else(|| not_found("project"))?),
         None => None,
     };
+    let environment = scope_environment(config, project, environment_id)?;
     Ok(Located {
         config,
         project,
@@ -99,12 +121,11 @@ pub(super) fn registered_keys(config: &ConfigFile) -> Vec<RegisteredKey> {
 /// Fails with `missing_variables` or `invalid_input` before any network call.
 pub(super) fn target(
     store: &ConfigStore,
-    project_id: &str,
     host_id: &str,
     environment_id: Option<&str>,
 ) -> Res<Target> {
     let config = store.snapshot()?;
-    let at = locate(&config, project_id, host_id, environment_id)?;
+    let at = locate(&config, host_id, environment_id)?;
     let resolved = at.resolution().complete()?;
     let env_id = at.environment.map(|e| e.id.as_str());
     let auth = match resolved.auth {
@@ -124,6 +145,7 @@ pub(super) fn target(
     Ok(Target {
         connection_id: Target::connection_id_of(&at.host.id, env_id),
         host_id: at.host.id.clone(),
+        project_id: at.host.project_id.clone(),
         environment_id: env_id.map(str::to_owned),
         saved: SavedKey::new(&at.host.id, env_id)?,
         hostname: resolved.hostname,
@@ -160,12 +182,11 @@ impl From<Resolution> for ResolvedView {
 
 pub(super) fn view(
     store: &ConfigStore,
-    project_id: &str,
     host_id: &str,
     environment_id: Option<&str>,
 ) -> Res<ResolvedView> {
     let config = store.snapshot()?;
-    Ok(locate(&config, project_id, host_id, environment_id)?
+    Ok(locate(&config, host_id, environment_id)?
         .resolution()
         .into())
 }

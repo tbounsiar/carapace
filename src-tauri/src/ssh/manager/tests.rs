@@ -668,15 +668,18 @@ fn events_serialize_as_contract() {
 }
 
 #[tokio::test]
-async fn remember_is_skipped_when_the_host_changed_during_the_connect() {
+async fn a_host_changed_during_the_connect_is_neither_remembered_nor_connected() {
     let server = start_server(15).await;
     let env = env(server.port, Duration::from_secs(10), |_| {
         TargetAuth::Password { variable: None }
     });
     trust_server(&env, &server);
     let (task, _rx) = spawn_connect(&env, credential(SERVER_PASSWORD, true), false);
-    task.await.unwrap().unwrap();
+    let err = task.await.unwrap().unwrap_err();
+    assert_eq!(err, SshError::HostChanged);
+    assert_eq!(err.code(), "not_found");
     assert!(env.mem.accounts().is_empty());
+    assert!(env.manager.list().await.is_empty());
 }
 
 #[tokio::test]

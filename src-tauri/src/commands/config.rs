@@ -5,10 +5,13 @@ use tauri::State;
 use super::error::CommandError;
 use super::resolve::{self, ResolvedView, required};
 use super::secrets::{check_secret, forget_legacy, forget_saved, forget_variables, secret_keys};
+use super::ssh::{close_connections, close_hosts};
 use crate::config::{
-    ConfigStore, Environment, Host, HostInput, Project, Variable, VariableKind, VariableScope,
+    ConfigStore, Environment, HostInput, Moved, Node, Project, Variable, VariableKind,
+    VariableScope,
 };
 use crate::secrets::{SecretError, SecretStore, VarKey, fits_keychain};
+use crate::ssh::{SshManager, Target};
 
 type Res<T> = Result<T, CommandError>;
 
@@ -37,15 +40,31 @@ pub struct ProjectView {
     pub name: String,
     pub variables: Vec<VariableView>,
     pub environments: Vec<EnvironmentView>,
-    pub hosts: Vec<Host>,
     pub active_environment_id: Option<String>,
 }
 
+/// `nodes` serialize as `CollectionView` / `HostView`, discriminated by `kind`; they hold no
+/// secret value (auth fields are null or a `${name}` reference).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigView {
     pub variables: Vec<VariableView>,
     pub projects: Vec<ProjectView>,
+    pub nodes: Vec<Node>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletedNodes {
+    pub collection_ids: Vec<String>,
+    pub host_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveResult {
+    pub nodes: Vec<Node>,
+    pub scope_changed: bool,
 }
 
 /// `secretValue` sets a secret's value; null or absent keeps the stored one (by exact name).
@@ -105,7 +124,6 @@ fn project_view(secrets: &SecretStore, p: &Project) -> ProjectView {
             .iter()
             .map(|e| env_view(secrets, e))
             .collect(),
-        hosts: p.hosts.clone(),
         active_environment_id: p.active_environment_id.clone(),
     }
 }
@@ -119,7 +137,23 @@ fn config_view(store: &ConfigStore, secrets: &SecretStore) -> Res<ConfigView> {
             .iter()
             .map(|p| project_view(secrets, p))
             .collect(),
+        nodes: cfg.nodes,
     })
+}
+
+/// A nullable id argument: null is fine, an empty string is not.
+fn optional<'a>(name: &str, value: &'a Option<String>) -> Res<Option<&'a str>> {
+    match value.as_deref() {
+        Some(v) => required(name, v).map(|()| Some(v)),
+        None => Ok(None),
+    }
+}
+
+/// `None` first: saved connection secrets without environment.
+fn with_none(envs: &[String]) -> Vec<Option<&str>> {
+    std::iter::once(None)
+        .chain(envs.iter().map(|e| Some(e.as_str())))
+        .collect()
 }
 
 fn scope_key(scope: &VariableScope, name: &str) -> Result<VarKey, SecretError> {
@@ -226,10 +260,16 @@ fn save_variables(
     Ok(views(secrets, &new, |n| scope_key(scope, n)))
 }
 
-fn remove_project(store: &ConfigStore, secrets: &SecretStore, project_id: &str) -> Res<()> {
+/// The config and keychain part of the delete; returns the removed host ids, whose connections
+/// the caller closes once the locks are released.
+fn remove_project(
+    store: &ConfigStore,
+    secrets: &SecretStore,
+    project_id: &str,
+) -> Res<Vec<String>> {
     required("projectId", project_id)?;
     let _lifecycle = secrets.lifecycle();
-    let p = store.delete_project(project_id)?;
+    let (p, hosts) = store.delete_project(project_id)?;
     forget_variables(
         secrets,
         &p.id,
@@ -242,21 +282,20 @@ fn remove_project(store: &ConfigStore, secrets: &SecretStore, project_id: &str) 
             &secret_keys(&e.variables, |n| VarKey::environment(&e.id, n).ok()),
         );
     }
-    let envs: Vec<Option<&str>> = std::iter::once(None)
-        .chain(p.environments.iter().map(|e| Some(e.id.as_str())))
-        .collect();
-    for h in &p.hosts {
-        forget_saved(secrets, &h.id, &envs);
+    let envs: Vec<String> = p.environments.iter().map(|e| e.id.clone()).collect();
+    for h in &hosts {
+        forget_saved(secrets, &h.id, &with_none(&envs));
     }
-    Ok(())
+    Ok(hosts.into_iter().map(|h| h.id).collect())
 }
 
+/// Returns the connection ids `{hostId}@{environmentId}` of the project's hosts, to close.
 fn remove_environment(
     store: &ConfigStore,
     secrets: &SecretStore,
     project_id: &str,
     environment_id: &str,
-) -> Res<()> {
+) -> Res<Vec<String>> {
     required("projectId", project_id)?;
     required("environmentId", environment_id)?;
     let _lifecycle = secrets.lifecycle();
@@ -269,24 +308,79 @@ fn remove_environment(
     for h in &hosts {
         forget_saved(secrets, h, &[Some(&e.id)]);
     }
-    Ok(())
+    Ok(hosts
+        .iter()
+        .map(|h| Target::connection_id_of(h, Some(&e.id)))
+        .collect())
 }
 
-fn remove_host(
-    store: &ConfigStore,
-    secrets: &SecretStore,
-    project_id: &str,
-    host_id: &str,
-) -> Res<()> {
-    required("projectId", project_id)?;
+fn remove_host(store: &ConfigStore, secrets: &SecretStore, host_id: &str) -> Res<Vec<String>> {
     required("hostId", host_id)?;
     let _lifecycle = secrets.lifecycle();
-    let (h, envs) = store.delete_host(project_id, host_id)?;
-    let envs: Vec<Option<&str>> = std::iter::once(None)
-        .chain(envs.iter().map(|e| Some(e.as_str())))
-        .collect();
-    forget_saved(secrets, &h.id, &envs);
-    Ok(())
+    let (h, envs) = store.delete_host(host_id)?;
+    forget_saved(secrets, &h.id, &with_none(&envs));
+    Ok(vec![h.id])
+}
+
+fn remove_collection(
+    store: &ConfigStore,
+    secrets: &SecretStore,
+    collection_id: &str,
+) -> Res<DeletedNodes> {
+    required("collectionId", collection_id)?;
+    let _lifecycle = secrets.lifecycle();
+    let removed = store.delete_collection(collection_id)?;
+    for h in &removed.hosts {
+        forget_saved(secrets, &h.id, &with_none(&removed.environments));
+    }
+    Ok(DeletedNodes {
+        collection_ids: removed.collections.into_iter().map(|c| c.id).collect(),
+        host_ids: removed.hosts.into_iter().map(|h| h.id).collect(),
+    })
+}
+
+/// The saved connection secrets of moved hosts were bound to the old scope's environments, so
+/// a cross-scope move deletes them (none + every old environment) before the file is written.
+fn relocate(
+    store: &ConfigStore,
+    secrets: &SecretStore,
+    node_id: &str,
+    project_id: Option<&str>,
+    parent_id: Option<&str>,
+) -> Res<Moved> {
+    let _lifecycle = secrets.lifecycle();
+    Ok(store.move_node(node_id, project_id, parent_id, |m| {
+        if m.scope_changed {
+            for h in m.host_ids() {
+                forget_saved(secrets, &h, &with_none(&m.old_environments));
+            }
+        }
+    })?)
+}
+
+/// Connections of the moved hosts are closed before the move (their ids name an environment of
+/// the old scope) and once more after it, for a connect that slipped in between.
+async fn move_node_in(
+    store: &ConfigStore,
+    secrets: &SecretStore,
+    ssh: &SshManager,
+    node_id: &str,
+    project_id: Option<&str>,
+    parent_id: Option<&str>,
+) -> Res<MoveResult> {
+    required("nodeId", node_id)?;
+    let plan = store.plan_move(node_id, project_id, parent_id)?;
+    if plan.scope_changed {
+        close_hosts(ssh, &plan.host_ids()).await;
+    }
+    let moved = relocate(store, secrets, node_id, project_id, parent_id)?;
+    if moved.scope_changed {
+        close_hosts(ssh, &moved.host_ids()).await;
+    }
+    Ok(MoveResult {
+        nodes: moved.nodes,
+        scope_changed: moved.scope_changed,
+    })
 }
 
 #[tauri::command]
@@ -325,9 +419,12 @@ pub async fn rename_project(
 pub async fn delete_project(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
+    ssh: State<'_, SshManager>,
     project_id: String,
 ) -> Res<()> {
-    remove_project(&store, &secrets, &project_id)
+    let hosts = remove_project(&store, &secrets, &project_id)?;
+    close_hosts(&ssh, &hosts).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -361,10 +458,13 @@ pub async fn rename_environment(
 pub async fn delete_environment(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
+    ssh: State<'_, SshManager>,
     project_id: String,
     environment_id: String,
 ) -> Res<()> {
-    remove_environment(&store, &secrets, &project_id, &environment_id)
+    let connections = remove_environment(&store, &secrets, &project_id, &environment_id)?;
+    close_connections(&ssh, &connections).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -391,12 +491,67 @@ pub async fn set_variables(
 }
 
 #[tauri::command]
+pub async fn create_collection(
+    store: State<'_, ConfigStore>,
+    project_id: Option<String>,
+    parent_id: Option<String>,
+    name: String,
+) -> Res<Node> {
+    let project_id = optional("projectId", &project_id)?;
+    let parent_id = optional("parentId", &parent_id)?;
+    Ok(Node::Collection(
+        store.create_collection(project_id, parent_id, &name)?,
+    ))
+}
+
+#[tauri::command]
+pub async fn rename_collection(
+    store: State<'_, ConfigStore>,
+    collection_id: String,
+    name: String,
+) -> Res<Node> {
+    required("collectionId", &collection_id)?;
+    Ok(Node::Collection(
+        store.rename_collection(&collection_id, &name)?,
+    ))
+}
+
+#[tauri::command]
+pub async fn delete_collection(
+    store: State<'_, ConfigStore>,
+    secrets: State<'_, SecretStore>,
+    ssh: State<'_, SshManager>,
+    collection_id: String,
+) -> Res<DeletedNodes> {
+    let deleted = remove_collection(&store, &secrets, &collection_id)?;
+    close_hosts(&ssh, &deleted.host_ids).await;
+    Ok(deleted)
+}
+
+#[tauri::command]
+pub async fn move_node(
+    store: State<'_, ConfigStore>,
+    secrets: State<'_, SecretStore>,
+    ssh: State<'_, SshManager>,
+    node_id: String,
+    project_id: Option<String>,
+    parent_id: Option<String>,
+) -> Res<MoveResult> {
+    let project_id = optional("projectId", &project_id)?;
+    let parent_id = optional("parentId", &parent_id)?;
+    move_node_in(&store, &secrets, &ssh, &node_id, project_id, parent_id).await
+}
+
+#[tauri::command]
 pub async fn create_host(
     store: State<'_, ConfigStore>,
-    project_id: String,
+    project_id: Option<String>,
+    parent_id: Option<String>,
     host: HostInput,
-) -> Res<Host> {
-    Ok(store.create_host(&project_id, &host)?)
+) -> Res<Node> {
+    let project_id = optional("projectId", &project_id)?;
+    let parent_id = optional("parentId", &parent_id)?;
+    Ok(Node::Host(store.create_host(project_id, parent_id, &host)?))
 }
 
 /// Saved connection secrets are bound to their resolved target, so an edit that changes the
@@ -405,32 +560,33 @@ pub async fn create_host(
 pub async fn update_host(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
-    project_id: String,
     host_id: String,
     host: HostInput,
-) -> Res<Host> {
+) -> Res<Node> {
+    required("hostId", &host_id)?;
     let _lifecycle = secrets.lifecycle();
-    Ok(store.update_host(&project_id, &host_id, &host)?)
+    Ok(Node::Host(store.update_host(&host_id, &host)?))
 }
 
 #[tauri::command]
 pub async fn delete_host(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
-    project_id: String,
+    ssh: State<'_, SshManager>,
     host_id: String,
 ) -> Res<()> {
-    remove_host(&store, &secrets, &project_id, &host_id)
+    let hosts = remove_host(&store, &secrets, &host_id)?;
+    close_hosts(&ssh, &hosts).await;
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn resolve_host(
     store: State<'_, ConfigStore>,
-    project_id: String,
     host_id: String,
     environment_id: Option<String>,
 ) -> Res<ResolvedView> {
-    resolve::view(&store, &project_id, &host_id, environment_id.as_deref())
+    resolve::view(&store, &host_id, environment_id.as_deref())
 }
 
 #[cfg(test)]

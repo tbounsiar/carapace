@@ -16,7 +16,6 @@ type Res<T> = Result<T, CommandError>;
 pub async fn connect_host(
     store: State<'_, ConfigStore>,
     ssh: State<'_, SshManager>,
-    project_id: String,
     host_id: String,
     environment_id: Option<String>,
     on_event: Channel<ConnectEvent>,
@@ -26,12 +25,11 @@ pub async fn connect_host(
         check_secret(&c.secret)?;
     }
     let env = environment_id.as_deref();
-    let target = resolve::target(&store, &project_id, &host_id, env)?;
+    let target = resolve::target(&store, &host_id, env)?;
     let emit = Arc::new(move |event| {
         let _ = on_event.send(event);
     });
-    let current =
-        || resolve::target(&store, &project_id, &host_id, env).is_ok_and(|now| now == target);
+    let current = || resolve::target(&store, &host_id, env).is_ok_and(|now| now == target);
     Ok(ssh.connect(&target, credential, &current, emit).await?)
 }
 
@@ -60,6 +58,28 @@ pub async fn replace_host_key(
 pub async fn disconnect_host(ssh: State<'_, SshManager>, connection_id: String) -> Res<()> {
     required("connectionId", &connection_id)?;
     Ok(ssh.disconnect(&connection_id).await?)
+}
+
+/// Closes every open connection of these hosts, in any environment. Closing a connection ends
+/// its terminals, SFTP channel and transfers. Failures are logged by connection id only.
+pub(super) async fn close_hosts(ssh: &SshManager, host_ids: &[String]) {
+    if host_ids.is_empty() {
+        return;
+    }
+    for c in ssh.list().await {
+        if host_ids.contains(&c.host_id) && ssh.disconnect(&c.connection_id).await.is_err() {
+            log::warn!("could not close connection {}", c.connection_id);
+        }
+    }
+}
+
+/// Closes these connections if open; failures are logged by connection id only.
+pub(super) async fn close_connections(ssh: &SshManager, connection_ids: &[String]) {
+    for id in connection_ids {
+        if ssh.disconnect(id).await.is_err() {
+            log::warn!("could not close connection {id}");
+        }
+    }
 }
 
 #[tauri::command]

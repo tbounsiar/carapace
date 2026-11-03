@@ -102,10 +102,13 @@ pub struct RegisteredKey {
 }
 
 /// A host resolved for one environment (or none): what a connection is made from.
+/// `project_id` is the host's scope (None: Home); it is part of the comparison done by
+/// `still_current`, so a host moved to another scope during a connect is stale.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
     pub connection_id: String,
     pub host_id: String,
+    pub project_id: Option<String>,
     pub environment_id: Option<String>,
     pub saved: SavedKey,
     pub hostname: String,
@@ -689,25 +692,44 @@ impl SshManager {
             return Err(e);
         }
 
-        // The host-key prompt can last minutes; the host may have been edited or deleted meanwhile.
-        if let Some((kind, secret)) = remember {
-            let bound = target.bound_to(kind);
+        // The host-key prompt can last minutes; the host may have been edited, moved or deleted
+        // meanwhile. Checked under the lifecycle lock, which deletes and moves hold while they
+        // change the config and the keychain, and with the sessions lock held until the insert:
+        // a delete or move that ran before the check makes it fail, one that runs after it
+        // finds the session when it closes the host's connections.
+        let mut sessions = self.sessions.lock().await;
+        let current = {
             let _lifecycle = self.secrets.lifecycle();
-            if fits_saved(&bound, &secret)
-                && still_current()
-                && self
-                    .secrets
-                    .set_saved(&target.saved, kind, &bound, &secret)
-                    .is_err()
-            {
-                log::warn!(
-                    "could not store the {kind} of connection {} in the keychain",
-                    target.connection_id
-                );
+            let current = still_current();
+            if current && let Some((kind, secret)) = remember {
+                let bound = target.bound_to(kind);
+                if fits_saved(&bound, &secret)
+                    && self
+                        .secrets
+                        .set_saved(&target.saved, kind, &bound, &secret)
+                        .is_err()
+                {
+                    log::warn!(
+                        "could not store the {kind} of connection {} in the keychain",
+                        target.connection_id
+                    );
+                }
             }
+            current
+        };
+        if !current {
+            drop(sessions);
+            mark_ended(&ended, SessionEnd::Disconnected);
+            let _ = handle
+                .disconnect(russh::Disconnect::ByApplication, "", "en")
+                .await;
+            log::info!(
+                "connection {} dropped: the host changed while connecting",
+                target.connection_id
+            );
+            return Err(SshError::HostChanged);
         }
-
-        self.sessions.lock().await.insert(
+        sessions.insert(
             target.connection_id.clone(),
             Connection {
                 handle: Arc::new(handle),

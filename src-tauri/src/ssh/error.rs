@@ -6,6 +6,9 @@ use crate::secrets::SecretError;
 pub enum SshError {
     #[error("{0} not found")]
     NotFound(&'static str),
+    /// The host was edited, moved or deleted while the connection was being made.
+    #[error("the host changed while connecting; connect again")]
+    HostChanged,
     #[error("{0}")]
     InvalidInput(String),
     #[error("the host key was not accepted")]
@@ -37,7 +40,7 @@ pub enum SshError {
 impl SshError {
     pub fn code(&self) -> &'static str {
         match self {
-            Self::NotFound(_) => "not_found",
+            Self::NotFound(_) | Self::HostChanged => "not_found",
             Self::InvalidInput(_) => "invalid_input",
             Self::HostKeyRejected => "host_key_rejected",
             Self::HostKeyChanged => "host_key_changed",

@@ -2,7 +2,7 @@ use secrecy::{ExposeSecret, SecretString};
 use tauri::State;
 
 use super::error::CommandError;
-use super::resolve::required;
+use super::resolve::{self, required};
 use crate::config::{ConfigFile, ConfigStore, Variable, VariableKind};
 use crate::secrets::{SavedKey, SecretKind, SecretStore, VarKey};
 
@@ -88,16 +88,7 @@ fn forget_saved_of(
 ) -> Res<()> {
     required("hostId", host_id)?;
     let config: ConfigFile = store.snapshot()?;
-    let project = config
-        .projects
-        .iter()
-        .find(|p| p.host(host_id).is_some())
-        .ok_or_else(|| CommandError::new("not_found", "host not found"))?;
-    if let Some(env) = environment_id
-        && project.environment(env).is_none()
-    {
-        return Err(CommandError::new("not_found", "environment not found"));
-    }
+    resolve::locate(&config, host_id, environment_id)?;
     let key = SavedKey::new(host_id, environment_id)?;
     let _lifecycle = secrets.lifecycle();
     for kind in SecretKind::ALL {
@@ -151,7 +142,8 @@ mod tests {
         let other_env = store.create_environment(&other.id, "dev").unwrap();
         let h = store
             .create_host(
-                &p.id,
+                Some(&p.id),
+                None,
                 &HostInput {
                     name: "h".into(),
                     hostname: "a".into(),
@@ -190,8 +182,26 @@ mod tests {
                 &h.id,
                 Some(&other_env.id)
             )),
-            "not_found"
+            "invalid_input"
         );
+        let home = store
+            .create_host(
+                None,
+                None,
+                &HostInput {
+                    name: "home".into(),
+                    hostname: "a".into(),
+                    port: "22".into(),
+                    username: "u".into(),
+                    auth: AuthMethod::Agent,
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            code(forget_saved_of(&store, &secrets, &home.id, Some(&e.id))),
+            "invalid_input"
+        );
+        forget_saved_of(&store, &secrets, &home.id, None).unwrap();
         mem.set_failing(true);
         assert_eq!(
             code(forget_saved_of(&store, &secrets, &h.id, None)),
