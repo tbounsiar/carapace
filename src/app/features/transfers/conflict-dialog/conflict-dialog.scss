@@ -1,0 +1,40 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-padding-l);
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.5rem var(--tui-padding-l);
+  margin: 0;
+  font: var(--tui-typography-body-s);
+}
+
+dt {
+  color: var(--tui-text-secondary);
+}
+
+dd {
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.mono {
+  font-family: var(--app-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.all {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: var(--tui-typography-body-s);
+}
+
+footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}

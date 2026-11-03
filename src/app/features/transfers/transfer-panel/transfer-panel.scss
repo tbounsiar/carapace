@@ -1,0 +1,90 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--tui-border-normal);
+  border-radius: var(--tui-radius-m);
+  background: var(--tui-background-base);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toggle {
+  font-weight: bold;
+}
+
+.clear {
+  margin-inline-start: auto;
+}
+
+.list {
+  /* Bounded so the file panes above keep most of the view's height. */
+  max-block-size: min(8rem, 20dvh);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(4rem, 8rem) minmax(0, 12rem) 1.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: var(--tui-height-xs);
+  font: var(--tui-typography-ui-s);
+}
+
+.direction {
+  font-size: 1rem;
+  color: var(--tui-text-secondary);
+}
+
+.what {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+
+.name,
+.target,
+.state {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name {
+  flex: none;
+  max-inline-size: 60%;
+}
+
+.target {
+  font-family: var(--app-font-mono);
+  color: var(--tui-text-secondary);
+}
+
+.state {
+  color: var(--tui-text-secondary);
+
+  &._failed {
+    color: var(--tui-text-negative);
+  }
+
+  &._waiting {
+    color: var(--tui-text-warning);
+    font-weight: bold;
+  }
+}
+
+.empty {
+  padding-block: 0.25rem;
+  font: var(--tui-typography-ui-s);
+  color: var(--tui-text-secondary);
+}

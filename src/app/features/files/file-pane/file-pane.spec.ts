@@ -5,7 +5,8 @@ import { of } from 'rxjs';
 import type { FileEntry, FileSide, FileSource, Listing } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { FileDialogs } from '../file-dialogs';
-import { FilePane } from './file-pane';
+import { FileDrag } from '../file-drag';
+import { FilePane, type PaneTransfer } from './file-pane';
 
 function entry(dir: string, name: string, patch: Partial<FileEntry> = {}): FileEntry {
   return {
@@ -79,14 +80,22 @@ class FakeSource implements FileSource {
       [source]="source()"
       [label]="'Remote'"
       [startPath]="start()"
+      [transferTarget]="transferTarget()"
+      [revisions]="revisions()"
       (pathChange)="paths.push($event)"
+      (send)="sent.push($event)"
+      (receive)="received.push($event)"
     />
   </tui-root>`,
 })
 class Host {
   readonly source = signal<FileSource>(new FakeSource('remote'));
   readonly start = signal<string | null>(null);
+  readonly transferTarget = signal<string | null>(null);
+  readonly revisions = signal<ReadonlyMap<string, number>>(new Map());
   readonly paths: string[] = [];
+  readonly sent: PaneTransfer[] = [];
+  readonly received: PaneTransfer[] = [];
 }
 
 describe('FilePane', () => {
@@ -357,5 +366,187 @@ describe('FilePane', () => {
     await setup(null, 'local');
     expect(el().querySelectorAll('thead th').length).toBe(4);
     expect(byId('entry-notes.txt')!.textContent).not.toContain('rw-r--r--');
+  });
+  describe('multi-selection', () => {
+    const clickWith = async (id: string, init: MouseEventInit = {}): Promise<void> => {
+      byId(id)!.dispatchEvent(new MouseEvent('click', { bubbles: true, ...init }));
+      await settle();
+    };
+    const selected = (): string[] =>
+      Array.from(el().querySelectorAll('tbody tr[aria-selected="true"]')).map((r) =>
+        r.getAttribute('data-testid')!,
+      );
+
+    beforeEach(() => {
+      TREE['/home/u'].entries.push(entry('/home/u', 'a.log'), entry('/home/u', 'b.log'));
+    });
+
+    it('toggles with Ctrl or Cmd, ranges with Shift and shows the count', async () => {
+      await setup();
+      expect(rowNames()).toEqual(['entry-src', 'entry-a.log', 'entry-b.log', 'entry-notes.txt']);
+      expect(byId('pane-selection-count')).toBeNull();
+      await clickWith('entry-a.log');
+      await clickWith('entry-notes.txt', { ctrlKey: true });
+      expect(selected()).toEqual(['entry-a.log', 'entry-notes.txt']);
+      expect(byId('pane-selection-count')!.textContent).toContain('2 selected');
+      await clickWith('entry-a.log', { metaKey: true });
+      expect(selected()).toEqual(['entry-notes.txt']);
+
+      await clickWith('entry-src');
+      await clickWith('entry-b.log', { shiftKey: true });
+      expect(selected()).toEqual(['entry-src', 'entry-a.log', 'entry-b.log']);
+      await clickWith('entry-a.log', { shiftKey: true });
+      expect(selected()).toEqual(['entry-src', 'entry-a.log']);
+      expect(byId('pane-selection-count')!.textContent).toContain('2 selected');
+    });
+
+    it('selects all with Ctrl+A and returns to single selection with the arrows', async () => {
+      await setup();
+      byId('entry-src')!.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true }),
+      );
+      await settle();
+      expect(selected().length).toBe(4);
+      expect(byId('pane-selection-count')!.textContent).toContain('4 selected');
+      await key(byId('entry-src'), 'ArrowDown');
+      expect(selected()).toEqual(['entry-a.log']);
+    });
+
+    it('clears the selection on navigation and keeps it on refresh', async () => {
+      await setup();
+      await clickWith('entry-a.log');
+      await clickWith('entry-b.log', { ctrlKey: true });
+      await click(byId('pane-refresh'));
+      expect(selected()).toEqual(['entry-a.log', 'entry-b.log']);
+      byId('entry-src')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await settle();
+      expect(selected()).toEqual([]);
+      expect(byId('pane-selection-count')).toBeNull();
+    });
+
+    it('keeps the selection when a selected row menu opens', async () => {
+      await setup();
+      await clickWith('entry-a.log');
+      await clickWith('entry-b.log', { ctrlKey: true });
+      await click(byId('entry-menu-b.log'));
+      expect(selected()).toEqual(['entry-a.log', 'entry-b.log']);
+    });
+  });
+
+  describe('transfers', () => {
+    const drag = (): FileDrag => TestBed.inject(FileDrag);
+    const dragEvent = (type: string, target: Element): Event => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true });
+      target.dispatchEvent(event);
+      return event;
+    };
+    const list = (): HTMLElement => el().querySelector<HTMLElement>('.scroll')!;
+
+    it('sends the selection to the other pane directory, in display order', async () => {
+      await setup(null, 'local');
+      const upload = byId('pane-upload') as HTMLButtonElement;
+      expect(upload.getAttribute('aria-label')).toBe('Upload to remote');
+      expect(byId('pane-download')).toBeNull();
+      expect(upload.disabled).toBe(true);
+
+      byId('entry-notes.txt')!.click();
+      byId('entry-src')!.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+      await settle();
+      expect(upload.disabled).toBe(true);
+
+      fixture.componentInstance.transferTarget.set('/srv');
+      await settle();
+      expect(upload.disabled).toBe(false);
+      await click(upload);
+      expect(fixture.componentInstance.sent).toEqual([
+        { sources: ['/home/u/src', '/home/u/notes.txt'], targetDir: '/srv' },
+      ]);
+    });
+
+    it('labels the remote action as a download', async () => {
+      await setup();
+      expect(byId('pane-download')!.getAttribute('aria-label')).toBe('Download to local');
+      expect(byId('pane-upload')).toBeNull();
+    });
+
+    it('puts no path in the OS drag data', async () => {
+      await setup();
+      const data = new Map<string, string>();
+      const event = new MouseEvent('dragstart', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'dataTransfer', {
+        value: { setData: (type: string, value: string) => data.set(type, value) },
+      });
+      byId('entry-src')!.dispatchEvent(event);
+      expect([...data.values()].join()).not.toContain('/home/u');
+      expect(data.has('application/x-carapace-files')).toBe(true);
+      drag().end();
+    });
+
+    it('starts a drag with the selection, or the dragged row alone', async () => {
+      await setup();
+      byId('entry-notes.txt')!.click();
+      await settle();
+      dragEvent('dragstart', byId('entry-src')!);
+      expect(drag().current()).toEqual({ side: 'remote', paths: ['/home/u/src'] });
+      dragEvent('dragend', byId('entry-src')!);
+      expect(drag().current()).toBeNull();
+
+      byId('entry-notes.txt')!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, ctrlKey: true }),
+      );
+      await settle();
+      dragEvent('dragstart', byId('entry-notes.txt')!);
+      expect(drag().current()!.paths).toEqual(['/home/u/src', '/home/u/notes.txt']);
+      drag().end();
+    });
+
+    it('accepts drops from the other pane on the list or on a directory row', async () => {
+      await setup();
+      drag().start({ side: 'local', paths: ['C:\\a.txt'] });
+
+      const over = dragEvent('dragover', byId('entry-notes.txt')!);
+      expect(over.defaultPrevented).toBe(true);
+      await settle();
+      expect(list().classList.contains('_drop')).toBe(true);
+      dragEvent('drop', byId('entry-notes.txt')!);
+      expect(fixture.componentInstance.received).toEqual([
+        { sources: ['C:\\a.txt'], targetDir: '/home/u' },
+      ]);
+      expect(drag().current()).toBeNull();
+
+      drag().start({ side: 'local', paths: ['C:\\b.txt'] });
+      dragEvent('dragover', byId('entry-src')!.querySelector('td')!);
+      await settle();
+      expect(byId('entry-src')!.classList.contains('_drop')).toBe(true);
+      expect(list().classList.contains('_drop')).toBe(false);
+      dragEvent('drop', byId('entry-src')!.querySelector('td')!);
+      expect(fixture.componentInstance.received[1]).toEqual({
+        sources: ['C:\\b.txt'],
+        targetDir: '/home/u/src',
+      });
+    });
+
+    it('ignores drags from the same pane', async () => {
+      await setup();
+      drag().start({ side: 'remote', paths: ['/home/u/notes.txt'] });
+      expect(dragEvent('dragover', byId('entry-src')!).defaultPrevented).toBe(false);
+      dragEvent('drop', list());
+      await settle();
+      expect(fixture.componentInstance.received).toEqual([]);
+      expect(list().classList.contains('_drop')).toBe(false);
+      drag().end();
+    });
+
+    it('refreshes when the listed directory revision changes', async () => {
+      await setup();
+      const calls = source.list.mock.calls.length;
+      fixture.componentInstance.revisions.set(new Map([['/elsewhere', 1]]));
+      await settle();
+      expect(source.list.mock.calls.length).toBe(calls);
+      fixture.componentInstance.revisions.set(new Map([['/home/u', 1]]));
+      await settle();
+      expect(source.list.mock.calls.length).toBe(calls + 1);
+      expect(source.list).toHaveBeenLastCalledWith('/home/u');
+    });
   });
 });

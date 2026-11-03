@@ -1,35 +1,46 @@
-<app-file-pane
-  label="Local"
-  data-testid="pane-local"
-  [source]="local"
-  [startPath]="startPath('local')"
-  (pathChange)="remember('local', $event)"
-/>
-@if (connected()) {
+<div class="panes">
   <app-file-pane
-    label="Remote"
-    data-testid="pane-remote"
-    [source]="remote()"
-    [startPath]="startPath('remote')"
-    (pathChange)="remember('remote', $event)"
+    label="Local"
+    data-testid="pane-local"
+    [source]="local"
+    [startPath]="startPath('local')"
+    [transferTarget]="uploadTarget()"
+    [revisions]="localRevisions()"
+    (pathChange)="remember('local', $event)"
+    (send)="upload($event)"
+    (receive)="download($event)"
   />
-} @else {
-  <section class="disconnected" data-testid="pane-remote">
-    <tui-block-status size="m">
-      <span tuiAvatar="@tui.unplug" size="l" tuiSlot="top"></span>
-      <h2>Not connected</h2>
-      <p>Connect to browse the files on this host.</p>
-      <button
-        tuiButton
-        size="s"
-        iconStart="@tui.plug"
-        type="button"
-        data-testid="pane-connect"
-        [loading]="busy()"
-        (click)="connect()"
-      >
-        Connect
-      </button>
-    </tui-block-status>
-  </section>
-}
+  @if (connected()) {
+    <app-file-pane
+      label="Remote"
+      data-testid="pane-remote"
+      [source]="remote()"
+      [startPath]="startPath('remote')"
+      [transferTarget]="downloadTarget()"
+      [revisions]="remoteRevisions()"
+      (pathChange)="remember('remote', $event)"
+      (send)="download($event)"
+      (receive)="upload($event)"
+    />
+  } @else {
+    <section class="disconnected" data-testid="pane-remote">
+      <tui-block-status size="m">
+        <span tuiAvatar="@tui.unplug" size="l" tuiSlot="top"></span>
+        <h2>Not connected</h2>
+        <p>Connect to browse the files on this host.</p>
+        <button
+          tuiButton
+          size="s"
+          iconStart="@tui.plug"
+          type="button"
+          data-testid="pane-connect"
+          [loading]="busy()"
+          (click)="connect()"
+        >
+          Connect
+        </button>
+      </tui-block-status>
+    </section>
+  }
+</div>
+<app-transfer-panel class="transfers" [connectionId]="target().connectionId" />

@@ -7,16 +7,30 @@ import { type ConnectionTarget, connectionTarget } from '../../../core/ipc/conne
 import { SshService } from '../../../core/ipc/ssh';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
 import { HostConnector } from '../../host-connection/host-connector';
+import { dirKey, TransferQueue } from '../../transfers/transfer-queue';
 import { FileDialogs } from '../file-dialogs';
 import { PanePaths } from '../pane-paths';
 import { FilesPanel } from './files-panel';
 
-function fakeSource(side: FileSide, home: string): FileSource {
+function fakeSource(side: FileSide, home: string, files: string[] = []): FileSource {
+  const sep = side === 'local' ? '\\' : '/';
   return {
     side,
     home: vi.fn(() => Promise.resolve(home)),
     list: vi.fn((path: string): Promise<Listing> =>
-      Promise.resolve({ path: path || home, parent: null, entries: [] }),
+      Promise.resolve({
+        path: path || home || '/home/u',
+        parent: null,
+        entries: files.map((name) => ({
+          name,
+          path: `${path || home || '/home/u'}${sep}${name}`,
+          kind: 'file',
+          size: 1,
+          modified: null,
+          permissions: null,
+          hidden: false,
+        })),
+      }),
     ),
     mkdir: vi.fn(),
     rename: vi.fn(),
@@ -33,6 +47,11 @@ describe('FilesPanel', () => {
       states.update((s) => ({ ...s, [target.connectionId]: 'connected' }));
       return Promise.resolve();
     }),
+  };
+  const queue = {
+    revisions: signal<ReadonlyMap<string, number>>(new Map()),
+    forConnection: () => [],
+    enqueue: vi.fn(() => Promise.resolve()),
   };
   let local: FileSource;
   let remote: FileSource;
@@ -58,8 +77,9 @@ describe('FilesPanel', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     states.set({});
-    local = fakeSource('local', 'C:\\Users\\me');
-    remote = fakeSource('remote', '');
+    queue.revisions.set(new Map());
+    local = fakeSource('local', 'C:\\Users\\me', ['a.txt']);
+    remote = fakeSource('remote', '', ['b.txt']);
     await TestBed.configureTestingModule({
       imports: [FilesPanel],
       providers: [
@@ -68,6 +88,7 @@ describe('FilesPanel', () => {
         { provide: HostConnector, useValue: connector },
         { provide: FileSources, useValue: { local, remote: remoteFor } },
         { provide: FileDialogs, useValue: {} },
+        { provide: TransferQueue, useValue: queue },
         { provide: TuiNotificationService, useValue: { open: vi.fn(() => of(undefined)) } },
       ],
     }).compileComponents();
@@ -124,5 +145,68 @@ describe('FilesPanel', () => {
     states.set({ 'h1@e1': 'connected' });
     await setup(connectionTarget('p1', 'h1', null));
     expect(pane('remote').querySelector('[data-testid="pane-connect"]')).toBeTruthy();
+  });
+
+  const button = (root: HTMLElement, id: string): HTMLButtonElement =>
+    root.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!;
+
+  it('uploads the local selection into the remote directory once connected', async () => {
+    await setup();
+    const upload = button(pane('local'), 'pane-upload');
+    button(pane('local'), 'entry-a.txt').click();
+    await settle();
+    expect(upload.disabled).toBe(true);
+
+    states.set({ 'h1@e1': 'connected' });
+    await settle();
+    expect(upload.disabled).toBe(false);
+    upload.click();
+    await settle();
+    expect(queue.enqueue).toHaveBeenCalledWith(
+      'h1@e1',
+      'upload',
+      ['C:\\Users\\me\\a.txt'],
+      '/home/u',
+    );
+  });
+
+  it('downloads the remote selection into the local directory', async () => {
+    states.set({ 'h1@e1': 'connected' });
+    await setup();
+    button(pane('remote'), 'entry-b.txt').click();
+    await settle();
+    button(pane('remote'), 'pane-download').click();
+    await settle();
+    expect(queue.enqueue).toHaveBeenCalledWith(
+      'h1@e1',
+      'download',
+      ['/home/u/b.txt'],
+      'C:\\Users\\me',
+    );
+  });
+
+  it('refreshes a pane when a transfer into its directory finishes', async () => {
+    states.set({ 'h1@e1': 'connected' });
+    await setup();
+    const remoteCalls = vi.mocked(remote.list).mock.calls.length;
+    const localCalls = vi.mocked(local.list).mock.calls.length;
+    queue.revisions.set(new Map([[dirKey('h1@e1', 'remote', '/home/u'), 1]]));
+    await settle();
+    expect(vi.mocked(remote.list).mock.calls.length).toBe(remoteCalls + 1);
+    expect(vi.mocked(local.list).mock.calls.length).toBe(localCalls);
+
+    queue.revisions.set(
+      new Map([
+        [dirKey('h1@e1', 'remote', '/home/u'), 1],
+        [dirKey('h2@none', 'local', 'C:\\Users\\me'), 1],
+      ]),
+    );
+    await settle();
+    expect(vi.mocked(local.list).mock.calls.length).toBe(localCalls + 1);
+  });
+
+  it('shows the transfer panel below the panes', async () => {
+    await setup();
+    expect(el().querySelector('[data-testid="transfer-panel"]')).toBeTruthy();
   });
 });

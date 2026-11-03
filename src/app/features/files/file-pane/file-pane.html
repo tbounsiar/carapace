@@ -1,5 +1,24 @@
 <div class="head">
   <h3 class="title">{{ label() }}</h3>
+  @if (selection.count(); as count) {
+    <span tuiBadge size="s" appearance="neutral" data-testid="pane-selection-count">
+      {{ count }} selected
+    </span>
+  }
+  <button
+    tuiIconButton
+    appearance="flat-grayscale"
+    size="xs"
+    type="button"
+    [iconStart]="side() === 'local' ? '@tui.upload' : '@tui.download'"
+    [tuiHint]="transferLabel()"
+    [attr.aria-label]="transferLabel()"
+    [attr.data-testid]="side() === 'local' ? 'pane-upload' : 'pane-download'"
+    [disabled]="!canSend()"
+    (click)="sendSelection()"
+  >
+    {{ transferLabel() }}
+  </button>
   <button
     tuiIconButton
     appearance="flat-grayscale"
@@ -81,7 +100,13 @@
 }
 
 <tui-loader class="body" [overlay]="true" [loading]="loading()">
-  <div class="scroll">
+  <div
+    class="scroll"
+    [class._drop]="activeDrop() !== null && activeDrop() === path()"
+    (dragover)="onDragOver($event)"
+    (dragleave)="onDragLeave($event)"
+    (drop)="onDrop($event)"
+  >
     <table
       tuiTable
       size="s"
@@ -110,13 +135,18 @@
           <tr
             #row
             class="row"
-            aria-keyshortcuts="Enter Backspace F2 Delete"
+            draggable="true"
+            aria-keyshortcuts="Enter Backspace F2 Delete Control+A"
             [class._selected]="selection.has(row.entry.path)"
+            [class._drop]="activeDrop() === row.entry.path"
+            [attr.data-drop-dir]="row.entry.kind === 'dir' ? row.entry.path : null"
             [class._menu]="openMenu() === row.entry.path"
             [attr.aria-selected]="selection.has(row.entry.path)"
             [attr.data-testid]="'entry-' + row.entry.name"
             [tabIndex]="i === activeIndex() ? 0 : -1"
-            (click)="select(row.entry)"
+            (click)="onRowClick($event, row.entry)"
+            (dragstart)="onDragStart($event, row.entry)"
+            (dragend)="onDragEnd()"
             (dblclick)="onDblClick($event, row.entry)"
             (keydown)="onRowKeydown($event, i)"
           >

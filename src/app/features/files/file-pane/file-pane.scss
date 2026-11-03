@@ -47,6 +47,11 @@
 .scroll {
   block-size: 100%;
   overflow: auto;
+  border-radius: var(--tui-radius-s);
+
+  &._drop {
+    box-shadow: inset 0 0 0 2px var(--tui-border-focus);
+  }
 }
 
 .table {
@@ -74,6 +79,8 @@
 .row {
   cursor: default;
   outline: none;
+  /* Shift-click extends the selection; it must not select the text of the rows in between. */
+  user-select: none;
 
   &:hover > td,
   &._menu > td {
@@ -82,6 +89,10 @@
 
   &._selected > td {
     background: var(--tui-service-selection-background);
+  }
+
+  &._drop > td {
+    background: var(--tui-status-info-pale-hover);
   }
 
   &:focus-visible > td {

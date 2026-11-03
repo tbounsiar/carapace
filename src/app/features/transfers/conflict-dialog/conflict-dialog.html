@@ -1,0 +1,48 @@
+<div tuiNotification appearance="warning" size="s">
+  <span class="mono" data-testid="conflict-name">{{ name }}</span> already exists in the destination
+  folder.
+</div>
+
+<dl>
+  <dt>Destination</dt>
+  <dd class="mono" data-testid="conflict-path">{{ conflict.path }}</dd>
+  <dt>Existing</dt>
+  <dd data-testid="conflict-existing">{{ existing }}</dd>
+  <dt>Incoming</dt>
+  <dd data-testid="conflict-incoming">{{ incoming }}</dd>
+</dl>
+
+<label class="all">
+  <input tuiCheckbox type="checkbox" data-testid="conflict-all" [formControl]="applyToAll" />
+  Apply to all remaining conflicts in this transfer
+</label>
+
+<footer>
+  <button
+    tuiButton
+    appearance="flat-destructive"
+    type="button"
+    data-testid="conflict-overwrite"
+    (click)="answer('overwrite')"
+  >
+    Overwrite
+  </button>
+  <button
+    tuiButton
+    appearance="secondary"
+    type="button"
+    data-testid="conflict-skip"
+    (click)="answer('skip')"
+  >
+    Skip
+  </button>
+  <button
+    tuiButton
+    tuiAutoFocus
+    type="button"
+    data-testid="conflict-rename"
+    (click)="answer('rename')"
+  >
+    Keep both
+  </button>
+</footer>

@@ -25,11 +25,12 @@ import {
   TuiNotification,
   TuiNotificationService,
 } from '@taiga-ui/core';
-import { TuiBreadcrumbs } from '@taiga-ui/kit';
+import { TuiBadge, TuiBreadcrumbs } from '@taiga-ui/kit';
 import type { FileEntry, FileSource, Listing } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { notifyError } from '../../project-tree/save-error';
 import { FileDialogs } from '../file-dialogs';
+import { DRAG_PLACEHOLDER, DRAG_TYPE, FileDrag } from '../file-drag';
 import {
   compareEntries,
   formatModified,
@@ -51,6 +52,12 @@ interface Row {
   modified: string;
 }
 
+/** Paths to copy and the directory they go into. */
+export interface PaneTransfer {
+  readonly sources: readonly string[];
+  readonly targetDir: string;
+}
+
 interface NavigateOptions {
   select?: string | null;
   focus?: boolean;
@@ -66,6 +73,7 @@ const SORTERS = Object.fromEntries(
 
 @Component({
   imports: [
+    TuiBadge,
     TuiBreadcrumbs,
     TuiButton,
     TuiDataList,
@@ -86,12 +94,21 @@ export class FilePane {
   private readonly dialogs = inject(FileDialogs);
   private readonly alerts = inject(TuiNotificationService);
   private readonly injector = inject(Injector);
+  private readonly drag = inject(FileDrag);
 
   readonly source = input.required<FileSource>();
   readonly label = input.required<string>();
   /** Where to start; the home directory when null or when it can't be listed. */
   readonly startPath = input<string | null>(null);
+  /** The other pane's directory; null when transfers to it are not possible. */
+  readonly transferTarget = input<string | null>(null);
+  /** Per listed directory, a counter bumped when something was written into it. */
+  readonly revisions = input<ReadonlyMap<string, number>>(new Map());
   readonly pathChange = output<string>();
+  /** Selected entries to copy into `transferTarget`. */
+  readonly send = output<PaneTransfer>();
+  /** Entries dropped from the other pane into this one. */
+  readonly receive = output<PaneTransfer>();
 
   protected readonly sorters = SORTERS;
   protected readonly selection = new FileSelection();
@@ -102,6 +119,7 @@ export class FilePane {
   protected readonly sortKey = signal<SortKey>('name');
   protected readonly direction = signal<SortDirection>(1);
   protected readonly openMenu = signal<string | null>(null);
+  private readonly dropTarget = signal<string | null>(null);
 
   private readonly rowElements = viewChildren<ElementRef<HTMLElement>>('row');
   private sequence = 0;
@@ -132,6 +150,21 @@ export class FilePane {
       modified: formatModified(entry.modified),
     })),
   );
+  protected readonly transferLabel = computed(() =>
+    this.side() === 'local' ? 'Upload to remote' : 'Download to local',
+  );
+  protected readonly canSend = computed(
+    () => this.transferTarget() !== null && this.selection.count() > 0,
+  );
+  protected readonly activeDrop = computed(() => (this.drag.current() ? this.dropTarget() : null));
+  private readonly revision = computed(
+    () => {
+      const path = this.path();
+      return path === null ? null : { path, count: this.revisions().get(path) ?? 0 };
+    },
+    { equal: (a, b) => a?.path === b?.path && a?.count === b?.count },
+  );
+  private lastRevision: { path: string; count: number } | null = null;
   protected readonly hiddenCount = computed(
     () => this.listing()?.entries.filter((e) => e.hidden).length ?? 0,
   );
@@ -147,6 +180,14 @@ export class FilePane {
       const start = untracked(this.startPath);
       untracked(() => void this.start(source, start));
     });
+    effect(() => {
+      const current = this.revision();
+      const last = this.lastRevision;
+      this.lastRevision = current;
+      if (current && last && current.path === last.path && current.count !== last.count) {
+        untracked(() => this.refresh());
+      }
+    });
   }
 
   protected navigate(path: string, options: NavigateOptions = {}): Promise<void> {
@@ -156,7 +197,7 @@ export class FilePane {
   protected refresh(): void {
     const path = this.path();
     if (path !== null) {
-      void this.navigate(path, { select: this.selection.primary() });
+      void this.navigate(path);
     }
   }
 
@@ -181,6 +222,93 @@ export class FilePane {
     this.selection.select(entry.path);
   }
 
+  protected onRowClick(event: MouseEvent, entry: FileEntry): void {
+    if (event.target instanceof Element && event.target.closest('button')) {
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
+      this.selection.toggle(entry.path);
+    } else if (event.shiftKey) {
+      this.selection.range(this.orderedPaths(), entry.path);
+    } else {
+      this.selection.select(entry.path);
+    }
+  }
+
+  protected sendSelection(): void {
+    const targetDir = this.transferTarget();
+    if (targetDir !== null && this.selection.count() > 0) {
+      this.send.emit({ sources: this.selectedInOrder(), targetDir });
+    }
+  }
+
+  protected onDragStart(event: DragEvent, entry: FileEntry): void {
+    if (!this.selection.has(entry.path)) {
+      this.selection.select(entry.path);
+    }
+    const paths = this.selectedInOrder();
+    if (event.dataTransfer) {
+      event.dataTransfer.setData(DRAG_TYPE, DRAG_PLACEHOLDER);
+      event.dataTransfer.effectAllowed = 'copy';
+    }
+    this.drag.start({ side: this.side(), paths });
+  }
+
+  protected onDragEnd(): void {
+    this.drag.end();
+  }
+
+  protected onDragOver(event: DragEvent): void {
+    const target = this.dropTargetOf(event);
+    if (target === null) {
+      return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+    this.dropTarget.set(target);
+  }
+
+  protected onDragLeave(event: DragEvent): void {
+    const container = event.currentTarget as HTMLElement;
+    if (!(event.relatedTarget instanceof Node && container.contains(event.relatedTarget))) {
+      this.dropTarget.set(null);
+    }
+  }
+
+  protected onDrop(event: DragEvent): void {
+    const target = this.dropTargetOf(event);
+    const files = this.drag.current();
+    this.dropTarget.set(null);
+    if (target === null || !files) {
+      return;
+    }
+    event.preventDefault();
+    this.drag.end();
+    this.receive.emit({ sources: files.paths, targetDir: target });
+  }
+
+  /** Only drags from the other pane are accepted: same-side copies are not transfers. */
+  private dropTargetOf(event: DragEvent): string | null {
+    const files = this.drag.current();
+    const path = this.path();
+    if (!files || files.side === this.side() || path === null) {
+      return null;
+    }
+    const row =
+      event.target instanceof Element ? event.target.closest<HTMLElement>('[data-drop-dir]') : null;
+    return row?.dataset['dropDir'] ?? path;
+  }
+
+  private orderedPaths(): string[] {
+    return this.rows().map((r) => r.entry.path);
+  }
+
+  private selectedInOrder(): string[] {
+    return this.orderedPaths().filter((p) => this.selection.has(p));
+  }
+
   protected open(entry: FileEntry, focus = false): void {
     if (isOpenable(entry)) {
       void this.navigate(entry.path, { focus });
@@ -194,7 +322,15 @@ export class FilePane {
   }
 
   protected onRowKeydown(event: KeyboardEvent, index: number): void {
-    if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey) {
+    if (event.target !== event.currentTarget || event.altKey) {
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+      event.preventDefault();
+      this.selection.selectAll(this.orderedPaths());
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
       return;
     }
     const rows = this.rows();
@@ -240,7 +376,7 @@ export class FilePane {
 
   protected setMenu(entry: FileEntry, open: boolean): void {
     this.openMenu.set(open ? entry.path : null);
-    if (open) {
+    if (open && !this.selection.has(entry.path)) {
       this.select(entry);
     }
   }
