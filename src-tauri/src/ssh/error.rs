@@ -28,6 +28,10 @@ pub enum SshError {
     Network,
     #[error("could not read or write a local file")]
     Io,
+    #[error(
+        "Could not read ~/.ssh/known_hosts to verify the host key: {0}. Fix or move that file, then retry."
+    )]
+    UserKnownHostsUnreadable(std::io::ErrorKind),
 }
 
 impl SshError {
@@ -44,7 +48,7 @@ impl SshError {
             Self::KeychainUnavailable => "keychain_unavailable",
             Self::Timeout => "timeout",
             Self::Network => "network",
-            Self::Io => "io",
+            Self::Io | Self::UserKnownHostsUnreadable(_) => "io",
         }
     }
 }

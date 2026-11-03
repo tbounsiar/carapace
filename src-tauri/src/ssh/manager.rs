@@ -179,6 +179,7 @@ enum Rejection {
     Changed,
     Revoked,
     Io,
+    UserKnownHostsUnreadable(std::io::ErrorKind),
 }
 
 #[derive(Default)]
@@ -204,6 +205,9 @@ impl Shared {
             Some(Rejection::Changed) => SshError::HostKeyChanged,
             Some(Rejection::Revoked) => SshError::HostKeyRevoked,
             Some(Rejection::Io) => SshError::Io,
+            Some(Rejection::UserKnownHostsUnreadable(kind)) => {
+                SshError::UserKnownHostsUnreadable(kind)
+            }
             None => SshError::Network,
         }
     }
@@ -319,6 +323,11 @@ impl client::Handler for ClientHandler {
         };
         let status = match self.known_hosts.check(&self.hostname, self.port, &key) {
             Ok(status) => status,
+            Err(SshError::UserKnownHostsUnreadable(kind)) => {
+                self.shared
+                    .reject(Rejection::UserKnownHostsUnreadable(kind));
+                return Ok(false);
+            }
             Err(_) => {
                 self.shared.reject(Rejection::Io);
                 return Ok(false);

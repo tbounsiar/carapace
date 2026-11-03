@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 use crate::vars::is_valid_name;
 
@@ -175,13 +176,15 @@ struct SavedIn {
     secret: SecretString,
 }
 
+/// The buffer is reserved for the worst case (every byte escaped as `\u00XX`) so it never
+/// reallocates and leaves a copy of the secret behind; the final copy has the exact length,
+/// so the `SecretString` conversion does not reallocate either.
 fn encode_saved(target: &str, value: &SecretString) -> Option<SecretString> {
-    serde_json::to_string(&SavedOut {
-        target,
-        secret: value.expose_secret(),
-    })
-    .ok()
-    .map(SecretString::from)
+    let secret = value.expose_secret();
+    let mut buf = Zeroizing::new(Vec::with_capacity((target.len() + secret.len()) * 6 + 64));
+    serde_json::to_writer(&mut *buf, &SavedOut { target, secret }).ok()?;
+    let exact: Box<str> = std::str::from_utf8(&buf).ok()?.into();
+    Some(SecretString::from(exact))
 }
 
 /// Whether `value`, bound to `target`, fits in one keychain entry.
@@ -589,6 +592,24 @@ mod tests {
         );
         assert!(store.get_saved(&k, pw, "me@b:22").unwrap().is_none());
         assert!(mem.accounts().is_empty());
+    }
+
+    #[test]
+    fn saved_secret_with_escaped_characters_round_trips() {
+        let (store, _) = MemoryBackend::store();
+        let k = SavedKey::new(H, None).unwrap();
+        let tricky = "\"\\\u{1}\u{1f}\n\té😀";
+        let target = "me@\"h\":22";
+        store
+            .set_saved(&k, SecretKind::Password, target, &s(tricky))
+            .unwrap();
+        assert_eq!(
+            expose(store.get_saved(&k, SecretKind::Password, target).unwrap()).as_deref(),
+            Some(tricky)
+        );
+        let worst = "\u{1}".repeat(200);
+        let encoded = encode_saved(&worst, &s(&worst)).unwrap();
+        assert_eq!(encoded.expose_secret().len(), 2 * 200 * 6 + 25);
     }
 
     #[test]

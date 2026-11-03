@@ -114,6 +114,10 @@ mod tests {
             (SshError::Timeout, "timeout"),
             (SshError::Network, "network"),
             (SshError::Io, "io"),
+            (
+                SshError::UserKnownHostsUnreadable(std::io::ErrorKind::PermissionDenied),
+                "io",
+            ),
         ];
         for (err, code) in cases {
             assert_eq!(CommandError::from(err).code, code);

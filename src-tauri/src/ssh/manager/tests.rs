@@ -252,6 +252,37 @@ async fn revoked_key_fails_without_prompt_or_replace() {
 }
 
 #[tokio::test]
+async fn unreadable_user_known_hosts_fails_without_prompt() {
+    let server = start_server(21).await;
+    let env = env(server.port, Duration::from_secs(10), key_auth);
+    std::fs::create_dir(env._dir.path().join("user_known_hosts")).unwrap();
+    let (task, mut rx) = start_connect(&env);
+    let err = task.await.unwrap().unwrap_err();
+    assert!(matches!(err, SshError::UserKnownHostsUnreadable(_)));
+    assert_eq!(err.code(), "io");
+    assert_no_prompt(&mut rx);
+    assert!(!env.app_known_hosts.exists());
+    assert!(env.manager.list().await.is_empty());
+}
+
+#[tokio::test]
+async fn user_known_hosts_with_a_bad_line_still_reports_a_changed_key() {
+    let server = start_server(22).await;
+    let env = env(server.port, Duration::from_secs(10), key_auth);
+    let old = ed25519(78).public_key().to_openssh().unwrap();
+    let mut content = b"\xff\xfe not utf-8\n".to_vec();
+    content.extend_from_slice(format!("[127.0.0.1]:{} {old}\n", server.port).as_bytes());
+    std::fs::write(env._dir.path().join("user_known_hosts"), content).unwrap();
+    let (task, mut rx) = start_connect(&env);
+    assert_eq!(task.await.unwrap().unwrap_err(), SshError::HostKeyChanged);
+    assert!(
+        !drain(&mut rx)
+            .iter()
+            .any(|e| matches!(e, ConnectEvent::HostKeyPrompt { .. }))
+    );
+}
+
+#[tokio::test]
 async fn orphaned_prompt_answered_after_connect_ended_writes_nothing() {
     let server = start_server(6).await;
     let env = env(server.port, Duration::from_secs(10), key_auth);

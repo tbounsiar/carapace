@@ -5,7 +5,6 @@ use std::sync::Mutex;
 
 use data_encoding::BASE64_MIME;
 use hmac::{Hmac, KeyInit, Mac};
-use russh::keys::known_hosts::known_host_keys_path;
 use russh::keys::parse_public_key_base64;
 use russh::keys::ssh_key::{HashAlg, PublicKey};
 use sha1::Sha1;
@@ -54,23 +53,22 @@ impl KnownHosts {
         }
     }
 
+    /// A file that cannot be read fails the check: treating it as empty would turn a changed
+    /// key into an unknown one and offer the routine accept prompt.
     pub fn check(&self, host: &str, port: u16, key: &PublicKey) -> Result<HostKeyStatus, SshError> {
-        let host = host.to_lowercase();
-        let user_file = self.user_file.as_deref();
-        // An unreadable user file fails closed for lookups (host counts as unknown).
-        if is_revoked(&self.app_file, &host, port, key).map_err(|_| SshError::Io)?
-            || user_file.is_some_and(|p| is_revoked(p, &host, port, key).unwrap_or(false))
-        {
+        let target = host_pattern(host, port);
+        let app = read_lines(&self.app_file).map_err(|_| SshError::Io)?;
+        let user = match self.user_file.as_deref() {
+            Some(p) => read_lines(p).map_err(|e| SshError::UserKnownHostsUnreadable(e.kind()))?,
+            None => Vec::new(),
+        };
+        if is_revoked(&app, &target, key) || is_revoked(&user, &target, key) {
             return Ok(HostKeyStatus::Revoked);
         }
-        let app = known_host_keys_path(&host, port, &self.app_file).map_err(|_| SshError::Io)?;
-        if let Some(status) = classify(&app, key) {
+        if let Some(status) = classify(&host_keys(&app, &target), key) {
             return Ok(status);
         }
-        let user = user_file
-            .and_then(|p| known_host_keys_path(&host, port, p).ok())
-            .unwrap_or_default();
-        Ok(classify(&user, key).unwrap_or(HostKeyStatus::Unknown))
+        Ok(classify(&host_keys(&user, &target), key).unwrap_or(HostKeyStatus::Unknown))
     }
 
     /// Replaces any app-file entry for the same host and algorithm, then appends the new key.
@@ -97,53 +95,92 @@ impl KnownHosts {
     }
 }
 
-fn classify(entries: &[(usize, PublicKey)], key: &PublicKey) -> Option<HostKeyStatus> {
-    if entries.iter().any(|(_, k)| same_key(k, key)) {
+fn classify(entries: &[PublicKey], key: &PublicKey) -> Option<HostKeyStatus> {
+    if entries.iter().any(|k| same_key(k, key)) {
         return Some(HostKeyStatus::Known);
     }
     if entries.is_empty() {
         return None;
     }
     Some(HostKeyStatus::Changed {
-        known_fingerprints: entries.iter().map(|(_, k)| fingerprint(k)).collect(),
+        known_fingerprints: entries.iter().map(fingerprint).collect(),
     })
 }
 
-fn is_revoked(file: &Path, host: &str, port: u16, key: &PublicKey) -> std::io::Result<bool> {
-    let content = match fs::read_to_string(file) {
-        Ok(c) => c,
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(false),
+/// A missing file has no lines; any other read error is returned. Lines that are not UTF-8
+/// are skipped, like OpenSSH skips lines it cannot parse.
+fn read_lines(file: &Path) -> std::io::Result<Vec<String>> {
+    let bytes = match fs::read(file) {
+        Ok(b) => b,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(e),
     };
-    let target = host_pattern(host, port);
-    Ok(content.lines().any(|line| {
-        let Some(rest) = line.trim_start().strip_prefix("@revoked") else {
-            return false;
-        };
-        if !rest.starts_with(char::is_whitespace) {
-            return false;
-        }
-        let mut fields = rest.split_whitespace();
-        let (Some(hosts), Some(_), Some(blob)) = (fields.next(), fields.next(), fields.next())
-        else {
-            return false;
-        };
-        hosts.split(',').any(|h| host_matches(&target, h))
-            && parse_public_key_base64(blob).is_ok_and(|k| same_key(&k, key))
-    }))
+    Ok(bytes
+        .split(|b| *b == b'\n')
+        .filter_map(|line| std::str::from_utf8(line).ok())
+        .map(|line| line.trim().to_owned())
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect())
 }
 
+/// `(marker, hosts, key blob)` of an entry line; the key type field is not needed.
+fn fields(line: &str) -> Option<(Option<&str>, &str, &str)> {
+    let mut parts = line.split_whitespace();
+    let first = parts.next()?;
+    let (marker, hosts) = match first.strip_prefix('@') {
+        Some(marker) => (Some(marker), parts.next()?),
+        None => (None, first),
+    };
+    let _key_type = parts.next()?;
+    Some((marker, hosts, parts.next()?))
+}
+
+/// Plain entries only: marker lines (`@cert-authority`, `@revoked`) never make a host known.
+/// An entry whose key does not parse is skipped.
+fn host_keys(lines: &[String], target: &str) -> Vec<PublicKey> {
+    lines
+        .iter()
+        .filter_map(|line| match fields(line)? {
+            (None, hosts, blob) if hosts.split(',').any(|h| host_equals(target, h)) => {
+                parse_public_key_base64(blob).ok()
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn is_revoked(lines: &[String], target: &str, key: &PublicKey) -> bool {
+    lines.iter().any(|line| {
+        matches!(fields(line), Some((Some("revoked"), hosts, blob))
+            if hosts.split(',').any(|h| host_matches(target, h))
+                && parse_public_key_base64(blob).is_ok_and(|k| same_key(&k, key)))
+    })
+}
+
+fn hashed_matches(target: &str, hashed: &str) -> bool {
+    let mut parts = hashed.split('|');
+    let (Some(Ok(salt)), Some(Ok(hash))) = (
+        parts.next().map(|p| BASE64_MIME.decode(p.as_bytes())),
+        parts.next().map(|p| BASE64_MIME.decode(p.as_bytes())),
+    ) else {
+        return false;
+    };
+    Hmac::<Sha1>::new_from_slice(&salt)
+        .is_ok_and(|m| m.chain_update(target).verify_slice(&hash).is_ok())
+}
+
+/// Lookup matching: exact (case-insensitive) or hashed, no wildcards.
+fn host_equals(target: &str, entry: &str) -> bool {
+    match entry.strip_prefix("|1|") {
+        Some(hashed) => hashed_matches(target, hashed),
+        None => entry.eq_ignore_ascii_case(target),
+    }
+}
+
+/// Revocation matching, broader on purpose: wildcards too; `!` entries are ignored.
 fn host_matches(target: &str, entry: &str) -> bool {
     if let Some(hashed) = entry.strip_prefix("|1|") {
-        let mut parts = hashed.split('|');
-        let (Some(Ok(salt)), Some(Ok(hash))) = (
-            parts.next().map(|p| BASE64_MIME.decode(p.as_bytes())),
-            parts.next().map(|p| BASE64_MIME.decode(p.as_bytes())),
-        ) else {
-            return false;
-        };
-        return Hmac::<Sha1>::new_from_slice(&salt)
-            .is_ok_and(|m| m.chain_update(target).verify_slice(&hash).is_ok());
+        return hashed_matches(target, hashed);
     }
     !entry.starts_with('!') && glob(entry.to_lowercase().as_bytes(), target.as_bytes())
 }
@@ -472,6 +509,56 @@ mod tests {
         assert_eq!(
             fs::read_to_string(&f.app).unwrap(),
             format!("[host]:2222 ssh-ed25519 {ED_A}\n")
+        );
+    }
+
+    #[test]
+    fn unreadable_user_file_fails_the_check() {
+        let f = fixture("", "");
+        fs::remove_file(&f.user).unwrap();
+        fs::create_dir(&f.user).unwrap();
+        let err = f.hosts.check("h", 22, &key(ED_A)).unwrap_err();
+        assert!(matches!(err, SshError::UserKnownHostsUnreadable(_)));
+        assert_eq!(err.code(), "io");
+        assert!(err.to_string().contains("~/.ssh/known_hosts"));
+    }
+
+    #[test]
+    fn unreadable_app_file_fails_the_check() {
+        let f = fixture("", "");
+        fs::create_dir_all(&f.app).unwrap();
+        assert_eq!(
+            f.hosts.check("h", 22, &key(ED_A)).unwrap_err(),
+            SshError::Io
+        );
+    }
+
+    #[test]
+    fn missing_user_file_has_no_entries() {
+        let f = fixture("", "");
+        fs::remove_file(&f.user).unwrap();
+        assert_eq!(
+            f.hosts.check("h", 22, &key(ED_A)).unwrap(),
+            HostKeyStatus::Unknown
+        );
+    }
+
+    #[test]
+    fn bad_lines_are_skipped_and_the_rest_still_counts() {
+        let f = fixture("", "");
+        let mut content = b"bad \xff\xfe line\n".to_vec();
+        content.extend_from_slice(b"h ssh-ed25519 not-base64\n");
+        content.extend_from_slice(format!("h\tssh-ed25519   {ED_B}\r\n").as_bytes());
+        fs::write(&f.user, content).unwrap();
+        assert_eq!(
+            f.hosts.check("h", 22, &key(ED_A)).unwrap(),
+            HostKeyStatus::Changed {
+                known_fingerprints: vec![fingerprint(&key(ED_B))]
+            }
+        );
+        assert_eq!(
+            f.hosts.check("h", 22, &key(ED_B)).unwrap(),
+            HostKeyStatus::Known
         );
     }
 
