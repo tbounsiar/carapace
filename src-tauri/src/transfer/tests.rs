@@ -1121,3 +1121,51 @@ fn same_file_compares_handles() {
     assert!(same_file(&open(&a), &open(&a)));
     assert!(!same_file(&open(&a), &open(&b)));
 }
+
+#[tokio::test]
+async fn the_observer_sees_each_finished_job_once() {
+    let server = start_server(47).await;
+    let ssh = manager_for(&server, CONN);
+    ssh.connect().await.unwrap();
+    let conns = Arc::new(TestConns {
+        ssh,
+        sftp: SftpManager::default(),
+    });
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let m = TransferManager::with_observer(
+        conns,
+        Arc::new(move |v: &TransferView| {
+            let _ = tx.send(v.clone());
+        }),
+    );
+    let local = tempfile::tempdir().unwrap();
+    fs::write(local.path().join("a.txt"), b"hi").unwrap();
+    let ids = m
+        .enqueue(EnqueueRequest {
+            connection_id: CONN.into(),
+            direction: Direction::Upload,
+            sources: vec![s(&local.path().join("a.txt"))],
+            target_dir: HOME.into(),
+            conflict: ConflictPolicy::Overwrite,
+        })
+        .await
+        .unwrap();
+    let v = timeout(Duration::from_secs(10), rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (v.id.as_str(), v.state),
+        (ids[0].as_str(), TransferState::Done)
+    );
+    let event = crate::commands::transfer::finished_event(&v).unwrap();
+    assert_eq!(
+        serde_json::to_value(event.props()).unwrap(),
+        serde_json::json!({"direction": "upload", "outcome": "done", "files": "1"})
+    );
+    assert!(
+        timeout(Duration::from_millis(200), rx.recv())
+            .await
+            .is_err()
+    );
+}

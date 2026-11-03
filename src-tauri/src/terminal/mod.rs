@@ -2,4 +2,4 @@ mod error;
 mod manager;
 
 pub use error::TerminalError;
-pub use manager::{TerminalEvent, TerminalManager};
+pub use manager::{Emit, TerminalEvent, TerminalManager};

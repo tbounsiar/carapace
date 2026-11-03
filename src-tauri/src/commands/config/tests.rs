@@ -1007,3 +1007,52 @@ mod races {
         .await;
     }
 }
+
+mod analytics_events {
+    use super::*;
+    use crate::analytics::Analytics;
+    use serde_json::json;
+
+    #[test]
+    fn host_created_carries_the_auth_kind_only() {
+        let w = world();
+        let a = Analytics::granted_for_tests();
+        let p = w.store.create_project("Secret project").unwrap().id;
+        create_host_in(&w.store, &a, Some(p), None, &host_input("prod-db")).unwrap();
+        let mut agent = host_input("other");
+        agent.auth = AuthMethod::Agent;
+        create_host_in(&w.store, &a, None, None, &agent).unwrap();
+        assert!(create_host_in(&w.store, &a, None, None, &agent).is_err());
+        assert_eq!(
+            a.recorded(),
+            [
+                ("host_created", json!({"auth": "password"})),
+                ("host_created", json!({"auth": "agent"})),
+            ]
+        );
+    }
+
+    #[test]
+    fn variables_saved_carries_the_scope_and_a_bucket() {
+        let w = world();
+        let a = Analytics::granted_for_tests();
+        let p = w.store.create_project("p").unwrap().id;
+        let vars = (0..7).map(|i| plain(&format!("v{i}"), "x")).collect();
+        set_variables_in(&w.store, &w.secrets, &a, &VariableScope::Global, vars).unwrap();
+        let project = VariableScope::Project { project_id: p };
+        set_variables_in(&w.store, &w.secrets, &a, &project, vec![]).unwrap();
+        assert!(
+            set_variables_in(&w.store, &w.secrets, &a, &project, vec![plain("1bad", "x")]).is_err()
+        );
+        assert_eq!(
+            a.recorded(),
+            [
+                (
+                    "variables_saved",
+                    json!({"scope": "global", "count": "6-20"})
+                ),
+                ("variables_saved", json!({"scope": "project", "count": "0"})),
+            ]
+        );
+    }
+}

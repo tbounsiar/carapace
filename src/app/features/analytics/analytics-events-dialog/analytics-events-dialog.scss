@@ -1,0 +1,45 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-padding-l);
+}
+
+.text {
+  margin: 0;
+}
+
+.note {
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mono {
+  font-family: var(--app-font-mono);
+}
+
+.session {
+  overflow-wrap: anywhere;
+}
+
+.scroll {
+  max-block-size: 20rem;
+}
+
+.table {
+  inline-size: 100%;
+}
+
+.col-time {
+  inline-size: 6rem;
+}
+
+footer {
+  display: flex;
+  justify-content: flex-end;
+}

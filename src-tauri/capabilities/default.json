@@ -55,6 +55,11 @@
     "allow-rename-key",
     "allow-delete-key",
     "allow-forget-key-passphrase",
-    "allow-deploy-public-key"
+    "allow-deploy-public-key",
+    "allow-analytics-state",
+    "allow-set-analytics-consent",
+    "allow-analytics-recent",
+    "allow-analytics-app-started",
+    "allow-open-privacy-page"
   ]
 }

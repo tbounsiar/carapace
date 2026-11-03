@@ -464,3 +464,248 @@ mod test_registration {
         assert_eq!(after.unwrap_err().code, "missing_variables");
     }
 }
+
+mod analytics_events {
+    use std::sync::Arc;
+
+    use secrecy::SecretString;
+    use serde_json::json;
+
+    use super::*;
+    use crate::analytics::{ATTEMPT_TTL, Analytics};
+    use crate::sftp::SftpManager;
+    use crate::ssh::Emit;
+    use crate::ssh::test_server::{SERVER_PASSWORD, manager_for, start_server};
+    use crate::ssh::test_sftp::HOME;
+    use crate::terminal::TerminalManager;
+
+    fn on_port(w: &World, port: u16) {
+        set(
+            &w.store,
+            VariableScope::Project {
+                project_id: w.project.clone(),
+            },
+            &[
+                ("host", "127.0.0.1"),
+                ("port", &port.to_string()),
+                ("pw", ""),
+            ],
+        );
+    }
+
+    fn typed(secret: &str) -> Option<Credential> {
+        Some(Credential {
+            secret: SecretString::from(secret),
+            remember: false,
+        })
+    }
+
+    fn quiet() -> Emit {
+        Arc::new(|_| {})
+    }
+
+    #[tokio::test]
+    async fn a_connect_through_the_prompt_loop_counts_once() {
+        let server = start_server(51).await;
+        let ssh = manager_for(&server, "unused");
+        let w = world(pw_ref());
+        on_port(&w, server.port);
+        let a = Analytics::granted_for_tests();
+        let run = |credential| connect_in(&w.store, &ssh.manager, &a, &w.host, credential, quiet());
+
+        assert_eq!(run(None).await.unwrap_err().code, "secret_required");
+        assert_eq!(run(typed("wrong")).await.unwrap_err().code, "auth_failed");
+        run(typed(SERVER_PASSWORD)).await.unwrap();
+        run(None).await.unwrap();
+        assert_eq!(
+            a.recorded(),
+            [(
+                "connect_succeeded",
+                json!({"auth": "password", "duration": "<1s"})
+            )]
+        );
+
+        let sftp = SftpManager::default();
+        let list = |path: &'static str| {
+            crate::commands::sftp::list_in(&ssh.manager, &sftp, &a, &w.host, path)
+        };
+        list(HOME).await.unwrap();
+        list(HOME).await.unwrap();
+        let terminals = TerminalManager::default();
+        crate::commands::terminal::open_in(
+            &ssh.manager,
+            &terminals,
+            &a,
+            &w.host,
+            80,
+            24,
+            Arc::new(|_| true),
+        )
+        .await
+        .unwrap();
+        assert!(
+            crate::commands::terminal::open_in(
+                &ssh.manager,
+                &terminals,
+                &a,
+                "nope",
+                80,
+                24,
+                Arc::new(|_| true)
+            )
+            .await
+            .is_err()
+        );
+        let names: Vec<_> = a.recorded().iter().map(|(n, _)| *n).collect();
+        assert_eq!(
+            names,
+            ["connect_succeeded", "files_opened", "terminal_opened"]
+        );
+        terminals.close_all();
+
+        ssh.manager.disconnect(&w.host).await.unwrap();
+        assert_eq!(run(None).await.unwrap_err().code, "secret_required");
+        assert_eq!(a.recorded().len(), 3);
+        assert_eq!(run(None).await.unwrap_err().code, "secret_required");
+        assert_eq!(
+            a.recorded()[3],
+            (
+                "connect_failed",
+                json!({"auth": "password", "code": "secret_required"})
+            )
+        );
+        a.expire_attempts(ATTEMPT_TTL);
+        assert_eq!(a.recorded().len(), 4);
+        a.expire_attempts(std::time::Duration::ZERO);
+        assert_eq!(a.recorded().len(), 5);
+
+        run(typed(SERVER_PASSWORD)).await.unwrap();
+        list(HOME).await.unwrap();
+        let names: Vec<_> = a.recorded().iter().map(|(n, _)| *n).collect();
+        assert_eq!(&names[5..], ["connect_succeeded", "files_opened"]);
+    }
+
+    #[tokio::test]
+    async fn a_failure_that_asks_nothing_is_reported_at_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let ssh = crate::ssh::test_server::isolated_manager(dir.path());
+        let w = world(pw_ref());
+        on_port(&w, 1);
+        let a = Analytics::granted_for_tests();
+        let e = connect_in(&w.store, &ssh, &a, &w.host, typed("x"), quiet())
+            .await
+            .unwrap_err();
+        assert_eq!(e.code, "network");
+        set(
+            &w.store,
+            VariableScope::Project {
+                project_id: w.project.clone(),
+            },
+            &[("port", "1")],
+        );
+        let e = connect_in(&w.store, &ssh, &a, &w.host, None, quiet())
+            .await
+            .unwrap_err();
+        assert_eq!(e.code, "missing_variables");
+        assert!(
+            connect_in(&w.store, &ssh, &a, "unknown-host", None, quiet())
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            a.recorded(),
+            [
+                (
+                    "connect_failed",
+                    json!({"auth": "password", "code": "network"})
+                ),
+                (
+                    "connect_failed",
+                    json!({"auth": "password", "code": "missing_variables"})
+                ),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn host_tests_count_one_result_per_run() {
+        let server = start_server(52).await;
+        let ssh = manager_for(&server, "unused");
+        let w = world(pw_ref());
+        on_port(&w, server.port);
+        let a = Analytics::granted_for_tests();
+        let project = Some(w.project.clone());
+        let host = draft(pw_ref());
+        let run = |credential, id: &'static str| {
+            test_observed(
+                &w.store,
+                &ssh.manager,
+                &a,
+                &host,
+                &project,
+                &None,
+                id,
+                quiet(),
+                credential,
+            )
+        };
+        assert_eq!(run(None, "t1").await.unwrap_err().code, "secret_required");
+        run(typed(SERVER_PASSWORD), "t2").await.unwrap();
+        assert_eq!(
+            run(typed("bad"), "t3").await.unwrap_err().code,
+            "auth_failed"
+        );
+        assert_eq!(run(None, "t4").await.unwrap_err().code, "secret_required");
+        on_port(&w, 1);
+        a.expire_attempts(std::time::Duration::ZERO);
+        assert_eq!(run(typed("x"), "t5").await.unwrap_err().code, "network");
+        assert_eq!(
+            a.recorded(),
+            [
+                ("host_test_run", json!({"result": "success"})),
+                ("host_test_run", json!({"result": "cancelled"})),
+                ("host_test_run", json!({"result": "cancelled"})),
+                (
+                    "host_test_run",
+                    json!({"result": "failure", "code": "network"})
+                ),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn nothing_is_observed_without_consent() {
+        let server = start_server(53).await;
+        let ssh = manager_for(&server, "unused");
+        let w = world(pw_ref());
+        on_port(&w, server.port);
+        let a = Analytics::new(None, crate::analytics::SystemProps::detect("0"), None);
+        connect_in(
+            &w.store,
+            &ssh.manager,
+            &a,
+            &w.host,
+            typed(SERVER_PASSWORD),
+            quiet(),
+        )
+        .await
+        .unwrap();
+        crate::commands::sftp::list_in(&ssh.manager, &SftpManager::default(), &a, &w.host, HOME)
+            .await
+            .unwrap();
+        a.expire_attempts(std::time::Duration::ZERO);
+        assert!(a.recent().events.is_empty());
+    }
+}
+
+#[test]
+fn host_test_attempts_are_keyed_by_saved_hosts_only() {
+    let w = world(pw_ref());
+    let key = |id: Option<&str>| test_attempt(&w.store, &id.map(str::to_owned));
+    assert_eq!(key(None), Some(Attempt::Test(String::new())));
+    assert_eq!(key(Some(&w.host)), Some(Attempt::Test(w.host.clone())));
+    let long = "x".repeat(MAX_TEST_ID_CHARS + 1);
+    for bad in ["", "  ", "not-a-host", long.as_str(), w.project.as_str()] {
+        assert_eq!(key(Some(bad)), None, "{bad}");
+    }
+}

@@ -1,0 +1,58 @@
+<p class="text">Carapace can send anonymous usage events to help decide what to improve.</p>
+
+<section class="group" aria-labelledby="consent-sent">
+  <h3 tuiTitle="s" id="consent-sent">Sent</h3>
+  <ul tuiList="m">
+    <li>Which features you use, like opening a terminal or a transfer finishing</li>
+    <li>App version, operating system and language</li>
+    <li>Error codes when a connection fails</li>
+  </ul>
+</section>
+
+<section class="group" aria-labelledby="consent-never">
+  <h3 tuiTitle="s" id="consent-never">Never sent</h3>
+  <ul tuiList="m">
+    <li>Host names, addresses, ports or usernames</li>
+    <li>File names, paths, keys or passwords</li>
+    <li>Names of your projects, hosts or variables</li>
+    <li>Error messages or anything you type</li>
+  </ul>
+</section>
+
+<p class="text">
+  There is no account and no tracking ID. You can change this any time in Settings.
+</p>
+<p class="text">
+  <button
+    tuiLink
+    type="button"
+    iconEnd="@tui.external-link"
+    data-testid="consent-privacy-link"
+    [textContent]="'How analytics work'"
+    (click)="openPolicy()"
+  ></button>
+</p>
+
+<footer>
+  <button
+    tuiButton
+    tuiAutoFocus
+    appearance="secondary"
+    size="m"
+    type="button"
+    data-testid="consent-decline"
+    (click)="context.completeWith(false)"
+  >
+    Don't share
+  </button>
+  <button
+    tuiButton
+    appearance="secondary"
+    size="m"
+    type="button"
+    data-testid="consent-share"
+    (click)="context.completeWith(true)"
+  >
+    Share usage data
+  </button>
+</footer>

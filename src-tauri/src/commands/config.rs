@@ -2,10 +2,12 @@ use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use super::analytics::auth_of;
 use super::error::CommandError;
 use super::resolve::{self, ResolvedView, required};
 use super::secrets::{check_secret, forget_legacy, forget_saved, forget_variables, secret_keys};
 use super::ssh::close_hosts;
+use crate::analytics::{Analytics, Count, Event, Scope};
 use crate::config::{
     ConfigStore, HostInput, Moved, Node, Project, Variable, VariableKind, VariableScope,
 };
@@ -362,10 +364,29 @@ pub async fn delete_project(
 pub async fn set_variables(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
+    analytics: State<'_, Analytics>,
     scope: VariableScope,
     variables: Vec<VariableInput>,
 ) -> Res<Vec<VariableView>> {
-    save_variables(&store, &secrets, &scope, variables)
+    set_variables_in(&store, &secrets, &analytics, &scope, variables)
+}
+
+pub(super) fn set_variables_in(
+    store: &ConfigStore,
+    secrets: &SecretStore,
+    analytics: &Analytics,
+    scope: &VariableScope,
+    variables: Vec<VariableInput>,
+) -> Res<Vec<VariableView>> {
+    let saved = save_variables(store, secrets, scope, variables)?;
+    analytics.record(Event::VariablesSaved {
+        scope: match scope {
+            VariableScope::Global => Scope::Global,
+            VariableScope::Project { .. } => Scope::Project,
+        },
+        count: Count::of(saved.len()),
+    });
+    Ok(saved)
 }
 
 #[tauri::command]
@@ -423,13 +444,28 @@ pub async fn move_node(
 #[tauri::command]
 pub async fn create_host(
     store: State<'_, ConfigStore>,
+    analytics: State<'_, Analytics>,
     project_id: Option<String>,
     parent_id: Option<String>,
     host: HostInput,
 ) -> Res<Node> {
+    create_host_in(&store, &analytics, project_id, parent_id, &host)
+}
+
+pub(super) fn create_host_in(
+    store: &ConfigStore,
+    analytics: &Analytics,
+    project_id: Option<String>,
+    parent_id: Option<String>,
+    host: &HostInput,
+) -> Res<Node> {
     let project_id = optional("projectId", &project_id)?;
     let parent_id = optional("parentId", &parent_id)?;
-    Ok(Node::Host(store.create_host(project_id, parent_id, &host)?))
+    let created = store.create_host(project_id, parent_id, host)?;
+    analytics.record(Event::HostCreated {
+        auth: auth_of(&created.auth),
+    });
+    Ok(Node::Host(created))
 }
 
 /// Saved connection secrets are bound to their resolved target, so an edit that changes the

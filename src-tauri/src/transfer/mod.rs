@@ -6,8 +6,10 @@ mod names;
 mod side;
 mod types;
 
-pub use manager::{Connections, RemoteFuture, TransferManager};
-pub use types::{ConflictPolicy, Decision, Direction, EnqueueRequest, TransferEvent, TransferView};
+pub use manager::{Connections, Finished, RemoteFuture, TransferManager};
+pub use types::{
+    ConflictPolicy, Decision, Direction, EnqueueRequest, TransferEvent, TransferState, TransferView,
+};
 
 #[cfg(test)]
 mod e2e_tests;

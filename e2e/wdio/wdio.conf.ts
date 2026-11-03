@@ -23,6 +23,17 @@ function emptyHome(): void {
     rmSync(join(home, entry), { recursive: true, force: true });
 }
 
+/**
+ * Specs that do not test analytics start with consent denied, so the first-launch consent dialog
+ * never covers them. Every other field defaults when missing.
+ */
+function seedDeclinedConfig(): void {
+  const home = homeDir();
+  if (!home) return;
+  const config = { version: 3, analytics: { consent: 'denied', catalogueVersion: 1 } };
+  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
+}
+
 /** A v2 config (the backend fixture) plus a host reaching the e2e sshd, for the migration spec. */
 function seedV2Config(): void {
   const home = homeDir();
@@ -134,6 +145,7 @@ export const config: WebdriverIO.Config = {
     emptyHome();
     if (specs.some((spec) => spec.includes('migration-v3'))) seedV3ConfigWithEnvironments();
     else if (specs.some((spec) => spec.includes('migration'))) seedV2Config();
+    else if (!specs.some((spec) => spec.includes('analytics'))) seedDeclinedConfig();
   },
   afterSession: emptyHome,
 

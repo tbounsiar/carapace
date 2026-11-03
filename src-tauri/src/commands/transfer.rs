@@ -4,11 +4,12 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 
 use super::error::CommandError;
+use crate::analytics::{Analytics, Event, Files, Outcome, TransferDirection};
 use crate::sftp::SftpManager;
 use crate::ssh::SshManager;
 use crate::transfer::{
-    ConflictPolicy, Connections, Decision, Direction, EnqueueRequest, RemoteFuture, TransferEvent,
-    TransferManager, TransferView,
+    ConflictPolicy, Connections, Decision, Direction, EnqueueRequest, Finished, RemoteFuture,
+    TransferEvent, TransferManager, TransferState, TransferView,
 };
 
 type Res<T> = Result<T, CommandError>;
@@ -24,6 +25,32 @@ impl Connections for AppConnections {
             sftp.channel(&ssh, connection_id).await
         })
     }
+}
+
+/// `transfer_finished` for a job that just ended.
+pub fn finished_event(view: &TransferView) -> Option<Event> {
+    let outcome = match view.state {
+        TransferState::Done => Outcome::Done,
+        TransferState::Failed => Outcome::Failed,
+        TransferState::Cancelled => Outcome::Cancelled,
+        _ => return None,
+    };
+    Some(Event::TransferFinished {
+        direction: match view.direction {
+            Direction::Upload => TransferDirection::Upload,
+            Direction::Download => TransferDirection::Download,
+        },
+        outcome,
+        files: Files::of(view.total_files.unwrap_or(view.done_files)),
+    })
+}
+
+pub fn observer(analytics: Analytics) -> Finished {
+    Arc::new(move |view| {
+        if let Some(event) = finished_event(view) {
+            analytics.record(event);
+        }
+    })
 }
 
 fn required(name: &str, value: &str) -> Res<()> {
@@ -91,6 +118,42 @@ pub fn clear_finished_transfers(transfers: State<'_, TransferManager>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn view(state: TransferState, total: Option<u64>, done: u64) -> TransferView {
+        TransferView {
+            id: "j".into(),
+            connection_id: "c".into(),
+            direction: Direction::Download,
+            source: "/srv/secret/file".into(),
+            target_dir: "C:/Users/me".into(),
+            name: "file".into(),
+            state,
+            total_bytes: Some(123),
+            done_bytes: 0,
+            total_files: total,
+            done_files: done,
+            skipped: 0,
+            error: None,
+        }
+    }
+
+    #[test]
+    fn finished_jobs_map_to_buckets_and_nothing_else() {
+        let props = |v| serde_json::to_value(finished_event(&v).unwrap().props()).unwrap();
+        assert_eq!(
+            props(view(TransferState::Failed, Some(40), 3)),
+            serde_json::json!({"direction": "download", "outcome": "failed", "files": "11-100"})
+        );
+        assert_eq!(props(view(TransferState::Cancelled, None, 0))["files"], "1");
+        assert_eq!(props(view(TransferState::Done, None, 7))["files"], "2-10");
+        for s in [
+            TransferState::Queued,
+            TransferState::Running,
+            TransferState::WaitingConflict,
+        ] {
+            assert_eq!(finished_event(&view(s, None, 0)), None);
+        }
+    }
 
     #[test]
     fn blank_ids_are_invalid_input() {

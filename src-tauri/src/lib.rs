@@ -1,3 +1,4 @@
+mod analytics;
 mod commands;
 mod config;
 mod files;
@@ -14,7 +15,7 @@ mod vars;
 use std::sync::Arc;
 
 use tauri::webview::PageLoadEvent;
-use tauri::{Manager, WindowEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -32,16 +33,35 @@ pub fn run() {
             app.manage(ssh::SshManager::new(&home, secrets.clone()));
             app.manage(terminal::TerminalManager::default());
             app.manage(sftp::SftpManager::default());
-            app.manage(transfer::TransferManager::new(Arc::new(
-                commands::transfer::AppConnections(app.handle().clone()),
-            )));
             let store = commands::secrets::config_store(home, &secrets);
             // Loading moves a version 1 file aside or drops environments; their keychain entries go
-            // with them.
-            let _ = store.snapshot();
+            // with them. Consent is read here, before the webview runs: an unreadable file is unset.
+            let consent = store.snapshot().ok().and_then(|c| c.analytics);
             commands::secrets::forget_legacy(&store, &secrets);
+            let version = app.package_info().version.to_string();
+            let analytics = analytics::Analytics::for_app(consent, &version);
+            app.manage(transfer::TransferManager::with_observer(
+                Arc::new(commands::transfer::AppConnections(app.handle().clone())),
+                commands::transfer::observer(analytics.clone()),
+            ));
             app.manage(secrets);
             app.manage(store);
+            app.manage(analytics.clone());
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::time::sleep(analytics::FLUSH_INTERVAL).await;
+                    analytics.expire_attempts(analytics::ATTEMPT_TTL);
+                    let sender = analytics.clone();
+                    let handle = handle.clone();
+                    let _ = tauri::async_runtime::spawn_blocking(move || {
+                        let store = handle.state::<config::ConfigStore>();
+                        sender.retry_save(|v| store.set_analytics(v));
+                        sender.flush(analytics::PERIODIC_FLUSH);
+                    })
+                    .await;
+                }
+            });
             Ok(())
         })
         // Terminal events are bound to the page that opened them; a reload or a closed window
@@ -121,7 +141,22 @@ pub fn run() {
             commands::keys::delete_key,
             commands::keys::forget_key_passphrase,
             commands::keys::deploy_public_key,
+            commands::analytics::analytics_state,
+            commands::analytics::set_analytics_consent,
+            commands::analytics::analytics_recent,
+            commands::analytics::analytics_app_started,
+            commands::analytics::open_privacy_page,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while building tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let RunEvent::Exit = event
+                && let Some(analytics) = app.try_state::<analytics::Analytics>()
+            {
+                if let Some(store) = app.try_state::<config::ConfigStore>() {
+                    analytics.retry_save(|v| store.set_analytics(v));
+                }
+                analytics.shutdown();
+            }
+        });
 }

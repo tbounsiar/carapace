@@ -38,6 +38,9 @@ pub trait Connections: Send + Sync + 'static {
     fn remote<'a>(&'a self, connection_id: &'a str) -> RemoteFuture<'a>;
 }
 
+/// Told about every job that reached done, failed or cancelled, outside the queue lock.
+pub type Finished = Arc<dyn Fn(&TransferView) + Send + Sync>;
+
 pub struct TransferManager {
     inner: Arc<Inner>,
 }
@@ -45,6 +48,7 @@ pub struct TransferManager {
 pub(super) struct Inner {
     pub(super) conns: Arc<dyn Connections>,
     state: Mutex<State>,
+    finished: Option<Finished>,
 }
 
 #[derive(Default)]
@@ -284,11 +288,21 @@ impl Ctl {
 }
 
 impl TransferManager {
+    #[cfg(test)]
     pub fn new(conns: Arc<dyn Connections>) -> Self {
+        Self::build(conns, None)
+    }
+
+    pub fn with_observer(conns: Arc<dyn Connections>, finished: Finished) -> Self {
+        Self::build(conns, Some(finished))
+    }
+
+    fn build(conns: Arc<dyn Connections>, finished: Option<Finished>) -> Self {
         Self {
             inner: Arc::new(Inner {
                 conns,
                 state: Mutex::new(State::default()),
+                finished,
             }),
         }
     }
@@ -517,6 +531,7 @@ async fn run_job(ctl: Ctl, spec: Spec, go: oneshot::Receiver<()>) {
     st.queued.retain(|i| *i != id);
     st.resuming.retain(|i| *i != id);
     st.temps.retain(|_, owner| *owner != id);
+    let mut finished = None;
     if let Some(job) = st.job(&id) {
         job.go = None;
         job.answer = None;
@@ -529,10 +544,15 @@ async fn run_job(ctl: Ctl, spec: Spec, go: oneshot::Receiver<()>) {
                 job.view.error = Some(TransferError::from(&e));
             }
         }
+        finished = Some(job.view.clone());
     }
     st.emit_job(&id);
     st.pump();
     st.evict();
+    drop(st);
+    if let (Some(observer), Some(view)) = (&inner.finished, finished) {
+        observer(&view);
+    }
 }
 
 #[cfg(test)]

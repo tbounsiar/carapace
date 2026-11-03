@@ -58,3 +58,9 @@
   font: var(--tui-typography-body-s);
   color: var(--tui-text-secondary);
 }
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem var(--tui-padding-l);
+}

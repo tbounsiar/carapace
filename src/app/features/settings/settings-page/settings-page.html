@@ -70,4 +70,74 @@
       From {{ fontSizeMin }} to {{ fontSizeMax }} px. Open terminals update immediately.
     </p>
   </fieldset>
+
+  <fieldset class="group">
+    <legend class="legend">Privacy</legend>
+    <label tuiLabel>
+      <input
+        tuiSwitch
+        type="checkbox"
+        name="analytics"
+        data-testid="settings-analytics"
+        [attr.aria-describedby]="
+          analyticsError() ? 'settings-analytics-error' : 'settings-analytics-note'
+        "
+        [formControl]="sharing"
+      />
+      Share anonymous usage data
+    </label>
+    @if (analyticsError()) {
+      <tui-error
+        id="settings-analytics-error"
+        data-testid="settings-analytics-error"
+        [error]="readError"
+      />
+    } @else {
+      <p class="note" id="settings-analytics-note" data-testid="settings-analytics-note">
+        Feature usage, app version, OS, language and connection error codes. Never host names,
+        addresses, usernames, paths, file names or anything you type. No install ID: a random
+        session ID is kept in memory only.
+      </p>
+    }
+    <div class="links">
+      <button
+        tuiLink
+        type="button"
+        iconEnd="@tui.external-link"
+        data-testid="settings-privacy-link"
+        [textContent]="'How analytics work'"
+        (click)="openPolicy()"
+      ></button>
+      <button
+        tuiLink
+        type="button"
+        data-testid="settings-analytics-events"
+        [disabled]="!analyticsState()"
+        [textContent]="'View recent events'"
+        (click)="showEvents()"
+      ></button>
+    </div>
+    @if (unsaved()) {
+      <div
+        tuiNotification
+        appearance="warning"
+        size="s"
+        role="status"
+        data-testid="settings-analytics-unsaved"
+      >
+        {{ unsavedText }}
+      </div>
+    }
+    @if (!analyticsAvailable()) {
+      <div
+        tuiNotification
+        appearance="neutral"
+        size="s"
+        icon=""
+        data-testid="settings-analytics-unavailable"
+      >
+        This build does not send usage data. Changes are still saved.
+      </div>
+    }
+  </fieldset>
 </section>

@@ -173,6 +173,13 @@ pub struct HostTestResult {
     pub duration_ms: u64,
 }
 
+/// A connect result; `opened` is the time a new connection took, host key prompts excluded.
+#[derive(Debug, Clone)]
+pub struct Connected {
+    pub info: ConnectionInfo,
+    pub opened: Option<Duration>,
+}
+
 /// A password or passphrase typed by the user for one connect attempt.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -741,6 +748,7 @@ impl SshManager {
     }
 
     /// `credential` overrides any stored secret.
+    #[cfg(test)]
     pub async fn connect(
         &self,
         target: &Target,
@@ -748,6 +756,20 @@ impl SshManager {
         still_current: StillCurrent<'_>,
         emit: Emit,
     ) -> Result<ConnectionInfo, SshError> {
+        self.connect_timed(target, credential, still_current, emit)
+            .await
+            .map(|c| c.info)
+    }
+
+    /// Like `connect`; `opened` is `None` when the connection was already open.
+    pub async fn connect_timed(
+        &self,
+        target: &Target,
+        credential: Option<Credential>,
+        still_current: StillCurrent<'_>,
+        emit: Emit,
+    ) -> Result<Connected, SshError> {
+        let started = Instant::now();
         let lock = {
             let mut locks = self.host_locks.lock().map_err(|_| SshError::Io)?;
             locks
@@ -761,7 +783,7 @@ impl SshManager {
         {
             let mut sessions = self.sessions.lock().await;
             match sessions.get(&target.connection_id) {
-                Some(c) if c.is_live() => return Ok(info),
+                Some(c) if c.is_live() => return Ok(Connected { info, opened: None }),
                 Some(_) => {
                     if let Some(c) = sessions.remove(&target.connection_id) {
                         forget_connection(c);
@@ -782,6 +804,7 @@ impl SshManager {
         let Opened {
             handle,
             ended,
+            shared,
             guard: _guard,
             ..
         } = match self.open(target, &credentials, &emit, false).await {
@@ -847,7 +870,11 @@ impl SshManager {
         emit(ConnectEvent::Status {
             state: ConnectState::Connected,
         });
-        Ok(info)
+        let prompts = shared.prompt_time.lock().map(|t| *t).unwrap_or_default();
+        Ok(Connected {
+            info,
+            opened: Some(started.elapsed().saturating_sub(prompts)),
+        })
     }
 
     /// TCP connect, handshake with the host key check, authentication. `test` keeps a changed

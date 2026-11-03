@@ -674,3 +674,45 @@ async fn a_swapped_managed_key_is_not_deleted() {
     assert_eq!(e.code, "conflict");
     assert!(std::path::Path::new(&a.key.path).exists());
 }
+
+#[tokio::test]
+async fn key_events_carry_the_type_and_folder_choice_only() {
+    use serde_json::json;
+    let w = world();
+    let a = crate::analytics::Analytics::granted_for_tests();
+    generate_observed(&w.store, &w.secrets, &a, request("Work", "a", None, false))
+        .await
+        .unwrap();
+    let own = private_dir(&w, "own");
+    let rsa = GenerateRequest {
+        algorithm: KeyType::Rsa4096,
+        ..custom_request("Mine", "b", &own)
+    };
+    generate_observed(&w.store, &w.secrets, &a, rsa)
+        .await
+        .unwrap();
+    assert!(
+        generate_observed(&w.store, &w.secrets, &a, request("Work", "c", None, false))
+            .await
+            .is_err()
+    );
+    let path = external_key(&w, "ext_key", None);
+    let view = import(&w.store, &w.secrets, "Ext".into(), path, None, false)
+        .await
+        .unwrap();
+    record_import(&a, &view);
+    assert_eq!(
+        a.recorded(),
+        [
+            (
+                "key_generated",
+                json!({"type": "ed25519", "custom_folder": false})
+            ),
+            (
+                "key_generated",
+                json!({"type": "rsa4096", "custom_folder": true})
+            ),
+            ("key_imported", json!({"type": "ed25519"})),
+        ]
+    );
+}

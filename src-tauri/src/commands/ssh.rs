@@ -3,12 +3,15 @@ use std::sync::Arc;
 use tauri::State;
 use tauri::ipc::Channel;
 
+use super::analytics::auth_of;
 use super::error::CommandError;
 use super::resolve::{self, required};
 use super::secrets::check_secret;
+use crate::analytics::{Analytics, Attempt, Auth, ErrorCode, Event, TestResult, Took};
 use crate::config::{ConfigStore, HostInput};
 use crate::ssh::{
-    ConnectEvent, ConnectionInfo, Credential, Emit, HostTestResult, SshManager, TestTicket,
+    ConnectEvent, Connected, ConnectionInfo, Credential, Emit, HostTestResult, SshManager,
+    TestTicket,
 };
 
 type Res<T> = Result<T, CommandError>;
@@ -19,19 +22,96 @@ type Res<T> = Result<T, CommandError>;
 pub async fn connect_host(
     store: State<'_, ConfigStore>,
     ssh: State<'_, SshManager>,
+    analytics: State<'_, Analytics>,
     host_id: String,
     on_event: Channel<ConnectEvent>,
     credential: Option<Credential>,
 ) -> Res<ConnectionInfo> {
-    if let Some(c) = &credential {
-        check_secret(&c.secret)?;
-    }
-    let target = resolve::target(&store, &host_id)?;
     let emit: Emit = Arc::new(move |event| {
         let _ = on_event.send(event);
     });
-    let current = || resolve::target(&store, &host_id).is_ok_and(|now| now == target);
-    Ok(ssh.connect(&target, credential, &current, emit).await?)
+    connect_in(&store, &ssh, &analytics, &host_id, credential, emit).await
+}
+
+/// The codes after which the frontend asks for a secret and calls again with it; `typed`:
+/// a refused secret is asked again only when it was typed.
+fn prompts_again(auth: Auth, code: ErrorCode, typed: bool) -> bool {
+    match (auth, code) {
+        (Auth::Agent, _) => false,
+        (_, ErrorCode::SecretRequired) => true,
+        (Auth::Password, ErrorCode::AuthFailed) | (Auth::Key, ErrorCode::InvalidPassphrase) => {
+            typed
+        }
+        _ => false,
+    }
+}
+
+pub(super) async fn connect_in(
+    store: &ConfigStore,
+    ssh: &SshManager,
+    analytics: &Analytics,
+    host_id: &str,
+    credential: Option<Credential>,
+    emit: Emit,
+) -> Res<ConnectionInfo> {
+    let observed = analytics
+        .collecting()
+        .then(|| store.snapshot().ok())
+        .flatten()
+        .and_then(|cfg| cfg.host(host_id).map(|h| auth_of(&h.auth)));
+    let attempt = Attempt::Connect(host_id.to_owned());
+    let typed = credential.is_some();
+    if observed.is_some() {
+        analytics.attempt_started(&attempt, typed);
+    }
+    let result = connect_with(store, ssh, host_id, credential, emit).await;
+    let Some(auth) = observed else {
+        return result.map(|c| c.info);
+    };
+    match &result {
+        Ok(Connected {
+            info,
+            opened: Some(took),
+        }) => {
+            analytics.connection_opened(&info.connection_id);
+            analytics.attempt_done(
+                &attempt,
+                Some(Event::ConnectSucceeded {
+                    auth,
+                    duration: Took::of(*took),
+                }),
+            );
+        }
+        Ok(_) => analytics.attempt_done(&attempt, None),
+        Err(e) => {
+            let code = ErrorCode::from_code(e.code);
+            let failed = Event::ConnectFailed { auth, code };
+            // The connector asks again even when the refused secret was a stored one.
+            if prompts_again(auth, code, true) {
+                analytics.attempt_pending(attempt, failed);
+            } else {
+                analytics.attempt_done(&attempt, Some(failed));
+            }
+        }
+    }
+    result.map(|c| c.info)
+}
+
+async fn connect_with(
+    store: &ConfigStore,
+    ssh: &SshManager,
+    host_id: &str,
+    credential: Option<Credential>,
+    emit: Emit,
+) -> Res<Connected> {
+    if let Some(c) = &credential {
+        check_secret(&c.secret)?;
+    }
+    let target = resolve::target(store, host_id)?;
+    let current = || resolve::target(store, host_id).is_ok_and(|now| now == target);
+    Ok(ssh
+        .connect_timed(&target, credential, &current, emit)
+        .await?)
 }
 
 const MAX_TEST_ID_CHARS: usize = 128;
@@ -62,6 +142,7 @@ fn optional<'a>(name: &str, value: &'a Option<String>) -> Res<Option<&'a str>> {
 pub async fn test_host(
     store: State<'_, ConfigStore>,
     ssh: State<'_, SshManager>,
+    analytics: State<'_, Analytics>,
     host: HostInput,
     project_id: Option<String>,
     host_id: Option<String>,
@@ -72,9 +153,10 @@ pub async fn test_host(
     let emit: Emit = Arc::new(move |event| {
         let _ = on_event.send(event);
     });
-    run_test(
+    test_observed(
         &store,
         &ssh,
+        &analytics,
         &host,
         &project_id,
         &host_id,
@@ -83,6 +165,67 @@ pub async fn test_host(
         credential,
     )
     .await
+}
+
+fn test_attempt(store: &ConfigStore, host_id: &Option<String>) -> Option<Attempt> {
+    match host_id.as_deref() {
+        None => Some(Attempt::Test(String::new())),
+        Some(id) if !id.trim().is_empty() && id.len() <= MAX_TEST_ID_CHARS => store
+            .snapshot()
+            .ok()
+            .filter(|cfg| cfg.host(id).is_some())
+            .map(|_| Attempt::Test(id.to_owned())),
+        Some(_) => None,
+    }
+}
+
+/// One run of the host dialog's test may span several calls (typed secret retries); it is
+/// keyed by the edited host, or by the draft when the host is new.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn test_observed(
+    store: &ConfigStore,
+    ssh: &SshManager,
+    analytics: &Analytics,
+    host: &HostInput,
+    project_id: &Option<String>,
+    host_id: &Option<String>,
+    test_id: &str,
+    emit: Emit,
+    credential: Option<Credential>,
+) -> Res<HostTestResult> {
+    let collecting = analytics.collecting();
+    // Held only under an id that names a saved host: the webview cannot grow the map with
+    // made-up keys.
+    let attempt = collecting.then(|| test_attempt(store, host_id)).flatten();
+    let typed = credential.is_some();
+    if let Some(a) = &attempt {
+        analytics.attempt_started(a, typed);
+    }
+    let result = run_test(
+        store, ssh, host, project_id, host_id, test_id, emit, credential,
+    )
+    .await;
+    if !collecting {
+        return result;
+    }
+    let done = |event| match &attempt {
+        Some(a) => analytics.attempt_done(a, Some(event)),
+        None => analytics.record(event),
+    };
+    match &result {
+        Ok(_) => done(Event::test_ended(TestResult::Success)),
+        Err(e) => match ErrorCode::from_code(e.code) {
+            ErrorCode::Cancelled => done(Event::test_ended(TestResult::Cancelled)),
+            // The dialog shows a prompt the user closed as cancelled.
+            code if attempt.is_some() && prompts_again(auth_of(&host.auth), code, typed) => {
+                if let Some(a) = attempt.clone() {
+                    analytics.attempt_pending(a, Event::test_ended(TestResult::Cancelled));
+                }
+            }
+            code => done(Event::test_failed(code)),
+        },
+    }
+    result
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -24,6 +24,8 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Compiled into the release build; forks and local builds have none and send no usage data.
+          APTABASE_KEY: ${{ secrets.APTABASE_KEY }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Carapace ${{ github.ref_name }}

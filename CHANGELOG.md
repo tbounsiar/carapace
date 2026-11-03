@@ -5,6 +5,10 @@
 ### Added
 
 - Published as open source under the MIT license, with CI on Windows, Linux and macOS and release builds from tags.
+- Optional anonymous usage data. Carapace asks once at first launch and sends nothing unless you agree; Settings > Privacy turns it on or off and shows the events of the session. See PRIVACY.md for what is and is never sent.
+- Test connection in the host dialog.
+- Choose the folder of a generated key, and browse for key files.
+- Sidebar host filter and dashboards for Home and projects.
 
 ### Changed
 

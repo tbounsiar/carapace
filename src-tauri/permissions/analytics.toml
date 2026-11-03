@@ -1,0 +1,24 @@
+[[permission]]
+identifier = "allow-analytics-state"
+description = "Allows the analytics_state command."
+commands.allow = ["analytics_state"]
+
+[[permission]]
+identifier = "allow-set-analytics-consent"
+description = "Allows the set_analytics_consent command."
+commands.allow = ["set_analytics_consent"]
+
+[[permission]]
+identifier = "allow-analytics-recent"
+description = "Allows the analytics_recent command."
+commands.allow = ["analytics_recent"]
+
+[[permission]]
+identifier = "allow-analytics-app-started"
+description = "Allows the analytics_app_started command."
+commands.allow = ["analytics_app_started"]
+
+[[permission]]
+identifier = "allow-open-privacy-page"
+description = "Allows the open_privacy_page command, which opens the fixed privacy policy URL in the system browser."
+commands.allow = ["open_privacy_page"]

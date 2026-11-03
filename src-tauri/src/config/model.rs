@@ -165,6 +165,37 @@ pub struct ConfigFile {
     pub nodes: Vec<Node>,
     #[serde(default)]
     pub keys: Vec<KeyEntry>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "lenient_analytics"
+    )]
+    pub analytics: Option<AnalyticsConsent>,
+}
+
+/// Usage analytics consent. Missing, or written by a hand edit in a shape we do not know,
+/// means unset: a bad value must never turn analytics on, nor make the whole file corrupt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyticsConsent {
+    pub consent: Consent,
+    pub catalogue_version: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Consent {
+    #[default]
+    Unset,
+    Granted,
+    Denied,
+}
+
+fn lenient_analytics<'de, D: Deserializer<'de>>(
+    d: D,
+) -> Result<Option<AnalyticsConsent>, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    Ok(serde_json::from_value(value).ok())
 }
 
 impl ConfigFile {
@@ -249,6 +280,7 @@ impl Default for ConfigFile {
             projects: Vec::new(),
             nodes: Vec::new(),
             keys: Vec::new(),
+            analytics: None,
         }
     }
 }

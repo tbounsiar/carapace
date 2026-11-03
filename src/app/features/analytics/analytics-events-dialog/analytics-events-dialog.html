@@ -1,0 +1,82 @@
+@if (!state.available) {
+  <p class="text note" data-testid="analytics-events-keyless">
+    This build does not send usage data. These are the events it would send.
+  </p>
+}
+
+@if (recent.isLoading()) {
+  <tui-loader size="m" />
+} @else if (recent.error()) {
+  <div tuiNotification appearance="negative" size="s" data-testid="analytics-events-error">
+    Could not read the events. Restart the app.
+  </div>
+} @else if (recent.hasValue()) {
+  <section class="group" aria-labelledby="analytics-system-title">
+    <h3 tuiTitle="s" id="analytics-system-title">Sent with every event</h3>
+    <dl tuiList="m" compact data-testid="analytics-system">
+      <dt>App version</dt>
+      <dd class="mono">{{ recent.value().system.appVersion }}</dd>
+      <dt>OS</dt>
+      <dd class="mono">{{ recent.value().system.os }} {{ recent.value().system.osVersion }}</dd>
+      <dt>Language</dt>
+      <dd class="mono">{{ recent.value().system.locale }}</dd>
+      <dt>SDK version</dt>
+      <dd class="mono">{{ recent.value().system.sdkVersion }}</dd>
+      <dt>Session ID</dt>
+      <dd class="mono session">{{ recent.value().system.sessionId }}</dd>
+    </dl>
+  </section>
+
+  <section class="group" aria-labelledby="analytics-session-title">
+    <h3 tuiTitle="s" id="analytics-session-title">
+      This session (kept in memory, cleared when you quit)
+    </h3>
+    @if (rows().length === 0) {
+      <tui-block-status size="m" data-testid="analytics-events-empty">
+        <h4>Nothing sent in this session.</h4>
+        @if (state.consent !== 'granted') {
+          <span>Usage data is off.</span>
+        }
+      </tui-block-status>
+    } @else {
+      <tui-scrollbar class="scroll" data-testid="analytics-events">
+        <table tuiTable size="s" class="table" aria-labelledby="analytics-session-title">
+          <thead>
+            <tr>
+              <th tuiTh class="col-time">Time</th>
+              <th tuiTh>Event</th>
+              <th tuiTh>Properties</th>
+            </tr>
+          </thead>
+          <tbody tuiTbody>
+            @for (row of rows(); track $index) {
+              <tr [attr.data-testid]="'analytics-event-' + $index" [attr.data-event]="row.name">
+                <td tuiTd>{{ row.time }}</td>
+                <td tuiTd class="mono">{{ row.name }}</td>
+                <td tuiTd class="mono">
+                  @for (prop of row.props; track $index) {
+                    <div>{{ prop }}</div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </tui-scrollbar>
+    }
+  </section>
+}
+
+<footer>
+  <button
+    tuiButton
+    tuiAutoFocus
+    appearance="secondary"
+    size="m"
+    type="button"
+    data-testid="analytics-events-close"
+    (click)="context.completeWith()"
+  >
+    Close
+  </button>
+</footer>

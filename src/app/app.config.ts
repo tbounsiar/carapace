@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { provideRouter, withComponentInputBinding, withRouterConfig } from '@angular/router';
 import { routes } from './app.routes';
+import { provideOpenDialogs } from './shared/open-dialogs';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -19,12 +20,16 @@ export const appConfig: ApplicationConfig = {
       withRouterConfig({ paramsInheritanceStrategy: 'always' }),
     ),
     provideTaiga(),
+    provideOpenDialogs(),
     // Not awaited: the app must not wait on the backend to render. Lazy: only the host page shows
     // transfers, so the queue stays out of the initial bundle.
     provideAppInitializer(() => {
       const injector = inject(Injector);
       void import('./features/transfers/transfer-queue').then(({ TransferQueue }) =>
         injector.get(TransferQueue).start(),
+      );
+      void import('./features/analytics/consent-prompter').then(({ ConsentPrompter }) =>
+        injector.get(ConsentPrompter).start(),
       );
     }),
   ],

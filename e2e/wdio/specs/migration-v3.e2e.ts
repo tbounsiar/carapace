@@ -5,6 +5,7 @@ import {
   byId,
   clickId,
   connect,
+  declineConsent,
   enterProject,
   openGlobalVariables,
   openProjectVariables,
@@ -27,7 +28,11 @@ const values = (prefix: string) =>
   );
 
 describe('v3 config with leftover environments', () => {
-  before(waitForApp);
+  // An upgraded config has no analytics decision yet: the consent dialog is shown once.
+  before(async () => {
+    await waitForApp();
+    await declineConsent();
+  });
 
   it('rewrites the file without the environment fields', () => {
     const config = JSON.parse(readFileSync(join(home(), 'config.json'), 'utf8'));

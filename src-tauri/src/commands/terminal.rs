@@ -4,8 +4,9 @@ use tauri::State;
 use tauri::ipc::Channel;
 
 use super::error::CommandError;
+use crate::analytics::{Analytics, Event};
 use crate::ssh::SshManager;
-use crate::terminal::{TerminalError, TerminalEvent, TerminalManager};
+use crate::terminal::{Emit as TerminalEmit, TerminalError, TerminalEvent, TerminalManager};
 
 type Res<T> = Result<T, CommandError>;
 
@@ -20,16 +21,38 @@ fn required(name: &str, value: &str) -> Res<()> {
 pub async fn open_terminal(
     ssh: State<'_, SshManager>,
     terminals: State<'_, TerminalManager>,
+    analytics: State<'_, Analytics>,
     connection_id: String,
     cols: u32,
     rows: u32,
     on_event: Channel<TerminalEvent>,
 ) -> Res<String> {
-    required("connectionId", &connection_id)?;
     let emit = Arc::new(move |event| on_event.send(event).is_ok());
-    Ok(terminals
-        .open(&ssh, &connection_id, cols, rows, emit)
-        .await?)
+    open_in(
+        &ssh,
+        &terminals,
+        &analytics,
+        &connection_id,
+        cols,
+        rows,
+        emit,
+    )
+    .await
+}
+
+pub(super) async fn open_in(
+    ssh: &SshManager,
+    terminals: &TerminalManager,
+    analytics: &Analytics,
+    connection_id: &str,
+    cols: u32,
+    rows: u32,
+    emit: TerminalEmit,
+) -> Res<String> {
+    required("connectionId", connection_id)?;
+    let id = terminals.open(ssh, connection_id, cols, rows, emit).await?;
+    analytics.record(Event::TerminalOpened);
+    Ok(id)
 }
 
 // Synchronous commands run on the main thread in arrival order, which keeps keystrokes ordered.

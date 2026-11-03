@@ -5,6 +5,7 @@ import {
   byId,
   clickId,
   connect,
+  declineConsent,
   enterProject,
   goHome,
   openGlobalVariables,
@@ -35,7 +36,11 @@ const rootHosts = () =>
   );
 
 describe('migration from a v2 config', () => {
-  before(waitForApp);
+  // An upgraded config has no analytics decision yet: the consent dialog is shown once.
+  before(async () => {
+    await waitForApp();
+    await declineConsent();
+  });
 
   it('rewrites the file as v3 without environments and keeps the v2 backup', () => {
     const backup = join(home(), 'config.json.v2.bak');

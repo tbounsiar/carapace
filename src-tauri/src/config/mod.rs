@@ -9,8 +9,8 @@ pub use home::resolve_home;
 pub use migrate::LegacyEnvironment;
 pub use migrate::{LegacyProject, MigrationPlan};
 pub use model::{
-    ConfigFile, Host, HostInput, KeyAlgorithm, KeyEntry, KeyOrigin, Node, Project, Variable,
-    VariableKind, VariableScope,
+    AnalyticsConsent, ConfigFile, Consent, Host, HostInput, KeyAlgorithm, KeyEntry, KeyOrigin,
+    Node, Project, Variable, VariableKind, VariableScope,
 };
 pub use store::{ConfigError, ConfigStore, Held, KeychainMigration, Moved};
 pub(crate) use validate::is_local_absolute;

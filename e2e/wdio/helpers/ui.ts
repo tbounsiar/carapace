@@ -40,6 +40,14 @@ export async function waitForApp(): Promise<void> {
   });
 }
 
+/** Answers the first-launch consent dialog with "Don't share"; it must be the only one open. */
+export async function declineConsent(): Promise<void> {
+  await byId('consent-dialog').waitForDisplayed({ timeout: 20000 });
+  expect(await $$(tid('consent-dialog')).length).toBe(1);
+  await clickId('consent-decline');
+  await waitGone('consent-dialog');
+}
+
 export async function rowAction(row: string, button: string): Promise<void> {
   await byId(row).moveTo();
   await clickId(button);

@@ -1,6 +1,7 @@
 use tauri::State;
 
 use super::error::CommandError;
+use crate::analytics::Analytics;
 use crate::files::{FileEntry, FsError, Listing};
 use crate::sftp::SftpManager;
 use crate::ssh::SshManager;
@@ -18,11 +19,24 @@ fn required(value: &str) -> Res<()> {
 pub async fn sftp_list(
     ssh: State<'_, SshManager>,
     sftp: State<'_, SftpManager>,
+    analytics: State<'_, Analytics>,
     connection_id: String,
     path: String,
 ) -> Res<Listing> {
-    required(&connection_id)?;
-    Ok(sftp.list(&ssh, &connection_id, &path).await?)
+    list_in(&ssh, &sftp, &analytics, &connection_id, &path).await
+}
+
+pub(super) async fn list_in(
+    ssh: &SshManager,
+    sftp: &SftpManager,
+    analytics: &Analytics,
+    connection_id: &str,
+    path: &str,
+) -> Res<Listing> {
+    required(connection_id)?;
+    let listing = sftp.list(ssh, connection_id, path).await?;
+    analytics.files_listed(connection_id);
+    Ok(listing)
 }
 
 #[tauri::command]

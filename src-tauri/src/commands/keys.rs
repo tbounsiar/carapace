@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use super::error::CommandError;
 use super::resolve::required;
-use crate::config::{ConfigStore, KeyEntry, KeyOrigin};
+use crate::analytics::{Analytics, Event, GeneratedType, ImportedType};
+use crate::config::{ConfigStore, KeyAlgorithm, KeyEntry, KeyOrigin};
 use crate::keys::{self, Deployed, KeyError, KeyInfo, KeyLocation, KeyType, PickerGuard};
 use crate::secrets::{KeyPassKey, SecretStore, fits_keychain};
 use crate::sftp::SftpManager;
@@ -404,6 +405,7 @@ pub async fn list_keys(
 pub async fn generate_key(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
+    analytics: State<'_, Analytics>,
     name: String,
     file_name: String,
     algorithm: KeyType,
@@ -421,7 +423,25 @@ pub async fn generate_key(
         passphrase,
         remember_passphrase,
     };
-    generate(&store, &secrets, request).await
+    generate_observed(&store, &secrets, &analytics, request).await
+}
+
+pub(super) async fn generate_observed(
+    store: &ConfigStore,
+    secrets: &SecretStore,
+    analytics: &Analytics,
+    request: GenerateRequest,
+) -> Res<KeyView> {
+    let key_type = match request.algorithm {
+        KeyType::Ed25519 => GeneratedType::Ed25519,
+        KeyType::Rsa4096 => GeneratedType::Rsa4096,
+    };
+    let view = generate(store, secrets, request).await?;
+    analytics.record(Event::KeyGenerated {
+        key_type,
+        custom_folder: !view.key.managed,
+    });
+    Ok(view)
 }
 
 #[tauri::command]
@@ -469,12 +489,13 @@ pub async fn pick_key_file(app: AppHandle, current: Option<String>) -> Res<Optio
 pub async fn import_key(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
+    analytics: State<'_, Analytics>,
     name: String,
     path: String,
     passphrase: Option<SecretString>,
     remember_passphrase: bool,
 ) -> Res<KeyView> {
-    import(
+    let view = import(
         &store,
         &secrets,
         name,
@@ -482,7 +503,18 @@ pub async fn import_key(
         passphrase,
         remember_passphrase,
     )
-    .await
+    .await?;
+    record_import(&analytics, &view);
+    Ok(view)
+}
+
+pub(super) fn record_import(analytics: &Analytics, view: &KeyView) {
+    analytics.record(Event::KeyImported {
+        key_type: match view.key.algorithm {
+            KeyAlgorithm::Ed25519 => ImportedType::Ed25519,
+            KeyAlgorithm::Rsa => ImportedType::Rsa,
+        },
+    });
 }
 
 #[tauri::command]

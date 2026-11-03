@@ -9,7 +9,9 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use super::migrate::{self, Dropped, LegacyProject, MigrationPlan};
-use super::model::{ConfigFile, Host, KeyEntry, KeyOrigin, Node, Project, Variable, VariableScope};
+use super::model::{
+    AnalyticsConsent, ConfigFile, Host, KeyEntry, KeyOrigin, Node, Project, Variable, VariableScope,
+};
 use super::validate::{self, same_name};
 
 mod nodes;
@@ -528,6 +530,15 @@ impl ConfigStore {
     }
 
     /// `entry.name` is validated and trimmed; names and paths must be unique.
+    /// Rewrites the file only when the value changes.
+    pub fn set_analytics(&self, value: AnalyticsConsent) -> Result<(), ConfigError> {
+        self.transact(|cfg| {
+            let changed = cfg.analytics != Some(value);
+            cfg.analytics = Some(value);
+            Ok(((), changed))
+        })
+    }
+
     pub fn add_key(&self, mut entry: KeyEntry) -> Result<KeyEntry, ConfigError> {
         entry.name = validate::key_name(&entry.name)?;
         self.mutate(|cfg| {
