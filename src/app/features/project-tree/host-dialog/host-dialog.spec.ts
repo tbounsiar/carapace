@@ -32,7 +32,6 @@ const PROJECT: Project = {
     { id: 'e1', name: 'Dev', variables: [plain('host', '127.0.0.1'), plain('port', '2223')] },
     { id: 'e2', name: 'Prod', variables: [secret('prod_pw')] },
   ],
-  hosts: [],
   activeEnvironmentId: 'e1',
 };
 
@@ -52,16 +51,27 @@ describe('HostDialog', () => {
   const keys = signal<KeyView[]>([key({ name: 'main', path: '/keys/main' })]);
   const ensureLoaded = vi.fn(() => Promise.resolve());
 
-  async function setup(initial: HostInput | null = null) {
+  async function setup(initial: HostInput | null = null, projectId: string | null = 'p1') {
     await TestBed.configureTestingModule({
       imports: [HostDialog],
       providers: [
         provideTaiga(),
         {
           provide: POLYMORPHEUS_CONTEXT,
-          useValue: { data: { projectId: 'p1', initial, save }, completeWith, $implicit: {} },
+          useValue: {
+            data: { projectId, location: 'Shop / Backend', initial, save },
+            completeWith,
+            $implicit: {},
+          },
         },
-        { provide: ConfigService, useValue: { projects, variables } },
+        {
+          provide: ConfigService,
+          useValue: {
+            projects,
+            variables,
+            findProject: (id: string) => projects().find((p) => p.id === id) ?? null,
+          },
+        },
         { provide: KeyStore, useValue: { keys, ensureLoaded } },
         { provide: TuiNotificationService, useValue: alerts },
       ],
@@ -244,6 +254,11 @@ describe('HostDialog', () => {
     });
   });
 
+  it('shows where the host goes', async () => {
+    const { el } = await setup();
+    expect(byId(el, 'host-location')?.textContent).toContain('In: Shop / Backend');
+  });
+
   describe('preview', () => {
     const preview = (el: HTMLElement): string => byId(el, 'host-preview')?.textContent ?? '';
 
@@ -275,6 +290,25 @@ describe('HostDialog', () => {
       dialog.form.patchValue({ username: '${db_pw}' });
       await fixture.whenStable();
       expect(preview(el)).toContain('secret variable db_pw used in a non-secret field');
+    });
+  });
+
+  describe('at Home', () => {
+    const preview = (el: HTMLElement): string => byId(el, 'host-preview')?.textContent ?? '';
+
+    it('offers global secret variables only', async () => {
+      const { dialog } = await setup(null, null);
+      expect(dialog.secretReferences()).toEqual(['${global_pw}']);
+    });
+
+    it('resolves with global variables and no environment phrase', async () => {
+      const { fixture, el, dialog } = await setup(null, null);
+      dialog.form.patchValue({ name: 'vps', hostname: 'vps.example.com', username: '${user}' });
+      await fixture.whenStable();
+      expect(preview(el).trim()).toBe('Resolves to carapace@vps.example.com:22');
+      dialog.form.patchValue({ hostname: '${host}' });
+      await fixture.whenStable();
+      expect(preview(el)).toContain('Missing: host');
     });
   });
 });

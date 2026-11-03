@@ -37,7 +37,10 @@ import {
 import { ErrorLink } from '../../../shared/error-link';
 
 export interface HostDialogData {
-  readonly projectId: string;
+  /** Scope of the host: null is Home (global variables only, never an environment). */
+  readonly projectId: string | null;
+  /** "Home / Backend", shown read-only. */
+  readonly location: string;
   readonly initial: HostInput | null;
   readonly save: (host: HostInput) => Promise<Host>;
 }
@@ -116,16 +119,17 @@ export class HostDialog {
   protected readonly isKey = computed(() => this.authKind() === 'key');
   protected readonly isPassword = computed(() => this.authKind() === 'password');
 
-  private readonly project = computed(
-    () => this.config.projects().find((p) => p.id === this.context.data.projectId) ?? null,
-  );
+  private readonly project = computed(() => {
+    const id = this.context.data.projectId;
+    return id ? this.config.findProject(id) : null;
+  });
   protected readonly askLabel: TuiStringHandler<string | null> = (value) =>
     value || 'Ask when connecting';
 
   /** Secret variables of every level, plus the current references so a stale one stays visible. */
   protected readonly secretReferences = computed(() => {
     const project = this.project();
-    const names = project ? secretVariableNames(this.config.variables(), project) : [];
+    const names = secretVariableNames(this.config.variables(), project);
     const refs = names.map((name) => `\${${name}}`);
     const { password, passphrase } = this.value();
     for (const current of [password, passphrase]) {
@@ -139,16 +143,17 @@ export class HostDialog {
   protected readonly preview = computed(() => {
     this.value();
     const project = this.project();
-    if (!project) {
+    if (this.context.data.projectId && !project) {
       return null;
     }
-    const envId = project.activeEnvironmentId;
-    const env = project.environments.find((e) => e.id === envId);
+    const envId = project?.activeEnvironmentId ?? null;
+    const env = project?.environments.find((e) => e.id === envId);
     const result = previewHost(
       this.toHostInput(),
       variableLayers(this.config.variables(), project, envId),
     );
-    return { ...result, env: env ? `in ${env.name}` : 'with no environment' };
+    const envText = !project ? '' : env ? `in ${env.name}` : 'with no environment';
+    return { ...result, env: envText };
   });
 
   constructor() {

@@ -1,44 +1,101 @@
 import { inject, Service } from '@angular/core';
+import { Router } from '@angular/router';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
-import { TUI_CONFIRM } from '@taiga-ui/kit';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
-import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../core/ipc/config';
-import type { Environment, Host, HostInput, Project } from '../../core/ipc/config.models';
+import type {
+  Collection,
+  ConfigNode,
+  Environment,
+  Host,
+  HostInput,
+  Project,
+} from '../../core/ipc/config.models';
+import { CurrentScope } from '../../shared/current-scope';
+import { confirmDestructive } from '../../shared/destructive-confirm/confirm-destructive';
+import { SidebarState } from '../sidebar/sidebar-state';
 import type { HostDialogData } from './host-dialog/host-dialog';
 import type { NameDialogData } from './name-dialog/name-dialog';
+import {
+  ancestors,
+  byName,
+  containerPath,
+  countNodes,
+  countText,
+  descendants,
+  plural,
+  type Container,
+} from './node-tree';
 import { notifyError } from './save-error';
-import type { TreeNode } from './tree-node';
 
-/** Create, edit and delete flows for projects, environments and hosts; dialogs handle their own save errors. */
+/** Create, edit and delete flows for projects, environments, collections and hosts. */
 @Service()
 export class ProjectActions {
   private readonly config = inject(ConfigService);
   private readonly dialogs = inject(TuiDialogService);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly router = inject(Router);
+  private readonly scope = inject(CurrentScope);
+  private readonly sidebar = inject(SidebarState);
 
   createProject(): void {
-    void this.openNameDialog('New project', 'project', '', (name) =>
-      this.config.createProject(name),
-    );
+    void this.openNameDialog({
+      label: 'New project',
+      noun: 'project',
+      initial: '',
+      save: async (name) => {
+        const project = await this.config.createProject(name);
+        void this.router.navigate(['/projects', project.id]);
+      },
+    });
   }
 
-  addHost(project: Project): void {
-    void this.openHostDialog('New host', project.id, null, (host) =>
-      this.config.createHost(project.id, host),
+  renameProject(project: Project): void {
+    void this.openNameDialog({
+      label: 'Rename project',
+      noun: 'project',
+      initial: project.name,
+      save: (name) =>
+        name === project.name ? Promise.resolve() : this.config.renameProject(project.id, name),
+    });
+  }
+
+  /** Resolves true when the project was deleted. */
+  async deleteProject(project: Project): Promise<boolean> {
+    const nodes = this.config.nodes().filter((n) => n.projectId === project.id);
+    const envs = project.environments.length;
+    const content = nodes.length
+      ? `“${project.name}” contains ${countText(countNodes(nodes), envs ? plural(envs, 'environment') : '')}. Everything in it will be deleted, with its variables and saved passwords. Open connections are closed. This cannot be undone.`
+      : `“${project.name}” is empty. It will be deleted with its variables${envs ? ' and environments' : ''}. This cannot be undone.`;
+    const inside = this.scope.projectId() === project.id;
+    const deleted = await this.confirmDelete(
+      'Delete project?',
+      content,
+      'Project not deleted',
+      () => this.config.deleteProject(project.id),
     );
+    if (deleted && inside) {
+      void this.router.navigate(['/']);
+    }
+    return deleted;
   }
 
   addEnvironment(project: Project): void {
-    void this.openNameDialog('New environment', 'environment', '', (name) =>
-      this.config.createEnvironment(project.id, name),
-    );
+    void this.openNameDialog({
+      label: 'New environment',
+      noun: 'environment',
+      initial: '',
+      save: (name) => this.config.createEnvironment(project.id, name),
+    });
   }
 
   renameEnvironment(project: Project, env: Environment): void {
-    void this.openNameDialog('Rename environment', 'environment', env.name, (name) =>
-      this.config.renameEnvironment(project.id, env.id, name),
-    );
+    void this.openNameDialog({
+      label: 'Rename environment',
+      noun: 'environment',
+      initial: env.name,
+      save: (name) => this.config.renameEnvironment(project.id, env.id, name),
+    });
   }
 
   /** Resolves true when the environment was deleted. */
@@ -51,42 +108,131 @@ export class ProjectActions {
     );
   }
 
-  edit(node: TreeNode): void {
-    if (node.kind === 'project') {
-      void this.openNameDialog('Rename project', 'project', node.project.name, (name) =>
-        this.config.renameProject(node.project.id, name),
-      );
-    } else {
-      this.editHost(node.project, node.host);
-    }
+  addCollection(container: Container): void {
+    void this.openNameDialog({
+      label: 'New collection',
+      noun: 'collection',
+      initial: '',
+      placeholder: 'Backend',
+      conflictMessage: 'A collection with this name already exists here.',
+      save: async (name) => {
+        const created = await this.config.createCollection(
+          container.projectId,
+          container.parentId,
+          name,
+        );
+        this.reveal(created, true);
+      },
+    });
   }
 
-  editHost(project: Project, host: Host): void {
+  renameCollection(collection: Collection): void {
+    void this.openNameDialog({
+      label: 'Rename collection',
+      noun: 'collection',
+      initial: collection.name,
+      conflictMessage: 'A collection with this name already exists here.',
+      save: async (name) => {
+        if (name !== collection.name) {
+          await this.config.renameCollection(collection.id, name);
+        }
+        this.sidebar.focus(collection.id);
+      },
+    });
+  }
+
+  /** Resolves true when the collection and everything in it was deleted. */
+  async deleteCollection(collection: Collection): Promise<boolean> {
+    const inside = descendants(this.config.nodes(), collection.id);
+    const content = inside.length
+      ? `“${collection.name}” contains ${countText(countNodes(inside))}. They will all be deleted, with their saved passwords. Open connections to these hosts are closed. This cannot be undone. To keep the hosts, move them out first.`
+      : `“${collection.name}” is empty.`;
+    const next = this.focusAfterDelete(collection);
+    const deleted = await this.confirmDelete(
+      'Delete collection?',
+      content,
+      'Collection not deleted',
+      async () => {
+        await this.config.deleteCollection(collection.id);
+      },
+    );
+    if (deleted) {
+      this.leaveDeleted(new Set([collection.id, ...inside.map((n) => n.id)]), collection.projectId);
+      if (next) {
+        this.sidebar.focus(next);
+      }
+    }
+    return deleted;
+  }
+
+  addHost(container: Container): void {
+    void this.openHostDialog('New host', container, null, async (input) => {
+      const host = await this.config.createHost(container.projectId, container.parentId, input);
+      this.reveal(host, false);
+      void this.router.navigate(['/hosts', host.id]);
+      return host;
+    });
+  }
+
+  editHost(host: Host): void {
     const { name, hostname, port, username, auth } = host;
     void this.openHostDialog(
       'Edit host',
-      project.id,
+      host,
       { name, hostname, port, username, auth },
-      (input) => this.config.updateHost(project.id, host.id, input),
+      async (input) => {
+        const updated = await this.config.updateHost(host.id, input);
+        this.sidebar.focus(host.id);
+        return updated;
+      },
     );
   }
 
-  /** Resolves true when the node was deleted. */
-  remove(node: TreeNode): Promise<boolean> {
-    if (node.kind === 'project') {
-      return this.confirmDelete(
-        `Delete project "${node.project.name}"?`,
-        'It will be removed together with its environments, variables and hosts.',
-        'Project not deleted',
-        () => this.config.deleteProject(node.project.id),
-      );
-    }
-    return this.confirmDelete(
-      `Delete host "${node.host.name}"?`,
-      'This host will be removed.',
+  /** Resolves true when the host was deleted. */
+  async deleteHost(host: Host): Promise<boolean> {
+    const next = this.focusAfterDelete(host);
+    const deleted = await this.confirmDelete(
+      'Delete host?',
+      `“${host.name}” and its saved passwords will be deleted. Open connections to it are closed.`,
       'Host not deleted',
-      () => this.config.deleteHost(node.project.id, node.host.id),
+      () => this.config.deleteHost(host.id),
     );
+    if (deleted) {
+      this.leaveDeleted(new Set([host.id]), host.projectId);
+      if (next) {
+        this.sidebar.focus(next);
+      }
+    }
+    return deleted;
+  }
+
+  /** "Home / Backend": where a new host or collection goes. */
+  locationText(container: Container): string {
+    return containerPath(this.config.nodes(), this.config.projects(), container).join(' / ');
+  }
+
+  private reveal(node: ConfigNode, expandSelf: boolean): void {
+    const path = ancestors(this.config.nodes(), node.id).map((c) => c.id);
+    this.sidebar.expand(expandSelf ? [...path, node.id] : path);
+    this.sidebar.focus(node.id);
+  }
+
+  /** Next sibling, else the previous one, else the parent collection. */
+  private focusAfterDelete(node: ConfigNode): string | null {
+    const siblings = this.config
+      .nodes()
+      .filter((n) => n.projectId === node.projectId && n.parentId === node.parentId)
+      .sort((a, b) => (a.kind === b.kind ? byName(a, b) : a.kind === 'collection' ? -1 : 1));
+    const index = siblings.findIndex((n) => n.id === node.id);
+    return siblings[index + 1]?.id ?? siblings[index - 1]?.id ?? node.parentId;
+  }
+
+  /** The open host page was inside what was deleted: go to the scope home. */
+  private leaveDeleted(ids: ReadonlySet<string>, projectId: string | null): void {
+    const route = this.scope.route();
+    if (route.kind === 'host' && ids.has(route.hostId)) {
+      void this.router.navigate(projectId ? ['/projects', projectId] : ['/']);
+    }
   }
 
   private async confirmDelete(
@@ -95,19 +241,11 @@ export class ProjectActions {
     failure: string,
     run: () => Promise<void>,
   ): Promise<boolean> {
-    const confirmed = await firstValueFrom(
-      this.dialogs.open<boolean>(TUI_CONFIRM, {
-        label,
-        size: 's',
-        data: {
-          content,
-          yes: 'Delete',
-          no: 'Cancel',
-          appearance: ['primary-destructive', 'secondary'],
-        },
-      }),
-      { defaultValue: false },
-    );
+    const confirmed = await confirmDestructive(this.dialogs, label, {
+      content,
+      yes: 'Delete',
+      no: 'Cancel',
+    });
     if (!confirmed) {
       return false;
     }
@@ -120,25 +258,21 @@ export class ProjectActions {
     }
   }
 
-  private async openNameDialog(
-    label: string,
-    noun: string,
-    initial: string,
-    save: NameDialogData['save'],
-  ): Promise<void> {
+  private async openNameDialog(data: NameDialogData & { label: string }): Promise<void> {
     const { NameDialog } = await import('./name-dialog/name-dialog');
+    const { label, ...rest } = data;
     this.dialogs
       .open<void>(new PolymorpheusComponent(NameDialog), {
         label,
         size: 's',
-        data: { noun, initial, save } satisfies NameDialogData,
+        data: rest satisfies NameDialogData,
       })
       .subscribe();
   }
 
   private async openHostDialog(
     label: string,
-    projectId: string,
+    container: Container,
     initial: HostInput | null,
     save: HostDialogData['save'],
   ): Promise<void> {
@@ -147,7 +281,12 @@ export class ProjectActions {
       .open<void>(new PolymorpheusComponent(HostDialog), {
         label,
         size: 'm',
-        data: { projectId, initial, save } satisfies HostDialogData,
+        data: {
+          projectId: container.projectId,
+          location: this.locationText(container),
+          initial,
+          save,
+        } satisfies HostDialogData,
       })
       .subscribe();
   }

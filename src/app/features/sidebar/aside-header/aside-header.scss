@@ -1,0 +1,9 @@
+:host {
+  display: block;
+}
+
+.name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

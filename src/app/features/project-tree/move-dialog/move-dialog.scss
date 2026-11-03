@@ -1,0 +1,23 @@
+.list {
+  max-block-size: 20rem;
+  overflow-y: auto;
+}
+
+.path {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.current {
+  color: var(--tui-text-secondary);
+}
+
+p {
+  margin: 0;
+}
+
+.empty {
+  padding: 0.5rem 0.75rem;
+  color: var(--tui-text-secondary);
+}

@@ -1,0 +1,287 @@
+@if (loading()) {
+  <tui-loader class="loader" />
+} @else if (loadError(); as message) {
+  <tui-block-status size="m" data-testid="projects-error">
+    <h2>Hosts could not be loaded</h2>
+    <p>{{ message }}</p>
+    <button
+      tuiButton
+      appearance="primary"
+      size="s"
+      iconStart="@tui.refresh-cw"
+      type="button"
+      data-testid="projects-retry"
+      (click)="reload()"
+    >
+      Try again
+    </button>
+  </tui-block-status>
+} @else if (empty()) {
+  <tui-block-status size="m" data-testid="sidebar-empty">
+    <h2>{{ isHome() ? 'Nothing here yet' : 'This project is empty' }}</h2>
+    <p>
+      {{
+        isHome()
+          ? 'Use New to add a host, a collection or a project.'
+          : 'Use New to add a host or a collection.'
+      }}
+    </p>
+  </tui-block-status>
+} @else {
+  <ng-container *ngTemplateOutlet="list; context: { $implicit: items(), depth: 0 }" />
+
+  @if (isHome()) {
+    @if (items().length) {
+      <hr />
+    }
+    <div class="section" data-testid="projects-section">
+      <span class="heading">Projects</span>
+      @for (row of projectRows(); track row.key) {
+        @let project = row.project;
+        @let key = row.key;
+        <div
+          class="row"
+          tuiDropdownContext
+          tuiDropdownAppearance=""
+          [attr.tuiTheme]="theme()"
+          [attr.data-drop]="key"
+          [attr.data-drop-target]="dropTarget() === key ? 'true' : null"
+          [class._menu]="menuKey() === key"
+          [tuiDropdown]="menu"
+          (contextmenu)="menuKey.set(key)"
+        >
+          <button
+            tuiAsideItem
+            iconStart="@tui.folder-kanban"
+            type="button"
+            class="item"
+            [attr.data-item]="key"
+            [attr.tabindex]="tabindex(key)"
+            [attr.data-testid]="'tree-project-' + project.name"
+            (click)="selectProject(project)"
+            (dblclick)="enterProject(project)"
+          >
+            <span class="label" tuiHintOverflow>{{ project.name }}</span>
+            @if (row.connections; as connections) {
+              <span
+                role="img"
+                class="dot"
+                tuiStatus="var(--tui-status-positive)"
+                [attr.aria-label]="connections"
+              ></span>
+            }
+          </button>
+          <span class="actions">
+            <button
+              tuiIconButton
+              appearance="flat-grayscale"
+              size="xs"
+              iconStart="@tui.arrow-right"
+              type="button"
+              tabindex="-1"
+              tuiHint="Open"
+              [attr.aria-label]="'Open ' + project.name"
+              [attr.data-testid]="'open-project-' + project.name"
+              (click)="enterProject(project)"
+            >
+              Open
+            </button>
+            <ng-container
+              *ngTemplateOutlet="menuButton; context: { key, name: project.name, kind: 'project' }"
+            />
+          </span>
+        </div>
+      } @empty {
+        <button
+          tuiAsideItem
+          appearance="flat-grayscale"
+          iconStart="@tui.plus"
+          type="button"
+          data-testid="projects-new"
+          (click)="createProject()"
+        >
+          New project
+        </button>
+      }
+    </div>
+  }
+}
+
+<ng-template #list let-items let-depth="depth">
+  @for (item of items; track item.id) {
+    @if (item.kind === 'collection') {
+      <tui-aside-group [open]="isOpen(item.id)" (openChange)="setOpen(item.id, $event)">
+        <div
+          class="row"
+          tuiDropdownContext
+          tuiDropdownAppearance=""
+          [attr.tuiTheme]="theme()"
+          [attr.data-drop]="'collection:' + item.id"
+          [attr.data-drop-target]="dropTarget() === item.id ? 'true' : null"
+          [class._menu]="menuKey() === item.id"
+          [tuiDropdown]="menu"
+          (contextmenu)="menuKey.set(item.id)"
+        >
+          <button
+            tuiAsideItem
+            tuiChevron
+            iconStart="@tui.folder"
+            type="button"
+            class="item"
+            draggable="true"
+            [attr.data-item]="item.id"
+            [attr.tabindex]="tabindex(item.id)"
+            [attr.aria-expanded]="isOpen(item.id) ? 'true' : 'false'"
+            [attr.data-testid]="'tree-collection-' + item.collection.name"
+            [class._holds-active]="!isOpen(item.id) && activePath().has(item.id)"
+            (dragstart)="startDrag($event, item.collection)"
+          >
+            <ng-template>
+              <div class="level" [class._indent]="indented(depth)">
+                <ng-container
+                  *ngTemplateOutlet="list; context: { $implicit: item.children, depth: depth + 1 }"
+                />
+                @if (!item.children.length) {
+                  <button
+                    tuiAsideItem
+                    appearance="flat-grayscale"
+                    iconStart="@tui.plus"
+                    type="button"
+                    tabindex="-1"
+                    [attr.data-testid]="'empty-add-' + item.collection.name"
+                    (click)="addHost(inside(item.collection))"
+                  >
+                    Add host
+                  </button>
+                }
+              </div>
+            </ng-template>
+            <span class="label" tuiHintOverflow>{{ item.collection.name }}</span>
+          </button>
+          <span class="actions">
+            <ng-container
+              *ngTemplateOutlet="
+                menuButton;
+                context: { key: item.id, name: item.collection.name, kind: 'collection' }
+              "
+            />
+          </span>
+        </div>
+      </tui-aside-group>
+    } @else {
+      @let host = item.host;
+      @let state = status(host);
+      <div
+        class="row"
+        tuiDropdownContext
+        tuiDropdownAppearance=""
+        [attr.tuiTheme]="theme()"
+        routerLinkActive="_selected"
+        [class._menu]="menuKey() === item.id"
+        [attr.data-testid]="'tree-host-' + host.name"
+        [tuiDropdown]="menu"
+        (contextmenu)="menuKey.set(item.id)"
+      >
+        <a
+          tuiAsideItem
+          class="item"
+          draggable="true"
+          [attr.data-item]="item.id"
+          [attr.tabindex]="tabindex(item.id)"
+          [routerLink]="['/hosts', host.id]"
+          [attr.data-testid]="'open-host-' + host.name"
+          (dragstart)="startDrag($event, host)"
+        >
+          @if (state.loading) {
+            <tui-loader
+              size="xs"
+              role="img"
+              [attr.aria-label]="state.label"
+              [attr.data-testid]="'status-host-' + host.name"
+              [tuiHint]="state.label"
+            />
+          } @else {
+            <span
+              role="img"
+              class="dot"
+              [tuiStatus]="state.color"
+              [attr.aria-label]="state.label"
+              [attr.data-testid]="'status-host-' + host.name"
+              [tuiHint]="state.label"
+            ></span>
+          }
+          <span class="label" tuiHintOverflow>{{ host.name }}</span>
+        </a>
+        <span class="actions">
+          @let connected = isConnected(host);
+          @let action = connected ? 'Disconnect' : 'Connect';
+          <button
+            tuiIconButton
+            appearance="flat-grayscale"
+            size="xs"
+            type="button"
+            tabindex="-1"
+            [iconStart]="connected ? '@tui.unplug' : '@tui.plug'"
+            [tuiHint]="action"
+            [disabled]="!connected && state.busy"
+            [attr.aria-label]="action + ' ' + host.name"
+            [attr.data-testid]="(connected ? 'disconnect-host-' : 'connect-host-') + host.name"
+            (click)="connected ? disconnect(host) : connect(host)"
+          >
+            {{ action }}
+          </button>
+          <ng-container
+            *ngTemplateOutlet="menuButton; context: { key: item.id, name: host.name, kind: 'host' }"
+          />
+        </span>
+      </div>
+    }
+  }
+</ng-template>
+
+<ng-template #menuButton let-key="key" let-name="name" let-kind="kind">
+  <span
+    class="menu-anchor"
+    tuiDropdownAppearance=""
+    [attr.tuiTheme]="theme()"
+    [tuiDropdown]="menu"
+    [tuiDropdownOpen]="menuKey() === key"
+    (tuiDropdownOpenChange)="setMenu(key, $event)"
+  >
+    <button
+      tuiIconButton
+      appearance="flat-grayscale"
+      size="xs"
+      iconStart="@tui.ellipsis"
+      type="button"
+      tabindex="-1"
+      [attr.aria-expanded]="menuKey() === key"
+      [attr.aria-label]="'Actions for ' + name"
+      [attr.data-testid]="'menu-' + kind + '-' + name"
+      (click)="toggleMenu($event, key)"
+    >
+      Actions
+    </button>
+  </span>
+</ng-template>
+
+<ng-template #menu let-close>
+  <tui-data-list size="s" role="menu">
+    @for (entry of menuEntries(); track entry.id) {
+      @if (entry.separated) {
+        <hr />
+      }
+      <button
+        tuiOption
+        type="button"
+        role="menuitem"
+        [iconStart]="entry.icon"
+        [disabled]="!!entry.disabled"
+        [attr.data-testid]="entry.id"
+        (click)="close(); menuKey.set(null); entry.run()"
+      >
+        {{ entry.label }}
+      </button>
+    }
+  </tui-data-list>
+</ng-template>

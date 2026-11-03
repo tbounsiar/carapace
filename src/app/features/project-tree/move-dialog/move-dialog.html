@@ -1,0 +1,81 @@
+<form tuiForm="m" (submit)="$event.preventDefault(); submit()">
+  <tui-textfield iconStart="@tui.search">
+    <input
+      tuiAutoFocus
+      tuiInput
+      autocomplete="off"
+      placeholder="Filter locations"
+      aria-label="Filter locations"
+      data-testid="move-search"
+      [formControl]="query"
+    />
+  </tui-textfield>
+
+  <div class="list">
+    <tui-data-list size="s" aria-label="Locations">
+      @if (!groups().length) {
+        <p class="empty">{{ empty() }}</p>
+      }
+      @for (group of groups(); track group.label) {
+        <tui-opt-group [label]="group.label">
+          @for (target of group.targets; track text(target)) {
+            <button
+              tuiOption
+              type="button"
+              role="menuitemradio"
+              [attr.aria-checked]="isChosen(target)"
+              [iconEnd]="isChosen(target) ? '@tui.check' : ''"
+              [disabled]="target.current"
+              [attr.data-testid]="testId(target)"
+              (click)="choose(target)"
+            >
+              <span class="path">{{ text(target) }}</span>
+              @if (target.current) {
+                <span class="current">(current location)</span>
+              }
+            </button>
+          }
+        </tui-opt-group>
+      }
+    </tui-data-list>
+  </div>
+
+  @if (error(); as message) {
+    <tui-error data-testid="move-error" [error]="message" />
+  }
+
+  @if (warning(); as warning) {
+    <div tuiNotification appearance="warning" size="s" data-testid="move-warning">
+      <div tuiTitle>
+        {{ warning.title }}
+        <div tuiSubtitle>
+          <p>{{ warning.body }}</p>
+          @if (warning.missing) {
+            <p>{{ warning.missing }}</p>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <footer>
+    <button
+      tuiButton
+      appearance="secondary"
+      type="button"
+      data-testid="dialog-cancel"
+      (click)="context.$implicit.complete()"
+    >
+      Cancel
+    </button>
+    <button
+      tuiButton
+      type="submit"
+      data-testid="move-submit"
+      [disabled]="!chosen()"
+      [loading]="saving()"
+    >
+      Move
+    </button>
+  </footer>
+</form>

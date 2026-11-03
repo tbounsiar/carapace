@@ -1,0 +1,77 @@
+@if (project(); as project) {
+  <a
+    tuiAsideItem
+    iconStart="@tui.folder-kanban"
+    data-testid="aside-project"
+    [routerLink]="['/projects', project.id]"
+    [routerLinkActiveOptions]="{ exact: true }"
+  >
+    <span class="name" tuiHintOverflow>{{ project.name }}</span>
+  </a>
+  <app-env-select [project]="project" />
+  <a
+    tuiAsideItem
+    iconStart="@tui.variable"
+    data-testid="project-variables"
+    [routerLink]="['/projects', project.id, 'variables']"
+  >
+    Variables and environments
+  </a>
+}
+<div
+  class="dropdown"
+  tuiDropdownAppearance=""
+  [attr.tuiTheme]="theme()"
+  [tuiDropdown]="menu"
+  [tuiDropdownOpen]="newOpen()"
+  (tuiDropdownOpenChange)="newOpen.set($event)"
+>
+  <button
+    tuiAsideItem
+    tuiChevron
+    appearance="primary"
+    iconStart="@tui.plus"
+    type="button"
+    data-testid="aside-new"
+    [attr.aria-expanded]="newOpen()"
+    [disabled]="!loaded()"
+  >
+    New
+  </button>
+</div>
+<ng-template #menu>
+  <tui-data-list size="s" role="menu" aria-label="New">
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.server"
+      data-testid="new-host"
+      (click)="newHost()"
+    >
+      New host
+    </button>
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.folder-plus"
+      data-testid="new-collection"
+      (click)="newCollection()"
+    >
+      New collection
+    </button>
+    @if (!project()) {
+      <button
+        tuiOption
+        type="button"
+        role="menuitem"
+        iconStart="@tui.folder-kanban"
+        data-testid="new-project"
+        (click)="newProject()"
+      >
+        New project
+      </button>
+    }
+  </tui-data-list>
+</ng-template>

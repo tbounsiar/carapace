@@ -67,11 +67,10 @@ export function handleSaveError(
   nameControl: AbstractControl,
   noun: string,
   conflictCode: IpcErrorCode = 'conflict',
+  conflictMessage = `A ${noun} with this name already exists`,
 ): void {
   if (err instanceof IpcError && err.code === conflictCode) {
-    nameControl.setErrors({
-      invalid: new TuiValidationError(`A ${noun} with this name already exists`),
-    });
+    nameControl.setErrors({ invalid: new TuiValidationError(conflictMessage) });
     nameControl.markAsTouched();
     return;
   }

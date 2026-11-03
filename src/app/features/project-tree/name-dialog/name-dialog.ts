@@ -27,6 +27,9 @@ export interface NameDialogData {
   readonly conflictCode?: IpcErrorCode;
   /** Defaults to true; file names keep surrounding spaces. */
   readonly trim?: boolean;
+  readonly placeholder?: string;
+  /** Field error when the name is taken; defaults to "A {noun} with this name already exists". */
+  readonly conflictMessage?: string;
 }
 
 @Component({
@@ -58,14 +61,14 @@ export class NameDialog {
     if (this.form.invalid || this.saving()) {
       return;
     }
-    const { save, trim, noun, conflictCode } = this.context.data;
+    const { save, trim, noun, conflictCode, conflictMessage } = this.context.data;
     const nameControl = this.form.controls.name;
     this.saving.set(true);
     try {
       await save(trim === false ? nameControl.value : nameControl.value.trim());
       this.context.completeWith();
     } catch (err) {
-      handleSaveError(this.alerts, err, nameControl, noun, conflictCode);
+      handleSaveError(this.alerts, err, nameControl, noun, conflictCode, conflictMessage);
     } finally {
       this.saving.set(false);
     }

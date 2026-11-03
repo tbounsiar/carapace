@@ -1,4 +1,7 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
+  <p class="location" data-testid="host-location">
+    In: <span class="mono">{{ context.data.location }}</span>
+  </p>
   <tui-textfield>
     <label tuiLabel>Name</label>
     <input tuiAutoFocus tuiInput formControlName="name" data-testid="host-name" />
@@ -161,7 +164,7 @@
     >
       @if (p.missing.length) {
         <tui-icon icon="@tui.circle-alert" />
-        <span>Missing {{ p.env }}: {{ p.missing.join(', ') }}</span>
+        <span>Missing{{ p.env ? ' ' + p.env : '' }}: {{ p.missing.join(', ') }}</span>
       } @else if (p.errors.length) {
         <tui-icon icon="@tui.circle-alert" />
         <span>{{ p.errors[0] }}</span>

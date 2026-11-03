@@ -12,9 +12,11 @@
   gap: 0.5rem;
 }
 
-.note {
+.note,
+.location {
   margin: 0;
   color: var(--tui-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .preview {

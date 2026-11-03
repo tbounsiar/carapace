@@ -1,0 +1,87 @@
+:host {
+  display: block;
+  min-block-size: 100%;
+  /* An empty strip under the last item stays a drop target for the scope root. */
+  padding-block-end: 2rem;
+  box-sizing: border-box;
+  border-radius: var(--tui-radius-m);
+}
+
+:host._drop-root {
+  box-shadow: inset 0 0 0 2px var(--tui-border-focus);
+}
+
+.loader {
+  margin-block: var(--tui-padding-l);
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  border-radius: var(--tui-radius-m);
+
+  &[data-drop-target='true'] {
+    background: var(--tui-status-info-pale-hover);
+  }
+}
+
+.item {
+  flex: 1;
+  min-inline-size: 0;
+
+  &._holds-active {
+    color: var(--tui-text-action);
+  }
+}
+
+.label {
+  flex: 1;
+  text-align: start;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  flex: none;
+}
+
+/* Shown on hover, focus, selection or an open menu; collapsed so they do not truncate labels. */
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  max-inline-size: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.row:hover,
+.row:focus-within,
+.row._selected,
+.row._menu {
+  > .actions {
+    max-inline-size: none;
+    opacity: 1;
+  }
+}
+
+.level._indent {
+  margin-inline-start: 0.75rem;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.heading {
+  padding: 0.25rem 0.5rem;
+  font: var(--tui-typography-body-s);
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--tui-text-secondary);
+}

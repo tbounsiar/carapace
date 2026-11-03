@@ -1,7 +1,13 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
   <tui-textfield>
     <label tuiLabel>Name</label>
-    <input tuiAutoFocus tuiInput formControlName="name" data-testid="name-input" />
+    <input
+      tuiAutoFocus
+      tuiInput
+      formControlName="name"
+      data-testid="name-input"
+      [placeholder]="context.data.placeholder ?? ''"
+    />
   </tui-textfield>
   <tui-error appErrorLink formControlName="name" />
   <footer>
