@@ -135,9 +135,15 @@ export class CurrentScope {
     });
   }
 
-  /** On start at `/`, goes back into the project the user was last in, if it still exists. */
+  /**
+   * On start at `/`, goes back into the project the user was last in, if it still exists. The
+   * config can load before the first navigation ends (lazy routes), while `router.url` is still
+   * `/`: the target of a running navigation counts, so a reload of a deep link stays there.
+   */
   restore(): void {
-    const route = parseScopeRoute(this.router.url);
+    const pending = this.router.currentNavigation();
+    const url = pending ? this.router.serializeUrl(pending.extractedUrl) : this.router.url;
+    const route = parseScopeRoute(url);
     if (route.kind === 'home' && this.stored && this.config.findProject(this.stored)) {
       void this.router.navigate(['/projects', this.stored]);
     }

@@ -1,11 +1,12 @@
 import { screenshot, setThemeMode } from '../helpers/screenshot';
+import { waitForApp } from '../helpers/ui';
 
 const effectiveTheme = () =>
   browser.execute(() => document.querySelector('tui-root')?.getAttribute('tuiTheme') ?? '');
 
 describe('smoke', () => {
   it('opens the window with the app shell', async () => {
-    await $('tui-root').waitForExist({ timeout: 20000 });
+    await waitForApp();
     await expect(browser).toHaveTitle(expect.stringContaining('Carapace'));
   });
 

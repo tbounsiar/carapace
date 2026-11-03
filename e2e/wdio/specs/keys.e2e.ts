@@ -298,6 +298,8 @@ describe('keys', () => {
       await openHostKeyPath();
       await expect(byId('host-key-browse')).toBeEnabled();
       await typeInto('host-key-path', '~/.ssh/id_e2e.pub');
+      // Field errors show once the control is touched, that is after a blur.
+      await browser.execute(() => (document.activeElement as HTMLElement | null)?.blur());
       await text('This is a public key').waitForDisplayed({ timeout: 10000 });
 
       await typeInto('host-key-path', '${key_path}');

@@ -242,7 +242,6 @@ describe('dashboards', () => {
   it('says when a project has collections but no host', async () => {
     await createProject('Blank');
     await byId('project-empty').waitForDisplayed({ timeout: 10000 });
-    await clickId('project-menu');
     await clickId('project-home-new-collection');
     await fillName('Racks');
     await byId('project-no-hosts').waitForDisplayed({ timeout: 10000 });

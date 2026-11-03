@@ -97,16 +97,19 @@
 
 <ng-template #menu>
   <tui-data-list size="s" role="menu" aria-label="Project actions">
-    <button
-      tuiOption
-      type="button"
-      role="menuitem"
-      iconStart="@tui.folder-plus"
-      data-testid="project-home-new-collection"
-      (click)="newCollection()"
-    >
-      New collection
-    </button>
+    <!-- An empty project shows New collection in its empty state, the only one on the page. -->
+    @if (!empty()) {
+      <button
+        tuiOption
+        type="button"
+        role="menuitem"
+        iconStart="@tui.folder-plus"
+        data-testid="project-home-new-collection"
+        (click)="newCollection()"
+      >
+        New collection
+      </button>
+    }
     <button
       tuiOption
       type="button"

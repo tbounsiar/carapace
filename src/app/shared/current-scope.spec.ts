@@ -116,6 +116,18 @@ describe('CurrentScope', () => {
     expect(navigate).toHaveBeenCalledWith(['/projects', 'p2']);
   });
 
+  it('does not restore while the first navigation goes to a deep link', async () => {
+    localStorage.setItem('carapace.scope', 'p2');
+    const scope = setup();
+    const navigate = vi.spyOn(router, 'navigate');
+    const first = router.navigateByUrl('/projects/p1/variables');
+    expect(router.url).toBe('/');
+    scope.restore();
+    await first;
+    expect(navigate).not.toHaveBeenCalled();
+    expect(router.url).toBe('/projects/p1/variables');
+  });
+
   it('does not restore a project that no longer exists', () => {
     localStorage.setItem('carapace.scope', 'gone');
     const scope = setup();

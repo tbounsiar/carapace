@@ -16,6 +16,7 @@ import {
   testResult,
   tid,
   typeInto,
+  waitCredentialPrompt,
   waitForApp,
   waitGone,
   waitStatus,
@@ -46,7 +47,7 @@ async function closeDialog(): Promise<void> {
 }
 
 async function submitTestCredential(value: string): Promise<void> {
-  await byId('credential-secret').waitForDisplayed({ timeout: 20000 });
+  await waitCredentialPrompt();
   await expect(byId('credential-remember')).not.toExist();
   await typeInto('credential-secret', value);
   await clickId('credential-submit');
@@ -214,7 +215,8 @@ describe('test connection', () => {
     expect(result.result).toBe('success');
     await closeDialog();
     await waitStatus(HOST.name, 'Connected');
-    await clickId(`open-host-${HOST.name}`);
+    // A sidebar click opens the host page; the terminal lives in its workspace tab.
+    await clickId(`tab-${HOST.name}-terminal-1`);
     await byId('terminal-view-1').waitForDisplayed({ timeout: 10000 });
     await runInTerminal(1, 'echo after-test', 'after-test');
   });

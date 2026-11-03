@@ -30,8 +30,29 @@ export async function textOf(id: string): Promise<string> {
   return ((await byId(id).getText()) ?? '').trim();
 }
 
+const APP_URL = 'http://tauri.localhost/';
+
+/**
+ * A WebDriver command sent while a new app is still starting can make the webview drop its first
+ * navigation: it then stays on `about:blank` with an empty document for good (seen about once in
+ * ten sessions, more often right after `reloadSession`). Loading the app page does what the app
+ * itself would have done.
+ */
+async function ensureAppPage(): Promise<void> {
+  const navigated = await browser
+    .waitUntil(async () => (await browser.getUrl()) !== 'about:blank', { timeout: 10000 })
+    .then(
+      () => true,
+      () => false,
+    );
+  if (navigated) return;
+  console.log(`the webview stayed on about:blank; loading ${APP_URL}`);
+  await browser.url(APP_URL);
+}
+
 /** The sidebar is ready once the config is loaded (the New menu is enabled). */
 export async function waitForApp(): Promise<void> {
+  await ensureAppPage();
   await $('tui-root').waitForExist({ timeout: 20000 });
   await byId('sidebar-tree').waitForExist({ timeout: 20000 });
   await byId('aside-new').waitForEnabled({ timeout: 20000 });
@@ -47,6 +68,18 @@ export async function declineConsent(): Promise<void> {
   expect(await $$(tid('consent-dialog')).length).toBe(1);
   await clickId('consent-decline');
   await waitGone('consent-dialog');
+}
+
+/**
+ * Waits for a single credential prompt. A refused secret closes the prompt and opens a new one
+ * with the error; the closed one stays in the DOM during its leave animation.
+ */
+export async function waitCredentialPrompt(timeout = 20000): Promise<void> {
+  await browser.waitUntil(async () => (await $$(tid('credential-secret')).length) === 1, {
+    timeout,
+    timeoutMsg: 'not exactly one credential prompt',
+  });
+  await byId('credential-secret').waitForDisplayed({ timeout });
 }
 
 export async function rowAction(row: string, button: string): Promise<void> {
@@ -163,6 +196,8 @@ export interface VariableRow {
 /** The project dashboard's Variables tab. */
 export async function openProjectVariables(project: string): Promise<void> {
   await enterProject(project);
+  // Already in the project scope, but on one of its host pages: go up to the dashboard.
+  if (!(await byId('project-home').isExisting())) await clickId('crumb-project');
   await clickId('project-tab-variables');
   await byId('vars-add').waitForDisplayed({ timeout: 10000 });
 }

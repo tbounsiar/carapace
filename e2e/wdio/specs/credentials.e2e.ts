@@ -10,6 +10,7 @@ import {
   createProject,
   disconnect,
   typeInto,
+  waitCredentialPrompt,
   waitForApp,
   waitGone,
   waitStatus,
@@ -23,7 +24,7 @@ const PW_HOST = 'pw';
 const ENC_HOST = 'enc';
 
 async function submitCredential(value: string): Promise<void> {
-  await byId('credential-secret').waitForDisplayed({ timeout: 20000 });
+  await waitCredentialPrompt();
   await expect(byId('credential-remember')).not.toBeChecked();
   await typeInto('credential-secret', value);
   await clickId('credential-submit');

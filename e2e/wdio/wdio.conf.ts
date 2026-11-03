@@ -3,8 +3,9 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { application, waitAppExited } from './helpers/app-process';
+
 const root = resolve(__dirname, '..', '..');
-const application = resolve(root, 'src-tauri', 'target', 'debug', 'carapace.exe');
 const driverBin = join(
   process.env['CARGO_HOME'] ?? join(homedir(), '.cargo'),
   'bin',
@@ -141,7 +142,8 @@ export const config: WebdriverIO.Config = {
     console.log('failure screenshot', await screenshot(name));
   },
 
-  beforeSession: (_config, _capabilities, specs) => {
+  beforeSession: async (_config, _capabilities, specs) => {
+    await waitAppExited();
     emptyHome();
     if (specs.some((spec) => spec.includes('migration-v3'))) seedV3ConfigWithEnvironments();
     else if (specs.some((spec) => spec.includes('migration'))) seedV2Config();

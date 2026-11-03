@@ -1,5 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { restartApp } from '../helpers/app-process';
 import { HOST, PROJECT } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
@@ -22,7 +23,7 @@ const shot = async (name: string) => console.log('screenshots', await screenshot
 async function restartWith(analytics?: { consent: string; catalogueVersion: number }) {
   const config = analytics ? { version: 3, analytics } : { version: 3 };
   writeFileSync(join(home(), 'config.json'), JSON.stringify(config, null, 2));
-  await browser.reloadSession();
+  await restartApp();
   await waitForApp();
 }
 

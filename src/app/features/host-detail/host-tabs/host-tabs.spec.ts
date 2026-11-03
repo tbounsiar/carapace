@@ -18,7 +18,13 @@ describe('HostTabs', () => {
     vi.clearAllMocks();
     TestBed.configureTestingModule({
       imports: [HostTabs],
-      providers: [provideTaiga(), provideRouter([]), { provide: HostLauncher, useValue: launcher }],
+      providers: [
+        provideTaiga(),
+        // The tab links also navigate through their routerLink; an unmatched URL would reject
+        // after the test has torn the injector down.
+        provideRouter([{ path: 'tabs/:tabId', children: [] }]),
+        { provide: HostLauncher, useValue: launcher },
+      ],
     });
   });
 
@@ -72,5 +78,6 @@ describe('HostTabs', () => {
     expect(link.textContent).toContain('Modified');
     link.click();
     expect(activate).toHaveBeenCalledWith(edit);
+    await fixture.whenStable();
   });
 });

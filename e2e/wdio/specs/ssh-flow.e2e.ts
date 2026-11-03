@@ -1,3 +1,4 @@
+import { restartApp } from '../helpers/app-process';
 import { HOST, PROJECT, rotateHostKey } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
@@ -109,7 +110,7 @@ describe('ssh flow', () => {
   });
 
   it('keeps the data after an app restart', async () => {
-    await browser.reloadSession();
+    await restartApp();
     await waitForApp();
     // WebView2 loses recent localStorage writes when the driver ends the process, so the restored
     // scope is not asserted here (see the reload test above); the config file is.

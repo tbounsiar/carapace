@@ -159,11 +159,15 @@ describe('ProjectHome', () => {
     expect(active('project-tab-hosts')).toBe(true);
   });
 
-  it('hides the header New host for an empty project, keeping the tabs', async () => {
+  it('hides the header New host and the menu New collection for an empty project', async () => {
     await go('/projects/p2');
     expect(byId('project-home-stats')?.textContent).toBe('No hosts yet');
     expect(byId('project-home-new-host')).toBeNull();
     expect(byId('project-tab-variables')).not.toBeNull();
+    byId('project-menu')!.click();
+    await settle();
+    expect(byId('project-rename')).not.toBeNull();
+    expect(byId('project-home-new-collection')).toBeNull();
   });
 
   it('shows skeletons while loading, then not found for an unknown project', async () => {
