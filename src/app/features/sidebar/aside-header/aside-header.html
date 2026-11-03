@@ -8,14 +8,13 @@
   >
     <span class="name" tuiHintOverflow>{{ project.name }}</span>
   </a>
-  <app-env-select [project]="project" />
   <a
     tuiAsideItem
     iconStart="@tui.variable"
     data-testid="project-variables"
     [routerLink]="['/projects', project.id, 'variables']"
   >
-    Variables and environments
+    Project variables
   </a>
 }
 <div

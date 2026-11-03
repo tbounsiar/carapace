@@ -43,10 +43,10 @@ describe('TerminalIpc', () => {
       channel.onmessage({ kind: 'closed', reason: 'exited' });
       return 't1';
     };
-    const id = await ipc.open('h1@none', 80, 24, (event) => events.push(event));
+    const id = await ipc.open('h1', 80, 24, (event) => events.push(event));
     expect(id).toBe('t1');
     expect(calls[0].cmd).toBe('open_terminal');
-    expect(calls[0].args).toMatchObject({ connectionId: 'h1@none', cols: 80, rows: 24 });
+    expect(calls[0].args).toMatchObject({ connectionId: 'h1', cols: 80, rows: 24 });
     const data = events[0] as Extract<TerminalEvent, { kind: 'data' }>;
     expect(Array.from(data.bytes)).toEqual([104, 105, 13, 10, 27, 91, 48, 109]);
     expect(events.slice(1)).toEqual([
@@ -61,7 +61,7 @@ describe('TerminalIpc', () => {
       (args['onEvent'] as Channel<TerminalWireEvent>).onmessage({ kind: 'data', data: '4pw=' });
       return 't1';
     };
-    await ipc.open('h1@none', 80, 24, (event) => {
+    await ipc.open('h1', 80, 24, (event) => {
       if (event.kind === 'data') received = event.bytes;
     });
     expect(Array.from(received!)).toEqual([0xe2, 0x9c]);

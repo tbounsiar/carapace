@@ -1,16 +1,15 @@
+use std::collections::HashSet;
 use std::fs;
 use std::io::{ErrorKind, Read, Write};
 use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use thiserror::Error;
 use uuid::Uuid;
 
-use super::migrate;
-use super::model::{
-    ConfigFile, Environment, Host, KeyEntry, Node, Project, Variable, VariableScope,
-};
+use super::migrate::{self, Dropped, LegacyProject, MigrationPlan};
+use super::model::{ConfigFile, Host, KeyEntry, Node, Project, Variable, VariableScope};
 use super::validate::{self, same_name};
 
 mod nodes;
@@ -42,6 +41,35 @@ pub enum ConfigError {
     Io,
     #[error("the configuration file is unreadable or has an unsupported format")]
     Corrupt,
+    /// The keychain work a migration needs before writing the file failed; nothing was written.
+    #[error("the system keychain is not available")]
+    Keychain,
+}
+
+/// Anything held while it lives.
+pub trait Held {}
+impl<T> Held for T {}
+
+/// The keychain side of a migration, provided by the command layer (this module never touches
+/// the keychain).
+pub trait KeychainMigration: Send + Sync {
+    /// Held around every store operation, taken before the store lock: the lock under which the
+    /// command layer changes the keychain, so `before_save` keeps the usual lock order. Must be
+    /// reentrant on one thread (operations run while the caller already holds it).
+    fn enter(&self) -> Box<dyn Held + '_>;
+    /// Runs once a migration is validated, before anything is written; an error aborts it.
+    fn before_save(&self, plan: &MigrationPlan) -> Result<(), ()>;
+}
+
+struct Migration(Arc<dyn KeychainMigration>);
+
+/// The store lock, then the keychain lock: fields drop in this order.
+type Guard<'a> = (MutexGuard<'a, ()>, Option<Box<dyn Held + 'a>>);
+
+impl std::fmt::Debug for Migration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("KeychainMigration")
+    }
 }
 
 /// Each operation reloads the file, so a corrupt file is reported on every call and is never
@@ -51,6 +79,16 @@ pub struct ConfigStore {
     dir: PathBuf,
     lock: Mutex<()>,
     legacy: Mutex<Vec<LegacyHost>>,
+    legacy_projects: Mutex<LegacyProjects>,
+    migration: Option<Migration>,
+}
+
+/// `seen` holds the environment ids drained so far, so one environment is never cleaned up
+/// twice in a run.
+#[derive(Debug, Default)]
+struct LegacyProjects {
+    pending: Vec<LegacyProject>,
+    seen: HashSet<String>,
 }
 
 /// A host of a version 1 file that was moved aside; its keychain entries are cleaned up by
@@ -104,13 +142,6 @@ fn project_mut<'a>(cfg: &'a mut ConfigFile, id: &str) -> Result<&'a mut Project,
         .ok_or(ConfigError::NotFound("project"))
 }
 
-fn env_mut<'a>(p: &'a mut Project, id: &str) -> Result<&'a mut Environment, ConfigError> {
-    p.environments
-        .iter_mut()
-        .find(|e| e.id == id)
-        .ok_or(ConfigError::NotFound("environment"))
-}
-
 fn key_mut<'a>(cfg: &'a mut ConfigFile, id: &str) -> Result<&'a mut KeyEntry, ConfigError> {
     cfg.keys
         .iter_mut()
@@ -136,6 +167,31 @@ fn same_path(a: &str, b: &str) -> bool {
 #[derive(Deserialize)]
 struct Probe {
     version: u32,
+    #[serde(default)]
+    projects: Vec<ProjectProbe>,
+}
+
+/// Whether a project still carries the environment fields of a version 3 file written before
+/// environments were removed. Only the presence of the keys matters.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectProbe {
+    #[serde(default, deserialize_with = "present")]
+    environments: bool,
+    #[serde(default, deserialize_with = "present")]
+    active_environment_id: bool,
+}
+
+fn present<'de, D: Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
+    serde::de::IgnoredAny::deserialize(d).map(|_| true)
+}
+
+impl Probe {
+    fn has_environments(&self) -> bool {
+        self.projects
+            .iter()
+            .any(|p| p.environments || p.active_environment_id)
+    }
 }
 
 impl ConfigStore {
@@ -148,6 +204,17 @@ impl ConfigStore {
             dir,
             lock: Mutex::new(()),
             legacy: Mutex::default(),
+            legacy_projects: Mutex::default(),
+            migration: None,
+        }
+    }
+
+    /// A store that can migrate files whose environments carry secrets: without `migration`,
+    /// such a file is refused with `Keychain` and left as it is.
+    pub fn with_migration(dir: PathBuf, migration: Arc<dyn KeychainMigration>) -> Self {
+        Self {
+            migration: Some(Migration(migration)),
+            ..Self::new(dir)
         }
     }
 
@@ -159,8 +226,45 @@ impl ConfigStore {
             .unwrap_or_default()
     }
 
-    fn guard(&self) -> Result<MutexGuard<'_, ()>, ConfigError> {
-        self.lock.lock().map_err(|_| ConfigError::Io)
+    /// Keychain work left by environments dropped from the file since the last call.
+    pub fn take_legacy_projects(&self) -> Vec<LegacyProject> {
+        self.legacy_projects
+            .lock()
+            .map(|mut l| std::mem::take(&mut l.pending))
+            .unwrap_or_default()
+    }
+
+    /// Called only once the file without environments is saved.
+    fn drain_environments(&self, found: Vec<LegacyProject>) {
+        let Ok(mut l) = self.legacy_projects.lock() else {
+            return;
+        };
+        for mut p in found {
+            p.environments
+                .retain(|e| l.seen.insert(e.environment_id.clone()));
+            if !p.environments.is_empty() {
+                l.pending.push(p);
+            }
+        }
+    }
+
+    /// The keychain lock (if any), then the store lock; released in reverse order.
+    fn guard(&self) -> Result<Guard<'_>, ConfigError> {
+        let held = self.migration.as_ref().map(|m| m.0.enter());
+        let lock = self.lock.lock().map_err(|_| ConfigError::Io)?;
+        Ok((lock, held))
+    }
+
+    /// The keychain work of a migration, before anything is written. No call at all when the
+    /// plan is empty, so an all-plain migration does not depend on the keychain.
+    fn before_save(&self, plan: &MigrationPlan) -> Result<(), ConfigError> {
+        if plan.is_empty() {
+            return Ok(());
+        }
+        match &self.migration {
+            Some(m) => m.0.before_save(plan).map_err(|()| ConfigError::Keychain),
+            None => Err(ConfigError::Keychain),
+        }
     }
 
     /// Must be called with the lock held.
@@ -181,16 +285,29 @@ impl ConfigStore {
         let probe: Probe = serde_json::from_slice(&raw).map_err(|_| ConfigError::Corrupt)?;
         match probe.version {
             VERSION => {
-                let cfg: ConfigFile =
+                let mut cfg: ConfigFile =
                     serde_json::from_slice(&raw).map_err(|_| ConfigError::Corrupt)?;
                 validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
+                if probe.has_environments() {
+                    let Dropped { plan, legacy } =
+                        migrate::drop_environments(&mut cfg, &raw, false)
+                            .map_err(|()| ConfigError::Corrupt)?;
+                    self.before_save(&plan)?;
+                    self.save(&cfg)?;
+                    self.drain_environments(legacy);
+                    log::info!("environments removed from the configuration");
+                }
                 Ok(cfg)
             }
             2 => {
-                let cfg = migrate::from_v2(&raw, VERSION).map_err(|_| ConfigError::Corrupt)?;
+                let mut cfg = migrate::from_v2(&raw, VERSION).map_err(|_| ConfigError::Corrupt)?;
                 validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
+                let Dropped { plan, legacy } = migrate::drop_environments(&mut cfg, &raw, true)
+                    .map_err(|()| ConfigError::Corrupt)?;
+                self.before_save(&plan)?;
                 self.back_up_v2(&raw)?;
                 self.save(&cfg)?;
+                self.drain_environments(legacy);
                 log::info!("configuration migrated from version 2 to version 3");
                 Ok(cfg)
             }
@@ -303,8 +420,6 @@ impl ConfigStore {
                 id: new_id(),
                 name,
                 variables: Vec::new(),
-                environments: Vec::new(),
-                active_environment_id: None,
             };
             cfg.projects.push(project.clone());
             Ok(project)
@@ -352,97 +467,6 @@ impl ConfigStore {
         })
     }
 
-    pub fn create_environment(
-        &self,
-        project_id: &str,
-        name: &str,
-    ) -> Result<Environment, ConfigError> {
-        let name = validate::name(name)?;
-        self.mutate(|cfg| {
-            let project = project_mut(cfg, project_id)?;
-            if project
-                .environments
-                .iter()
-                .any(|e| same_name(&e.name, &name))
-            {
-                return Err(ConfigError::Conflict("environment"));
-            }
-            let env = Environment {
-                id: new_id(),
-                name,
-                variables: Vec::new(),
-            };
-            project.environments.push(env.clone());
-            Ok(env)
-        })
-    }
-
-    pub fn rename_environment(
-        &self,
-        project_id: &str,
-        environment_id: &str,
-        name: &str,
-    ) -> Result<Environment, ConfigError> {
-        let name = validate::name(name)?;
-        self.mutate(|cfg| {
-            let project = project_mut(cfg, project_id)?;
-            env_mut(project, environment_id)?;
-            if project
-                .environments
-                .iter()
-                .any(|e| e.id != environment_id && same_name(&e.name, &name))
-            {
-                return Err(ConfigError::Conflict("environment"));
-            }
-            let env = env_mut(project, environment_id)?;
-            env.name = name;
-            Ok(env.clone())
-        })
-    }
-
-    /// Returns the removed environment and the ids of the project's hosts at that moment.
-    pub fn delete_environment(
-        &self,
-        project_id: &str,
-        environment_id: &str,
-    ) -> Result<(Environment, Vec<String>), ConfigError> {
-        self.mutate(|cfg| {
-            let project = project_mut(cfg, project_id)?;
-            let i = project
-                .environments
-                .iter()
-                .position(|e| e.id == environment_id)
-                .ok_or(ConfigError::NotFound("environment"))?;
-            if project.active_environment_id.as_deref() == Some(environment_id) {
-                project.active_environment_id = None;
-            }
-            let env = project.environments.remove(i);
-            let hosts = cfg
-                .nodes
-                .iter()
-                .filter_map(Node::as_host)
-                .filter(|h| h.project_id.as_deref() == Some(project_id))
-                .map(|h| h.id.clone())
-                .collect();
-            Ok((env, hosts))
-        })
-    }
-
-    pub fn set_active_environment(
-        &self,
-        project_id: &str,
-        environment_id: Option<&str>,
-    ) -> Result<Project, ConfigError> {
-        self.mutate(|cfg| {
-            let project = project_mut(cfg, project_id)?;
-            if let Some(id) = environment_id {
-                env_mut(project, id)?;
-            }
-            project.active_environment_id = environment_id.map(str::to_owned);
-            Ok(project.clone())
-        })
-    }
-
     /// Replaces the whole list of a scope. Returns the previous list and the saved one.
     pub fn set_variables(
         &self,
@@ -456,10 +480,6 @@ impl ConfigStore {
                 VariableScope::Project { project_id } => {
                     &mut project_mut(cfg, project_id)?.variables
                 }
-                VariableScope::Environment {
-                    project_id,
-                    environment_id,
-                } => &mut env_mut(project_mut(cfg, project_id)?, environment_id)?.variables,
             };
             let old = std::mem::replace(slot, new.clone());
             Ok((old, new))

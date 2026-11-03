@@ -90,7 +90,7 @@ export class LocationBar {
           return { ...none, current: this.config.loaded() ? 'Project not found' : null };
         }
         return route.variables
-          ? { ...none, project, current: 'Variables and environments' }
+          ? { ...none, project, current: 'Project variables' }
           : { ...none, current: project.name, projectHome: project };
       }
       case 'host': {

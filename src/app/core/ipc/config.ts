@@ -4,7 +4,6 @@ import type {
   ConfigNode,
   ConfigView,
   DeletedNodes,
-  Environment,
   Host,
   HostInput,
   MoveResult,
@@ -87,54 +86,13 @@ export class ConfigService {
     this._nodes.update((list) => list.filter((n) => n.projectId !== projectId));
   }
 
-  async createEnvironment(projectId: string, name: string): Promise<Environment> {
-    const env = await invokeCommand<Environment>('create_environment', { projectId, name });
-    this.patchProject(projectId, (p) => ({ ...p, environments: [...p.environments, env] }));
-    return env;
-  }
-
-  async renameEnvironment(projectId: string, environmentId: string, name: string): Promise<void> {
-    const env = await invokeCommand<Environment>('rename_environment', {
-      projectId,
-      environmentId,
-      name,
-    });
-    this.patchProject(projectId, (p) => ({
-      ...p,
-      environments: p.environments.map((e) =>
-        e.id === environmentId ? { ...e, name: env.name } : e,
-      ),
-    }));
-  }
-
-  async deleteEnvironment(projectId: string, environmentId: string): Promise<void> {
-    await invokeCommand<null>('delete_environment', { projectId, environmentId });
-    this.patchProject(projectId, (p) => ({
-      ...p,
-      environments: p.environments.filter((e) => e.id !== environmentId),
-      activeEnvironmentId: p.activeEnvironmentId === environmentId ? null : p.activeEnvironmentId,
-    }));
-  }
-
-  async setActiveEnvironment(projectId: string, environmentId: string | null): Promise<void> {
-    await invokeCommand<unknown>('set_active_environment', { projectId, environmentId });
-    this.patchProject(projectId, (p) => ({ ...p, activeEnvironmentId: environmentId }));
-  }
-
   /** Replaces the whole list of the scope. */
   async setVariables(scope: VariableScope, variables: VariableInput[]): Promise<VariableView[]> {
     const saved = await invokeCommand<VariableView[]>('set_variables', { scope, variables });
     if (scope.kind === 'global') {
       this._variables.set(saved);
-    } else if (scope.kind === 'project') {
-      this.patchProject(scope.projectId, (p) => ({ ...p, variables: saved }));
     } else {
-      this.patchProject(scope.projectId, (p) => ({
-        ...p,
-        environments: p.environments.map((e) =>
-          e.id === scope.environmentId ? { ...e, variables: saved } : e,
-        ),
-      }));
+      this.patchProject(scope.projectId, (p) => ({ ...p, variables: saved }));
     }
     return saved;
   }
@@ -199,8 +157,8 @@ export class ConfigService {
     return result;
   }
 
-  resolveHost(hostId: string, environmentId: string | null): Promise<ResolvedHost> {
-    return invokeCommand<ResolvedHost>('resolve_host', { hostId, environmentId });
+  resolveHost(hostId: string): Promise<ResolvedHost> {
+    return invokeCommand<ResolvedHost>('resolve_host', { hostId });
   }
 
   private replaceNodes(nodes: readonly ConfigNode[]): void {

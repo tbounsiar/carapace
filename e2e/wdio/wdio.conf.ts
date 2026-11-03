@@ -41,6 +41,56 @@ function seedV2Config(): void {
   writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
 }
 
+/**
+ * A v3 config written while projects still had environments: the leftover fields must be
+ * dropped on load. No environment is active, so the project variables stay as they are.
+ */
+function seedV3ConfigWithEnvironments(): void {
+  const home = homeDir();
+  if (!home) return;
+  const projectId = 'c3a1f0d2-5b7e-4f61-9a0c-2d4e6f8a1b3c';
+  const collectionId = 'e5b2c4d6-7f81-4a93-8b05-1c3e5a7b9d2f';
+  const config = {
+    version: 3,
+    variables: [{ name: 'user', kind: 'plain', value: 'carapace' }],
+    projects: [
+      {
+        id: projectId,
+        name: 'Legacy',
+        variables: [{ name: 'port', kind: 'plain', value: '2223' }],
+        environments: [
+          {
+            id: 'a7d3e9f1-2b4c-4d6e-8f01-3a5c7e9b1d4f',
+            name: 'dev',
+            variables: [{ name: 'port', kind: 'plain', value: '1' }],
+          },
+        ],
+        activeEnvironmentId: null,
+      },
+    ],
+    nodes: [
+      { kind: 'collection', id: collectionId, name: 'Servers', projectId, parentId: null },
+      {
+        kind: 'host',
+        id: 'f1e2d3c4-b5a6-4978-8695-a4b3c2d1e0f9',
+        name: 'sshd',
+        projectId,
+        parentId: collectionId,
+        hostname: '127.0.0.1',
+        port: '${port}',
+        username: '${user}',
+        auth: {
+          kind: 'key',
+          keyPath: resolve(root, 'e2e', '.work', 'id_ed25519'),
+          passphrase: null,
+        },
+      },
+    ],
+    keys: [],
+  };
+  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
+}
+
 export const config: WebdriverIO.Config = {
   runner: 'local',
   specs: [resolve(__dirname, 'specs', '**', '*.e2e.ts')],
@@ -82,7 +132,8 @@ export const config: WebdriverIO.Config = {
 
   beforeSession: (_config, _capabilities, specs) => {
     emptyHome();
-    if (specs.some((spec) => spec.includes('migration'))) seedV2Config();
+    if (specs.some((spec) => spec.includes('migration-v3'))) seedV3ConfigWithEnvironments();
+    else if (specs.some((spec) => spec.includes('migration'))) seedV2Config();
   },
   afterSession: emptyHome,
 

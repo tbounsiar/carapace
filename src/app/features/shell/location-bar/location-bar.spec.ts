@@ -100,7 +100,7 @@ describe('LocationBar', () => {
 
   it('names the variables and global pages', async () => {
     await go('/projects/p1/variables');
-    expect(crumbs()).toEqual(['Home', 'Payments', 'Variables and environments']);
+    expect(crumbs()).toEqual(['Home', 'Payments', 'Project variables']);
     await go('/keys');
     expect(crumbs()).toEqual(['Home', 'SSH keys']);
     expect(byId('host-menu')).toBeNull();

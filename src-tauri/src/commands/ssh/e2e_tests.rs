@@ -1,4 +1,4 @@
-//! Templated hosts and environments against the disposable sshd in `e2e/sshd` (published on
+//! Templated hosts and variable layers against the disposable sshd in `e2e/sshd` (published on
 //! 127.0.0.1:2222 and :2223). Run only with `CARAPACE_E2E=1` after `node e2e/sshd/setup.mjs up`.
 
 use std::path::{Path, PathBuf};
@@ -51,7 +51,6 @@ struct World {
     store: ConfigStore,
     secrets: SecretStore,
     ssh: Arc<SshManager>,
-    project: String,
 }
 
 impl World {
@@ -60,7 +59,6 @@ impl World {
         let store = ConfigStore::new(dir.path().join("home"));
         let (secrets, _) = MemoryBackend::store();
         let ssh = Arc::new(isolated_manager_with(dir.path(), secrets.clone()));
-        let project = store.create_project("e2e").unwrap().id;
         store
             .set_variables(
                 &VariableScope::Global,
@@ -72,21 +70,15 @@ impl World {
             store,
             secrets,
             ssh,
-            project,
         }
     }
 
-    fn env(&self, name: &str, vars: &[Variable]) -> String {
-        let id = self
-            .store
-            .create_environment(&self.project, name)
-            .unwrap()
-            .id;
+    fn project(&self, name: &str, vars: &[Variable]) -> String {
+        let id = self.store.create_project(name).unwrap().id;
         self.store
             .set_variables(
-                &VariableScope::Environment {
-                    project_id: self.project.clone(),
-                    environment_id: id.clone(),
+                &VariableScope::Project {
+                    project_id: id.clone(),
                 },
                 vars,
             )
@@ -94,10 +86,10 @@ impl World {
         id
     }
 
-    fn host(&self, name: &str, auth: AuthMethod) -> String {
+    fn host(&self, project: Option<&str>, name: &str, auth: AuthMethod) -> String {
         self.store
             .create_host(
-                Some(&self.project),
+                project,
                 None,
                 &HostInput {
                     name: name.into(),
@@ -111,8 +103,8 @@ impl World {
             .id
     }
 
-    fn target(&self, host: &str, env: &str) -> Target {
-        resolve::target(&self.store, host, Some(env)).unwrap()
+    fn target(&self, host: &str) -> Target {
+        resolve::target(&self.store, host).unwrap()
     }
 
     /// Connects and accepts the host key if asked, like a user trusting it on first use.
@@ -144,92 +136,29 @@ fn key_auth() -> AuthMethod {
     }
 }
 
+fn endpoint(port: &str) -> [Variable; 2] {
+    [plain("host", "127.0.0.1"), plain("port", port)]
+}
+
 #[tokio::test]
-async fn templated_host_connects_with_the_environment_variables() {
+async fn templated_host_connects_with_the_project_variables() {
     if !enabled() {
         return;
     }
     let _g = E2E_SERVER.read().await;
     let w = World::new();
-    let dev = w.env("Dev", &[plain("host", "127.0.0.1"), plain("port", "2222")]);
-    let host = w.host("ui", key_auth());
-    let target = w.target(&host, &dev);
+    let p = w.project("e2e", &endpoint("2222"));
+    let host = w.host(Some(&p), "ui", key_auth());
+    let target = w.target(&host);
     assert_eq!(target.port, 2222);
     let info = w.connect(target).await.unwrap();
-    assert_eq!(info.connection_id, format!("{host}@{dev}"));
-    assert_eq!(info.environment_id.as_deref(), Some(dev.as_str()));
+    assert_eq!(info.connection_id, host);
+    assert_eq!(info.host_id, host);
     assert_eq!(w.ssh.list().await, vec![info]);
 }
 
 #[tokio::test]
-async fn two_environments_give_two_concurrent_connections_of_one_host() {
-    if !enabled() {
-        return;
-    }
-    let _g = E2E_SERVER.read().await;
-    let w = World::new();
-    let dev = w.env("Dev", &[plain("host", "127.0.0.1"), plain("port", "2222")]);
-    let alt = w.env("Alt", &[plain("host", "127.0.0.1"), plain("port", "2223")]);
-    let broken = w.env("Broken", &[plain("host", "127.0.0.1"), plain("port", "1")]);
-    let host = w.host("ui", key_auth());
-
-    let (a, b) = tokio::join!(
-        w.connect(w.target(&host, &dev)),
-        w.connect(w.target(&host, &alt))
-    );
-    let (a, b) = (a.unwrap(), b.unwrap());
-    assert_ne!(a.connection_id, b.connection_id);
-    assert_eq!(w.ssh.list().await.len(), 2);
-
-    let err = w.connect(w.target(&host, &broken)).await.unwrap_err();
-    assert_eq!(err, SshError::Network);
-    assert_eq!(w.ssh.list().await.len(), 2);
-
-    w.ssh.disconnect(&b.connection_id).await.unwrap();
-    assert!(w.ssh.session(&a.connection_id).await.is_some());
-    assert_eq!(w.ssh.list().await, vec![a]);
-
-    let missing = resolve::target(&w.store, &host, None).unwrap_err();
-    assert_eq!(missing.code, "missing_variables");
-}
-
-#[tokio::test]
-async fn password_from_a_secret_environment_variable() {
-    if !enabled() {
-        return;
-    }
-    let _g = E2E_SERVER.read().await;
-    let w = World::new();
-    let dev = w.env(
-        "Dev",
-        &[
-            plain("host", "127.0.0.1"),
-            plain("port", "2222"),
-            Variable {
-                name: "pw".into(),
-                kind: VariableKind::Secret,
-                value: None,
-            },
-        ],
-    );
-    w.secrets
-        .set_var(
-            &VarKey::environment(&dev, "pw").unwrap(),
-            &SecretString::from(work_file("password")),
-        )
-        .unwrap();
-    let host = w.host(
-        "pw",
-        AuthMethod::Password {
-            password: Some("${pw}".into()),
-        },
-    );
-    let info = w.connect(w.target(&host, &dev)).await.unwrap();
-    assert_eq!(info.connection_id, format!("{host}@{dev}"));
-}
-
-#[tokio::test]
-async fn home_host_connects_with_global_variables_and_no_environment() {
+async fn project_variables_win_over_global_ones() {
     if !enabled() {
         return;
     }
@@ -242,30 +171,116 @@ async fn home_host_connects_with_global_variables_and_no_environment() {
                 plain("user", "carapace"),
                 plain("keys", &work_dir()),
                 plain("host", "127.0.0.1"),
+                plain("port", "1"),
+            ],
+        )
+        .unwrap();
+    let p = w.project("e2e", &[plain("port", "2223")]);
+    let host = w.host(Some(&p), "ui", key_auth());
+    let info = w.connect(w.target(&host)).await.unwrap();
+    assert_eq!(info.connection_id, host);
+    let home = w.host(None, "home", key_auth());
+    let err = w.connect(w.target(&home)).await.unwrap_err();
+    assert_eq!(err, SshError::Network);
+}
+
+#[tokio::test]
+async fn hosts_of_two_projects_connect_concurrently() {
+    if !enabled() {
+        return;
+    }
+    let _g = E2E_SERVER.read().await;
+    let w = World::new();
+    let a = w.project("a", &endpoint("2222"));
+    let b = w.project("b", &endpoint("2223"));
+    let broken = w.project("broken", &endpoint("1"));
+    let (ha, hb) = (
+        w.host(Some(&a), "ui", key_auth()),
+        w.host(Some(&b), "ui", key_auth()),
+    );
+
+    let (ca, cb) = tokio::join!(w.connect(w.target(&ha)), w.connect(w.target(&hb)));
+    let (ca, cb) = (ca.unwrap(), cb.unwrap());
+    assert_eq!(
+        (ca.connection_id.as_str(), cb.connection_id.as_str()),
+        (ha.as_str(), hb.as_str())
+    );
+    assert_eq!(w.ssh.list().await.len(), 2);
+
+    let hx = w.host(Some(&broken), "ui", key_auth());
+    let err = w.connect(w.target(&hx)).await.unwrap_err();
+    assert_eq!(err, SshError::Network);
+    assert_eq!(w.ssh.list().await.len(), 2);
+
+    w.ssh.disconnect(&cb.connection_id).await.unwrap();
+    assert!(w.ssh.session(&ca.connection_id).await.is_some());
+    assert_eq!(w.ssh.list().await, vec![ca]);
+
+    let bare = w.project("bare", &[]);
+    let hm = w.host(Some(&bare), "ui", key_auth());
+    let missing = resolve::target(&w.store, &hm).unwrap_err();
+    assert_eq!(missing.code, "missing_variables");
+}
+
+#[tokio::test]
+async fn password_from_a_secret_project_variable() {
+    if !enabled() {
+        return;
+    }
+    let _g = E2E_SERVER.read().await;
+    let w = World::new();
+    let [h, port] = endpoint("2222");
+    let p = w.project(
+        "e2e",
+        &[
+            h,
+            port,
+            Variable {
+                name: "pw".into(),
+                kind: VariableKind::Secret,
+                value: None,
+            },
+        ],
+    );
+    w.secrets
+        .set_var(
+            &VarKey::project(&p, "pw").unwrap(),
+            &SecretString::from(work_file("password")),
+        )
+        .unwrap();
+    let host = w.host(
+        Some(&p),
+        "pw",
+        AuthMethod::Password {
+            password: Some("${pw}".into()),
+        },
+    );
+    let info = w.connect(w.target(&host)).await.unwrap();
+    assert_eq!(info.connection_id, host);
+}
+
+#[tokio::test]
+async fn home_host_connects_with_global_variables_only() {
+    if !enabled() {
+        return;
+    }
+    let _g = E2E_SERVER.read().await;
+    let w = World::new();
+    w.project("e2e", &endpoint("1"));
+    w.store
+        .set_variables(
+            &VariableScope::Global,
+            &[
+                plain("user", "carapace"),
+                plain("keys", &work_dir()),
+                plain("host", "127.0.0.1"),
                 plain("port", "2222"),
             ],
         )
         .unwrap();
-    let host = w
-        .store
-        .create_host(
-            None,
-            None,
-            &HostInput {
-                name: "home".into(),
-                hostname: "${host}".into(),
-                port: "${port}".into(),
-                username: "${user}".into(),
-                auth: key_auth(),
-            },
-        )
-        .unwrap()
-        .id;
-    let target = resolve::target(&w.store, &host, None).unwrap();
+    let host = w.host(None, "home", key_auth());
+    let target = w.target(&host);
+    assert_eq!(target.port, 2222);
     let info = w.connect(target).await.unwrap();
-    assert_eq!(info.connection_id, format!("{host}@none"));
-    assert!(info.environment_id.is_none());
-    let dev = w.env("Dev", &[]);
-    let err = resolve::target(&w.store, &host, Some(&dev)).unwrap_err();
-    assert_eq!(err.code, "invalid_input");
+    assert_eq!(info.connection_id, host);
 }

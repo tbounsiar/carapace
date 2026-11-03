@@ -9,7 +9,7 @@ describe('errorText', () => {
       'The connection timed out. Check that the host is reachable, then try again.',
     );
     expect(errorText(new IpcError('missing_variables', 'missing variables: a, b'))).toBe(
-      'Missing variables: a, b. Define them in the global, project or environment variables.',
+      'Missing variables: a, b. Define them in the global or project variables.',
     );
   });
 

@@ -655,16 +655,15 @@ fn events_serialize_as_contract() {
     assert_eq!(v["kind"], "status");
     assert_eq!(v["state"], "authenticating");
     let v = serde_json::to_value(ConnectionInfo {
-        connection_id: "a@none".into(),
+        connection_id: "a".into(),
         host_id: "a".into(),
-        environment_id: None,
         state: ConnectState::Connected,
     })
     .unwrap();
-    assert_eq!(v["connectionId"], "a@none");
-    assert_eq!(v["hostId"], "a");
-    assert!(v["environmentId"].is_null());
-    assert_eq!(v["state"], "connected");
+    assert_eq!(
+        v,
+        serde_json::json!({"connectionId": "a", "hostId": "a", "state": "connected"})
+    );
 }
 
 #[tokio::test]
@@ -837,7 +836,6 @@ async fn one_host_two_connections_at_once() {
     trust_server(&dev, &server);
     let mut other = dev.target.clone();
     other.connection_id = "h1@other".into();
-    other.environment_id = Some("00000000-0000-4000-8000-0000000000b2".into());
     let emit: Emit = Arc::new(|_| {});
     connect_once(&dev, None).await.unwrap();
     dev.manager
@@ -849,12 +847,9 @@ async fn one_host_two_connections_at_once() {
         .list()
         .await
         .into_iter()
-        .map(|c| (c.connection_id, c.environment_id.is_some()))
+        .map(|c| c.connection_id)
         .collect();
-    assert_eq!(
-        ids,
-        vec![("h1".to_string(), false), ("h1@other".to_string(), true)]
-    );
+    assert_eq!(ids, vec!["h1".to_string(), "h1@other".to_string()]);
     dev.manager.disconnect("h1").await.unwrap();
     assert!(dev.manager.session("h1@other").await.is_some());
     assert!(dev.manager.session("h1").await.is_none());
@@ -862,8 +857,6 @@ async fn one_host_two_connections_at_once() {
 
 #[test]
 fn connection_ids_and_bound_targets() {
-    assert_eq!(Target::connection_id_of("h", None), "h@none");
-    assert_eq!(Target::connection_id_of("h", Some("e")), "h@e");
     let t = target("c", 2222, "me", TargetAuth::Password { variable: None });
     assert_eq!(t.bound_to(SecretKind::Password), "me@127.0.0.1:2222");
     let k = target(

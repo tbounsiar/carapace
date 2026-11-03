@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, resource, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TuiButton, TuiIcon, TuiNotificationService, TuiTitle } from '@taiga-ui/core';
-import { TuiBadge, TuiButtonLoading, TuiSegmented, TuiStatus } from '@taiga-ui/kit';
+import { TuiButtonLoading, TuiSegmented, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiCardLarge, TuiHeader } from '@taiga-ui/layout';
 import { ConfigService } from '../../../core/ipc/config';
 import { hostTarget } from '../../../core/ipc/connection';
@@ -9,7 +9,6 @@ import { SecretsService } from '../../../core/ipc/secrets';
 import { SshService } from '../../../core/ipc/ssh';
 import { AUTH_LABELS } from '../../../shared/auth-method';
 import { connectionStatus } from '../../../shared/connection-status';
-import { environmentMarker } from '../../../shared/environment-kind';
 import { FilesPanel } from '../../files/files-panel/files-panel';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../../project-tree/project-actions';
@@ -25,7 +24,6 @@ const VIEW_OPTIONS: readonly { view: HostView; label: string; icon: string }[] =
 @Component({
   imports: [
     RouterLink,
-    TuiBadge,
     TuiBlockStatus,
     TuiButton,
     TuiButtonLoading,
@@ -55,19 +53,9 @@ export class HostDetail {
 
   protected readonly located = computed(() => this.config.findHost(this.hostId()));
 
-  protected readonly environment = computed(() => {
-    const project = this.located()?.project;
-    return project?.environments.find((e) => e.id === project.activeEnvironmentId) ?? null;
-  });
-
   protected readonly target = computed(() => {
     const located = this.located();
-    return located ? hostTarget(located.host, located.project) : null;
-  });
-
-  protected readonly marker = computed(() => {
-    const env = this.environment();
-    return env ? environmentMarker(env.name) : null;
+    return located ? hostTarget(located.host) : null;
   });
 
   /** Re-resolved whenever the config changes, since any variable may affect the result. */
@@ -83,8 +71,7 @@ export class HostDetail {
           }
         : undefined;
     },
-    loader: ({ params }) =>
-      this.config.resolveHost(params.target.hostId, params.target.environmentId),
+    loader: ({ params }) => this.config.resolveHost(params.target.hostId),
   });
 
   protected readonly address = computed(() => {
@@ -136,13 +123,6 @@ export class HostDetail {
     VIEW_OPTIONS.findIndex((o) => o.view === this.view()),
   );
 
-  protected readonly scopeText = computed(() => {
-    const project = this.located()?.project;
-    return project
-      ? `${project.name} / ${this.environment()?.name ?? 'No environment'}`
-      : 'Home · no environment';
-  });
-
   protected selectView(index: number): void {
     const option = VIEW_OPTIONS[index];
     if (option) {
@@ -178,9 +158,9 @@ export class HostDetail {
     }
     this.forgetting.set(true);
     try {
-      await this.secrets.forgetSaved(target.hostId, target.environmentId);
+      await this.secrets.forgetSaved(target.hostId);
       this.alerts
-        .open(`The ${this.secretLabel()} saved for this connection was removed.`, {
+        .open(`The ${this.secretLabel()} saved for this host was removed.`, {
           label: 'Saved secret forgotten',
           appearance: 'positive',
         })

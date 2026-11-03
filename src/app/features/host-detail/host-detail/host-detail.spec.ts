@@ -15,16 +15,7 @@ import { ProjectActions } from '../../project-tree/project-actions';
 import { HostViews } from '../host-view';
 import { HostDetail } from './host-detail';
 
-const PROJECT: Project = {
-  id: 'p1',
-  name: 'Shop',
-  variables: [],
-  environments: [
-    { id: 'e1', name: 'production', variables: [] },
-    { id: 'e2', name: 'Dev', variables: [] },
-  ],
-  activeEnvironmentId: 'e1',
-};
+const PROJECT: Project = { id: 'p1', name: 'Shop', variables: [] };
 
 const HOST: Host = {
   kind: 'host',
@@ -112,14 +103,12 @@ describe('HostDetail', () => {
     }).compileComponents();
   });
 
-  it('shows the host with its active environment, resolved address and auth', async () => {
+  it('shows the host with its resolved address and auth', async () => {
     await setup();
-    expect(byId('host-detail-title')?.textContent).toMatch(/web-1\s*· production/);
+    expect(byId('host-detail-title')?.textContent?.trim()).toBe('web-1');
     expect(byId('host-detail-name')?.textContent).toContain('web-1');
-    expect(resolveHost).toHaveBeenCalledWith('h1', 'e1');
+    expect(resolveHost).toHaveBeenCalledWith('h1');
     expect(byId('host-detail-address')?.textContent).toContain('deploy@web1.example.com:2222');
-    expect(byId('host-detail-env-kind')?.textContent).toContain('prod');
-    expect(byId('host-detail-env')?.textContent).toContain('Shop / production');
     expect(byId('host-detail-auth')?.textContent).toContain('Private key file');
     expect(byId('host-detail-auth')?.textContent).toContain('~/.ssh/id_ed25519');
     expect(byId('host-detail-status')?.textContent).toContain('Not connected');
@@ -132,58 +121,48 @@ describe('HostDetail', () => {
     expect(byId('host-detail-address')?.textContent).toContain('Missing variables: host, port');
   });
 
-  it('has no environment suffix without an active environment', async () => {
-    projects.set([{ ...PROJECT, activeEnvironmentId: null }]);
-    await setup();
-    expect(byId('host-detail-title-env')).toBeNull();
-    expect(byId('host-detail-env-kind')).toBeNull();
-    expect(byId('host-detail-env')?.textContent).toContain('Shop / No environment');
-    expect(resolveHost).toHaveBeenCalledWith('h1', null);
-  });
-
-  it('shows a Home host with no environment', async () => {
+  it('connects a Home host', async () => {
     hosts.set([{ ...HOST, projectId: null }]);
     await setup();
-    expect(byId('host-detail-env')?.textContent?.trim()).toBe('Home · no environment');
-    expect(byId('host-detail-title-env')).toBeNull();
-    expect(byId('host-detail-env-kind')).toBeNull();
-    expect(resolveHost).toHaveBeenCalledWith('h1', null);
+    expect(byId('host-detail-title')?.textContent?.trim()).toBe('web-1');
+    expect(resolveHost).toHaveBeenCalledWith('h1');
     byId('host-connect')!.click();
-    expect(connector.connect).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: null, connectionId: 'h1@none' }),
-    );
+    expect(connector.connect).toHaveBeenCalledWith({
+      projectId: null,
+      hostId: 'h1',
+      connectionId: 'h1',
+    });
   });
 
-  it('connects the connection of the active environment', async () => {
+  it('connects the host, its connection id being the host id', async () => {
     await setup();
     byId('host-connect')!.click();
     expect(connector.connect).toHaveBeenCalledWith({
       projectId: 'p1',
       hostId: 'h1',
-      environmentId: 'e1',
-      connectionId: 'h1@e1',
+      connectionId: 'h1',
     });
     expect(byId('host-disconnect')).toBeNull();
   });
 
-  it('follows the state of the active connection only', async () => {
-    states.set({ 'h1@e2': 'connected' });
+  it('follows the state of the host connection', async () => {
+    states.set({ h2: 'connected' });
     await setup();
     expect(byId('host-connect')).not.toBeNull();
-    states.set({ 'h1@e2': 'connected', 'h1@e1': 'connected' });
+    states.set({ h2: 'connected', h1: 'connected' });
     await settle();
     expect(byId('host-connect')).toBeNull();
     expect(byId('host-detail-status')?.textContent).toContain('Connected');
     byId('host-disconnect')!.click();
-    expect(connector.disconnect).toHaveBeenCalledWith('h1@e1');
+    expect(connector.disconnect).toHaveBeenCalledWith('h1');
   });
 
-  it('forgets the saved passphrase of this connection', async () => {
+  it('forgets the saved passphrase of this host', async () => {
     await setup();
     expect(byId('host-forget-secrets')?.textContent).toContain('Forget saved passphrase');
     byId('host-forget-secrets')!.click();
     await settle();
-    expect(secrets.forgetSaved).toHaveBeenCalledWith('h1', 'e1');
+    expect(secrets.forgetSaved).toHaveBeenCalledWith('h1');
     expect(alerts.open).toHaveBeenCalledOnce();
   });
 

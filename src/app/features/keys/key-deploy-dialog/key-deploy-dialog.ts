@@ -18,10 +18,10 @@ import { TuiButtonLoading, TuiChevron, TuiSelect } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
 import { ConfigService } from '../../../core/ipc/config';
-import type { Host, Project } from '../../../core/ipc/config.models';
+import type { ConfigNode, Host, Project } from '../../../core/ipc/config.models';
 import type { KeyView } from '../../../core/ipc/keys';
 import { ErrorLink } from '../../../shared/error-link';
-import { byName, HOME } from '../../project-tree/node-tree';
+import { ancestors, byName, HOME } from '../../project-tree/node-tree';
 
 interface HostGroup {
   readonly label: string;
@@ -35,10 +35,9 @@ export interface KeyDeployDialogData {
   readonly deploy: (hostId: string, useKey: boolean) => Promise<boolean>;
 }
 
-/** `UI · Dev`, or the host name alone at Home or when its project has no active environment. */
-export function deployTargetLabel(project: Project | null, host: Host): string {
-  const env = project?.environments.find((e) => e.id === project.activeEnvironmentId);
-  return env ? `${host.name} · ${env.name}` : host.name;
+/** The host's path inside its scope: `Backend / UI`, or `UI` at the scope root. */
+export function deployTargetLabel(nodes: readonly ConfigNode[], host: Host): string {
+  return [...ancestors(nodes, host.id).map((c) => c.name), host.name].join(' / ');
 }
 
 function required(control: AbstractControl): ValidationErrors | null {
@@ -91,7 +90,7 @@ export class KeyDeployDialog {
     const map = new Map<string, string>();
     for (const group of this.groups()) {
       for (const host of group.hosts) {
-        map.set(host.id, deployTargetLabel(group.project, host));
+        map.set(host.id, deployTargetLabel(this.config.nodes(), host));
       }
     }
     return map;
@@ -99,8 +98,8 @@ export class KeyDeployDialog {
   protected readonly stringify: TuiStringHandler<string | null> = (id) =>
     (id && this.labels().get(id)) || '';
 
-  protected label(project: Project | null, host: Host): string {
-    return deployTargetLabel(project, host);
+  protected label(host: Host): string {
+    return this.labels().get(host.id) ?? host.name;
   }
 
   protected async submit(): Promise<void> {

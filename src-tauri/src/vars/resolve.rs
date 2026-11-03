@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use super::template::{Segment, parse, single_reference};
 use crate::config::model::{
-    AuthMethod, ConfigFile, Environment, Host, Project, Template, Variable, VariableKind,
+    AuthMethod, ConfigFile, Host, Project, Template, Variable, VariableKind,
 };
 use crate::config::validate;
 
@@ -10,39 +10,27 @@ use crate::config::validate;
 pub enum Level {
     Global,
     Project(String),
-    Environment(String),
 }
 
-/// Variable layers, lowest priority first: global < project < environment. A host outside a
-/// project (Home) has neither a project nor an environment layer.
+/// Variable layers, lowest priority first: global < project. A host outside a project (Home)
+/// has no project layer.
 #[derive(Debug, Clone, Copy)]
 pub struct Layers<'a> {
     pub global: &'a [Variable],
     pub project: Option<(&'a str, &'a [Variable])>,
-    pub environment: Option<(&'a str, &'a [Variable])>,
 }
 
 impl<'a> Layers<'a> {
-    pub fn of(
-        config: &'a ConfigFile,
-        project: Option<&'a Project>,
-        env: Option<&'a Environment>,
-    ) -> Self {
+    pub fn of(config: &'a ConfigFile, project: Option<&'a Project>) -> Self {
         Self {
             global: &config.variables,
             project: project.map(|p| (p.id.as_str(), p.variables.as_slice())),
-            environment: env.map(|e| (e.id.as_str(), e.variables.as_slice())),
         }
     }
 
     /// The winning definition of `name` (case-sensitive) and the layer it comes from.
     pub fn lookup(&self, name: &str) -> Option<(Level, &'a Variable)> {
         let find = |list: &'a [Variable]| list.iter().find(|v| v.name == name);
-        if let Some((id, list)) = self.environment
-            && let Some(v) = find(list)
-        {
-            return Some((Level::Environment(id.into()), v));
-        }
         if let Some((id, list)) = self.project
             && let Some(v) = find(list)
         {
@@ -305,7 +293,6 @@ mod tests {
     struct World {
         global: Vec<Variable>,
         project: Vec<Variable>,
-        env: Option<Vec<Variable>>,
     }
 
     impl World {
@@ -313,7 +300,6 @@ mod tests {
             Layers {
                 global: &self.global,
                 project: Some(("p", &self.project)),
-                environment: self.env.as_deref().map(|e| ("e", e)),
             }
         }
 
@@ -325,29 +311,27 @@ mod tests {
     fn world() -> World {
         World {
             global: vec![plain("user", "carapace"), plain("port", "22")],
-            project: vec![plain("host", "project.example"), secret("pw")],
-            env: Some(vec![plain("host", "127.0.0.1"), plain("port", "2223")]),
+            project: vec![
+                plain("host", "project.example"),
+                plain("port", "2223"),
+                secret("pw"),
+            ],
         }
     }
 
     #[test]
-    fn environment_beats_project_beats_global() {
+    fn project_beats_global() {
         let w = world();
         let r = w.resolve(&templated(AuthMethod::Agent));
-        assert_eq!(r.hostname.as_deref(), Some("127.0.0.1"));
+        assert_eq!(r.hostname.as_deref(), Some("project.example"));
         assert_eq!(r.port, Some(2223));
         assert_eq!(r.username.as_deref(), Some("carapace"));
         assert!(r.missing.is_empty() && r.errors.is_empty());
-
-        let no_env = World { env: None, ..w };
-        let r = no_env.resolve(&templated(AuthMethod::Agent));
-        assert_eq!(r.hostname.as_deref(), Some("project.example"));
-        assert_eq!(r.port, Some(22));
         assert_eq!(
-            no_env.layers().lookup("pw").unwrap().0,
+            w.layers().lookup("pw").unwrap().0,
             Level::Project("p".into())
         );
-        assert_eq!(no_env.layers().lookup("user").unwrap().0, Level::Global);
+        assert_eq!(w.layers().lookup("user").unwrap().0, Level::Global);
     }
 
     #[test]
@@ -355,7 +339,6 @@ mod tests {
         let w = world();
         let layers = Layers {
             project: None,
-            environment: None,
             ..w.layers()
         };
         assert_eq!(layers.lookup("user").unwrap().0, Level::Global);
@@ -378,7 +361,6 @@ mod tests {
         let w = World {
             global: vec![plain("dom", "example"), plain("n", "2")],
             project: vec![],
-            env: None,
         };
         let r = w.resolve(&host(
             "web${n}.${dom}.com",
@@ -396,7 +378,6 @@ mod tests {
         let w = World {
             global: vec![plain("a", "${b}"), plain("b", "x")],
             project: vec![],
-            env: None,
         };
         let r = w.resolve(&host("h", "22", "${a}", AuthMethod::Agent));
         assert_eq!(r.username.as_deref(), Some("${b}"));
@@ -407,7 +388,6 @@ mod tests {
         let w = World {
             global: vec![],
             project: vec![],
-            env: None,
         };
         let r = w.resolve(&host(
             "${host}.${zone}",
@@ -432,7 +412,6 @@ mod tests {
             let w = World {
                 global: vec![plain("port", bad)],
                 project: vec![],
-                env: None,
             };
             let r = w.resolve(&host("h", "${port}", "u", AuthMethod::Agent));
             assert_eq!(r.port, None, "{bad}");
@@ -441,7 +420,6 @@ mod tests {
         let w = World {
             global: vec![plain("port", "65535")],
             project: vec![],
-            env: None,
         };
         assert_eq!(
             w.resolve(&host("h", "${port}", "u", AuthMethod::Agent))
@@ -455,7 +433,6 @@ mod tests {
         let w = World {
             global: vec![plain("h", "a b"), plain("k", "relative/key")],
             project: vec![],
-            env: None,
         };
         let r = w.resolve(&host(
             "${h}",
@@ -498,13 +475,15 @@ mod tests {
     fn misuse_depends_on_the_winning_layer() {
         let w = World {
             global: vec![plain("x", "u")],
-            project: vec![],
-            env: Some(vec![secret("x")]),
+            project: vec![secret("x")],
         };
         let h = host("h", "22", "${x}", AuthMethod::Agent);
         assert_eq!(w.resolve(&h).errors.len(), 1);
-        let without_env = World { env: None, ..w };
-        assert_eq!(without_env.resolve(&h).username.as_deref(), Some("u"));
+        let without_project = World {
+            project: vec![],
+            ..w
+        };
+        assert_eq!(without_project.resolve(&h).username.as_deref(), Some("u"));
     }
 
     #[test]
@@ -557,7 +536,6 @@ mod tests {
         let w = World {
             global: vec![plain("keys", "~/.ssh"), secret("pp")],
             project: vec![],
-            env: None,
         };
         let r = w.resolve(&host(
             "h",

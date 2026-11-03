@@ -56,7 +56,6 @@ describe('AsideHeader', () => {
 
   it('has only the New menu at Home, with New project', async () => {
     expect(byId('aside-project')).toBeNull();
-    expect(byId('env-select')).toBeNull();
     await openNew();
     byId('new-project')!.click();
     expect(actions.createProject).toHaveBeenCalledOnce();
@@ -66,12 +65,12 @@ describe('AsideHeader', () => {
     expect(actions.addHost).toHaveBeenCalledWith({ projectId: null, parentId: null });
   });
 
-  it('shows the project, its environment and variables inside a project', async () => {
+  it('shows the project and its variables inside a project', async () => {
     await TestBed.inject(Router).navigateByUrl('/projects/p1');
     await settle();
     expect(byId('aside-project')?.getAttribute('href')).toBe('/projects/p1');
-    expect(byId('env-select')).not.toBeNull();
     expect(byId('project-variables')?.getAttribute('href')).toBe('/projects/p1/variables');
+    expect(byId('project-variables')?.textContent?.trim()).toBe('Project variables');
     await openNew();
     expect(byId('new-project')).toBeNull();
     byId('new-collection')!.click();

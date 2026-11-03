@@ -41,9 +41,7 @@ describe('ProjectActions', () => {
     opened = [];
     answer = true;
     config = fakeConfig();
-    config.projects.set([
-      project('p1', 'Payments', { environments: [{ id: 'e1', name: 'dev', variables: [] }] }),
-    ]);
+    config.projects.set([project('p1', 'Payments')]);
     config.nodes.set([
       collection('c1', 'Backend', 'p1'),
       host('h1', 'api', 'p1', 'c1'),
@@ -137,7 +135,7 @@ describe('ProjectActions', () => {
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     await actions.deleteProject(config.findProject('p1')!);
     expect((opened[0].data as { content: string }).content).toContain(
-      'contains 2 collections, 2 hosts and 1 environment.',
+      'contains 2 collections and 2 hosts. Everything in it will be deleted',
     );
     expect(navigate).toHaveBeenCalledWith(['/']);
   });

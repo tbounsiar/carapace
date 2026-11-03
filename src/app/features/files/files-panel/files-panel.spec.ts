@@ -38,7 +38,7 @@ function fakeSource(side: FileSide, home: string, files: string[] = []): FileSou
   };
 }
 
-const DEV = connectionTarget('p1', 'h1', 'e1');
+const WEB = connectionTarget('p1', 'h1');
 
 describe('FilesPanel', () => {
   const states = signal<Record<string, ConnectionState>>({});
@@ -68,7 +68,7 @@ describe('FilesPanel', () => {
     }
   };
 
-  async function setup(target = DEV): Promise<void> {
+  async function setup(target = WEB): Promise<void> {
     fixture = TestBed.createComponent(FilesPanel);
     fixture.componentRef.setInput('target', target);
     await settle();
@@ -107,23 +107,23 @@ describe('FilesPanel', () => {
     await setup();
     pane('remote').querySelector<HTMLElement>('[data-testid="pane-connect"]')!.click();
     await settle();
-    expect(connector.connect).toHaveBeenCalledWith(DEV);
-    expect(remoteFor).toHaveBeenCalledWith('h1@e1');
+    expect(connector.connect).toHaveBeenCalledWith(WEB);
+    expect(remoteFor).toHaveBeenCalledWith('h1');
     expect(pane('remote').tagName).toBe('APP-FILE-PANE');
     expect(remote.list).toHaveBeenCalledWith('');
   });
 
   it('switches the remote pane back to the Connect state on disconnect', async () => {
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await setup();
     expect(pane('remote').tagName).toBe('APP-FILE-PANE');
-    states.set({ 'h1@e1': 'idle' });
+    states.set({ h1: 'idle' });
     await settle();
     expect(pane('remote').querySelector('[data-testid="pane-connect"]')).toBeTruthy();
   });
 
   it('remembers the listed paths per connection and side', async () => {
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     remote = fakeSource('remote', '');
     (remote.list as ReturnType<typeof vi.fn>).mockResolvedValue({
       path: '/home/u',
@@ -132,18 +132,18 @@ describe('FilesPanel', () => {
     });
     await setup();
     const paths = TestBed.inject(PanePaths);
-    expect(paths.get('h1@e1', 'local')).toBe('C:\\Users\\me');
-    expect(paths.get('h1@e1', 'remote')).toBe('/home/u');
+    expect(paths.get('h1', 'local')).toBe('C:\\Users\\me');
+    expect(paths.get('h1', 'remote')).toBe('/home/u');
 
-    paths.set('h1@e1', 'local', 'D:\\work');
+    paths.set('h1', 'local', 'D:\\work');
     fixture.destroy();
     await setup();
     expect(local.list).toHaveBeenLastCalledWith('D:\\work');
   });
 
-  it('treats another environment of the host as a separate connection', async () => {
-    states.set({ 'h1@e1': 'connected' });
-    await setup(connectionTarget('p1', 'h1', null));
+  it('treats another host as a separate connection', async () => {
+    states.set({ h1: 'connected' });
+    await setup(connectionTarget('p1', 'h2'));
     expect(pane('remote').querySelector('[data-testid="pane-connect"]')).toBeTruthy();
   });
 
@@ -157,28 +157,23 @@ describe('FilesPanel', () => {
     await settle();
     expect(upload.disabled).toBe(true);
 
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await settle();
     expect(upload.disabled).toBe(false);
     upload.click();
     await settle();
-    expect(queue.enqueue).toHaveBeenCalledWith(
-      'h1@e1',
-      'upload',
-      ['C:\\Users\\me\\a.txt'],
-      '/home/u',
-    );
+    expect(queue.enqueue).toHaveBeenCalledWith('h1', 'upload', ['C:\\Users\\me\\a.txt'], '/home/u');
   });
 
   it('downloads the remote selection into the local directory', async () => {
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await setup();
     button(pane('remote'), 'entry-b.txt').click();
     await settle();
     button(pane('remote'), 'pane-download').click();
     await settle();
     expect(queue.enqueue).toHaveBeenCalledWith(
-      'h1@e1',
+      'h1',
       'download',
       ['/home/u/b.txt'],
       'C:\\Users\\me',
@@ -186,19 +181,19 @@ describe('FilesPanel', () => {
   });
 
   it('refreshes a pane when a transfer into its directory finishes', async () => {
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await setup();
     const remoteCalls = vi.mocked(remote.list).mock.calls.length;
     const localCalls = vi.mocked(local.list).mock.calls.length;
-    queue.revisions.set(new Map([[dirKey('h1@e1', 'remote', '/home/u'), 1]]));
+    queue.revisions.set(new Map([[dirKey('h1', 'remote', '/home/u'), 1]]));
     await settle();
     expect(vi.mocked(remote.list).mock.calls.length).toBe(remoteCalls + 1);
     expect(vi.mocked(local.list).mock.calls.length).toBe(localCalls);
 
     queue.revisions.set(
       new Map([
-        [dirKey('h1@e1', 'remote', '/home/u'), 1],
-        [dirKey('h2@none', 'local', 'C:\\Users\\me'), 1],
+        [dirKey('h1', 'remote', '/home/u'), 1],
+        [dirKey('h2', 'local', 'C:\\Users\\me'), 1],
       ]),
     );
     await settle();

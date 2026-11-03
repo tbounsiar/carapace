@@ -16,7 +16,7 @@ export interface ConnectHandlers {
   changed: (event: HostKeyChanged) => void;
 }
 
-/** Connection states keyed by connection id (`{hostId}@{environmentId|none}`). */
+/** Connection states keyed by connection id (the host id). */
 @Service()
 export class SshService {
   private readonly _states = signal<Readonly<Record<string, ConnectionState>>>({});
@@ -48,7 +48,6 @@ export class SshService {
     try {
       const info = await invokeCommand<ConnectionInfo>('connect_host', {
         hostId: target.hostId,
-        environmentId: target.environmentId,
         onEvent,
         credential: credential ?? null,
       });

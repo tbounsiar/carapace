@@ -60,7 +60,7 @@ describe('form validators', () => {
     expect(ok(host, '${bad name}.example.com')).toBe(false);
     expect(ok(host, '${open.example.com')).toBe(false);
     expect(ok(templated('Username', noWhitespaceValidator('Username', 64)), '$${user}')).toBe(true);
-    expect(ok(host, '${env}.example.com')).toBe(true);
+    expect(ok(host, '${zone}.example.com')).toBe(true);
     expect(ok(host, '${a}' + 'x'.repeat(1021))).toBe(false);
     expect(ok(templated('Key path', keyPathValidator), '${keys}/id')).toBe(true);
   });

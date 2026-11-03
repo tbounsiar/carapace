@@ -31,13 +31,7 @@ describe('ProjectHome', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     config = fakeConfig();
-    config.projects.set([
-      project('p1', 'Payments', {
-        environments: [{ id: 'e1', name: 'Prod', variables: [] }],
-        activeEnvironmentId: 'e1',
-      }),
-      project('p2', 'Empty'),
-    ]);
+    config.projects.set([project('p1', 'Payments'), project('p2', 'Empty')]);
     config.nodes.set([
       collection('c1', 'Backend', 'p1'),
       host('h1', 'a', 'p1', 'c1'),
@@ -45,13 +39,11 @@ describe('ProjectHome', () => {
     ]);
   });
 
-  it('summarises the project and its environment', async () => {
+  it('summarises the project contents', async () => {
     await setup();
     expect(byId('project-home-title')?.textContent).toBe('Payments');
     const text = byId('project-home')?.textContent ?? '';
     expect(text).toContain('2 hosts in 1 collection');
-    expect(text).toContain('Environment: Prod');
-    expect(text).toContain('prod');
     byId('project-home-new-host')!.click();
     expect(actions.addHost).toHaveBeenCalledWith({ projectId: 'p1', parentId: null });
   });
@@ -59,7 +51,7 @@ describe('ProjectHome', () => {
   it('shows the empty state with one primary action', async () => {
     await setup('p2');
     expect(byId('project-empty')).not.toBeNull();
-    expect(byId('project-home')?.textContent).toContain('No environment');
+    expect(byId('project-home')?.textContent).toContain('No hosts yet');
     expect(
       (fixture.nativeElement as HTMLElement).querySelectorAll(
         '[data-testid="project-home-new-host"]',

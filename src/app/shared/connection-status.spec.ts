@@ -23,17 +23,19 @@ describe('connectionStatus', () => {
 });
 
 describe('connectedCounts', () => {
-  it('counts connected connections per scope, any environment', () => {
+  it('counts connected hosts per scope', () => {
     const hosts = [
       { id: 'h1', projectId: 'p1' },
       { id: 'h2', projectId: null },
+      { id: 'h4', projectId: 'p1' },
+      { id: 'h5', projectId: 'p1' },
     ];
     const counts = connectedCounts(hosts, {
-      'h1@e1': 'connected',
-      'h1@none': 'connected',
-      'h2@none': 'connected',
-      'h3@none': 'connected',
-      'h1@e2': 'error',
+      h1: 'connected',
+      h2: 'connected',
+      h3: 'connected',
+      h4: 'connected',
+      h5: 'error',
     });
     expect(counts.get('p1')).toBe(2);
     expect(counts.get(null)).toBe(1);

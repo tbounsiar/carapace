@@ -38,29 +38,29 @@ describe('FileSources', () => {
   });
 
   it('sends remote commands with the connection id', async () => {
-    const remote = sources.remote('h1@e1');
+    const remote = sources.remote('h1');
     await remote.list('/srv');
     await remote.mkdir('/srv', 'logs');
     await remote.rename('/srv/logs', 'old');
     await remote.delete('/srv/old', false);
     expect(calls).toEqual([
-      { cmd: 'sftp_list', args: { connectionId: 'h1@e1', path: '/srv' } },
-      { cmd: 'sftp_mkdir', args: { connectionId: 'h1@e1', parent: '/srv', name: 'logs' } },
-      { cmd: 'sftp_rename', args: { connectionId: 'h1@e1', path: '/srv/logs', newName: 'old' } },
-      { cmd: 'sftp_delete', args: { connectionId: 'h1@e1', path: '/srv/old', recursive: false } },
+      { cmd: 'sftp_list', args: { connectionId: 'h1', path: '/srv' } },
+      { cmd: 'sftp_mkdir', args: { connectionId: 'h1', parent: '/srv', name: 'logs' } },
+      { cmd: 'sftp_rename', args: { connectionId: 'h1', path: '/srv/logs', newName: 'old' } },
+      { cmd: 'sftp_delete', args: { connectionId: 'h1', path: '/srv/old', recursive: false } },
     ]);
   });
 
   it('uses the empty path as the remote home without a call', async () => {
-    expect(await sources.remote('h1@e1').home()).toBe('');
+    expect(await sources.remote('h1').home()).toBe('');
     expect(calls).toEqual([]);
   });
 
   it('reuses one remote source per connection', () => {
-    expect(sources.remote('h1@e1')).toBe(sources.remote('h1@e1'));
-    expect(sources.remote('h1@e1')).not.toBe(sources.remote('h1@none'));
+    expect(sources.remote('h1')).toBe(sources.remote('h1'));
+    expect(sources.remote('h1')).not.toBe(sources.remote('h2'));
     expect(sources.local.side).toBe('local');
-    expect(sources.remote('h1@e1').side).toBe('remote');
+    expect(sources.remote('h1').side).toBe('remote');
   });
 
   it('maps the new file error codes', async () => {
@@ -68,7 +68,7 @@ describe('FileSources', () => {
       throw { code: 'permission_denied', message: 'Permission denied: /root' };
     };
     const err = await sources
-      .remote('h1@e1')
+      .remote('h1')
       .list('/root')
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(IpcError);

@@ -5,21 +5,18 @@ use super::super::validate::{self, MAX_DEPTH, MAX_NODES, collection_chain, same_
 use super::{ConfigError, ConfigStore, new_id};
 
 /// What a collection delete took out of the config, for keychain cleanup and closing
-/// connections. `environments` are those of the scope's project (empty for Home).
+/// connections.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Removed {
     pub collections: Vec<Collection>,
     pub hosts: Vec<Host>,
-    pub environments: Vec<String>,
 }
 
-/// `nodes` is the moved node and its subtree, after the move. When the scope changed,
-/// `old_environments` are the environments of the previous project (empty for Home).
+/// `nodes` is the moved node and its subtree, after the move.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Moved {
     pub nodes: Vec<Node>,
     pub scope_changed: bool,
-    pub old_environments: Vec<String>,
 }
 
 impl Moved {
@@ -34,13 +31,6 @@ impl Moved {
 
 fn by_id(cfg: &ConfigFile) -> HashMap<&str, &Node> {
     cfg.nodes.iter().map(|n| (n.id(), n)).collect()
-}
-
-fn environments_of(cfg: &ConfigFile, project_id: Option<&str>) -> Vec<String> {
-    project_id
-        .and_then(|p| cfg.project(p))
-        .map(|p| p.environments.iter().map(|e| e.id.clone()).collect())
-        .unwrap_or_default()
 }
 
 fn scope_label(cfg: &ConfigFile, project_id: Option<&str>) -> String {
@@ -165,7 +155,6 @@ fn apply_move(
         let moved = Moved {
             nodes: subtree,
             scope_changed: false,
-            old_environments: Vec::new(),
         };
         return Ok((moved, false));
     }
@@ -211,11 +200,6 @@ fn apply_move(
             }
         }
     }
-    let old_environments = if scope_changed {
-        environments_of(cfg, node.project_id())
-    } else {
-        Vec::new()
-    };
     let ids: HashSet<String> = ids.into_iter().map(str::to_owned).collect();
     let target_project = project_id.map(str::to_owned);
     for n in &mut cfg.nodes {
@@ -230,7 +214,6 @@ fn apply_move(
     let moved = Moved {
         nodes,
         scope_changed,
-        old_environments,
     };
     Ok((moved, true))
 }
@@ -293,13 +276,12 @@ impl ConfigStore {
     /// Removes the collection and everything below it.
     pub fn delete_collection(&self, collection_id: &str) -> Result<Removed, ConfigError> {
         self.mutate(|cfg| {
-            let c = collection_mut(cfg, collection_id)?.clone();
+            collection_mut(cfg, collection_id)?;
             let ids: HashSet<String> = cfg
                 .subtree(collection_id)
                 .into_iter()
                 .map(|n| n.id().to_owned())
                 .collect();
-            let environments = environments_of(cfg, c.project_id.as_deref());
             let (gone, kept): (Vec<Node>, Vec<Node>) = std::mem::take(&mut cfg.nodes)
                 .into_iter()
                 .partition(|n| ids.contains(n.id()));
@@ -307,7 +289,6 @@ impl ConfigStore {
             let mut removed = Removed {
                 collections: Vec::new(),
                 hosts: Vec::new(),
-                environments,
             };
             for n in gone {
                 match n {
@@ -364,19 +345,17 @@ impl ConfigStore {
         })
     }
 
-    /// Returns the removed host and the environment ids of its project at that moment.
-    pub fn delete_host(&self, host_id: &str) -> Result<(Host, Vec<String>), ConfigError> {
+    pub fn delete_host(&self, host_id: &str) -> Result<Host, ConfigError> {
         self.mutate(|cfg| {
             let i = cfg
                 .nodes
                 .iter()
                 .position(|n| n.as_host().is_some_and(|h| h.id == host_id))
                 .ok_or(ConfigError::NotFound("host"))?;
-            let Node::Host(h) = cfg.nodes.remove(i) else {
-                return Err(ConfigError::NotFound("host"));
-            };
-            let envs = environments_of(cfg, h.project_id.as_deref());
-            Ok((h, envs))
+            match cfg.nodes.remove(i) {
+                Node::Host(h) => Ok(h),
+                Node::Collection(_) => Err(ConfigError::NotFound("host")),
+            }
         })
     }
 

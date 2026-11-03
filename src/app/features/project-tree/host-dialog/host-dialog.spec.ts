@@ -27,12 +27,12 @@ const secret = (name: string): VariableView => ({
 const PROJECT: Project = {
   id: 'p1',
   name: 'Shop',
-  variables: [plain('host', 'example.com'), secret('db_pw')],
-  environments: [
-    { id: 'e1', name: 'Dev', variables: [plain('host', '127.0.0.1'), plain('port', '2223')] },
-    { id: 'e2', name: 'Prod', variables: [secret('prod_pw')] },
+  variables: [
+    plain('host', '127.0.0.1'),
+    plain('port', '2223'),
+    secret('db_pw'),
+    secret('prod_pw'),
   ],
-  activeEnvironmentId: 'e1',
 };
 
 interface DialogApi {
@@ -262,27 +262,25 @@ describe('HostDialog', () => {
   describe('preview', () => {
     const preview = (el: HTMLElement): string => byId(el, 'host-preview')?.textContent ?? '';
 
-    it('resolves the templates in the active environment', async () => {
+    it('resolves the templates with project then global variables', async () => {
       const { el } = await setup(templated);
-      expect(preview(el)).toContain('Resolves to');
-      expect(preview(el)).toContain('carapace@127.0.0.1:2223');
-      expect(preview(el)).toContain('in Dev');
+      expect(preview(el).trim()).toBe('Resolves to carapace@127.0.0.1:2223');
     });
 
     it('updates while typing and lists missing variables', async () => {
       const { fixture, el, dialog } = await setup(templated);
       dialog.form.patchValue({ hostname: '${nope}.${host}', password: '${gone}' });
       await fixture.whenStable();
-      expect(preview(el)).toContain('Missing in Dev: nope, gone');
+      expect(preview(el).trim()).toBe('Missing: nope, gone');
     });
 
-    it('resolves without an environment', async () => {
-      projects.set([{ ...PROJECT, activeEnvironmentId: null }]);
+    it('lists a variable no level defines', async () => {
+      projects.set([{ ...PROJECT, variables: [plain('host', 'example.com')] }]);
       const { fixture, el, dialog } = await setup(templated);
-      expect(preview(el)).toContain('Missing with no environment: port');
+      expect(preview(el).trim()).toBe('Missing: port');
       dialog.form.patchValue({ port: '2200' });
       await fixture.whenStable();
-      expect(preview(el)).toContain('carapace@example.com:2200 with no environment');
+      expect(preview(el).trim()).toBe('Resolves to carapace@example.com:2200');
     });
 
     it('reports a secret variable used in a plain field', async () => {
@@ -301,7 +299,7 @@ describe('HostDialog', () => {
       expect(dialog.secretReferences()).toEqual(['${global_pw}']);
     });
 
-    it('resolves with global variables and no environment phrase', async () => {
+    it('resolves with global variables only', async () => {
       const { fixture, el, dialog } = await setup(null, null);
       dialog.form.patchValue({ name: 'vps', hostname: 'vps.example.com', username: '${user}' });
       await fixture.whenStable();

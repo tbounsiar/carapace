@@ -32,6 +32,7 @@ impl From<ConfigError> for CommandError {
             ConfigError::Exists(_) => "already_exists",
             ConfigError::Io => "io",
             ConfigError::Corrupt => "corrupt_config",
+            ConfigError::Keychain => "keychain_unavailable",
         };
         Self::new(code, e.to_string())
     }
@@ -91,6 +92,7 @@ mod tests {
             (ConfigError::Exists("key"), "already_exists"),
             (ConfigError::Io, "io"),
             (ConfigError::Corrupt, "corrupt_config"),
+            (ConfigError::Keychain, "keychain_unavailable"),
         ];
         for (err, code) in cases {
             assert_eq!(CommandError::from(err).code, code);

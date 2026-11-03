@@ -51,8 +51,6 @@ export class TerminalPanel {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly target = input.required<ConnectionTarget>();
-  /** Shown in tab titles so tabs of two environments of a host can't be confused. */
-  readonly envName = input<string | null>(null);
 
   private readonly view = viewChild<ElementRef<HTMLElement>>('view');
   private readonly uid = ++panels;
@@ -113,8 +111,7 @@ export class TerminalPanel {
   }
 
   protected title(tab: TerminalTab): string {
-    const env = this.envName();
-    return env ? `Terminal ${tab.n} · ${env}` : `Terminal ${tab.n}`;
+    return `Terminal ${tab.n}`;
   }
 
   protected async newTerminal(): Promise<void> {

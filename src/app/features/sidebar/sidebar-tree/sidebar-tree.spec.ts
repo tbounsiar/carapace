@@ -148,7 +148,7 @@ describe('SidebarTree', () => {
     });
 
     it('marks a project with open connections', async () => {
-      states.set({ 'h3@none': 'connected' });
+      states.set({ h3: 'connected' });
       await settle();
       expect(
         byId('tree-project-Payments')?.querySelector('[role="img"]')?.getAttribute('aria-label'),
@@ -209,7 +209,7 @@ describe('SidebarTree', () => {
     it('connects a host from its row', async () => {
       byId('connect-host-my-vps')!.click();
       expect(connector.connect).toHaveBeenCalledWith(
-        expect.objectContaining({ projectId: null, connectionId: 'h2@none' }),
+        expect.objectContaining({ projectId: null, connectionId: 'h2' }),
       );
     });
 

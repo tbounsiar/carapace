@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Hosts can live at Home or in a project, grouped in nested collections, and be moved between them.
+- Variables are global or per project; the project value wins.
+
+### Removed
+
+- Environments. On upgrade, the active environment of each project becomes that project's variables (its values win over project variables of the same name), so hosts resolve as before. Other environments are dropped and their keychain entries deleted. The previous `config.json` is kept as `config.json.v2.bak`.
+
 ## 0.1.0
 
 First release (Windows).

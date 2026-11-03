@@ -37,7 +37,7 @@ import {
 import { ErrorLink } from '../../../shared/error-link';
 
 export interface HostDialogData {
-  /** Scope of the host: null is Home (global variables only, never an environment). */
+  /** Scope of the host: null is Home (global variables only). */
   readonly projectId: string | null;
   /** "Home / Backend", shown read-only. */
   readonly location: string;
@@ -126,7 +126,7 @@ export class HostDialog {
   protected readonly askLabel: TuiStringHandler<string | null> = (value) =>
     value || 'Ask when connecting';
 
-  /** Secret variables of every level, plus the current references so a stale one stays visible. */
+  /** Secret variables of both levels, plus the current references so a stale one stays visible. */
   protected readonly secretReferences = computed(() => {
     const project = this.project();
     const names = secretVariableNames(this.config.variables(), project);
@@ -146,14 +146,7 @@ export class HostDialog {
     if (this.context.data.projectId && !project) {
       return null;
     }
-    const envId = project?.activeEnvironmentId ?? null;
-    const env = project?.environments.find((e) => e.id === envId);
-    const result = previewHost(
-      this.toHostInput(),
-      variableLayers(this.config.variables(), project, envId),
-    );
-    const envText = !project ? '' : env ? `in ${env.name}` : 'with no environment';
-    return { ...result, env: envText };
+    return previewHost(this.toHostInput(), variableLayers(this.config.variables(), project));
   });
 
   constructor() {

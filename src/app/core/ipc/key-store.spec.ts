@@ -102,7 +102,7 @@ describe('KeyStore', () => {
   });
 
   it('deploys through the ipc', async () => {
-    expect(await store.deploy('h1@e1', 'k1')).toEqual({ added: true, restricted: false });
-    expect(ipc.deploy).toHaveBeenCalledWith('h1@e1', 'k1');
+    expect(await store.deploy('h1', 'k1')).toEqual({ added: true, restricted: false });
+    expect(ipc.deploy).toHaveBeenCalledWith('h1', 'k1');
   });
 });

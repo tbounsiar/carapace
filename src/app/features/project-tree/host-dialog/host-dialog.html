@@ -100,7 +100,7 @@
         data-testid="host-passphrase"
       />
       <tui-icon
-        tuiTooltip="Only for an encrypted key. Pick a secret variable (defined in Variables and environments) or be asked when needed."
+        tuiTooltip="Only for an encrypted key. Pick a secret variable (defined in Project variables or Global variables) or be asked when needed."
       />
       <tui-data-list *tuiDropdown size="s">
         <button tuiOption type="button" data-testid="host-secret-option-ask" [value]="null">
@@ -133,7 +133,7 @@
         data-testid="host-password"
       />
       <tui-icon
-        tuiTooltip="Pick a secret variable (defined in Variables and environments) or be asked when connecting."
+        tuiTooltip="Pick a secret variable (defined in Project variables or Global variables) or be asked when connecting."
       />
       <tui-data-list *tuiDropdown size="s">
         <button tuiOption type="button" data-testid="host-secret-option-ask" [value]="null">
@@ -164,15 +164,15 @@
     >
       @if (p.missing.length) {
         <tui-icon icon="@tui.circle-alert" />
-        <span>Missing{{ p.env ? ' ' + p.env : '' }}: {{ p.missing.join(', ') }}</span>
+        <span>Missing: {{ p.missing.join(', ') }}</span>
       } @else if (p.errors.length) {
         <tui-icon icon="@tui.circle-alert" />
         <span>{{ p.errors[0] }}</span>
       } @else {
         <tui-icon icon="@tui.circle-check" />
-        <span>
-          Resolves to <span class="mono">{{ p.address }}</span> {{ p.env }}
-        </span>
+        <span
+          >Resolves to <span class="mono">{{ p.address }}</span></span
+        >
       }
     </p>
   }

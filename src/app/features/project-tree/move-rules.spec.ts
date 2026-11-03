@@ -46,14 +46,14 @@ describe('move-rules', () => {
       parentId: null,
     });
     expect(toShop?.title).toBe('Moving to another project');
-    expect(toShop?.body).toContain('api will use the variables and environments of Shop.');
+    expect(toShop?.body).toContain('api will use the variables of Shop.');
     expect(toShop?.missing).toBe('');
     const toHome = crossScopeWarning(NODES, PROJECTS, GLOBALS, NODES[0], {
       projectId: null,
       parentId: null,
     });
     expect(toHome?.question).toBe('Move out of the project?');
-    expect(toHome?.body).toContain('The 1 host in Backend will have no environment');
+    expect(toHome?.body).toContain('The 1 host in Backend will use global variables only');
     expect(toHome?.missing).toBe('Not defined in Home: db_host.');
   });
 

@@ -28,7 +28,7 @@ const NEXT_STEP: Readonly<Record<IpcErrorCode, string>> = {
   permission_denied: 'Check the permissions of the file or folder.',
   not_empty: 'Empty the folder first.',
   too_large: 'Choose a smaller file.',
-  missing_variables: 'Define them in the global, project or environment variables.',
+  missing_variables: 'Define them in the global or project variables.',
   unknown: 'Try again. Restart the app if it keeps happening.',
 };
 

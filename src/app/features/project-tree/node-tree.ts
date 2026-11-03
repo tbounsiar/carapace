@@ -116,16 +116,12 @@ export function plural(count: number, noun: string): string {
 }
 
 /** "2 collections and 12 hosts"; a part with 0 is left out; extra parts come last. */
-export function countText(counts: Counts, ...extra: readonly string[]): string {
+export function countText(counts: Counts): string {
   const parts = [
     counts.collections ? plural(counts.collections, 'collection') : '',
     counts.hosts ? plural(counts.hosts, 'host') : '',
-    ...extra,
   ].filter(Boolean);
-  if (parts.length < 2) {
-    return parts.join('');
-  }
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return parts.join(' and ');
 }
 
 export function scopeName(projects: readonly Project[], projectId: string | null): string {

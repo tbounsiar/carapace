@@ -10,8 +10,6 @@ const shop: Project = {
   id: 'p1',
   name: 'Shop',
   variables: [],
-  environments: [],
-  activeEnvironmentId: null,
 };
 
 describe('Welcome (Home page)', () => {

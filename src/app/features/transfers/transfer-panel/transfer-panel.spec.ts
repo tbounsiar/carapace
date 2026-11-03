@@ -8,7 +8,7 @@ import { TransferPanel } from './transfer-panel';
 function job(name: string, patch: Partial<TransferView> = {}): TransferView {
   return {
     id: name,
-    connectionId: 'h1@e1',
+    connectionId: 'h1',
     direction: 'upload',
     source: `C:\\data\\${name}`,
     targetDir: '/srv',
@@ -46,7 +46,7 @@ describe('TransferPanel', () => {
   async function setup(jobs: TransferView[]): Promise<void> {
     transfers.set(jobs);
     fixture = TestBed.createComponent(TransferPanel);
-    fixture.componentRef.setInput('connectionId', 'h1@e1');
+    fixture.componentRef.setInput('connectionId', 'h1');
     await settle();
   }
 
@@ -63,7 +63,7 @@ describe('TransferPanel', () => {
       job('big.iso', { state: 'running', totalBytes: 4096, doneBytes: 1024 }),
       job('tree', { state: 'running', direction: 'download', targetDir: 'C:\\in' }),
       job('later.txt'),
-      job('other.txt', { connectionId: 'h2@none' }),
+      job('other.txt', { connectionId: 'h2' }),
     ]);
     expect(el().getAttribute('data-testid')).toBe('transfer-panel');
     expect(byId('transfer-running')!.textContent).toContain('2 running');

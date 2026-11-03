@@ -1,8 +1,7 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
   <p class="note">
     Appends the public key of <strong>{{ key.name }}</strong> to
-    <span class="mono">~/.ssh/authorized_keys</span> on the host, in its project's active
-    environment (none for a Home host). You connect first, as usual.
+    <span class="mono">~/.ssh/authorized_keys</span> on the host. You connect first, as usual.
   </p>
 
   <tui-textfield tuiChevron [stringify]="stringify" [tuiTextfieldCleaner]="false">
@@ -18,7 +17,7 @@
               [value]="host.id"
               [attr.data-testid]="'deploy-host-option-' + host.name"
             >
-              {{ label(group.project, host) }}
+              {{ label(host) }}
             </button>
           }
         </tui-opt-group>

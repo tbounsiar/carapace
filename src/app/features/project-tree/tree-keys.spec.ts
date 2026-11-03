@@ -1,6 +1,6 @@
 import { isTreeKey, treeKeyAction, type VisibleRow } from './tree-keys';
 
-// project(0) > env(1) > host(2), host(3); project(4, collapsed); project(5, no children)
+// project(0) > collection(1) > host(2), host(3); project(4, collapsed); project(5, no children)
 const ROWS: VisibleRow[] = [
   { parent: -1, expanded: true },
   { parent: 0, expanded: true },

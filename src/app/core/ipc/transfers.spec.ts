@@ -6,7 +6,7 @@ import { isFinished, TransferIpc, type TransferEvent, type TransferView } from '
 
 const view: TransferView = {
   id: 'j1',
-  connectionId: 'h1@e1',
+  connectionId: 'h1',
   direction: 'upload',
   source: 'C:\\data\\a.txt',
   targetDir: '/srv',
@@ -58,7 +58,7 @@ describe('TransferIpc', () => {
   it('enqueues with flat arguments and returns the job ids', async () => {
     onCall = () => ['j1', 'j2'];
     const ids = await ipc.enqueue({
-      connectionId: 'h1@e1',
+      connectionId: 'h1',
       direction: 'download',
       sources: ['/srv/a', '/srv/b'],
       targetDir: 'C:\\data',
@@ -68,7 +68,7 @@ describe('TransferIpc', () => {
     expect(calls[0]).toEqual({
       cmd: 'enqueue_transfers',
       args: {
-        connectionId: 'h1@e1',
+        connectionId: 'h1',
         direction: 'download',
         sources: ['/srv/a', '/srv/b'],
         targetDir: 'C:\\data',
@@ -97,7 +97,7 @@ describe('TransferIpc', () => {
     };
     const err = await ipc
       .enqueue({
-        connectionId: 'h1@e1',
+        connectionId: 'h1',
         direction: 'upload',
         sources: ['a'],
         targetDir: '/',

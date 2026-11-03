@@ -1,10 +1,47 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use super::migrate::{LegacyEnvironment, ProjectMove};
 use super::*;
 use crate::config::model::{AuthMethod, HostInput, VariableKind};
 
-fn store() -> (tempfile::TempDir, ConfigStore) {
+/// Records the plans it is given; fails them while `fail` is set.
+#[derive(Default)]
+struct Recorder {
+    plans: Mutex<Vec<MigrationPlan>>,
+    fail: AtomicBool,
+}
+
+impl Recorder {
+    fn plans(&self) -> Vec<MigrationPlan> {
+        self.plans.lock().unwrap().clone()
+    }
+}
+
+impl KeychainMigration for Recorder {
+    fn enter(&self) -> Box<dyn Held + '_> {
+        Box::new(())
+    }
+
+    fn before_save(&self, plan: &MigrationPlan) -> Result<(), ()> {
+        self.plans.lock().unwrap().push(plan.clone());
+        if self.fail.load(Ordering::SeqCst) {
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn recording_store() -> (tempfile::TempDir, ConfigStore, Arc<Recorder>) {
     let dir = tempfile::tempdir().unwrap();
-    let s = ConfigStore::new(dir.path().to_path_buf());
-    (dir, s)
+    let rec = Arc::new(Recorder::default());
+    let s = ConfigStore::with_migration(dir.path().to_path_buf(), rec.clone());
+    (dir, s, rec)
+}
+
+fn store() -> (tempfile::TempDir, ConfigStore) {
+    let (d, s, _) = recording_store();
+    (d, s)
 }
 
 fn abs_key() -> String {
@@ -25,11 +62,10 @@ fn input(name: &str) -> HostInput {
     }
 }
 
-fn setup() -> (tempfile::TempDir, ConfigStore, Project, Environment) {
+fn setup() -> (tempfile::TempDir, ConfigStore, Project) {
     let (d, s) = store();
     let p = s.create_project("Alpha").unwrap();
-    let e = s.create_environment(&p.id, "dev").unwrap();
-    (d, s, p, e)
+    (d, s, p)
 }
 
 fn invalid<T: std::fmt::Debug>(r: Result<T, ConfigError>) {
@@ -140,7 +176,7 @@ fn version_1_hosts_are_reported_once_for_keychain_cleanup() {
 
 #[test]
 fn round_trip_and_disk_format() {
-    let (d, s, p, e) = setup();
+    let (d, s, p) = setup();
     let mut i = input("web");
     i.hostname = "${host}".into();
     i.port = "${port}".into();
@@ -151,14 +187,9 @@ fn round_trip_and_disk_format() {
     let h = s.create_host(Some(&p.id), None, &i).unwrap();
     s.set_variables(&VariableScope::Global, &[plain("user", "me"), secret("pp")])
         .unwrap();
-    s.set_active_environment(&p.id, Some(&e.id)).unwrap();
     let fresh = ConfigStore::new(d.path().to_path_buf());
     let cfg = fresh.snapshot().unwrap();
     assert_eq!(cfg.nodes, vec![Node::Host(h)]);
-    assert_eq!(
-        cfg.projects[0].active_environment_id.as_deref(),
-        Some(e.id.as_str())
-    );
     let raw: serde_json::Value =
         serde_json::from_slice(&fs::read(d.path().join(FILE_NAME)).unwrap()).unwrap();
     assert_eq!(raw["version"], 3);
@@ -170,7 +201,10 @@ fn round_trip_and_disk_format() {
         raw["variables"][1],
         serde_json::json!({"name":"pp","kind":"secret","value":null})
     );
-    assert!(raw["projects"][0].get("hosts").is_none());
+    assert_eq!(
+        raw["projects"][0],
+        serde_json::json!({"id": p.id, "name": "Alpha", "variables": []})
+    );
     let host = &raw["nodes"][0];
     assert_eq!(host["kind"], "host");
     assert_eq!(host["projectId"], p.id);
@@ -179,7 +213,6 @@ fn round_trip_and_disk_format() {
     assert_eq!(host["auth"]["kind"], "key");
     assert_eq!(host["auth"]["keyPath"], abs_key());
     assert_eq!(host["auth"]["passphrase"], "${pp}");
-    assert_eq!(raw["projects"][0]["activeEnvironmentId"], e.id);
     assert!(!d.path().join(TMP_NAME).exists());
 }
 
@@ -188,7 +221,7 @@ fn project_crud_and_conflicts() {
     let (_d, s) = store();
     let p = s.create_project("  Alpha  ").unwrap();
     assert_eq!(p.name, "Alpha");
-    assert!(p.active_environment_id.is_none());
+    assert!(p.variables.is_empty());
     assert!(matches!(
         s.create_project("alpha"),
         Err(ConfigError::Conflict(_))
@@ -220,68 +253,8 @@ fn name_rules() {
 }
 
 #[test]
-fn environment_crud_conflicts_and_active() {
-    let (_d, s, p, e) = setup();
-    assert!(matches!(
-        s.create_environment(&p.id, "DEV"),
-        Err(ConfigError::Conflict(_))
-    ));
-    let other = s.create_project("Beta").unwrap();
-    assert!(s.create_environment(&other.id, "dev").is_ok());
-    let prod = s.create_environment(&p.id, "prod").unwrap();
-    assert!(matches!(
-        s.rename_environment(&p.id, &prod.id, "dev"),
-        Err(ConfigError::Conflict(_))
-    ));
-    assert_eq!(
-        s.rename_environment(&p.id, &e.id, "Dev").unwrap().name,
-        "Dev"
-    );
-    assert!(matches!(
-        s.create_environment("nope", "x"),
-        Err(ConfigError::NotFound(_))
-    ));
-
-    assert!(matches!(
-        s.set_active_environment(&p.id, Some("nope")),
-        Err(ConfigError::NotFound(_))
-    ));
-    assert!(matches!(
-        s.set_active_environment(&other.id, Some(&e.id)),
-        Err(ConfigError::NotFound(_))
-    ));
-    s.set_active_environment(&p.id, Some(&prod.id)).unwrap();
-    s.delete_environment(&p.id, &e.id).unwrap();
-    let project = s.snapshot().unwrap().projects.remove(0);
-    assert_eq!(
-        project.active_environment_id.as_deref(),
-        Some(prod.id.as_str())
-    );
-    let h = s.create_host(Some(&p.id), None, &input("web")).unwrap();
-    let (removed, hosts) = s.delete_environment(&p.id, &prod.id).unwrap();
-    assert_eq!(removed.id, prod.id);
-    assert_eq!(hosts, vec![h.id]);
-    assert!(
-        s.snapshot().unwrap().projects[0]
-            .active_environment_id
-            .is_none()
-    );
-    assert!(matches!(
-        s.delete_environment(&p.id, &e.id),
-        Err(ConfigError::NotFound(_))
-    ));
-    s.create_environment(&p.id, "x").unwrap();
-    assert!(
-        s.set_active_environment(&p.id, None)
-            .unwrap()
-            .active_environment_id
-            .is_none()
-    );
-}
-
-#[test]
 fn hosts_belong_to_the_project() {
-    let (_d, s, p, e) = setup();
+    let (_d, s, p) = setup();
     let h = s.create_host(Some(&p.id), None, &input("web")).unwrap();
     assert!(matches!(
         s.create_host(Some(&p.id), None, &input("WEB")),
@@ -310,9 +283,7 @@ fn hosts_belong_to_the_project() {
         s.create_host(Some("nope"), None, &upd),
         Err(ConfigError::NotFound(_))
     ));
-    let (removed, envs) = s.delete_host(&h.id).unwrap();
-    assert_eq!(removed.id, h.id);
-    assert_eq!(envs, vec![e.id]);
+    assert_eq!(s.delete_host(&h.id).unwrap().id, h.id);
     assert!(matches!(
         s.delete_host(&h.id),
         Err(ConfigError::NotFound(_))
@@ -321,7 +292,7 @@ fn hosts_belong_to_the_project() {
 
 #[test]
 fn literal_host_fields_are_validated_at_save_time() {
-    let (_d, s, p, _) = setup();
+    let (_d, s, p) = setup();
     let try_with = |f: &dyn Fn(&mut HostInput)| {
         let mut i = input("h");
         f(&mut i);
@@ -397,7 +368,7 @@ fn literal_host_fields_are_validated_at_save_time() {
 
 #[test]
 fn templated_host_fields_are_checked_after_resolution_only() {
-    let (_d, s, p, _) = setup();
+    let (_d, s, p) = setup();
     let mut i = input("t");
     i.hostname = "${a b}".into();
     invalid(s.create_host(Some(&p.id), None, &i));
@@ -416,7 +387,7 @@ fn templated_host_fields_are_checked_after_resolution_only() {
 
 #[test]
 fn secret_fields_must_be_a_single_reference() {
-    let (_d, s, p, _) = setup();
+    let (_d, s, p) = setup();
     let with = |n: &str, auth: AuthMethod| {
         let mut i = input(n);
         i.auth = auth;
@@ -464,14 +435,10 @@ fn secret_fields_must_be_a_single_reference() {
 
 #[test]
 fn variables_replace_the_scope_and_return_the_previous_list() {
-    let (_d, s, p, e) = setup();
+    let (_d, s, p) = setup();
     let global = VariableScope::Global;
     let project = VariableScope::Project {
         project_id: p.id.clone(),
-    };
-    let env = VariableScope::Environment {
-        project_id: p.id.clone(),
-        environment_id: e.id.clone(),
     };
     let (old, new) = s.set_variables(&global, &[plain("a", "1")]).unwrap();
     assert!(old.is_empty());
@@ -479,29 +446,14 @@ fn variables_replace_the_scope_and_return_the_previous_list() {
     let (old, _) = s.set_variables(&global, &[secret("b")]).unwrap();
     assert_eq!(old, vec![plain("a", "1")]);
     s.set_variables(&project, &[plain("p", "x")]).unwrap();
-    s.set_variables(&env, &[plain("e", "y")]).unwrap();
     let cfg = s.snapshot().unwrap();
     assert_eq!(cfg.variables, vec![secret("b")]);
     assert_eq!(cfg.projects[0].variables, vec![plain("p", "x")]);
-    assert_eq!(
-        cfg.projects[0].environments[0].variables,
-        vec![plain("e", "y")]
-    );
 
     assert!(matches!(
         s.set_variables(
             &VariableScope::Project {
                 project_id: "nope".into()
-            },
-            &[]
-        ),
-        Err(ConfigError::NotFound(_))
-    ));
-    assert!(matches!(
-        s.set_variables(
-            &VariableScope::Environment {
-                project_id: p.id.clone(),
-                environment_id: "nope".into()
             },
             &[]
         ),
@@ -593,14 +545,18 @@ fn wire_format_is_camel_case() {
     .unwrap();
     assert_eq!(h.port, "${port}");
     let scope: VariableScope =
-        serde_json::from_str(r#"{"kind":"environment","projectId":"p","environmentId":"e"}"#)
-            .unwrap();
+        serde_json::from_str(r#"{"kind":"project","projectId":"p"}"#).unwrap();
     assert_eq!(
         scope,
-        VariableScope::Environment {
-            project_id: "p".into(),
-            environment_id: "e".into()
+        VariableScope::Project {
+            project_id: "p".into()
         }
+    );
+    assert!(
+        serde_json::from_str::<VariableScope>(
+            r#"{"kind":"environment","projectId":"p","environmentId":"e"}"#
+        )
+        .is_err()
     );
     let g: VariableScope = serde_json::from_str(r#"{"kind":"global"}"#).unwrap();
     assert_eq!(g, VariableScope::Global);
@@ -657,13 +613,35 @@ fn json(raw: &[u8]) -> serde_json::Value {
     serde_json::from_slice(raw).unwrap()
 }
 
-/// The v3 document a v2 document must become: projects lose `hosts`, every host becomes a
-/// root node of its project, everything else is copied as is.
+/// The v3 document a v2 document must become: the active environment's variables replace the
+/// project variables of the same name (case-insensitively) or are added, projects lose `hosts`,
+/// `environments` and `activeEnvironmentId`, every host becomes a root node of its project,
+/// everything else is copied as is.
 fn expected_v3(v2: &serde_json::Value) -> serde_json::Value {
     let mut projects = Vec::new();
     let mut nodes = Vec::new();
     for p in v2["projects"].as_array().unwrap() {
         let mut project = p.as_object().unwrap().clone();
+        let envs = project.remove("environments").unwrap();
+        let active = project.remove("activeEnvironmentId").unwrap();
+        let env = envs
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| active.is_string() && e["id"] == active);
+        if let Some(env) = env {
+            let vars = project["variables"].as_array_mut().unwrap();
+            for v in env["variables"].as_array().unwrap() {
+                let name = v["name"].as_str().unwrap().to_lowercase();
+                match vars
+                    .iter()
+                    .position(|o| o["name"].as_str().unwrap().to_lowercase() == name)
+                {
+                    Some(i) => vars[i] = v.clone(),
+                    None => vars.push(v.clone()),
+                }
+            }
+        }
         for h in project.remove("hosts").unwrap().as_array().unwrap() {
             let mut node = h.as_object().unwrap().clone();
             node.insert("kind".into(), "host".into());
@@ -712,7 +690,7 @@ fn v2_fixture_holds_no_secret_value() {
 
 #[test]
 fn v2_fixture_migrates_losslessly_with_a_byte_identical_backup() {
-    let (d, s) = store();
+    let (d, s, rec) = recording_store();
     fs::write(d.path().join(FILE_NAME), V2_FIXTURE).unwrap();
     let cfg = s.snapshot().unwrap();
     assert_eq!(fs::read(d.path().join(V2_BACKUP)).unwrap(), V2_FIXTURE);
@@ -722,8 +700,66 @@ fn v2_fixture_migrates_losslessly_with_a_byte_identical_backup() {
     assert_eq!(cfg.nodes.len(), 5);
     assert!(!d.path().join(TMP_NAME).exists());
 
-    let again = ConfigStore::new(d.path().to_path_buf()).snapshot().unwrap();
+    let ids = |list: &[&str]| -> Vec<String> { list.iter().map(|s| s.to_string()).collect() };
+    let pay_hosts = ids(&[
+        "f56a3080-ba46-4889-add1-3cf154d7322f",
+        "14af5226-eee1-4826-9e93-b2476323ba5d",
+        "32dd88ee-73e3-4a7f-86de-5688e175ba51",
+    ]);
+    let web_hosts = ids(&[
+        "81ba5673-7466-4128-8434-6c33da28d8d3",
+        "72d06ec1-9c8d-4e5c-89b6-75bf56c40301",
+    ]);
+    let env = |id: &str, secrets: &[&str]| LegacyEnvironment {
+        environment_id: id.into(),
+        secret_variables: ids(secrets),
+    };
+    let prod = "d0393fe4-b8d0-46e7-872f-8d3810ab88e8";
+    assert_eq!(
+        cfg.projects[0].variables,
+        vec![
+            plain("domain", "pay.example.com"),
+            secret("db_password"),
+            plain("host", "prod.pay.example.com"),
+            secret("prod_pass"),
+        ]
+    );
+    assert!(cfg.projects[1].variables.is_empty());
+    assert!(cfg.projects[2].variables.is_empty());
+    assert_eq!(
+        s.take_legacy_projects(),
+        vec![
+            LegacyProject {
+                project_id: "42544aa4-871d-4538-98d9-8fd45864d6c9".into(),
+                host_ids: pay_hosts,
+                environments: vec![
+                    env("adc2171d-0474-48da-af85-32e019b2cecb", &[]),
+                    env(prod, &["prod_pass"]),
+                ],
+            },
+            LegacyProject {
+                project_id: "da3a025b-e582-4a26-b5a1-d07dce013d6a".into(),
+                host_ids: web_hosts,
+                environments: vec![env("60483a41-4cc6-4063-9017-f4727fc8c194", &[])],
+            },
+        ]
+    );
+    assert_eq!(
+        rec.plans(),
+        vec![MigrationPlan {
+            projects: vec![ProjectMove {
+                project_id: "42544aa4-871d-4538-98d9-8fd45864d6c9".into(),
+                environment_id: prod.into(),
+                delete: Vec::new(),
+                copy: vec!["prod_pass".into()],
+            }],
+        }]
+    );
+
+    let fresh = ConfigStore::new(d.path().to_path_buf());
+    let again = fresh.snapshot().unwrap();
     assert_eq!(again, cfg);
+    assert!(fresh.take_legacy_projects().is_empty());
     assert!(!d.path().join("config.json.v2.2.bak").exists());
 }
 
@@ -754,16 +790,26 @@ fn v2_fields_are_copied_one_by_one() {
     assert_eq!(cfg.variables, vec![plain("g", "1")]);
     let project = &cfg.projects[0];
     assert_eq!((project.id.as_str(), project.name.as_str()), (p, "P"));
-    assert_eq!(project.variables, vec![secret("s")]);
-    assert_eq!(project.environments.len(), 1);
-    assert_eq!(project.environments[0].id, e);
-    assert_eq!(project.environments[0].name, "dev");
-    assert_eq!(project.environments[0].variables, vec![plain("x", "y")]);
-    assert_eq!(project.active_environment_id.as_deref(), Some(e));
+    assert_eq!(project.variables, vec![secret("s"), plain("x", "y")]);
     let bare = &cfg.projects[1];
     assert_eq!(bare.name, "Bare");
-    assert!(bare.variables.is_empty() && bare.environments.is_empty());
-    assert!(bare.active_environment_id.is_none());
+    assert!(bare.variables.is_empty());
+    let saved = json(&fs::read(d.path().join(FILE_NAME)).unwrap());
+    for project in saved["projects"].as_array().unwrap() {
+        let keys: Vec<&String> = project.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["id", "name", "variables"]);
+    }
+    assert_eq!(
+        s.take_legacy_projects(),
+        vec![LegacyProject {
+            project_id: p.into(),
+            host_ids: vec![h.into()],
+            environments: vec![LegacyEnvironment {
+                environment_id: e.into(),
+                secret_variables: Vec::new(),
+            }],
+        }]
+    );
     assert_eq!(
         cfg.nodes,
         vec![Node::Host(Host {
@@ -845,23 +891,20 @@ fn v2_breaking_the_invariants_is_corrupt_and_left_alone() {
 #[test]
 fn v3_breaking_the_invariants_is_corrupt() {
     let id = |n: u8| format!("0000000a-0000-4000-8000-0000000000{n:02}");
-    let (p, e) = (id(1), id(2));
+    let p = id(1);
     let coll = |i: &str, project: Option<&str>, parent: Option<&str>| serde_json::json!({"kind":"collection","id":i,"name":i,"projectId":project,"parentId":parent});
     let host = |i: &str, project: Option<&str>, parent: Option<&str>| {
         serde_json::json!({"kind":"host","id":i,"name":i,"projectId":project,"parentId":parent,
             "hostname":"h","port":"22","username":"u","auth":{"kind":"agent"}})
     };
-    let file = |nodes: Vec<serde_json::Value>| {
-        serde_json::json!({"version":3,"projects":[{"id":p,"name":"P",
-            "environments":[{"id":e,"name":"dev"}]}],"nodes":nodes})
-    };
+    let file = |nodes: Vec<serde_json::Value>| serde_json::json!({"version":3,"projects":[{"id":p,"name":"P"}],"nodes":nodes});
     let (a, b) = (id(10), id(11));
     let good = file(vec![coll(&a, Some(&p), None), host(&b, Some(&p), Some(&a))]);
     let bad = [
         file(vec![coll(&a.to_uppercase(), None, None)]),
         file(vec![coll("c1", None, None)]),
         file(vec![coll(&a, None, None), host(&a, None, None)]),
-        file(vec![coll(&e, None, None)]),
+        file(vec![coll(&p, None, None)]),
         file(vec![coll(&a, Some(&id(99)), None)]),
         file(vec![host(&b, None, Some(&id(99)))]),
         file(vec![host(&a, None, None), host(&b, None, Some(&a))]),
@@ -925,33 +968,414 @@ fn node_count_and_depth_limits_are_checked_on_load() {
     assert!(matches!(s.snapshot(), Err(ConfigError::Corrupt)));
 }
 
-#[test]
-fn active_environment_must_be_one_of_the_project() {
-    let (d, s) = store();
-    let (p, e, q, f) = (
-        "00000000-0000-4000-8000-000000000001",
-        "00000000-0000-4000-8000-000000000002",
-        "00000000-0000-4000-8000-000000000003",
-        "00000000-0000-4000-8000-000000000004",
-    );
-    let file = |version: u32, active: &str| {
-        format!(
-            r#"{{"version":{version},"projects":[
-              {{"id":"{p}","name":"P","environments":[{{"id":"{e}","name":"dev"}}],"activeEnvironmentId":"{active}"}},
-              {{"id":"{q}","name":"Q","environments":[{{"id":"{f}","name":"dev"}}]}}]}}"#
-        )
-    };
-    fs::write(d.path().join(FILE_NAME), file(3, e)).unwrap();
-    assert!(s.snapshot().is_ok());
-    for bad in [f, "00000000-0000-4000-8000-000000000009"] {
-        let raw = file(3, bad);
-        fs::write(d.path().join(FILE_NAME), &raw).unwrap();
-        assert!(matches!(s.snapshot(), Err(ConfigError::Corrupt)));
-        assert_eq!(fs::read_to_string(d.path().join(FILE_NAME)).unwrap(), raw);
+const P1: &str = "00000000-0000-4000-8000-000000000001";
+const E1: &str = "00000000-0000-4000-8000-000000000002";
+const P2: &str = "00000000-0000-4000-8000-000000000003";
+const E2: &str = "00000000-0000-4000-8000-000000000004";
+const H1: &str = "00000000-0000-4000-8000-000000000005";
+const H2: &str = "00000000-0000-4000-8000-000000000006";
+
+fn agent_host(id: &str, project: Option<&str>) -> serde_json::Value {
+    serde_json::json!({"kind":"host","id":id,"name":id,"projectId":project,"parentId":null,
+        "hostname":"h","port":"22","username":"u","auth":{"kind":"agent"}})
+}
+
+fn var(name: &str, value: Option<&str>) -> serde_json::Value {
+    match value {
+        Some(v) => serde_json::json!({"name":name,"kind":"plain","value":v}),
+        None => serde_json::json!({"name":name,"kind":"secret","value":null}),
     }
-    let v2 = file(2, f);
-    fs::write(d.path().join(FILE_NAME), &v2).unwrap();
+}
+
+/// A version 3 file as written before environments were removed: project `P1` with `E1`
+/// (`pw` secret, `host` plain) and `E2` (one secret with an invalid name), project `P2`.
+fn v3_with_environments(active: Option<&str>) -> serde_json::Value {
+    serde_json::json!({"version":3,"variables":[],
+        "projects":[
+          {"id":P1,"name":"P","variables":[],
+           "environments":[
+             {"id":E1,"name":"dev","variables":[var("pw", None), var("host", Some("h"))]},
+             {"id":E2,"name":"bad name","variables":[{"name":"a/b","kind":"secret","value":null}]}],
+           "activeEnvironmentId":active},
+          {"id":P2,"name":"Q","variables":[],"environments":[],"activeEnvironmentId":null}],
+        "nodes":[agent_host(H1, Some(P1)), agent_host(H2, None)],
+        "keys":[]})
+}
+
+fn write(d: &tempfile::TempDir, file: &serde_json::Value) -> String {
+    let raw = file.to_string();
+    fs::write(d.path().join(FILE_NAME), &raw).unwrap();
+    raw
+}
+
+fn project_keys(d: &tempfile::TempDir) {
+    let saved = json(&fs::read(d.path().join(FILE_NAME)).unwrap());
+    for project in saved["projects"].as_array().unwrap() {
+        let keys: Vec<&String> = project.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["id", "name", "variables"]);
+    }
+}
+
+fn moves(project: &str, env: &str, delete: &[&str], copy: &[&str]) -> ProjectMove {
+    let names = |l: &[&str]| l.iter().map(|n| n.to_string()).collect();
+    ProjectMove {
+        project_id: project.into(),
+        environment_id: env.into(),
+        delete: names(delete),
+        copy: names(copy),
+    }
+}
+
+fn refused(s: &ConfigStore, d: &tempfile::TempDir, raw: &str) {
+    assert!(matches!(s.snapshot(), Err(ConfigError::Corrupt)), "{raw}");
+    assert_eq!(fs::read_to_string(d.path().join(FILE_NAME)).unwrap(), raw);
+    assert!(!d.path().join(V2_BACKUP).exists());
+    assert!(s.take_legacy_projects().is_empty());
+}
+
+#[test]
+fn v3_leftover_active_environment_is_flattened_and_drained() {
+    let (d, s, rec) = recording_store();
+    write(&d, &v3_with_environments(Some(E1)));
     let cfg = s.snapshot().unwrap();
-    assert!(cfg.projects[0].active_environment_id.is_none());
-    assert_eq!(fs::read_to_string(d.path().join(V2_BACKUP)).unwrap(), v2);
+    assert_eq!(
+        cfg.projects[0].variables,
+        vec![secret("pw"), plain("host", "h")]
+    );
+    assert!(cfg.projects[1].variables.is_empty());
+    assert_eq!(cfg.nodes.len(), 2);
+    let saved = json(&fs::read(d.path().join(FILE_NAME)).unwrap());
+    assert_eq!(saved, serde_json::to_value(&cfg).unwrap());
+    project_keys(&d);
+    assert!(!d.path().join(V2_BACKUP).exists());
+    assert_eq!(
+        rec.plans(),
+        vec![MigrationPlan {
+            projects: vec![moves(P1, E1, &[], &["pw"])]
+        }]
+    );
+    assert_eq!(
+        s.take_legacy_projects(),
+        vec![LegacyProject {
+            project_id: P1.into(),
+            host_ids: vec![H1.into()],
+            environments: vec![
+                LegacyEnvironment {
+                    environment_id: E1.into(),
+                    secret_variables: vec!["pw".into()],
+                },
+                LegacyEnvironment {
+                    environment_id: E2.into(),
+                    secret_variables: Vec::new(),
+                },
+            ],
+        }]
+    );
+    s.snapshot().unwrap();
+    assert!(s.take_legacy_projects().is_empty());
+    assert_eq!(rec.plans().len(), 1);
+
+    // Restored later in the run: the plan runs again (idempotent), the cleanup does not.
+    write(&d, &v3_with_environments(Some(E1)));
+    assert_eq!(s.snapshot().unwrap().projects[0].variables.len(), 2);
+    assert_eq!(rec.plans().len(), 2);
+    assert!(s.take_legacy_projects().is_empty());
+    project_keys(&d);
+}
+
+#[test]
+fn no_active_environment_keeps_the_project_variables() {
+    let (d, s, rec) = recording_store();
+    write(&d, &v3_with_environments(None));
+    assert!(s.snapshot().unwrap().projects[0].variables.is_empty());
+    assert!(rec.plans().is_empty());
+    assert_eq!(s.take_legacy_projects()[0].environments.len(), 2);
+    project_keys(&d);
+}
+
+#[test]
+fn v3_environment_fields_are_validated_strictly() {
+    let mut cases = Vec::new();
+    cases.push(v3_with_environments(Some(
+        "00000000-0000-4000-8000-000000000009",
+    )));
+    cases.push(v3_with_environments(Some("not-a-uuid")));
+    let mut other_project_env = v3_with_environments(None);
+    other_project_env["projects"][1]["activeEnvironmentId"] = E1.into();
+    cases.push(other_project_env);
+    // Not canonical, a project id, a node id, used twice in the project.
+    for id in ["0000000A-0000-4000-8000-000000000002", P2, H2, E1] {
+        let mut file = v3_with_environments(None);
+        file["projects"][0]["environments"][1]["id"] = id.into();
+        cases.push(file);
+    }
+    let mut across = v3_with_environments(None);
+    across["projects"][1]["environments"] = serde_json::json!([{"id":E1,"name":"same id"}]);
+    cases.push(across);
+    let mut no_id = v3_with_environments(None);
+    no_id["projects"][0]["environments"][1] = serde_json::json!({"name":"no id"});
+    cases.push(no_id);
+    let mut garbage = v3_with_environments(None);
+    garbage["projects"][0]["environments"] = serde_json::json!(["garbage"]);
+    cases.push(garbage);
+    let mut dupes = v3_with_environments(Some(E1));
+    dupes["projects"][0]["environments"][0]["variables"] =
+        serde_json::json!([var("pw", None), var("PW", None)]);
+    cases.push(dupes);
+    let mut valued = v3_with_environments(Some(E1));
+    valued["projects"][0]["environments"][0]["variables"] =
+        serde_json::json!([{"name":"pw","kind":"secret","value":"hunter2"}]);
+    cases.push(valued);
+    for file in cases {
+        let (d, s, rec) = recording_store();
+        let raw = write(&d, &file);
+        refused(&s, &d, &raw);
+        assert!(rec.plans().is_empty());
+    }
+}
+
+/// A version 2 file of one project `P1` with these project and active environment variables.
+fn v2_with(project: &[serde_json::Value], env: &[serde_json::Value]) -> serde_json::Value {
+    serde_json::json!({"version":2,"projects":[{"id":P1,"name":"P","variables":project,
+        "environments":[{"id":E1,"name":"prod","variables":env},{"id":E2,"name":"dev","variables":[]}],
+        "hosts":[{"id":H1,"name":"a","hostname":"h","port":"22","username":"u","auth":{"kind":"agent"}}],
+        "activeEnvironmentId":E1}]})
+}
+
+#[test]
+fn v2_dangling_active_environment_is_no_active_environment() {
+    for active in [
+        serde_json::json!("00000000-0000-4000-8000-000000000009"),
+        serde_json::json!("not-a-uuid"),
+    ] {
+        let (d, s, rec) = recording_store();
+        let mut file = v2_with(&[var("pw", None)], &[var("pw", None)]);
+        file["projects"][0]["activeEnvironmentId"] = active;
+        write(&d, &file);
+        assert_eq!(
+            s.snapshot().unwrap().projects[0].variables,
+            vec![secret("pw")]
+        );
+        assert!(rec.plans().is_empty());
+        assert!(d.path().join(V2_BACKUP).exists());
+    }
+}
+
+#[test]
+fn v2_active_environment_of_another_project_is_never_copied() {
+    let (d, s, rec) = recording_store();
+    let file = serde_json::json!({"version":2,"projects":[
+        {"id":P1,"name":"A","environments":[{"id":E1,"name":"prod","variables":[var("pw", None)]}]},
+        {"id":P2,"name":"B","variables":[],"environments":[],"activeEnvironmentId":E1}]});
+    write(&d, &file);
+    let cfg = s.snapshot().unwrap();
+    assert!(cfg.projects[0].variables.is_empty() && cfg.projects[1].variables.is_empty());
+    assert!(rec.plans().is_empty());
+}
+
+#[test]
+fn v2_environment_ids_must_be_canonical_and_unique() {
+    for envs in [
+        serde_json::json!([{"id":"dev","name":"dev"}]),
+        serde_json::json!([{"id":P1,"name":"same as the project"}]),
+        serde_json::json!([{"id":E1,"name":"a"},{"id":E1,"name":"b"}]),
+    ] {
+        let (d, s) = store();
+        let file = serde_json::json!({"version":2,"projects":[
+            {"id":P1,"name":"P","environments":envs,"hosts":[]}]});
+        let raw = write(&d, &file);
+        refused(&s, &d, &raw);
+    }
+}
+
+#[test]
+fn flatten_replaces_by_exact_name_and_plans_the_secrets() {
+    let (d, s, rec) = recording_store();
+    let raw = write(
+        &d,
+        &v2_with(
+            &[
+                var("pw", None),
+                var("token", None),
+                var("host", Some("a")),
+                var("keep", Some("k")),
+            ],
+            &[
+                var("pw", None),
+                var("token", Some("t")),
+                var("host", Some("b")),
+                var("extra", Some("e")),
+                var("new", None),
+            ],
+        ),
+    );
+    let cfg = s.snapshot().unwrap();
+    assert_eq!(
+        cfg.projects[0].variables,
+        vec![
+            secret("pw"),
+            plain("token", "t"),
+            plain("host", "b"),
+            plain("keep", "k"),
+            plain("extra", "e"),
+            secret("new"),
+        ]
+    );
+    assert_eq!(
+        rec.plans(),
+        vec![MigrationPlan {
+            projects: vec![moves(P1, E1, &["token"], &["pw", "new"])]
+        }]
+    );
+    let drained = s.take_legacy_projects();
+    assert_eq!(drained[0].host_ids, vec![H1.to_string()]);
+    assert_eq!(fs::read_to_string(d.path().join(V2_BACKUP)).unwrap(), raw);
+}
+
+#[test]
+fn a_case_only_difference_with_the_project_is_refused() {
+    // Project `PW`, active env `pw`, global `PW`: renaming would make `${PW}` resolve to the
+    // global secret.
+    for (project, env) in [
+        (var("PW", None), var("pw", None)),
+        (var("HOST", Some("a")), var("host", Some("b"))),
+        (var("Pw", None), var("pw", Some("plain"))),
+    ] {
+        let (d, s, rec) = recording_store();
+        let mut file = v2_with(&[project], &[env]);
+        file["variables"] = serde_json::json!([var("PW", None), var("HOST", Some("g"))]);
+        file["projects"][0]["hosts"][0]["hostname"] = "${HOST}".into();
+        file["projects"][0]["hosts"][0]["auth"] =
+            serde_json::json!({"kind":"password","password":"${PW}"});
+        let raw = write(&d, &file);
+        refused(&s, &d, &raw);
+        assert!(rec.plans().is_empty());
+    }
+}
+
+#[test]
+fn flatten_over_the_variable_limit_is_corrupt_and_left_alone() {
+    let (d, s) = store();
+    let project: Vec<_> = (0..150).map(|i| var(&format!("p{i}"), Some("x"))).collect();
+    let env: Vec<_> = (0..60).map(|i| var(&format!("e{i}"), Some("x"))).collect();
+    let raw = write(&d, &v2_with(&project, &env));
+    refused(&s, &d, &raw);
+    write(&d, &v2_with(&project, &env[..50]));
+    assert_eq!(s.snapshot().unwrap().projects[0].variables.len(), 200);
+}
+
+#[test]
+fn failed_keychain_step_writes_nothing_and_is_retried() {
+    let (d, s, rec) = recording_store();
+    rec.fail.store(true, Ordering::SeqCst);
+    for file in [
+        v2_with(&[], &[var("pw", None)]),
+        v3_with_environments(Some(E1)),
+    ] {
+        let raw = write(&d, &file);
+        assert!(matches!(s.snapshot(), Err(ConfigError::Keychain)));
+        assert!(matches!(s.create_project("x"), Err(ConfigError::Keychain)));
+        assert_eq!(fs::read_to_string(d.path().join(FILE_NAME)).unwrap(), raw);
+        assert!(!d.path().join(V2_BACKUP).exists());
+        assert!(s.take_legacy_projects().is_empty());
+    }
+    rec.fail.store(false, Ordering::SeqCst);
+    assert_eq!(
+        s.snapshot().unwrap().projects[0].variables,
+        vec![secret("pw"), plain("host", "h")]
+    );
+    assert_eq!(s.take_legacy_projects().len(), 1);
+    project_keys(&d);
+}
+
+#[test]
+fn secrets_need_a_keychain_but_plain_variables_do_not() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = ConfigStore::new(dir.path().to_path_buf());
+    let raw = write(&dir, &v2_with(&[], &[var("pw", None)]));
+    assert!(matches!(s.snapshot(), Err(ConfigError::Keychain)));
+    assert_eq!(fs::read_to_string(dir.path().join(FILE_NAME)).unwrap(), raw);
+
+    write(
+        &dir,
+        &v2_with(&[var("x", Some("1"))], &[var("x", Some("2"))]),
+    );
+    assert_eq!(
+        s.snapshot().unwrap().projects[0].variables,
+        vec![plain("x", "2")]
+    );
+
+    let (d, s, rec) = recording_store();
+    rec.fail.store(true, Ordering::SeqCst);
+    write(&d, &v2_with(&[var("x", Some("1"))], &[var("y", Some("2"))]));
+    assert_eq!(s.snapshot().unwrap().projects[0].variables.len(), 2);
+    assert!(rec.plans().is_empty());
+}
+
+#[test]
+fn migration_keychain_work_is_capped() {
+    let projects: Vec<_> = (0..26)
+        .map(|i| {
+            let e = uuid::Uuid::new_v4().to_string();
+            let vars: Vec<_> = (0..200).map(|n| var(&format!("s{n}"), None)).collect();
+            serde_json::json!({"id":uuid::Uuid::new_v4().to_string(),"name":format!("p{i}"),
+                "environments":[{"id":e,"variables":vars}],"activeEnvironmentId":e})
+        })
+        .collect();
+    let (d, s, rec) = recording_store();
+    let raw = write(&d, &serde_json::json!({"version":3,"projects":projects}));
+    refused(&s, &d, &raw);
+    assert!(rec.plans().is_empty());
+    const { assert!(26 * 400 > migrate::MAX_MIGRATION_CALLS) };
+}
+
+#[test]
+fn migration_of_a_file_replaced_at_runtime_runs_inside_that_operation() {
+    let (d, s, rec) = recording_store();
+    s.create_project("Before").unwrap();
+    write(&d, &v3_with_environments(Some(E1)));
+    s.create_project("After").unwrap();
+    assert_eq!(rec.plans().len(), 1);
+    let cfg = s.snapshot().unwrap();
+    let names: Vec<_> = cfg.projects.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, ["P", "Q", "After"]);
+    assert_eq!(
+        cfg.projects[0].variables,
+        vec![secret("pw"), plain("host", "h")]
+    );
+}
+
+#[test]
+fn v3_without_environment_fields_is_not_rewritten() {
+    let (d, s) = store();
+    let p = s.create_project("P").unwrap();
+    let raw = fs::read(d.path().join(FILE_NAME)).unwrap();
+    assert_eq!(s.snapshot().unwrap().projects, vec![p]);
+    assert!(s.take_legacy_projects().is_empty());
+    assert_eq!(fs::read(d.path().join(FILE_NAME)).unwrap(), raw);
+}
+
+#[test]
+fn many_environments_are_capped_and_hosts_listed_once() {
+    let (d, s) = store();
+    let envs: Vec<_> = (0..1500)
+        .map(|_| serde_json::json!({"id":uuid::Uuid::new_v4().to_string(),"name":"e"}))
+        .collect();
+    let hosts: Vec<_> = (0..50)
+        .map(|_| agent_host(&uuid::Uuid::new_v4().to_string(), Some(P1)))
+        .collect();
+    write(
+        &d,
+        &serde_json::json!({"version":3,"projects":[{"id":P1,"name":"P","environments":envs}],
+            "nodes":hosts}),
+    );
+    s.snapshot().unwrap();
+    project_keys(&d);
+    let drained = s.take_legacy_projects();
+    assert_eq!(drained.len(), 1);
+    assert_eq!(
+        drained[0].environments.len(),
+        migrate::MAX_LEGACY_ENVIRONMENTS
+    );
+    assert_eq!(drained[0].host_ids.len(), 50);
 }

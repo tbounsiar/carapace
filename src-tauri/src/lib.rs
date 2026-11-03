@@ -35,8 +35,9 @@ pub fn run() {
             app.manage(transfer::TransferManager::new(Arc::new(
                 commands::transfer::AppConnections(app.handle().clone()),
             )));
-            let store = config::ConfigStore::new(home);
-            // Loading moves a version 1 file aside; its keychain entries go with it.
+            let store = commands::secrets::config_store(home, &secrets);
+            // Loading moves a version 1 file aside or drops environments; their keychain entries go
+            // with them.
             let _ = store.snapshot();
             commands::secrets::forget_legacy(&store, &secrets);
             app.manage(secrets);
@@ -69,10 +70,6 @@ pub fn run() {
             commands::config::create_project,
             commands::config::rename_project,
             commands::config::delete_project,
-            commands::config::create_environment,
-            commands::config::rename_environment,
-            commands::config::delete_environment,
-            commands::config::set_active_environment,
             commands::config::set_variables,
             commands::config::create_collection,
             commands::config::rename_collection,

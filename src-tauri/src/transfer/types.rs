@@ -129,7 +129,7 @@ mod tests {
     fn serializes_camel_case() {
         let view = TransferView {
             id: "j".into(),
-            connection_id: "h@none".into(),
+            connection_id: "h".into(),
             direction: Direction::Upload,
             source: "/a".into(),
             target_dir: "/b".into(),
@@ -145,7 +145,7 @@ mod tests {
         let json = serde_json::to_value(TransferEvent::Updated { transfer: view }).unwrap();
         assert_eq!(json["kind"], "updated");
         let t = &json["transfer"];
-        assert_eq!(t["connectionId"], "h@none");
+        assert_eq!(t["connectionId"], "h");
         assert_eq!(t["direction"], "upload");
         assert_eq!(t["state"], "waitingConflict");
         assert!(t["totalBytes"].is_null());

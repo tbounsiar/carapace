@@ -15,7 +15,7 @@ import { dirKey, FAILURE_WINDOW_MS, TransferQueue } from './transfer-queue';
 function job(id: string, patch: Partial<TransferView> = {}): TransferView {
   return {
     id,
-    connectionId: 'h1@e1',
+    connectionId: 'h1',
     direction: 'upload',
     source: `C:\\data\\${id}.txt`,
     targetDir: '/srv',
@@ -114,8 +114,8 @@ describe('TransferQueue', () => {
     ]);
     emit({ kind: 'removed', jobIds: ['j1'] });
     expect(queue.transfers().map((t) => t.id)).toEqual(['j2']);
-    expect(queue.forConnection('h1@e1').length).toBe(1);
-    expect(queue.forConnection('h1@none')).toEqual([]);
+    expect(queue.forConnection('h1').length).toBe(1);
+    expect(queue.forConnection('h2')).toEqual([]);
   });
 
   it('merges events that arrive before the snapshot', async () => {
@@ -143,26 +143,26 @@ describe('TransferQueue', () => {
       kind: 'updated',
       transfer: job('j2', { direction: 'download', targetDir: 'C:\\in', state: 'cancelled' }),
     });
-    expect(queue.revisions().get(dirKey('h1@e1', 'remote', '/srv'))).toBe(1);
+    expect(queue.revisions().get(dirKey('h1', 'remote', '/srv'))).toBe(1);
     expect(queue.revisions().get(dirKey('other', 'local', 'C:\\in'))).toBe(1);
   });
 
   it('enqueues with the ask policy by default and notifies a refusal', async () => {
-    await queue.enqueue('h1@e1', 'upload', ['C:\\a', 'C:\\b'], '/srv');
+    await queue.enqueue('h1', 'upload', ['C:\\a', 'C:\\b'], '/srv');
     expect(ipc.enqueue).toHaveBeenCalledWith({
-      connectionId: 'h1@e1',
+      connectionId: 'h1',
       direction: 'upload',
       sources: ['C:\\a', 'C:\\b'],
       targetDir: '/srv',
       conflict: 'ask',
     });
     ipc.enqueue.mockRejectedValueOnce(new IpcError('not_connected', 'Not connected'));
-    await queue.enqueue('h1@e1', 'upload', ['C:\\a'], '/srv');
+    await queue.enqueue('h1', 'upload', ['C:\\a'], '/srv');
     expect(alerts.open).toHaveBeenCalledWith(
       expect.stringContaining('Not connected. '),
       expect.objectContaining({ label: 'Transfer not started' }),
     );
-    await queue.enqueue('h1@e1', 'upload', [], '/srv');
+    await queue.enqueue('h1', 'upload', [], '/srv');
     expect(ipc.enqueue).toHaveBeenCalledTimes(2);
   });
 

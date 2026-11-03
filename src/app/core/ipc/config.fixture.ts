@@ -10,7 +10,7 @@ import type {
 } from './config.models';
 
 export function project(id: string, name: string, extra: Partial<Project> = {}): Project {
-  return { id, name, variables: [], environments: [], activeEnvironmentId: null, ...extra };
+  return { id, name, variables: [], ...extra };
 }
 
 export function collection(
@@ -70,7 +70,6 @@ export function fakeConfig() {
     createProject: (name: string): Promise<Project> => Promise.resolve(project('new', name)),
     renameProject: (): Promise<void> => Promise.resolve(),
     deleteProject: (): Promise<void> => Promise.resolve(),
-    setActiveEnvironment: (): Promise<void> => Promise.resolve(),
     createCollection: (
       projectId: string | null,
       parentId: string | null,

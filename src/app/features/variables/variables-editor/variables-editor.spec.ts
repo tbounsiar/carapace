@@ -200,11 +200,7 @@ describe('VariablesEditor', () => {
 
   it('reloads the rows when the scope changes', async () => {
     await type('var-value-0', 'changed');
-    fixture.componentInstance.scope.set({
-      kind: 'environment',
-      projectId: 'p1',
-      environmentId: 'e1',
-    });
+    fixture.componentInstance.scope.set({ kind: 'project', projectId: 'p2' });
     fixture.componentInstance.variables.set([]);
     await settle();
     expect(byId('var-name-0')).toBeNull();

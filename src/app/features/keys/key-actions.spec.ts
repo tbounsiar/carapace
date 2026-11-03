@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { EMPTY, of } from 'rxjs';
 import { ConfigService } from '../../core/ipc/config';
-import type { Host, Project } from '../../core/ipc/config.models';
+import type { Collection, Host, Project } from '../../core/ipc/config.models';
 import { IpcError } from '../../core/ipc/ipc-error';
 import { KeyStore } from '../../core/ipc/key-store';
 import { key, KEY } from '../../core/ipc/keys.fixture';
@@ -16,19 +16,20 @@ const HOST: Host = {
   kind: 'host',
   id: 'h1',
   projectId: 'p1',
-  parentId: null,
+  parentId: 'c1',
   name: 'UI',
   hostname: '${host}',
   port: '22',
   username: 'deploy',
   auth: { kind: 'password', password: null },
 };
-const PROJECT: Project = {
-  id: 'p1',
-  name: 'Shop',
-  variables: [],
-  environments: [{ id: 'e1', name: 'Dev', variables: [] }],
-  activeEnvironmentId: 'e1',
+const PROJECT: Project = { id: 'p1', name: 'Shop', variables: [] };
+const BACKEND: Collection = {
+  kind: 'collection',
+  id: 'c1',
+  name: 'Backend',
+  projectId: 'p1',
+  parentId: null,
 };
 
 describe('KeyActions', () => {
@@ -40,6 +41,7 @@ describe('KeyActions', () => {
     deploy: vi.fn(() => Promise.resolve({ added: true, restricted: false })),
   };
   const config = {
+    nodes: () => [BACKEND, HOST],
     findHost: vi.fn((id: string) => (id === 'h1' ? { project: PROJECT, host: HOST } : null)),
     updateHost: vi.fn(() => Promise.resolve(HOST)),
   };
@@ -68,7 +70,7 @@ describe('KeyActions', () => {
 
   const lastToast = (): unknown[] => alerts.open.mock.calls.at(-1) as unknown[];
 
-  it('connects first, deploys to the active environment and reports the result', async () => {
+  it('connects first, deploys to the host and reports the result', async () => {
     connector.connect.mockImplementationOnce(() => {
       state = 'connected';
       return Promise.resolve();
@@ -77,11 +79,10 @@ describe('KeyActions', () => {
     expect(connector.connect).toHaveBeenCalledWith({
       projectId: 'p1',
       hostId: 'h1',
-      environmentId: 'e1',
-      connectionId: 'h1@e1',
+      connectionId: 'h1',
     });
-    expect(store.deploy).toHaveBeenCalledWith('h1@e1', 'k1');
-    expect(lastToast()[0]).toBe('Key added to authorized_keys on UI · Dev');
+    expect(store.deploy).toHaveBeenCalledWith('h1', 'k1');
+    expect(lastToast()[0]).toBe('Key added to authorized_keys on Backend / UI');
     expect(config.updateHost).not.toHaveBeenCalled();
   });
 
@@ -89,7 +90,7 @@ describe('KeyActions', () => {
     state = 'connected';
     store.deploy.mockResolvedValueOnce({ added: false, restricted: true });
     expect(await actions.deployTo(KEY, 'h1', true)).toBe(true);
-    expect(lastToast()[0]).toContain('Key present with restrictions (options) on UI · Dev');
+    expect(lastToast()[0]).toContain('Key present with restrictions (options) on Backend / UI');
     expect(config.updateHost).not.toHaveBeenCalled();
   });
 
@@ -98,7 +99,7 @@ describe('KeyActions', () => {
     store.deploy.mockResolvedValueOnce({ added: false, restricted: false });
     expect(await actions.deployTo(KEY, 'h1', false)).toBe(true);
     expect(connector.connect).not.toHaveBeenCalled();
-    expect(lastToast()[0]).toBe('Key already present on UI · Dev');
+    expect(lastToast()[0]).toBe('Key already present on Backend / UI');
   });
 
   it('stops when the connection is not established', async () => {

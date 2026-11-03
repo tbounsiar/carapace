@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -73,44 +74,30 @@ impl VarKey {
         )
     }
 
-    pub fn environment(environment_id: &str, name: &str) -> Result<Self, SecretError> {
-        Self::checked(
-            &[environment_id],
-            name,
-            format!("var/env/{environment_id}/{name}"),
-        )
-    }
-
     pub fn account(&self) -> &str {
         &self.account
     }
 }
 
-/// The keychain entries of secrets remembered from the credential prompt for one connection
-/// (host, environment or none).
+/// The keychain entries of secrets remembered from the credential prompt for one host
+/// (`conn/{hostId}/none/{kind}`; the `none` segment is kept so existing entries stay valid).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SavedKey {
     host_id: String,
-    environment_id: Option<String>,
 }
 
 impl SavedKey {
-    pub fn new(host_id: &str, environment_id: Option<&str>) -> Result<Self, SecretError> {
-        if !is_uuid(host_id) || !environment_id.is_none_or(is_uuid) {
+    pub fn new(host_id: &str) -> Result<Self, SecretError> {
+        if !is_uuid(host_id) {
             return Err(SecretError::InvalidScope);
         }
         Ok(Self {
             host_id: host_id.into(),
-            environment_id: environment_id.map(str::to_owned),
         })
     }
 
     pub fn account(&self, kind: SecretKind) -> String {
-        format!(
-            "conn/{}/{}/{kind}",
-            self.host_id,
-            self.environment_id.as_deref().unwrap_or("none")
-        )
+        format!("conn/{}/none/{kind}", self.host_id)
     }
 }
 
@@ -192,6 +179,26 @@ pub fn fits_saved(target: &str, value: &SecretString) -> bool {
     encode_saved(target, value).is_some_and(|e| fits_keychain(&e))
 }
 
+thread_local! {
+    /// Lifecycle locks held by this thread, by address.
+    static HELD: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A held lifecycle lock; a nested `lifecycle()` on the same thread holds nothing more. Not
+/// `Send` (it wraps a `MutexGuard`), so it can never be held across an `.await` in a command.
+pub struct Lifecycle<'a> {
+    guard: Option<MutexGuard<'a, ()>>,
+    key: usize,
+}
+
+impl Drop for Lifecycle<'_> {
+    fn drop(&mut self) {
+        if self.guard.is_some() {
+            HELD.with(|h| h.borrow_mut().retain(|k| *k != self.key));
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct SecretStore {
     backend: Arc<dyn SecretBackend>,
@@ -209,9 +216,19 @@ impl SecretStore {
     /// Held across a config change and the keychain writes or deletes that follow it, and
     /// across the remember step of a connect (check the target, then save). Without it a
     /// delete running in between could leave an entry nothing references any more.
-    /// Lock order: this lock first, then the config store's.
-    pub fn lifecycle(&self) -> MutexGuard<'_, ()> {
-        self.lifecycle.lock().unwrap_or_else(|e| e.into_inner())
+    /// Lock order: this lock first, then the config store's; the store takes it itself before
+    /// its own lock (see `commands::secrets::Migration`), hence reentrant on one thread.
+    pub fn lifecycle(&self) -> Lifecycle<'_> {
+        let key = Arc::as_ptr(&self.lifecycle) as usize;
+        if HELD.with(|h| h.borrow().contains(&key)) {
+            return Lifecycle { guard: None, key };
+        }
+        let guard = self.lifecycle.lock().unwrap_or_else(|e| e.into_inner());
+        HELD.with(|h| h.borrow_mut().push(key));
+        Lifecycle {
+            guard: Some(guard),
+            key,
+        }
     }
 
     /// Deletes both secrets of a host from the iteration-2 layout
@@ -233,6 +250,50 @@ impl SecretStore {
                 .delete(&format!("{project_id}/{environment_id}/{host_id}/{kind}"))?;
         }
         Ok(())
+    }
+
+    /// Deletes what a removed environment left in the keychain: its secret variables
+    /// (`var/env/{environmentId}/{name}`) and the saved secrets of `host_ids` for it
+    /// (`conn/{hostId}/{environmentId}/{kind}`). A non-canonical environment id is refused;
+    /// invalid names and host ids are skipped. Keeps going after a failure and reports it.
+    pub fn delete_legacy_environment(
+        &self,
+        environment_id: &str,
+        secret_variables: &[String],
+        host_ids: &[String],
+    ) -> Result<(), SecretError> {
+        if !is_uuid(environment_id) {
+            return Err(SecretError::InvalidScope);
+        }
+        let variables = secret_variables
+            .iter()
+            .filter(|n| is_valid_name(n))
+            .map(|n| format!("var/env/{environment_id}/{n}"));
+        let saved = host_ids.iter().filter(|h| is_uuid(h)).flat_map(|h| {
+            SecretKind::ALL
+                .into_iter()
+                .map(move |kind| format!("conn/{h}/{environment_id}/{kind}"))
+        });
+        let mut result = Ok(());
+        for account in variables.chain(saved) {
+            if let Err(e) = self.backend.delete(&account) {
+                result = Err(e);
+            }
+        }
+        result
+    }
+
+    /// Reads a secret variable of a removed environment, to move it into its project.
+    pub fn get_legacy_env_var(
+        &self,
+        environment_id: &str,
+        name: &str,
+    ) -> Result<Option<SecretString>, SecretError> {
+        if !is_uuid(environment_id) || !is_valid_name(name) {
+            return Err(SecretError::InvalidScope);
+        }
+        self.backend
+            .get(&format!("var/env/{environment_id}/{name}"))
     }
 
     pub fn keychain() -> Self {
@@ -417,6 +478,9 @@ mod memory {
     pub struct MemoryBackend {
         entries: Mutex<HashMap<String, SecretString>>,
         failing: AtomicBool,
+        ops: Mutex<Vec<String>>,
+        fail_ops: Mutex<Vec<String>>,
+        case_insensitive: AtomicBool,
     }
 
     impl MemoryBackend {
@@ -439,15 +503,47 @@ mod memory {
             self.entries
                 .lock()
                 .unwrap()
-                .get(account)
+                .get(&self.key(account))
                 .map(|v| v.expose_secret().to_owned())
+        }
+
+        /// Every backend call so far, as `get|set|delete {account}`.
+        pub fn ops(&self) -> Vec<String> {
+            self.ops.lock().unwrap().clone()
+        }
+
+        /// Accounts compare case-insensitively, like Windows credential target names.
+        pub fn set_case_insensitive(&self, on: bool) {
+            self.case_insensitive.store(on, Ordering::SeqCst);
+        }
+
+        /// Makes exactly these calls (`get|set|delete {account}`) fail as unavailable.
+        pub fn fail_on(&self, ops: &[String]) {
+            *self.fail_ops.lock().unwrap() = ops.to_vec();
+        }
+
+        fn key(&self, account: &str) -> String {
+            if self.case_insensitive.load(Ordering::SeqCst) {
+                account.to_lowercase()
+            } else {
+                account.to_owned()
+            }
+        }
+
+        fn record(&self, op: &str, account: &str) -> Result<String, SecretError> {
+            let call = format!("{op} {account}");
+            self.ops.lock().unwrap().push(call.clone());
+            if self.fail_ops.lock().unwrap().contains(&call) {
+                return Err(SecretError::Unavailable);
+            }
+            Ok(self.key(account))
         }
 
         pub fn put_raw(&self, account: &str, value: &str) {
             self.entries
                 .lock()
                 .unwrap()
-                .insert(account.into(), SecretString::from(value));
+                .insert(self.key(account), SecretString::from(value));
         }
 
         fn entries(&self) -> Result<MutexGuard<'_, HashMap<String, SecretString>>, SecretError> {
@@ -460,20 +556,23 @@ mod memory {
 
     impl SecretBackend for MemoryBackend {
         fn get(&self, account: &str) -> Result<Option<SecretString>, SecretError> {
+            let account = self.record("get", account)?;
             Ok(self
                 .entries()?
-                .get(account)
+                .get(&account)
                 .map(|v| SecretString::from(v.expose_secret())))
         }
 
         fn set(&self, account: &str, value: &SecretString) -> Result<(), SecretError> {
+            let account = self.record("set", account)?;
             self.entries()?
-                .insert(account.into(), SecretString::from(value.expose_secret()));
+                .insert(account, SecretString::from(value.expose_secret()));
             Ok(())
         }
 
         fn delete(&self, account: &str) -> Result<(), SecretError> {
-            self.entries()?.remove(account);
+            let account = self.record("delete", account)?;
+            self.entries()?.remove(&account);
             Ok(())
         }
     }
@@ -503,8 +602,8 @@ mod tests {
             format!("var/project/{P}/pw")
         );
         assert_eq!(
-            VarKey::environment(E, "a.b-c").unwrap().account(),
-            format!("var/env/{E}/a.b-c")
+            VarKey::global("a.b-c").unwrap().account(),
+            "var/global/a.b-c"
         );
     }
 
@@ -515,7 +614,7 @@ mod tests {
         }
         assert_eq!(VarKey::project("p", "x"), Err(SecretError::InvalidScope));
         assert_eq!(
-            VarKey::environment(&format!("{E}/x"), "x"),
+            VarKey::project(&format!("{P}/x"), "x"),
             Err(SecretError::InvalidScope)
         );
         assert_eq!(SecretError::InvalidScope.code(), "invalid_input");
@@ -524,22 +623,15 @@ mod tests {
     #[test]
     fn saved_accounts() {
         assert_eq!(
-            SavedKey::new(H, Some(E))
-                .unwrap()
-                .account(SecretKind::Password),
-            format!("conn/{H}/{E}/password")
+            SavedKey::new(H).unwrap().account(SecretKind::Password),
+            format!("conn/{H}/none/password")
         );
         assert_eq!(
-            SavedKey::new(H, None)
-                .unwrap()
-                .account(SecretKind::Passphrase),
+            SavedKey::new(H).unwrap().account(SecretKind::Passphrase),
             format!("conn/{H}/none/passphrase")
         );
-        assert_eq!(SavedKey::new("h", None), Err(SecretError::InvalidScope));
-        assert_eq!(
-            SavedKey::new(H, Some("none")),
-            Err(SecretError::InvalidScope)
-        );
+        assert_eq!(SavedKey::new("h"), Err(SecretError::InvalidScope));
+        assert_eq!(SavedKey::new("none"), Err(SecretError::InvalidScope));
     }
 
     #[test]
@@ -571,7 +663,7 @@ mod tests {
     #[test]
     fn saved_secret_is_bound_to_its_target() {
         let (store, mem) = MemoryBackend::store();
-        let k = SavedKey::new(H, Some(E)).unwrap();
+        let k = SavedKey::new(H).unwrap();
         let pw = SecretKind::Password;
         store.set_saved(&k, pw, "me@a:22", &s("hunter2")).unwrap();
         let raw: serde_json::Value =
@@ -597,7 +689,7 @@ mod tests {
     #[test]
     fn saved_secret_with_escaped_characters_round_trips() {
         let (store, _) = MemoryBackend::store();
-        let k = SavedKey::new(H, None).unwrap();
+        let k = SavedKey::new(H).unwrap();
         let tricky = "\"\\\u{1}\u{1f}\n\té😀";
         let target = "me@\"h\":22";
         store
@@ -615,7 +707,7 @@ mod tests {
     #[test]
     fn malformed_saved_entry_is_absent_and_deleted() {
         let (store, mem) = MemoryBackend::store();
-        let k = SavedKey::new(H, None).unwrap();
+        let k = SavedKey::new(H).unwrap();
         mem.put_raw(&k.account(SecretKind::Password), "plain old secret");
         assert!(
             store
@@ -629,7 +721,7 @@ mod tests {
     #[test]
     fn saved_size_counts_the_encoding() {
         let (store, mem) = MemoryBackend::store();
-        let k = SavedKey::new(H, None).unwrap();
+        let k = SavedKey::new(H).unwrap();
         let quotes = s(&"\"".repeat(700));
         assert!(fits_keychain(&quotes));
         assert!(!fits_saved("t", &quotes));
@@ -645,7 +737,7 @@ mod tests {
     #[test]
     fn forget_saved_only_if_unchanged() {
         let (store, _) = MemoryBackend::store();
-        let k = SavedKey::new(H, None).unwrap();
+        let k = SavedKey::new(H).unwrap();
         let pw = SecretKind::Password;
         store.set_saved(&k, pw, "t", &s("new")).unwrap();
         store
@@ -666,7 +758,7 @@ mod tests {
         let err = store.has_var(&k).unwrap_err();
         assert_eq!(err, SecretError::Unavailable);
         assert_eq!(err.code(), "keychain_unavailable");
-        let saved = SavedKey::new(H, None).unwrap();
+        let saved = SavedKey::new(H).unwrap();
         assert_eq!(
             store.set_saved(&saved, SecretKind::Password, "t", &s("x")),
             Err(SecretError::Unavailable)
@@ -693,7 +785,7 @@ mod tests {
     #[test]
     fn only_canonical_uuids_are_accepted() {
         assert_eq!(
-            SavedKey::new(&H.to_uppercase(), None),
+            SavedKey::new(&H.to_uppercase()),
             Err(SecretError::InvalidScope)
         );
         assert_eq!(
@@ -724,6 +816,73 @@ mod tests {
             store.delete_legacy("p", E, H),
             Err(SecretError::InvalidScope)
         );
+    }
+
+    #[test]
+    fn legacy_environment_accounts_are_deleted() {
+        let (store, mem) = MemoryBackend::store();
+        let other = "00000000-0000-4000-8000-0000000000e9";
+        let keep = [
+            format!("conn/{H}/none/password"),
+            format!("var/env/{other}/pw"),
+            format!("conn/{H}/{other}/password"),
+            format!("var/project/{P}/pw"),
+        ];
+        let gone = [
+            format!("var/env/{E}/pw"),
+            format!("var/env/{E}/a.b"),
+            format!("conn/{H}/{E}/password"),
+            format!("conn/{H}/{E}/passphrase"),
+        ];
+        for a in keep.iter().chain(&gone) {
+            mem.put_raw(a, "x");
+        }
+        store
+            .delete_legacy_environment(
+                E,
+                &["pw".into(), "a.b".into(), "../x".into()],
+                &[H.into(), "h/../x".into()],
+            )
+            .unwrap();
+        let mut left = mem.accounts();
+        left.sort();
+        let mut expected = keep.to_vec();
+        expected.sort();
+        assert_eq!(left, expected);
+        assert_eq!(
+            store.delete_legacy_environment("none", &["pw".into()], &[H.into()]),
+            Err(SecretError::InvalidScope)
+        );
+        assert_eq!(
+            store.delete_legacy_environment("0000000A-0000-4000-8000-000000000002", &[], &[]),
+            Err(SecretError::InvalidScope)
+        );
+        mem.set_failing(true);
+        assert_eq!(
+            store.delete_legacy_environment(E, &["pw".into()], &[]),
+            Err(SecretError::Unavailable)
+        );
+    }
+
+    #[test]
+    fn legacy_environment_variables_are_read_by_checked_account() {
+        let (store, mem) = MemoryBackend::store();
+        mem.put_raw(&format!("var/env/{E}/pw"), "v");
+        assert_eq!(
+            expose(store.get_legacy_env_var(E, "pw").unwrap()).as_deref(),
+            Some("v")
+        );
+        assert!(store.get_legacy_env_var(E, "nope").unwrap().is_none());
+        for (env, name) in [
+            ("none", "pw"),
+            (E, "../pw"),
+            ("0000000A-0000-4000-8000-000000000002", "pw"),
+        ] {
+            assert_eq!(
+                store.get_legacy_env_var(env, name).err(),
+                Some(SecretError::InvalidScope)
+            );
+        }
     }
 
     #[test]

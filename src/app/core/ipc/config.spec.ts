@@ -4,7 +4,6 @@ import { ConfigService } from './config';
 import type {
   Collection,
   ConfigView,
-  Environment,
   Host,
   HostInput,
   Project,
@@ -28,14 +27,7 @@ const folder: Collection = {
   projectId: 'p1',
   parentId: null,
 };
-const env: Environment = { id: 'e1', name: 'dev', variables: [] };
-const project: Project = {
-  id: 'p1',
-  name: 'Alpha',
-  variables: [],
-  environments: [env],
-  activeEnvironmentId: 'e1',
-};
+const project: Project = { id: 'p1', name: 'Alpha', variables: [] };
 const globalVar: VariableView = { name: 'user', kind: 'plain', value: 'me', hasValue: true };
 const config: ConfigView = {
   variables: [globalVar],
@@ -154,53 +146,6 @@ describe('ConfigService', () => {
     expect(service.findHost('h1')).toEqual({ project: null, host: moved });
   });
 
-  it('creates, renames and deletes an environment, clearing the active one', async () => {
-    await seed();
-    handler = () => ({ id: 'e2', name: 'prod', variables: [] });
-    await service.createEnvironment('p1', 'prod');
-    expect(calls[0]).toEqual({
-      cmd: 'create_environment',
-      args: { projectId: 'p1', name: 'prod' },
-    });
-    expect(service.projects()[0].environments.map((e) => e.id)).toEqual(['e1', 'e2']);
-
-    handler = () => ({ id: 'e2', name: 'live', variables: [] });
-    await service.renameEnvironment('p1', 'e2', 'live');
-    expect(calls[1]).toEqual({
-      cmd: 'rename_environment',
-      args: { projectId: 'p1', environmentId: 'e2', name: 'live' },
-    });
-    expect(service.projects()[0].environments[1].name).toBe('live');
-
-    handler = () => null;
-    await service.deleteEnvironment('p1', 'e1');
-    expect(calls[2]).toEqual({
-      cmd: 'delete_environment',
-      args: { projectId: 'p1', environmentId: 'e1' },
-    });
-    expect(service.projects()[0].environments.map((e) => e.id)).toEqual(['e2']);
-    expect(service.projects()[0].activeEnvironmentId).toBeNull();
-  });
-
-  it('sets the active environment', async () => {
-    await seed();
-    await service.setActiveEnvironment('p1', null);
-    expect(calls[0]).toEqual({
-      cmd: 'set_active_environment',
-      args: { projectId: 'p1', environmentId: null },
-    });
-    expect(service.projects()[0].activeEnvironmentId).toBeNull();
-  });
-
-  it('keeps the active environment when the backend refuses', async () => {
-    await seed();
-    handler = () => {
-      throw { code: 'not_found', message: 'Environment not found' };
-    };
-    await expect(service.setActiveEnvironment('p1', 'zz')).rejects.toBeInstanceOf(IpcError);
-    expect(service.projects()[0].activeEnvironmentId).toBe('e1');
-  });
-
   it('replaces the variables of each scope', async () => {
     await seed();
     const saved: VariableView[] = [{ name: 'pw', kind: 'secret', value: null, hasValue: true }];
@@ -220,9 +165,6 @@ describe('ConfigService', () => {
 
     await service.setVariables({ kind: 'project', projectId: 'p1' }, []);
     expect(service.projects()[0].variables).toEqual(saved);
-
-    await service.setVariables({ kind: 'environment', projectId: 'p1', environmentId: 'e1' }, []);
-    expect(service.projects()[0].environments[0].variables).toEqual(saved);
   });
 
   it('creates, updates and deletes a host by id', async () => {
@@ -250,7 +192,7 @@ describe('ConfigService', () => {
     expect(service.hosts().map((h) => h.id)).toEqual(['h1', 'h9']);
   });
 
-  it('resolves a host in an environment', async () => {
+  it('resolves a host', async () => {
     const resolved = {
       hostname: 'a',
       port: 22,
@@ -260,11 +202,8 @@ describe('ConfigService', () => {
       errors: [],
     };
     handler = () => resolved;
-    await expect(service.resolveHost('h1', null)).resolves.toEqual(resolved);
-    expect(calls[0]).toEqual({
-      cmd: 'resolve_host',
-      args: { hostId: 'h1', environmentId: null },
-    });
+    await expect(service.resolveHost('h1')).resolves.toEqual(resolved);
+    expect(calls[0]).toEqual({ cmd: 'resolve_host', args: { hostId: 'h1' } });
   });
 
   it('maps backend errors to IpcError and keeps state', async () => {

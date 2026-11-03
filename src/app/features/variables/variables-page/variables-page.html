@@ -9,125 +9,24 @@
     <hgroup tuiTitle>
       <h1 data-testid="vars-title">
         @if (project(); as project) {
-          {{ project.name }}: variables and environments
+          {{ project.name }}: variables
         } @else {
           Global variables
         }
       </h1>
       <p tuiSubtitle>
         Host fields use them as <span class="mono">{{ example }}</span
-        >. Environment variables win over project variables, which win over global ones.
+        >.
+        @if (project()) {
+          Project variables win over global ones.
+        } @else {
+          Projects can override them.
+        }
       </p>
     </hgroup>
   </header>
 
-  <div class="layout" [class._global]="!project()">
-    @if (project(); as project) {
-      <nav class="scopes" aria-label="Variable scopes">
-        <button
-          tuiButton
-          size="s"
-          type="button"
-          class="scope"
-          data-testid="vars-scope-project"
-          [appearance]="selected() === 'project' ? 'secondary' : 'flat-grayscale'"
-          [attr.aria-current]="selected() === 'project' ? 'true' : null"
-          (click)="select('project')"
-        >
-          Project variables
-        </button>
-
-        <div class="section">
-          <span class="heading">Environments</span>
-          <button
-            tuiIconButton
-            appearance="flat-grayscale"
-            size="xs"
-            iconStart="@tui.plus"
-            type="button"
-            tuiHint="New environment"
-            aria-label="New environment"
-            data-testid="vars-env-add"
-            (click)="addEnvironment()"
-          >
-            New environment
-          </button>
-        </div>
-
-        @for (env of project.environments; track env.id) {
-          @let envMarker = marker(env);
-          <div class="env">
-            <button
-              tuiButton
-              size="s"
-              type="button"
-              class="scope"
-              [appearance]="selected() === env.id ? 'secondary' : 'flat-grayscale'"
-              [attr.aria-current]="selected() === env.id ? 'true' : null"
-              [attr.data-testid]="'vars-scope-env-' + env.name"
-              (click)="select(env.id)"
-            >
-              <span class="scope-name">{{ env.name }}</span>
-              @if (envMarker.label) {
-                <span tuiBadge size="s" [appearance]="envMarker.appearance">
-                  {{ envMarker.label }}
-                </span>
-              }
-              @if (isActive(env)) {
-                <span tuiBadge size="s" appearance="info" data-testid="vars-env-active">
-                  active
-                </span>
-              }
-            </button>
-            <button
-              tuiIconButton
-              appearance="flat-grayscale"
-              size="xs"
-              iconStart="@tui.ellipsis"
-              type="button"
-              [attr.aria-label]="'Actions for ' + env.name"
-              [attr.data-testid]="'vars-env-menu-' + env.name"
-              [tuiDropdown]="menu"
-              [tuiDropdownOpen]="openMenu() === env.id"
-              (tuiDropdownOpenChange)="setMenu(env, $event)"
-            >
-              Actions
-            </button>
-            <ng-template #menu let-close>
-              <tui-data-list size="s">
-                <button
-                  tuiOption
-                  iconStart="@tui.pencil"
-                  type="button"
-                  data-testid="vars-env-rename"
-                  (click)="close(); renameEnvironment(env)"
-                >
-                  Rename
-                </button>
-                <hr />
-                <button
-                  tuiOption
-                  iconStart="@tui.trash"
-                  type="button"
-                  data-testid="vars-env-delete"
-                  (click)="close(); removeEnvironment(env)"
-                >
-                  Delete
-                </button>
-              </tui-data-list>
-            </ng-template>
-          </div>
-        } @empty {
-          <p class="hint">No environments yet. Add Dev, Staging or Prod to switch values.</p>
-        }
-      </nav>
-    }
-
-    <section class="main" [attr.aria-label]="scopeLabel()">
-      @if (project()) {
-        <h2 class="scope-title" data-testid="vars-scope-title">{{ scopeLabel() }}</h2>
-      }
-      <app-variables-editor [scope]="scope" [variables]="variables()" />
-    </section>
-  </div>
+  <section [attr.aria-label]="project() ? 'Project variables' : 'Global variables'">
+    <app-variables-editor [scope]="scope" [variables]="variables()" />
+  </section>
 }

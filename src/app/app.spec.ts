@@ -58,7 +58,6 @@ describe('App', () => {
     ).not.toBeNull();
     expect(el().querySelector('main[tuiNavigationMain] router-outlet')).not.toBeNull();
     expect(byId('project-select')?.textContent?.trim()).toBe('Home');
-    expect(byId('env-select')).toBeNull();
   });
 
   it('re-themes the header and aside with the app theme and sets the chrome colour', async () => {
@@ -74,13 +73,13 @@ describe('App', () => {
     expect(typeof color.color).toBe('string');
   });
 
-  it('shows the environment item only inside a project', async () => {
+  it('shows the project items only inside a project', async () => {
     config.projects.set([project('p1', 'Shop')]);
     const fixture = await setup();
     await TestBed.inject(Router).navigateByUrl('/projects/p1');
     await fixture.whenStable();
     expect(byId('project-select')?.textContent?.trim()).toBe('Shop');
-    expect(byId('env-select')?.textContent?.trim()).toBe('No environment');
+    expect(byId('project-variables')).not.toBeNull();
     expect(byId('aside-project')?.textContent).toContain('Shop');
   });
 

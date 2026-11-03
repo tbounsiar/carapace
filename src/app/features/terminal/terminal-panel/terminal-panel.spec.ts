@@ -12,8 +12,8 @@ import { FakeXtermFactory } from '../fake-xterm';
 import { XtermFactory } from '../xterm-factory';
 import { TerminalPanel } from './terminal-panel';
 
-const DEV = connectionTarget('p1', 'h1', 'e1');
-const NONE = connectionTarget('p1', 'h1', null);
+const WEB = connectionTarget('p1', 'h1');
+const DB = connectionTarget('p1', 'h2');
 
 describe('TerminalPanel', () => {
   const states = signal<Record<string, ConnectionState>>({});
@@ -47,10 +47,9 @@ describe('TerminalPanel', () => {
     await fixture.whenStable();
   };
 
-  async function setup(target = DEV, envName: string | null = 'Dev'): Promise<void> {
+  async function setup(target = WEB): Promise<void> {
     fixture = TestBed.createComponent(TerminalPanel);
     fixture.componentRef.setInput('target', target);
-    fixture.componentRef.setInput('envName', envName);
     await fixture.whenStable();
   }
 
@@ -75,7 +74,7 @@ describe('TerminalPanel', () => {
 
   it('applies the font size from the settings live and refits', async () => {
     localStorage.clear();
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await setup();
     await click('terminal-new');
     const view = factory.created[0];
@@ -98,10 +97,10 @@ describe('TerminalPanel', () => {
   it('connects first when the host is disconnected, then opens', async () => {
     await setup();
     await click('terminal-new');
-    expect(connector.connect).toHaveBeenCalledWith(DEV);
+    expect(connector.connect).toHaveBeenCalledWith(WEB);
     expect(ipc.open).toHaveBeenCalledTimes(1);
-    expect(ipc.open.mock.calls[0][0]).toBe('h1@e1');
-    expect(byId('terminal-tab-1')?.textContent).toContain('Terminal 1 · Dev');
+    expect(ipc.open.mock.calls[0][0]).toBe('h1');
+    expect(byId('terminal-tab-1')?.textContent).toContain('Terminal 1');
     expect(byId('terminal-view-1')).toBeTruthy();
   });
 
@@ -114,7 +113,7 @@ describe('TerminalPanel', () => {
   });
 
   it('opens directly on a connected host and renders one tab per terminal', async () => {
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await setup();
     await click('terminal-new');
     await click('terminal-new');
@@ -126,7 +125,7 @@ describe('TerminalPanel', () => {
   });
 
   it('exposes the tabs as a tablist with the view as the panel of the active tab', async () => {
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await setup();
     await click('terminal-new');
     await click('terminal-new');
@@ -143,7 +142,7 @@ describe('TerminalPanel', () => {
   });
 
   it('closes a tab with its close icon', async () => {
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await setup();
     await click('terminal-new');
     await click('terminal-new');
@@ -156,7 +155,7 @@ describe('TerminalPanel', () => {
   });
 
   it('shows the ended banner and reopens', async () => {
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await setup();
     await click('terminal-new');
     emits[0]({ kind: 'closed', reason: 'closed' });
@@ -164,14 +163,14 @@ describe('TerminalPanel', () => {
     expect(byId('terminal-ended')?.textContent).toContain('Session ended');
     states.set({});
     await click('terminal-reopen');
-    expect(connector.connect).toHaveBeenCalledWith(DEV);
+    expect(connector.connect).toHaveBeenCalledWith(WEB);
     expect(ipc.open).toHaveBeenCalledTimes(2);
     expect(byId('terminal-ended')).toBeNull();
     expect(byId('terminal-tab-1')).toBeTruthy();
   });
 
   it('keeps tabs and the xterm element across component destroy', async () => {
-    states.set({ 'h1@e1': 'connected' });
+    states.set({ h1: 'connected' });
     await setup();
     await click('terminal-new');
     const element = byId('terminal-view-1')!.firstElementChild;
@@ -182,21 +181,19 @@ describe('TerminalPanel', () => {
     expect(factory.created).toHaveLength(1);
   });
 
-  it('keeps separate tabs for two environments of the same host', async () => {
-    states.set({ 'h1@e1': 'connected', 'h1@none': 'connected' });
+  it('keeps separate tabs per host', async () => {
+    states.set({ h1: 'connected', h2: 'connected' });
     await setup();
     await click('terminal-new');
-    fixture.componentRef.setInput('target', NONE);
-    fixture.componentRef.setInput('envName', null);
+    fixture.componentRef.setInput('target', DB);
     await fixture.whenStable();
     expect(byId('terminal-empty')).toBeTruthy();
     await click('terminal-new');
-    expect(ipc.open.mock.calls[1][0]).toBe('h1@none');
+    expect(ipc.open.mock.calls[1][0]).toBe('h2');
     expect(byId('terminal-tab-1')?.textContent?.trim()).toMatch(/^Terminal 1$/);
-    fixture.componentRef.setInput('target', DEV);
-    fixture.componentRef.setInput('envName', 'Dev');
+    fixture.componentRef.setInput('target', WEB);
     await fixture.whenStable();
-    expect(byId('terminal-tab-1')?.textContent).toContain('Terminal 1 · Dev');
+    expect(byId('terminal-tab-1')?.textContent?.trim()).toMatch(/^Terminal 1$/);
     expect(byId('terminal-tab-2')).toBeNull();
   });
 });

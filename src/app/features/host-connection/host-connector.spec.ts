@@ -40,15 +40,7 @@ describe('HostConnector', () => {
   };
   const resolveHost = vi.fn(() => Promise.resolve(resolved));
   const withHost = (auth: AuthMethod): void => {
-    projects.set([
-      {
-        id: 'p1',
-        name: 'P',
-        variables: [],
-        environments: [{ id: 'e1', name: 'Dev', variables: [] }],
-        activeEnvironmentId: 'e1',
-      },
-    ]);
+    projects.set([{ id: 'p1', name: 'P', variables: [] }]);
     hosts.set([
       {
         kind: 'host',
@@ -65,7 +57,7 @@ describe('HostConnector', () => {
   };
   const fail = (code: 'secret_required' | 'invalid_passphrase' | 'auth_failed'): IpcError =>
     new IpcError(code, 'safe message');
-  const target = connectionTarget('p1', 'h1', 'e1');
+  const target = connectionTarget('p1', 'h1');
   let connector: HostConnector;
 
   const changed: HostKeyChanged = {
@@ -80,7 +72,7 @@ describe('HostConnector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     withHost({ kind: 'password', password: null });
-    ssh.connect.mockResolvedValue({ connectionId: 'h1@e1', state: 'connected' });
+    ssh.connect.mockResolvedValue({ connectionId: 'h1', state: 'connected' });
     resolveHost.mockResolvedValue(resolved);
     TestBed.configureTestingModule({
       providers: [
@@ -133,7 +125,7 @@ describe('HostConnector', () => {
     prompter.confirmReplace.mockResolvedValue(true);
     await connector.connect(target);
     ssh.connect.mock.calls[0][1].changed(changed);
-    await vi.waitFor(() => expect(ssh.replaceHostKey).toHaveBeenCalledWith('h1@e1', 'SHA256:new'));
+    await vi.waitFor(() => expect(ssh.replaceHostKey).toHaveBeenCalledWith('h1', 'SHA256:new'));
     expect(ssh.connect).toHaveBeenCalledOnce();
   });
 
@@ -146,8 +138,8 @@ describe('HostConnector', () => {
   });
 
   it('disconnects a connection', async () => {
-    await connector.disconnect('h1@e1');
-    expect(ssh.disconnect).toHaveBeenCalledWith('h1@e1');
+    await connector.disconnect('h1');
+    expect(ssh.disconnect).toHaveBeenCalledWith('h1');
   });
 
   describe('credential prompt', () => {
@@ -155,7 +147,7 @@ describe('HostConnector', () => {
       ssh.connect.mockRejectedValueOnce(fail('secret_required'));
       credentials.ask.mockResolvedValueOnce({ secret: 'pw', remember: false });
       await connector.connect(target);
-      expect(resolveHost).toHaveBeenCalledWith('h1', 'e1');
+      expect(resolveHost).toHaveBeenCalledWith('h1');
       expect(credentials.ask).toHaveBeenCalledWith('Password', {
         kind: 'password',
         subject: 'carapace@127.0.0.1:2223',
@@ -224,7 +216,7 @@ describe('HostConnector', () => {
       withHost({ kind: 'agent' });
       ssh.connect.mockRejectedValue(fail('secret_required'));
       await connector.connect(target);
-      await connector.connect(connectionTarget('p1', 'missing', null));
+      await connector.connect(connectionTarget('p1', 'missing'));
       expect(credentials.ask).not.toHaveBeenCalled();
       expect(alerts.open).toHaveBeenCalledTimes(2);
     });

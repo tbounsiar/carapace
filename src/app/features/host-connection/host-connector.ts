@@ -87,11 +87,11 @@ export class HostConnector {
     return { label: 'Key passphrase', data: { kind: 'passphrase', subject: keyPath, error } };
   }
 
-  /** What the secret unlocks, resolved in the connection's environment; the templates if that fails. */
+  /** What the secret unlocks, resolved by the backend; the templates if that fails. */
   private async subjects(target: ConnectionTarget, host: Host): Promise<Subjects> {
     const keyPath = host.auth.kind === 'key' ? host.auth.keyPath : '';
     try {
-      const r = await this.config.resolveHost(target.hostId, target.environmentId);
+      const r = await this.config.resolveHost(target.hostId);
       const address = `${r.username ?? host.username}@${r.hostname ?? host.hostname}:${r.port ?? host.port}`;
       return { address, keyPath: r.keyPath ?? keyPath };
     } catch {

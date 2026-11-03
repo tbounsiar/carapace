@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 use super::error::CommandError;
-use crate::config::{ConfigFile, ConfigStore, Environment, Host, Project};
+use crate::config::{ConfigFile, ConfigStore, Host, Project};
 use crate::secrets::{KeyPassKey, SavedKey, SecretError, VarKey};
 use crate::ssh::{RegisteredKey, Target, TargetAuth};
 use crate::vars::{Layers, Level, Resolution, ResolvedAuth, SecretRef, resolve_host};
@@ -26,65 +26,26 @@ pub(super) struct Located<'a> {
     pub config: &'a ConfigFile,
     pub project: Option<&'a Project>,
     pub host: &'a Host,
-    pub environment: Option<&'a Environment>,
 }
 
 impl Located<'_> {
     pub fn resolution(&self) -> Resolution {
-        resolve_host(
-            self.host,
-            Layers::of(self.config, self.project, self.environment),
-        )
+        resolve_host(self.host, Layers::of(self.config, self.project))
     }
-}
-
-/// The environment a host of `project` (None: Home) may use: none for a Home host, one of
-/// its project's otherwise. An id that exists in no project is `not_found`.
-pub(super) fn scope_environment<'a>(
-    config: &ConfigFile,
-    project: Option<&'a Project>,
-    environment_id: Option<&str>,
-) -> Res<Option<&'a Environment>> {
-    let Some(id) = environment_id else {
-        return Ok(None);
-    };
-    required("environmentId", id)?;
-    let Some(project) = project else {
-        return Err(CommandError::new(
-            "invalid_input",
-            "a host outside a project has no environment",
-        ));
-    };
-    if let Some(e) = project.environment(id) {
-        return Ok(Some(e));
-    }
-    if config.projects.iter().any(|p| p.environment(id).is_some()) {
-        return Err(CommandError::new(
-            "invalid_input",
-            "the environment belongs to another project",
-        ));
-    }
-    Err(not_found("environment"))
 }
 
 /// Finds the host by id and derives its scope from the host itself.
-pub(super) fn locate<'a>(
-    config: &'a ConfigFile,
-    host_id: &str,
-    environment_id: Option<&str>,
-) -> Res<Located<'a>> {
+pub(super) fn locate<'a>(config: &'a ConfigFile, host_id: &str) -> Res<Located<'a>> {
     required("hostId", host_id)?;
     let host = config.host(host_id).ok_or_else(|| not_found("host"))?;
     let project = match host.project_id.as_deref() {
         Some(id) => Some(config.project(id).ok_or_else(|| not_found("project"))?),
         None => None,
     };
-    let environment = scope_environment(config, project, environment_id)?;
     Ok(Located {
         config,
         project,
         host,
-        environment,
     })
 }
 
@@ -92,7 +53,6 @@ pub(super) fn var_key(level: &Level, name: &str) -> Result<VarKey, SecretError> 
     match level {
         Level::Global => VarKey::global(name),
         Level::Project(id) => VarKey::project(id, name),
-        Level::Environment(id) => VarKey::environment(id, name),
     }
 }
 
@@ -117,17 +77,12 @@ pub(super) fn registered_keys(config: &ConfigFile) -> Vec<RegisteredKey> {
         .collect()
 }
 
-/// Resolves the host for `environment_id` (None: no environment layer) into a connect target.
-/// Fails with `missing_variables` or `invalid_input` before any network call.
-pub(super) fn target(
-    store: &ConfigStore,
-    host_id: &str,
-    environment_id: Option<&str>,
-) -> Res<Target> {
+/// Resolves the host into a connect target. Fails with `missing_variables` or `invalid_input`
+/// before any network call.
+pub(super) fn target(store: &ConfigStore, host_id: &str) -> Res<Target> {
     let config = store.snapshot()?;
-    let at = locate(&config, host_id, environment_id)?;
+    let at = locate(&config, host_id)?;
     let resolved = at.resolution().complete()?;
-    let env_id = at.environment.map(|e| e.id.as_str());
     let auth = match resolved.auth {
         ResolvedAuth::Agent => TargetAuth::Agent,
         ResolvedAuth::Password { password } => TargetAuth::Password {
@@ -143,11 +98,10 @@ pub(super) fn target(
         },
     };
     Ok(Target {
-        connection_id: Target::connection_id_of(&at.host.id, env_id),
+        connection_id: at.host.id.clone(),
         host_id: at.host.id.clone(),
         project_id: at.host.project_id.clone(),
-        environment_id: env_id.map(str::to_owned),
-        saved: SavedKey::new(&at.host.id, env_id)?,
+        saved: SavedKey::new(&at.host.id)?,
         hostname: resolved.hostname,
         port: resolved.port,
         username: resolved.username,
@@ -180,13 +134,7 @@ impl From<Resolution> for ResolvedView {
     }
 }
 
-pub(super) fn view(
-    store: &ConfigStore,
-    host_id: &str,
-    environment_id: Option<&str>,
-) -> Res<ResolvedView> {
+pub(super) fn view(store: &ConfigStore, host_id: &str) -> Res<ResolvedView> {
     let config = store.snapshot()?;
-    Ok(locate(&config, host_id, environment_id)?
-        .resolution()
-        .into())
+    Ok(locate(&config, host_id)?.resolution().into())
 }

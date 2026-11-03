@@ -1,7 +1,6 @@
 import { HOST } from '../helpers/fixture';
 import { screenshotThemes, shotWithMenu } from '../helpers/screenshot';
 import {
-  addEnvironment,
   byId,
   clickId,
   confirmDialog,
@@ -16,8 +15,6 @@ import {
   goHome,
   newFromAside,
   openMenu,
-  openProjectVariables,
-  selectEnvironment,
   textOf,
   tid,
   typeInto,
@@ -160,7 +157,7 @@ describe('collections', () => {
     await expect(byId('project-select')).toHaveText('Home');
     await expect(byId('sidebar-empty')).toHaveText(expect.stringContaining('Nothing here yet'));
     await byId('welcome-new-project').waitForDisplayed({ timeout: 10000 });
-    await expect(byId('env-select')).not.toExist();
+    await expect(byId('project-variables')).not.toExist();
     await shot('coll-01-home-empty');
   });
 
@@ -186,7 +183,7 @@ describe('collections', () => {
     await waitParent('tree-host-pi', 'Shelf');
     await byId('host-detail').waitForDisplayed({ timeout: 10000 });
     await waitCrumbs(['Home', 'Lab', 'Rack', 'Shelf', 'pi']);
-    await expect(byId('host-detail-env')).toHaveText('Home · no environment');
+    await expect(byId('host-detail-address')).toHaveText('carapace@127.0.0.1:2223');
     await shot('coll-02-host-page');
   });
 
@@ -203,12 +200,9 @@ describe('collections', () => {
     await waitCrumbs(['Home', 'Lab', 'Rack-1', 'Shelf-A', 'pi']);
   });
 
-  it('creates a project with environments and a host, listed at Home', async () => {
+  it('creates a project with a host, listed at Home', async () => {
     await createProject(PROJECT);
     await byId('project-empty').waitForDisplayed({ timeout: 10000 });
-    await openProjectVariables(PROJECT);
-    await addEnvironment('Dev');
-    await addEnvironment('Prod');
     await createHost(PROJECT, API);
     await goHome();
     await byId(`tree-project-${PROJECT}`).waitForDisplayed({ timeout: 10000 });
@@ -249,13 +243,11 @@ describe('collections', () => {
     await browser.waitUntil(async () => (await currentScope()) === PROJECT, { timeout: 10000 });
   });
 
-  it('switches the environment inside the project only', async () => {
-    await selectEnvironment('Prod');
-    await expect(byId('env-select-kind')).toHaveText('prod');
-    await shotWithMenu('coll-05-env-selector', 'env-select', 'env-option-Dev');
-    await selectEnvironment('Dev');
+  it('offers project variables inside the project only', async () => {
+    await clickId('project-variables');
+    await expect(byId('vars-title')).toHaveText(`${PROJECT}: variables`);
     await goHome();
-    await expect(byId('env-select')).not.toExist();
+    await expect(byId('project-variables')).not.toExist();
   });
 
   it('moves a host within Home and undoes it', async () => {
@@ -301,7 +293,7 @@ describe('collections', () => {
     await waitParent('tree-host-vps', 'Lab');
   });
 
-  it('connects a Home host with no environment', async () => {
+  it('connects a Home host', async () => {
     await connect(VPS.name);
     await acceptHostKeyIfAsked(
       async () => (await byId('status-host-vps').getAttribute('aria-label')) === 'Connected',
@@ -309,8 +301,7 @@ describe('collections', () => {
     await waitStatus(VPS.name, 'Connected');
     await clickId('open-host-vps');
     await byId('host-detail').waitForDisplayed({ timeout: 10000 });
-    await expect(byId('host-detail-env')).toHaveText('Home · no environment');
-    await expect(byId('host-detail-title-env')).not.toExist();
+    await expect(byId('host-detail-title')).toHaveText(VPS.name);
     await clickId('terminal-new');
     await byId('terminal-tab-1').waitForDisplayed({ timeout: 20000 });
     expect(await textOf('terminal-tab-1')).toBe('Terminal 1');

@@ -19,26 +19,6 @@ description = "Allows the delete_project command."
 commands.allow = ["delete_project"]
 
 [[permission]]
-identifier = "allow-create-environment"
-description = "Allows the create_environment command."
-commands.allow = ["create_environment"]
-
-[[permission]]
-identifier = "allow-rename-environment"
-description = "Allows the rename_environment command."
-commands.allow = ["rename_environment"]
-
-[[permission]]
-identifier = "allow-delete-environment"
-description = "Allows the delete_environment command."
-commands.allow = ["delete_environment"]
-
-[[permission]]
-identifier = "allow-set-active-environment"
-description = "Allows the set_active_environment command."
-commands.allow = ["set_active_environment"]
-
-[[permission]]
 identifier = "allow-set-variables"
 description = "Allows the set_variables command."
 commands.allow = ["set_variables"]

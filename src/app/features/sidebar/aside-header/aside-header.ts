@@ -6,12 +6,11 @@ import { TuiNavigation } from '@taiga-ui/layout';
 import { ConfigService } from '../../../core/ipc/config';
 import { ThemeService } from '../../../core/theme/theme';
 import { CurrentScope } from '../../../shared/current-scope';
-import { EnvSelect } from '../../env-select/env-select/env-select';
 import { ProjectActions } from '../../project-tree/project-actions';
 
-/** Aside `<header>` content: the project, its environment and variables, and the New menu. */
+/** Aside `<header>` content: the project, its variables, and the New menu. */
 @Component({
-  imports: [EnvSelect, RouterLink, TuiChevron, TuiDataList, TuiDropdown, TuiHint, TuiNavigation],
+  imports: [RouterLink, TuiChevron, TuiDataList, TuiDropdown, TuiHint, TuiNavigation],
   selector: 'app-aside-header',
   templateUrl: './aside-header.html',
   styleUrl: './aside-header.scss',

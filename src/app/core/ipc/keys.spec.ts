@@ -73,12 +73,12 @@ describe('KeyIpc', () => {
     await ipc.rename('k1', 'main');
     await ipc.delete('k1', true);
     await ipc.forgetPassphrase('k1');
-    expect(await ipc.deploy('h1@e1', 'k1')).toEqual({ added: true, restricted: false });
+    expect(await ipc.deploy('h1', 'k1')).toEqual({ added: true, restricted: false });
     expect(calls).toEqual([
       { cmd: 'rename_key', args: { keyId: 'k1', name: 'main' } },
       { cmd: 'delete_key', args: { keyId: 'k1', deleteFiles: true } },
       { cmd: 'forget_key_passphrase', args: { keyId: 'k1' } },
-      { cmd: 'deploy_public_key', args: { connectionId: 'h1@e1', keyId: 'k1' } },
+      { cmd: 'deploy_public_key', args: { connectionId: 'h1', keyId: 'k1' } },
     ]);
   });
 

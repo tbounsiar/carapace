@@ -258,17 +258,6 @@ pub(super) fn structure(cfg: &ConfigFile) -> Result<(), String> {
     };
     for p in &cfg.projects {
         add(&p.id)?;
-        for e in &p.environments {
-            add(&e.id)?;
-        }
-        if let Some(active) = &p.active_environment_id
-            && p.environment(active).is_none()
-        {
-            return Err(format!(
-                "project {} has an unknown active environment",
-                p.id
-            ));
-        }
     }
     let projects: HashSet<&str> = cfg.projects.iter().map(|p| p.id.as_str()).collect();
     for n in &cfg.nodes {

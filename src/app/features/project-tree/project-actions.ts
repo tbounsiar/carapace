@@ -6,7 +6,6 @@ import { ConfigService } from '../../core/ipc/config';
 import type {
   Collection,
   ConfigNode,
-  Environment,
   Host,
   HostInput,
   Project,
@@ -23,12 +22,11 @@ import {
   countNodes,
   countText,
   descendants,
-  plural,
   type Container,
 } from './node-tree';
 import { notifyError } from './save-error';
 
-/** Create, edit and delete flows for projects, environments, collections and hosts. */
+/** Create, edit and delete flows for projects, collections and hosts. */
 @Service()
 export class ProjectActions {
   private readonly config = inject(ConfigService);
@@ -63,10 +61,9 @@ export class ProjectActions {
   /** Resolves true when the project was deleted. */
   async deleteProject(project: Project): Promise<boolean> {
     const nodes = this.config.nodes().filter((n) => n.projectId === project.id);
-    const envs = project.environments.length;
     const content = nodes.length
-      ? `“${project.name}” contains ${countText(countNodes(nodes), envs ? plural(envs, 'environment') : '')}. Everything in it will be deleted, with its variables and saved passwords. Open connections are closed. This cannot be undone.`
-      : `“${project.name}” is empty. It will be deleted with its variables${envs ? ' and environments' : ''}. This cannot be undone.`;
+      ? `“${project.name}” contains ${countText(countNodes(nodes))}. Everything in it will be deleted, with its variables and saved passwords. Open connections are closed. This cannot be undone.`
+      : `“${project.name}” is empty. It will be deleted with its variables. This cannot be undone.`;
     const inside = this.scope.projectId() === project.id;
     const deleted = await this.confirmDelete(
       'Delete project?',
@@ -78,34 +75,6 @@ export class ProjectActions {
       void this.router.navigate(['/']);
     }
     return deleted;
-  }
-
-  addEnvironment(project: Project): void {
-    void this.openNameDialog({
-      label: 'New environment',
-      noun: 'environment',
-      initial: '',
-      save: (name) => this.config.createEnvironment(project.id, name),
-    });
-  }
-
-  renameEnvironment(project: Project, env: Environment): void {
-    void this.openNameDialog({
-      label: 'Rename environment',
-      noun: 'environment',
-      initial: env.name,
-      save: (name) => this.config.renameEnvironment(project.id, env.id, name),
-    });
-  }
-
-  /** Resolves true when the environment was deleted. */
-  removeEnvironment(project: Project, env: Environment): Promise<boolean> {
-    return this.confirmDelete(
-      `Delete environment "${env.name}"?`,
-      'Its variables and the secrets saved for it are removed. Hosts stay in the project.',
-      'Environment not deleted',
-      () => this.config.deleteEnvironment(project.id, env.id),
-    );
   }
 
   addCollection(container: Container): void {

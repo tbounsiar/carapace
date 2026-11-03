@@ -19,10 +19,7 @@ export interface VariableInput {
   secretValue?: string | null;
 }
 
-export type VariableScope =
-  | { kind: 'global' }
-  | { kind: 'project'; projectId: string }
-  | { kind: 'environment'; projectId: string; environmentId: string };
+export type VariableScope = { kind: 'global' } | { kind: 'project'; projectId: string };
 
 /** Secret fields are null (saved connection secret or prompt) or a single `${name}` reference. */
 export type AuthMethod =
@@ -68,18 +65,10 @@ export interface MoveResult {
   scopeChanged: boolean;
 }
 
-export interface Environment {
-  id: string;
-  name: string;
-  variables: VariableView[];
-}
-
 export interface Project {
   id: string;
   name: string;
   variables: VariableView[];
-  environments: Environment[];
-  activeEnvironmentId: string | null;
 }
 
 export interface ConfigView {

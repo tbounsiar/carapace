@@ -39,7 +39,7 @@ describe('ProjectSelect', () => {
         provideTaiga(),
         provideRouter([{ path: '**', component: Blank }]),
         { provide: ConfigService, useValue: config },
-        { provide: SshService, useValue: { states: signal({ 'h1@none': 'connected' }) } },
+        { provide: SshService, useValue: { states: signal({ h1: 'connected' }) } },
         { provide: ProjectActions, useValue: actions },
       ],
     }).compileComponents();

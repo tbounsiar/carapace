@@ -242,7 +242,7 @@ export class SidebarTree implements OnInit {
           },
           {
             id: 'menu-variables',
-            label: 'Variables and environments',
+            label: 'Project variables',
             icon: '@tui.variable',
             run: () => this.openVariables(project),
           },
@@ -378,8 +378,7 @@ export class SidebarTree implements OnInit {
   }
 
   private target(host: Host): ConnectionTarget {
-    const project = host.projectId ? this.config.findProject(host.projectId) : null;
-    return hostTarget(host, project);
+    return hostTarget(host);
   }
 
   private connectionState(host: Host): ConnectionState {

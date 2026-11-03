@@ -133,15 +133,15 @@ export class KeyActions {
         .subscribe();
       return false;
     }
-    const { project, host } = location;
-    const target = hostTarget(host, project);
+    const { host } = location;
+    const target = hostTarget(host);
     if (this.ssh.stateOf(target.connectionId) !== 'connected') {
       await this.connector.connect(target);
       if (this.ssh.stateOf(target.connectionId) !== 'connected') {
         return false;
       }
     }
-    const label = deployTargetLabel(project, host);
+    const label = deployTargetLabel(this.config.nodes(), host);
     let result: DeployResult;
     try {
       result = await this.store.deploy(target.connectionId, key.id);

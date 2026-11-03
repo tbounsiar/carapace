@@ -72,26 +72,19 @@ export function secretReferenceName(template: string): string | null {
 export interface VariableLayers {
   readonly global: readonly VariableView[];
   readonly project: readonly VariableView[];
-  readonly environment: readonly VariableView[] | null;
 }
 
 /** A Home host (`project` null) sees the global variables only. */
 export function variableLayers(
   global: readonly VariableView[],
-  project: Project | null,
-  environmentId: string | null,
+  project: Pick<Project, 'variables'> | null,
 ): VariableLayers {
-  const environment = project?.environments.find((e) => e.id === environmentId);
-  return {
-    global,
-    project: project?.variables ?? [],
-    environment: environment?.variables ?? null,
-  };
+  return { global, project: project?.variables ?? [] };
 }
 
-/** The environment wins over the project, which wins over the global level. */
+/** The project wins over the global level. */
 export function lookupVariable(layers: VariableLayers, name: string): VariableView | null {
-  for (const layer of [layers.environment ?? [], layers.project, layers.global]) {
+  for (const layer of [layers.project, layers.global]) {
     const found = layer.find((v) => v.name === name);
     if (found) {
       return found;
@@ -188,14 +181,10 @@ export function previewHost(host: HostInput, layers: VariableLayers): HostPrevie
 /** Secret variable names defined at any level a host of the project can see. */
 export function secretVariableNames(
   global: readonly VariableView[],
-  project: Pick<Project, 'variables' | 'environments'> | null,
+  project: Pick<Project, 'variables'> | null,
 ): string[] {
   const names = new Set<string>();
-  for (const layer of [
-    global,
-    project?.variables ?? [],
-    ...(project?.environments.map((e) => e.variables) ?? []),
-  ]) {
+  for (const layer of [global, project?.variables ?? []]) {
     for (const variable of layer) {
       if (variable.kind === 'secret') {
         names.add(variable.name);
@@ -224,21 +213,14 @@ export function hostReferences(host: HostInput): string[] {
   return [...names];
 }
 
-/**
- * References no layer of the target scope defines (global, plus the project and every one of its
- * environments), sorted; `project` null is Home.
- */
+/** References neither the global nor the target project variables define, sorted; `project` null is Home. */
 export function undefinedReferences(
   hosts: readonly HostInput[],
   global: readonly VariableView[],
-  project: Pick<Project, 'variables' | 'environments'> | null,
+  project: Pick<Project, 'variables'> | null,
 ): string[] {
   const defined = new Set(
-    [
-      global,
-      project?.variables ?? [],
-      ...(project?.environments.map((e) => e.variables) ?? []),
-    ].flatMap((layer) => layer.map((v) => v.name)),
+    [global, project?.variables ?? []].flatMap((layer) => layer.map((v) => v.name)),
   );
   const missing = new Set<string>();
   for (const host of hosts) {

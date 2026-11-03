@@ -5,13 +5,12 @@ use tauri::State;
 use super::error::CommandError;
 use super::resolve::{self, ResolvedView, required};
 use super::secrets::{check_secret, forget_legacy, forget_saved, forget_variables, secret_keys};
-use super::ssh::{close_connections, close_hosts};
+use super::ssh::close_hosts;
 use crate::config::{
-    ConfigStore, Environment, HostInput, Moved, Node, Project, Variable, VariableKind,
-    VariableScope,
+    ConfigStore, HostInput, Moved, Node, Project, Variable, VariableKind, VariableScope,
 };
 use crate::secrets::{SecretError, SecretStore, VarKey, fits_keychain};
-use crate::ssh::{SshManager, Target};
+use crate::ssh::SshManager;
 
 type Res<T> = Result<T, CommandError>;
 
@@ -27,20 +26,10 @@ pub struct VariableView {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EnvironmentView {
-    pub id: String,
-    pub name: String,
-    pub variables: Vec<VariableView>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ProjectView {
     pub id: String,
     pub name: String,
     pub variables: Vec<VariableView>,
-    pub environments: Vec<EnvironmentView>,
-    pub active_environment_id: Option<String>,
 }
 
 /// `nodes` serialize as `CollectionView` / `HostView`, discriminated by `kind`; they hold no
@@ -106,25 +95,11 @@ fn views(
         .collect()
 }
 
-fn env_view(secrets: &SecretStore, e: &Environment) -> EnvironmentView {
-    EnvironmentView {
-        id: e.id.clone(),
-        name: e.name.clone(),
-        variables: views(secrets, &e.variables, |n| VarKey::environment(&e.id, n)),
-    }
-}
-
 fn project_view(secrets: &SecretStore, p: &Project) -> ProjectView {
     ProjectView {
         id: p.id.clone(),
         name: p.name.clone(),
         variables: views(secrets, &p.variables, |n| VarKey::project(&p.id, n)),
-        environments: p
-            .environments
-            .iter()
-            .map(|e| env_view(secrets, e))
-            .collect(),
-        active_environment_id: p.active_environment_id.clone(),
     }
 }
 
@@ -149,20 +124,10 @@ fn optional<'a>(name: &str, value: &'a Option<String>) -> Res<Option<&'a str>> {
     }
 }
 
-/// `None` first: saved connection secrets without environment.
-fn with_none(envs: &[String]) -> Vec<Option<&str>> {
-    std::iter::once(None)
-        .chain(envs.iter().map(|e| Some(e.as_str())))
-        .collect()
-}
-
 fn scope_key(scope: &VariableScope, name: &str) -> Result<VarKey, SecretError> {
     match scope {
         VariableScope::Global => VarKey::global(name),
         VariableScope::Project { project_id } => VarKey::project(project_id, name),
-        VariableScope::Environment { environment_id, .. } => {
-            VarKey::environment(environment_id, name)
-        }
     }
 }
 
@@ -170,7 +135,6 @@ fn scope_id(scope: &VariableScope) -> &str {
     match scope {
         VariableScope::Global => "global",
         VariableScope::Project { project_id } => project_id,
-        VariableScope::Environment { environment_id, .. } => environment_id,
     }
 }
 
@@ -275,50 +239,17 @@ fn remove_project(
         &p.id,
         &secret_keys(&p.variables, |n| VarKey::project(&p.id, n).ok()),
     );
-    for e in &p.environments {
-        forget_variables(
-            secrets,
-            &e.id,
-            &secret_keys(&e.variables, |n| VarKey::environment(&e.id, n).ok()),
-        );
-    }
-    let envs: Vec<String> = p.environments.iter().map(|e| e.id.clone()).collect();
     for h in &hosts {
-        forget_saved(secrets, &h.id, &with_none(&envs));
+        forget_saved(secrets, &h.id);
     }
     Ok(hosts.into_iter().map(|h| h.id).collect())
-}
-
-/// Returns the connection ids `{hostId}@{environmentId}` of the project's hosts, to close.
-fn remove_environment(
-    store: &ConfigStore,
-    secrets: &SecretStore,
-    project_id: &str,
-    environment_id: &str,
-) -> Res<Vec<String>> {
-    required("projectId", project_id)?;
-    required("environmentId", environment_id)?;
-    let _lifecycle = secrets.lifecycle();
-    let (e, hosts) = store.delete_environment(project_id, environment_id)?;
-    forget_variables(
-        secrets,
-        &e.id,
-        &secret_keys(&e.variables, |n| VarKey::environment(&e.id, n).ok()),
-    );
-    for h in &hosts {
-        forget_saved(secrets, h, &[Some(&e.id)]);
-    }
-    Ok(hosts
-        .iter()
-        .map(|h| Target::connection_id_of(h, Some(&e.id)))
-        .collect())
 }
 
 fn remove_host(store: &ConfigStore, secrets: &SecretStore, host_id: &str) -> Res<Vec<String>> {
     required("hostId", host_id)?;
     let _lifecycle = secrets.lifecycle();
-    let (h, envs) = store.delete_host(host_id)?;
-    forget_saved(secrets, &h.id, &with_none(&envs));
+    let h = store.delete_host(host_id)?;
+    forget_saved(secrets, &h.id);
     Ok(vec![h.id])
 }
 
@@ -331,7 +262,7 @@ fn remove_collection(
     let _lifecycle = secrets.lifecycle();
     let removed = store.delete_collection(collection_id)?;
     for h in &removed.hosts {
-        forget_saved(secrets, &h.id, &with_none(&removed.environments));
+        forget_saved(secrets, &h.id);
     }
     Ok(DeletedNodes {
         collection_ids: removed.collections.into_iter().map(|c| c.id).collect(),
@@ -339,8 +270,8 @@ fn remove_collection(
     })
 }
 
-/// The saved connection secrets of moved hosts were bound to the old scope's environments, so
-/// a cross-scope move deletes them (none + every old environment) before the file is written.
+/// A host keeps its saved connection secret account across scopes, so a cross-scope move deletes
+/// them before the file is written; the new scope's variables may resolve to another target.
 fn relocate(
     store: &ConfigStore,
     secrets: &SecretStore,
@@ -352,14 +283,14 @@ fn relocate(
     Ok(store.move_node(node_id, project_id, parent_id, |m| {
         if m.scope_changed {
             for h in m.host_ids() {
-                forget_saved(secrets, &h, &with_none(&m.old_environments));
+                forget_saved(secrets, &h);
             }
         }
     })?)
 }
 
-/// Connections of the moved hosts are closed before the move (their ids name an environment of
-/// the old scope) and once more after it, for a connect that slipped in between.
+/// Connections of the moved hosts are closed before the move (they were resolved with the old
+/// scope's variables) and once more after it, for a connect that slipped in between.
 async fn move_node_in(
     store: &ConfigStore,
     secrets: &SecretStore,
@@ -425,59 +356,6 @@ pub async fn delete_project(
     let hosts = remove_project(&store, &secrets, &project_id)?;
     close_hosts(&ssh, &hosts).await;
     Ok(())
-}
-
-#[tauri::command]
-pub async fn create_environment(
-    store: State<'_, ConfigStore>,
-    secrets: State<'_, SecretStore>,
-    project_id: String,
-    name: String,
-) -> Res<EnvironmentView> {
-    Ok(env_view(
-        &secrets,
-        &store.create_environment(&project_id, &name)?,
-    ))
-}
-
-#[tauri::command]
-pub async fn rename_environment(
-    store: State<'_, ConfigStore>,
-    secrets: State<'_, SecretStore>,
-    project_id: String,
-    environment_id: String,
-    name: String,
-) -> Res<EnvironmentView> {
-    Ok(env_view(
-        &secrets,
-        &store.rename_environment(&project_id, &environment_id, &name)?,
-    ))
-}
-
-#[tauri::command]
-pub async fn delete_environment(
-    store: State<'_, ConfigStore>,
-    secrets: State<'_, SecretStore>,
-    ssh: State<'_, SshManager>,
-    project_id: String,
-    environment_id: String,
-) -> Res<()> {
-    let connections = remove_environment(&store, &secrets, &project_id, &environment_id)?;
-    close_connections(&ssh, &connections).await;
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn set_active_environment(
-    store: State<'_, ConfigStore>,
-    secrets: State<'_, SecretStore>,
-    project_id: String,
-    environment_id: Option<String>,
-) -> Res<ProjectView> {
-    Ok(project_view(
-        &secrets,
-        &store.set_active_environment(&project_id, environment_id.as_deref())?,
-    ))
 }
 
 #[tauri::command]
@@ -581,12 +459,8 @@ pub async fn delete_host(
 }
 
 #[tauri::command]
-pub async fn resolve_host(
-    store: State<'_, ConfigStore>,
-    host_id: String,
-    environment_id: Option<String>,
-) -> Res<ResolvedView> {
-    resolve::view(&store, &host_id, environment_id.as_deref())
+pub async fn resolve_host(store: State<'_, ConfigStore>, host_id: String) -> Res<ResolvedView> {
+    resolve::view(&store, &host_id)
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { ConfigService } from '../core/ipc/config';
-import type { ConfigNode, Environment, Project } from '../core/ipc/config.models';
+import type { ConfigNode, Project } from '../core/ipc/config.models';
 
 const STORAGE_KEY = 'carapace.scope';
 const HOME_KEY = 'home';
@@ -100,11 +100,6 @@ export class CurrentScope {
   });
   readonly projectId = computed(() => this.project()?.id ?? null);
   readonly isHome = computed(() => this.project() === null);
-
-  readonly environment = computed<Environment | null>(() => {
-    const project = this.project();
-    return project?.environments.find((e) => e.id === project.activeEnvironmentId) ?? null;
-  });
 
   constructor() {
     effect(() => {

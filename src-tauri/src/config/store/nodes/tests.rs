@@ -51,7 +51,6 @@ struct World {
     d: tempfile::TempDir,
     s: ConfigStore,
     pay: String,
-    envs: Vec<String>,
     backend: String,
     api: String,
     tools: String,
@@ -60,10 +59,6 @@ struct World {
 fn world() -> World {
     let (d, s) = store();
     let pay = s.create_project("Payments").unwrap().id;
-    let envs = vec![
-        s.create_environment(&pay, "dev").unwrap().id,
-        s.create_environment(&pay, "prod").unwrap().id,
-    ];
     let backend = s.create_collection(Some(&pay), None, "Backend").unwrap().id;
     let api = s
         .create_collection(Some(&pay), Some(&backend), "Api")
@@ -74,7 +69,6 @@ fn world() -> World {
         d,
         s,
         pay,
-        envs,
         backend,
         api,
         tools,
@@ -243,14 +237,10 @@ fn delete_collection_is_recursive() {
     let mut expected = vec![h1, h2];
     expected.sort();
     assert_eq!(hids, expected);
-    assert_eq!(removed.environments, w.envs);
     let cfg = w.s.snapshot().unwrap();
     let left: Vec<_> = cfg.nodes.iter().map(|n| n.id().to_string()).collect();
     assert_eq!(left, vec![w.tools.clone(), kept]);
     not_found(w.s.delete_collection(&w.backend), "collection");
-
-    let home = w.s.delete_collection(&w.tools).unwrap();
-    assert!(home.environments.is_empty());
 }
 
 #[test]
@@ -259,17 +249,10 @@ fn host_and_project_deletes_report_what_left() {
     let nested = host(&w, Some(&w.pay), Some(&w.api), "a");
     let root = host(&w, Some(&w.pay), None, "b");
     let home = host(&w, None, Some(&w.tools), "c");
-    let (e, hosts) = w.s.delete_environment(&w.pay, &w.envs[0]).unwrap();
-    assert_eq!(e.id, w.envs[0]);
-    assert_eq!(hosts, vec![nested.clone(), root.clone()]);
-    let (h, envs) = w.s.delete_host(&home).unwrap();
-    assert_eq!(h.id, home);
-    assert!(envs.is_empty());
+    assert_eq!(w.s.delete_host(&home).unwrap().id, home);
     not_found(w.s.delete_host(&home), "host");
     not_found(w.s.delete_host(&w.tools), "host");
-    let (h, envs) = w.s.delete_host(&root).unwrap();
-    assert_eq!(h.id, root);
-    assert_eq!(envs, vec![w.envs[1].clone()]);
+    assert_eq!(w.s.delete_host(&root).unwrap().id, root);
     let (p, hosts) = w.s.delete_project(&w.pay).unwrap();
     assert_eq!(p.id, w.pay);
     assert_eq!(
@@ -289,7 +272,6 @@ fn move_within_a_scope() {
         w.s.move_node(&h, Some(&w.pay), Some(&w.api), |_| {})
             .unwrap();
     assert!(!m.scope_changed);
-    assert!(m.old_environments.is_empty());
     assert_eq!(m.nodes.len(), 1);
     assert_eq!(m.nodes[0].parent_id(), Some(w.api.as_str()));
     assert_eq!(
@@ -368,7 +350,7 @@ fn move_conflicts_name_the_item_and_the_target() {
 }
 
 #[test]
-fn cross_scope_move_takes_the_subtree_and_reports_old_environments() {
+fn cross_scope_move_takes_the_subtree() {
     let w = world();
     let a = host(&w, Some(&w.pay), Some(&w.backend), "a");
     let b = host(&w, Some(&w.pay), Some(&w.api), "b");
@@ -382,7 +364,6 @@ fn cross_scope_move_takes_the_subtree_and_reports_old_environments() {
     assert_eq!(seen.as_ref(), Some(&m));
     assert_eq!(planned, m);
     assert!(m.scope_changed);
-    assert_eq!(m.old_environments, w.envs);
     let mut ids = m.host_ids();
     ids.sort();
     let mut expected = vec![a.clone(), b.clone()];
@@ -407,7 +388,6 @@ fn cross_scope_move_takes_the_subtree_and_reports_old_environments() {
 
     let back = w.s.move_node(&a, Some(&w.pay), None, |_| {}).unwrap();
     assert!(back.scope_changed);
-    assert!(back.old_environments.is_empty());
 }
 
 #[test]

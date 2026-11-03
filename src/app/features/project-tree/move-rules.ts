@@ -86,8 +86,8 @@ export function crossScopeWarning(
   const targetName = project?.name ?? HOME;
   const rest = `${their} open connections are closed and ${their.toLowerCase()} saved passwords are forgotten.`;
   const body = project
-    ? `${subject} will use the variables and environments of ${project.name}. ${rest}`
-    : `${subject} will have no environment and will use global variables only. ${rest}`;
+    ? `${subject} will use the variables of ${project.name}. ${rest}`
+    : `${subject} will use global variables only. ${rest}`;
   const undefinedNames = undefinedReferences(hosts, globals, project ?? null);
   const missing = undefinedNames.length
     ? `Not defined in ${targetName}: ${undefinedNames.join(', ')}.`

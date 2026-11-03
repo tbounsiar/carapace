@@ -4,7 +4,7 @@ import type { FormGroup } from '@angular/forms';
 import { provideTaiga } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import { ConfigService } from '../../../core/ipc/config';
-import type { Host, Project } from '../../../core/ipc/config.models';
+import type { Collection, Host, Project } from '../../../core/ipc/config.models';
 import { deployTargetLabel, KeyDeployDialog, type KeyDeployDialogData } from './key-deploy-dialog';
 
 const host = (id: string, name: string, projectId: string | null): Host => ({
@@ -19,21 +19,17 @@ const host = (id: string, name: string, projectId: string | null): Host => ({
   auth: { kind: 'agent' },
 });
 
-const SHOP: Project = {
-  id: 'p1',
-  name: 'Shop',
-  variables: [],
-  environments: [{ id: 'e1', name: 'Dev', variables: [] }],
-  activeEnvironmentId: 'e1',
-};
-const LAB: Project = {
-  ...SHOP,
-  id: 'p2',
-  name: 'Lab',
-  activeEnvironmentId: null,
+const SHOP: Project = { id: 'p1', name: 'Shop', variables: [] };
+const LAB: Project = { ...SHOP, id: 'p2', name: 'Lab' };
+const BACKEND: Collection = {
+  kind: 'collection',
+  id: 'c1',
+  name: 'Backend',
+  projectId: 'p1',
+  parentId: null,
 };
 const EMPTY: Project = { ...SHOP, id: 'p3', name: 'Empty' };
-const UI = host('h1', 'UI', 'p1');
+const UI: Host = { ...host('h1', 'UI', 'p1'), parentId: 'c1' };
 const BOX = host('h2', 'box', 'p2');
 const VPS = host('h3', 'vps', null);
 
@@ -60,7 +56,11 @@ describe('KeyDeployDialog', () => {
         },
         {
           provide: ConfigService,
-          useValue: { projects: signal([SHOP, LAB, EMPTY]), hosts: signal([UI, BOX, VPS]) },
+          useValue: {
+            projects: signal([SHOP, LAB, EMPTY]),
+            hosts: signal([UI, BOX, VPS]),
+            nodes: signal([BACKEND, UI, BOX, VPS]),
+          },
         },
       ],
     }).compileComponents();
@@ -72,10 +72,11 @@ describe('KeyDeployDialog', () => {
 
   beforeEach(() => vi.clearAllMocks());
 
-  it('labels a target with its active environment', () => {
-    expect(deployTargetLabel(SHOP, UI)).toBe('UI · Dev');
-    expect(deployTargetLabel(LAB, BOX)).toBe('box');
-    expect(deployTargetLabel(null, VPS)).toBe('vps');
+  it('labels a target with its path inside its scope', () => {
+    const nodes = [BACKEND, UI, BOX, VPS];
+    expect(deployTargetLabel(nodes, UI)).toBe('Backend / UI');
+    expect(deployTargetLabel(nodes, BOX)).toBe('box');
+    expect(deployTargetLabel(nodes, VPS)).toBe('vps');
   });
 
   it('groups hosts by scope, Home first, skipping empty projects', async () => {
@@ -83,7 +84,7 @@ describe('KeyDeployDialog', () => {
     expect(dialog.groups().map((g) => g.label)).toEqual(['Home', 'Lab', 'Shop']);
     expect(dialog.groups()[0].hosts.map((h) => h.name)).toEqual(['vps']);
     expect(dialog.stringify('h3')).toBe('vps');
-    expect(dialog.stringify('h1')).toBe('UI · Dev');
+    expect(dialog.stringify('h1')).toBe('Backend / UI');
     expect(dialog.stringify(null)).toBe('');
     expect(el.querySelector<HTMLInputElement>('[data-testid="deploy-use"]')!.checked).toBe(false);
   });

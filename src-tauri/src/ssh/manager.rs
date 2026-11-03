@@ -72,7 +72,6 @@ pub enum ConnectEvent {
 pub struct ConnectionInfo {
     pub connection_id: String,
     pub host_id: String,
-    pub environment_id: Option<String>,
     pub state: ConnectState,
 }
 
@@ -101,7 +100,7 @@ pub struct RegisteredKey {
     pub passphrase: KeyPassKey,
 }
 
-/// A host resolved for one environment (or none): what a connection is made from.
+/// A resolved host: what a connection is made from. `connection_id` is the host id.
 /// `project_id` is the host's scope (None: Home); it is part of the comparison done by
 /// `still_current`, so a host moved to another scope during a connect is stale.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,7 +108,6 @@ pub struct Target {
     pub connection_id: String,
     pub host_id: String,
     pub project_id: Option<String>,
-    pub environment_id: Option<String>,
     pub saved: SavedKey,
     pub hostname: String,
     pub port: u16,
@@ -118,10 +116,6 @@ pub struct Target {
 }
 
 impl Target {
-    pub fn connection_id_of(host_id: &str, environment_id: Option<&str>) -> String {
-        format!("{host_id}@{}", environment_id.unwrap_or("none"))
-    }
-
     /// What a saved secret of `kind` is bound to: a password to one remote account, a
     /// passphrase to one key file.
     pub fn bound_to(&self, kind: SecretKind) -> String {
@@ -135,7 +129,6 @@ impl Target {
         ConnectionInfo {
             connection_id: self.connection_id.clone(),
             host_id: self.host_id.clone(),
-            environment_id: self.environment_id.clone(),
             state: ConnectState::Connected,
         }
     }

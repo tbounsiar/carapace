@@ -51,27 +51,27 @@ describe('TerminalSessions', () => {
   });
 
   it('opens a terminal on the connection and makes it active', async () => {
-    const tab = await sessions.open('h1@e1');
+    const tab = await sessions.open('h1');
     expect(tab?.n).toBe(1);
     expect(tab?.state()).toBe('open');
-    expect(opens[0]).toMatchObject({ connectionId: 'h1@e1', cols: 80, rows: 24 });
-    expect(sessions.tabs('h1@e1')).toEqual([tab]);
-    expect(sessions.active('h1@e1')).toBe(tab);
+    expect(opens[0]).toMatchObject({ connectionId: 'h1', cols: 80, rows: 24 });
+    expect(sessions.tabs('h1')).toEqual([tab]);
+    expect(sessions.active('h1')).toBe(tab);
   });
 
-  it('numbers tabs per connection, keeps two environments of a host apart, never reuses a number', async () => {
-    const a1 = await sessions.open('h1@e1');
-    const a2 = await sessions.open('h1@e1');
-    const b1 = await sessions.open('h1@none');
+  it('numbers tabs per connection, keeps two hosts apart, never reuses a number', async () => {
+    const a1 = await sessions.open('h1');
+    const a2 = await sessions.open('h1');
+    const b1 = await sessions.open('h2');
     await sessions.close(a2!);
-    const a3 = await sessions.open('h1@e1');
+    const a3 = await sessions.open('h1');
     expect([a1?.n, a2?.n, b1?.n, a3?.n]).toEqual([1, 2, 1, 3]);
-    expect(sessions.tabs('h1@e1').map((t) => t.n)).toEqual([1, 3]);
-    expect(sessions.tabs('h1@none').map((t) => t.n)).toEqual([1]);
+    expect(sessions.tabs('h1').map((t) => t.n)).toEqual([1, 3]);
+    expect(sessions.tabs('h2').map((t) => t.n)).toEqual([1]);
   });
 
   it('writes output bytes to xterm and sends input to the backend in order', async () => {
-    await sessions.open('h1@e1');
+    await sessions.open('h1');
     const view = factory.created[0];
     const bytes = new Uint8Array([104, 105]);
     opens[0].emit({ kind: 'data', bytes });
@@ -86,18 +86,18 @@ describe('TerminalSessions', () => {
   });
 
   it('sends a resize when xterm changes size', async () => {
-    await sessions.open('h1@e1');
+    await sessions.open('h1');
     factory.created[0].resize(120, 40);
     await flush();
     expect(ipc.resize).toHaveBeenCalledWith('t1', 120, 40);
   });
 
   it('shows the ended state on closed and keeps the tab and its scrollback', async () => {
-    const tab = await sessions.open('h1@e1');
+    const tab = await sessions.open('h1');
     opens[0].emit({ kind: 'closed', reason: 'connectionLost' });
     expect(tab?.state()).toBe('ended');
     expect(tab?.reason()).toBe('connectionLost');
-    expect(sessions.tabs('h1@e1')).toEqual([tab]);
+    expect(sessions.tabs('h1')).toEqual([tab]);
     expect(factory.created[0].disposed).toBe(false);
     factory.created[0].type('x');
     await flush();
@@ -105,7 +105,7 @@ describe('TerminalSessions', () => {
   });
 
   it('reopens an ended tab in the same xterm with a new backend terminal', async () => {
-    const tab = await sessions.open('h1@e1');
+    const tab = await sessions.open('h1');
     opens[0].emit({ kind: 'closed', reason: 'closed' });
     await sessions.reopen(tab!);
     expect(tab?.state()).toBe('open');
@@ -119,37 +119,37 @@ describe('TerminalSessions', () => {
   });
 
   it('closes the backend terminal and disposes xterm', async () => {
-    const tab = await sessions.open('h1@e1');
+    const tab = await sessions.open('h1');
     await sessions.close(tab!);
     expect(ipc.close).toHaveBeenCalledWith('t1');
     expect(factory.created[0].disposed).toBe(true);
-    expect(sessions.tabs('h1@e1')).toEqual([]);
-    expect(sessions.active('h1@e1')).toBeNull();
+    expect(sessions.tabs('h1')).toEqual([]);
+    expect(sessions.active('h1')).toBeNull();
   });
 
   it('does not call close_terminal for an ended tab', async () => {
-    const tab = await sessions.open('h1@e1');
+    const tab = await sessions.open('h1');
     opens[0].emit({ kind: 'closed', reason: 'exited' });
     await sessions.close(tab!);
     expect(ipc.close).not.toHaveBeenCalled();
   });
 
   it('activates the neighbour when the active tab closes', async () => {
-    const t1 = await sessions.open('h1@e1');
-    const t2 = await sessions.open('h1@e1');
-    const t3 = await sessions.open('h1@e1');
+    const t1 = await sessions.open('h1');
+    const t2 = await sessions.open('h1');
+    const t3 = await sessions.open('h1');
     sessions.select(t2!);
     await sessions.close(t2!);
-    expect(sessions.active('h1@e1')).toBe(t3);
+    expect(sessions.active('h1')).toBe(t3);
     await sessions.close(t3!);
-    expect(sessions.active('h1@e1')).toBe(t1);
+    expect(sessions.active('h1')).toBe(t1);
   });
 
   it('removes the tab and notifies when the open fails', async () => {
     openResult = () => Promise.reject(new IpcError('not_connected', 'Host is not connected'));
-    const tab = await sessions.open('h1@e1');
+    const tab = await sessions.open('h1');
     expect(tab).toBeNull();
-    expect(sessions.tabs('h1@e1')).toEqual([]);
+    expect(sessions.tabs('h1')).toEqual([]);
     expect(alerts.open).toHaveBeenCalledWith(
       expect.stringContaining('Host is not connected. '),
       expect.anything(),
@@ -159,9 +159,9 @@ describe('TerminalSessions', () => {
   it('closes a backend terminal whose tab was closed while opening', async () => {
     let resolve!: (id: string) => void;
     openResult = () => new Promise((r) => (resolve = r));
-    const opening = sessions.open('h1@e1');
+    const opening = sessions.open('h1');
     await flush();
-    await sessions.close(sessions.tabs('h1@e1')[0]);
+    await sessions.close(sessions.tabs('h1')[0]);
     resolve('t9');
     expect(await opening).toBeNull();
     expect(ipc.close).toHaveBeenCalledWith('t9');
@@ -172,13 +172,13 @@ describe('TerminalSessions', () => {
       opens[0].emit({ kind: 'closed', reason: 'exited' });
       return Promise.resolve('t1');
     };
-    const tab = await sessions.open('h1@e1');
+    const tab = await sessions.open('h1');
     expect(tab?.state()).toBe('ended');
-    expect(sessions.tabs('h1@e1')).toHaveLength(1);
+    expect(sessions.tabs('h1')).toHaveLength(1);
   });
 
   it('notifies when a write fails but keeps the terminal', async () => {
-    const tab = await sessions.open('h1@e1');
+    const tab = await sessions.open('h1');
     ipc.write.mockRejectedValueOnce(new IpcError('busy', 'Terminal input queue is full'));
     factory.created[0].type('x');
     await flush();
@@ -190,7 +190,7 @@ describe('TerminalSessions', () => {
   });
 
   it('survives detaching: attach re-uses the same xterm element', async () => {
-    const tab = await sessions.open('h1@e1');
+    const tab = await sessions.open('h1');
     const first = document.createElement('div');
     sessions.attach(tab!, first);
     const element = first.firstElementChild;
@@ -204,7 +204,7 @@ describe('TerminalSessions', () => {
   });
 
   it('applies the theme and font size to existing and new terminals, and refits', async () => {
-    await sessions.open('h1@e1');
+    await sessions.open('h1');
     expect(factory.created[0].fontSize).toBe(13);
     const fits = factory.created[0].fits;
     const source = document.createElement('div');
@@ -214,7 +214,7 @@ describe('TerminalSessions', () => {
     expect(factory.created[0].theme?.background).toBe('#123456');
     expect(factory.created[0].fontSize).toBe(18);
     expect(factory.created[0].fits).toBe(fits + 1);
-    await sessions.open('h1@e1');
+    await sessions.open('h1');
     expect(factory.created[1].theme?.background).toBe('#123456');
     expect(factory.created[1].theme?.red).toBeTruthy();
     expect(factory.created[1].fontSize).toBe(18);
@@ -223,12 +223,12 @@ describe('TerminalSessions', () => {
 
   it('notifies and opens no tab when xterm fails to load', async () => {
     vi.spyOn(factory, 'create').mockRejectedValueOnce(new Error('chunk'));
-    expect(await sessions.open('h1@e1')).toBeNull();
-    expect(sessions.tabs('h1@e1')).toEqual([]);
+    expect(await sessions.open('h1')).toBeNull();
+    expect(sessions.tabs('h1')).toEqual([]);
     expect(alerts.open).toHaveBeenCalledWith(
       expect.stringContaining('could not be loaded'),
       expect.objectContaining({ label: 'Terminal not opened' }),
     );
-    expect((await sessions.open('h1@e1'))?.n).toBe(1);
+    expect((await sessions.open('h1'))?.n).toBe(1);
   });
 });

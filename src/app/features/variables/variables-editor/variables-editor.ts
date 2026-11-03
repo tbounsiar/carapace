@@ -43,14 +43,7 @@ type Row = FormGroup<{
 const KIND_LABELS: Record<VariableKind, string> = { plain: 'Plain', secret: 'Secret' };
 
 export function scopeKey(scope: VariableScope): string {
-  switch (scope.kind) {
-    case 'global':
-      return 'global';
-    case 'project':
-      return `project:${scope.projectId}`;
-    case 'environment':
-      return `env:${scope.environmentId}`;
-  }
+  return scope.kind === 'global' ? 'global' : `project:${scope.projectId}`;
 }
 
 @Component({

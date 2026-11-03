@@ -4,19 +4,6 @@
       <hgroup tuiTitle>
         <h1 class="name" data-testid="host-detail-title">
           <span data-testid="host-detail-name">{{ located.host.name }}</span>
-          @if (environment(); as env) {
-            <span class="env" data-testid="host-detail-title-env">· {{ env.name }}</span>
-          }
-          @if (marker()?.label) {
-            <span
-              tuiBadge
-              size="m"
-              [appearance]="marker()!.appearance"
-              data-testid="host-detail-env-kind"
-            >
-              {{ marker()!.label }}
-            </span>
-          }
         </h1>
         @if (address(); as address) {
           <p
@@ -81,10 +68,6 @@
           {{ status().label }}
         </span>
       </dd>
-      <dt>Environment</dt>
-      <dd data-testid="host-detail-env">
-        {{ scopeText() }}
-      </dd>
       <dt>Authentication</dt>
       <dd data-testid="host-detail-auth">
         {{ authLabel() }}
@@ -130,7 +113,7 @@
   @if (view() === 'files') {
     <app-files-panel [target]="target()!" />
   } @else {
-    <app-terminal-panel [target]="target()!" [envName]="environment()?.name ?? null" />
+    <app-terminal-panel [target]="target()!" />
   }
 } @else {
   <tui-block-status size="m" data-testid="host-not-found">

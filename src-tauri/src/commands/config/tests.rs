@@ -126,37 +126,24 @@ fn global_secret_is_stored_in_the_keychain_only() {
 }
 
 #[test]
-fn project_and_environment_secrets_use_their_accounts() {
+fn project_secrets_use_their_account() {
     let w = world();
     let p = w.store.create_project("p").unwrap();
-    let e = w.store.create_environment(&p.id, "dev").unwrap();
     let ps = VariableScope::Project {
         project_id: p.id.clone(),
     };
-    let es = VariableScope::Environment {
-        project_id: p.id.clone(),
-        environment_id: e.id.clone(),
-    };
-    save_variables(&w.store, &w.secrets, &ps, vec![secret("a", Some("1"))]).unwrap();
     save_variables(
         &w.store,
         &w.secrets,
-        &es,
-        vec![secret("b", Some("2")), secret("c", None)],
+        &ps,
+        vec![secret("a", Some("1")), secret("c", None)],
     )
     .unwrap();
-    assert_eq!(
-        w.mem.accounts(),
-        vec![
-            format!("var/env/{}/b", e.id),
-            format!("var/project/{}/a", p.id)
-        ]
-    );
+    assert_eq!(w.mem.accounts(), vec![format!("var/project/{}/a", p.id)]);
     let view = config_view(&w.store, &w.secrets).unwrap();
-    let env = &view.projects[0].environments[0];
-    assert!(env.variables[0].has_value);
-    assert!(!env.variables[1].has_value);
-    assert!(view.projects[0].variables[0].has_value);
+    let vars = &view.projects[0].variables;
+    assert!(vars[0].has_value);
+    assert!(!vars[1].has_value);
 }
 
 #[test]
@@ -300,9 +287,6 @@ fn variable_input_wire_format() {
 struct Tree {
     p1: String,
     p2: String,
-    e1: String,
-    e2: String,
-    e3: String,
     h1: String,
     h2: String,
     h3: String,
@@ -312,9 +296,6 @@ fn tree(w: &World) -> Tree {
     let s = &w.store;
     let p1 = s.create_project("p1").unwrap().id;
     let p2 = s.create_project("p2").unwrap().id;
-    let e1 = s.create_environment(&p1, "dev").unwrap().id;
-    let e2 = s.create_environment(&p1, "prod").unwrap().id;
-    let e3 = s.create_environment(&p2, "dev").unwrap().id;
     let h1 = s.create_host(Some(&p1), None, &host_input("a")).unwrap().id;
     let h2 = s.create_host(Some(&p1), None, &host_input("b")).unwrap().id;
     let h3 = s.create_host(Some(&p2), None, &host_input("c")).unwrap().id;
@@ -327,25 +308,10 @@ fn tree(w: &World) -> Tree {
             "p",
         ),
         (
-            VariableScope::Environment {
-                project_id: p1.clone(),
-                environment_id: e1.clone(),
-            },
-            "e",
-        ),
-        (
-            VariableScope::Environment {
-                project_id: p1.clone(),
-                environment_id: e2.clone(),
-            },
-            "e",
-        ),
-        (
-            VariableScope::Environment {
+            VariableScope::Project {
                 project_id: p2.clone(),
-                environment_id: e3.clone(),
             },
-            "e",
+            "q",
         ),
     ] {
         save_variables(
@@ -356,20 +322,11 @@ fn tree(w: &World) -> Tree {
         )
         .unwrap();
     }
-    Tree {
-        p1,
-        p2,
-        e1,
-        e2,
-        e3,
-        h1,
-        h2,
-        h3,
-    }
+    Tree { p1, p2, h1, h2, h3 }
 }
 
-fn save_conn(w: &World, host: &str, env: Option<&str>) {
-    let key = SavedKey::new(host, env).unwrap();
+fn save_conn(w: &World, host: &str) {
+    let key = SavedKey::new(host).unwrap();
     for kind in SecretKind::ALL {
         w.secrets
             .set_saved(&key, kind, "t", &SecretString::from("s"))
@@ -386,39 +343,20 @@ fn conn_accounts(w: &World, host: &str) -> usize {
 }
 
 fn seed_conns(w: &World, t: &Tree) {
-    for h in [&t.h1, &t.h2] {
-        save_conn(w, h, None);
-        save_conn(w, h, Some(&t.e1));
-        save_conn(w, h, Some(&t.e2));
+    for h in [&t.h1, &t.h2, &t.h3] {
+        save_conn(w, h);
     }
-    save_conn(w, &t.h3, None);
-    save_conn(w, &t.h3, Some(&t.e3));
 }
 
 #[test]
-fn delete_host_removes_its_saved_secrets_for_every_environment() {
+fn delete_host_removes_its_saved_secrets() {
     let w = world();
     let t = tree(&w);
     seed_conns(&w, &t);
     remove_host(&w.store, &w.secrets, &t.h1).unwrap();
     assert_eq!(conn_accounts(&w, &t.h1), 0);
-    assert_eq!(conn_accounts(&w, &t.h2), 6);
-    assert_eq!(conn_accounts(&w, &t.h3), 4);
-}
-
-#[test]
-fn delete_environment_removes_its_variables_and_connection_secrets() {
-    let w = world();
-    let t = tree(&w);
-    seed_conns(&w, &t);
-    w.store.set_active_environment(&t.p1, Some(&t.e1)).unwrap();
-    remove_environment(&w.store, &w.secrets, &t.p1, &t.e1).unwrap();
-    let accounts = w.mem.accounts();
-    assert!(!accounts.iter().any(|a| a.contains(&t.e1)));
-    assert!(accounts.contains(&format!("var/env/{}/e", t.e2)));
-    assert_eq!(conn_accounts(&w, &t.h1), 4);
-    let view = config_view(&w.store, &w.secrets).unwrap();
-    assert!(view.projects[0].active_environment_id.is_none());
+    assert_eq!(conn_accounts(&w, &t.h2), 2);
+    assert_eq!(conn_accounts(&w, &t.h3), 2);
 }
 
 #[test]
@@ -430,14 +368,11 @@ fn delete_project_removes_everything_it_owns() {
     let mut expected = vec![
         format!("conn/{}/none/passphrase", t.h3),
         format!("conn/{}/none/password", t.h3),
-        format!("conn/{}/{}/passphrase", t.h3, t.e3),
-        format!("conn/{}/{}/password", t.h3, t.e3),
-        format!("var/env/{}/e", t.e3),
+        format!("var/project/{}/q", t.p2),
         "var/global/g".to_string(),
     ];
     expected.sort();
     assert_eq!(w.mem.accounts(), expected);
-    let _ = &t.p2;
 }
 
 #[test]
@@ -446,9 +381,8 @@ fn failed_deletes_keep_secrets() {
     let t = tree(&w);
     seed_conns(&w, &t);
     let before = w.mem.accounts();
-    assert!(remove_host(&w.store, &w.secrets, &t.e1).is_err());
+    assert!(remove_host(&w.store, &w.secrets, &t.p1).is_err());
     assert!(remove_host(&w.store, &w.secrets, "nope").is_err());
-    assert!(remove_environment(&w.store, &w.secrets, &t.p2, &t.e1).is_err());
     assert!(remove_project(&w.store, &w.secrets, "nope").is_err());
     assert_eq!(
         remove_project(&w.store, &w.secrets, " ").unwrap_err().code,
@@ -463,35 +397,35 @@ fn keychain_failure_does_not_fail_a_delete() {
     let t = tree(&w);
     w.mem.set_failing(true);
     remove_host(&w.store, &w.secrets, &t.h1).unwrap();
-    remove_environment(&w.store, &w.secrets, &t.p1, &t.e2).unwrap();
     remove_project(&w.store, &w.secrets, &t.p2).unwrap();
     assert_eq!(w.store.snapshot().unwrap().projects.len(), 1);
 }
 
 #[test]
-fn resolve_view_per_environment() {
+fn resolve_view_uses_project_then_global_variables() {
     let w = world();
     let p = w.store.create_project("p").unwrap();
-    let dev = w.store.create_environment(&p.id, "dev").unwrap();
     let other = w.store.create_project("q").unwrap();
-    let foreign = w.store.create_environment(&other.id, "x").unwrap();
     let h = w
         .store
         .create_host(Some(&p.id), None, &host_input("web"))
+        .unwrap();
+    let home = w
+        .store
+        .create_host(None, None, &host_input("home"))
         .unwrap();
     save_variables(
         &w.store,
         &w.secrets,
         &VariableScope::Global,
-        vec![plain("user", "carapace")],
+        vec![plain("user", "carapace"), plain("port", "22")],
     )
     .unwrap();
     save_variables(
         &w.store,
         &w.secrets,
-        &VariableScope::Environment {
+        &VariableScope::Project {
             project_id: p.id.clone(),
-            environment_id: dev.id.clone(),
         },
         vec![
             plain("host", "127.0.0.1"),
@@ -501,7 +435,7 @@ fn resolve_view_per_environment() {
     )
     .unwrap();
 
-    let r = resolve::view(&w.store, &h.id, Some(&dev.id)).unwrap();
+    let r = resolve::view(&w.store, &h.id).unwrap();
     assert_eq!(
         r,
         ResolvedView {
@@ -517,17 +451,14 @@ fn resolve_view_per_environment() {
     assert!(json["keyPath"].is_null());
     assert!(!json.to_string().contains("hunter2"));
 
-    let none = resolve::view(&w.store, &h.id, None).unwrap();
-    assert_eq!(none.missing, vec!["host", "port", "pw"]);
-    assert_eq!(none.username.as_deref(), Some("carapace"));
+    let global_only = resolve::view(&w.store, &home.id).unwrap();
+    assert_eq!(global_only.missing, vec!["host", "pw"]);
+    assert_eq!(global_only.port, Some(22));
+    assert_eq!(global_only.username.as_deref(), Some("carapace"));
 
     let code = |r: Res<ResolvedView>| r.unwrap_err().code;
-    assert_eq!(
-        code(resolve::view(&w.store, &h.id, Some(&foreign.id))),
-        "invalid_input"
-    );
-    assert_eq!(code(resolve::view(&w.store, &other.id, None)), "not_found");
-    assert_eq!(code(resolve::view(&w.store, " ", None)), "invalid_input");
+    assert_eq!(code(resolve::view(&w.store, &other.id)), "not_found");
+    assert_eq!(code(resolve::view(&w.store, " ")), "invalid_input");
 }
 
 #[test]
@@ -535,11 +466,10 @@ fn views_serialize_as_contract() {
     let w = world();
     let p = w.store.create_project("p").unwrap();
     let json = serde_json::to_value(project_view(&w.secrets, &p)).unwrap();
-    for field in ["id", "name", "variables", "environments"] {
-        assert!(json.get(field).is_some(), "{field}");
-    }
-    assert!(json.get("hosts").is_none());
-    assert!(json["activeEnvironmentId"].is_null());
+    assert_eq!(
+        json,
+        serde_json::json!({"id": p.id, "name": "p", "variables": []})
+    );
 }
 
 #[test]
@@ -559,7 +489,7 @@ fn keychain_cleanup_waits_for_a_running_lifecycle_step() {
             )
         });
         std::thread::sleep(std::time::Duration::from_millis(150));
-        assert_eq!(conn_accounts(&w, &t.h1), 6);
+        assert_eq!(conn_accounts(&w, &t.h1), 2);
         assert!(w.mem.raw("var/global/late").is_none());
         assert!(w.store.snapshot().unwrap().host(&t.h1).is_some());
         drop(guard);
@@ -607,11 +537,9 @@ fn unvalidated_names_are_not_quoted() {
     assert!(!err.message.contains("<b>"));
 }
 
-/// p1 (dev, prod) > Backend > [a, b], p1 root host c, Home > Tools > d.
+/// p1 > Backend > [a, b], p1 root host c, Home > Tools > d.
 struct Nodes {
     p1: String,
-    e1: String,
-    e2: String,
     backend: String,
     tools: String,
     a: String,
@@ -623,8 +551,6 @@ struct Nodes {
 fn nodes(w: &World) -> Nodes {
     let s = &w.store;
     let p1 = s.create_project("Payments").unwrap().id;
-    let e1 = s.create_environment(&p1, "dev").unwrap().id;
-    let e2 = s.create_environment(&p1, "prod").unwrap().id;
     let backend = s.create_collection(Some(&p1), None, "Backend").unwrap().id;
     let tools = s.create_collection(None, None, "Tools").unwrap().id;
     let host = |p: Option<&str>, parent: Option<&str>, name: &str| {
@@ -634,16 +560,11 @@ fn nodes(w: &World) -> Nodes {
     let b = host(Some(&p1), Some(&backend), "b");
     let c = host(Some(&p1), None, "c");
     let d = host(None, Some(&tools), "d");
-    for h in [&a, &b, &c] {
-        save_conn(w, h, None);
-        save_conn(w, h, Some(&e1));
-        save_conn(w, h, Some(&e2));
+    for h in [&a, &b, &c, &d] {
+        save_conn(w, h);
     }
-    save_conn(w, &d, None);
     Nodes {
         p1,
-        e1,
-        e2,
         backend,
         tools,
         a,
@@ -670,7 +591,7 @@ fn delete_collection_removes_the_saved_secrets_of_its_hosts() {
     );
     assert_eq!(conn_accounts(&w, &n.a), 0);
     assert_eq!(conn_accounts(&w, &n.b), 0);
-    assert_eq!(conn_accounts(&w, &n.c), 6);
+    assert_eq!(conn_accounts(&w, &n.c), 2);
     assert_eq!(conn_accounts(&w, &n.d), 2);
     let json = serde_json::to_value(&deleted).unwrap();
     assert!(json["collectionIds"].is_array() && json["hostIds"].is_array());
@@ -690,7 +611,7 @@ fn delete_collection_removes_the_saved_secrets_of_its_hosts() {
             .code,
         "invalid_input"
     );
-    assert_eq!(conn_accounts(&w, &n.c), 6);
+    assert_eq!(conn_accounts(&w, &n.c), 2);
 }
 
 #[test]
@@ -722,7 +643,7 @@ fn delete_host_by_id_works_in_home_and_nested() {
     assert_eq!(conn_accounts(&w, &n.a), 0);
     remove_host(&w.store, &w.secrets, &n.d).unwrap();
     assert_eq!(conn_accounts(&w, &n.d), 0);
-    assert_eq!(conn_accounts(&w, &n.b), 6);
+    assert_eq!(conn_accounts(&w, &n.b), 2);
     let err = remove_host(&w.store, &w.secrets, &n.backend).unwrap_err();
     assert_eq!(err.code, "not_found");
 }
@@ -733,15 +654,13 @@ fn cross_scope_move_forgets_saved_secrets_of_the_old_scope() {
     let n = nodes(&w);
     let m = relocate(&w.store, &w.secrets, &n.backend, None, Some(&n.tools)).unwrap();
     assert!(m.scope_changed);
-    assert_eq!(m.old_environments, vec![n.e1.clone(), n.e2.clone()]);
     assert_eq!(conn_accounts(&w, &n.a), 0);
     assert_eq!(conn_accounts(&w, &n.b), 0);
-    assert_eq!(conn_accounts(&w, &n.c), 6);
+    assert_eq!(conn_accounts(&w, &n.c), 2);
     assert_eq!(conn_accounts(&w, &n.d), 2);
 
-    save_conn(&w, &n.d, None);
     let m = relocate(&w.store, &w.secrets, &n.d, Some(&n.p1), None).unwrap();
-    assert!(m.scope_changed && m.old_environments.is_empty());
+    assert!(m.scope_changed);
     assert_eq!(conn_accounts(&w, &n.d), 0);
 }
 
@@ -751,7 +670,7 @@ fn moves_within_a_scope_or_refused_keep_saved_secrets() {
     let n = nodes(&w);
     let m = relocate(&w.store, &w.secrets, &n.c, Some(&n.p1), Some(&n.backend)).unwrap();
     assert!(!m.scope_changed);
-    assert_eq!(conn_accounts(&w, &n.c), 6);
+    assert_eq!(conn_accounts(&w, &n.c), 2);
 
     w.store.create_host(None, None, &host_input("A")).unwrap();
     let err = relocate(&w.store, &w.secrets, &n.backend, None, None).unwrap_err();
@@ -767,7 +686,7 @@ fn moves_within_a_scope_or_refused_keep_saved_secrets() {
     .unwrap_err();
     assert_eq!(err.code, "invalid_input");
     for h in [&n.a, &n.b, &n.c] {
-        assert_eq!(conn_accounts(&w, h), 6);
+        assert_eq!(conn_accounts(&w, h), 2);
     }
 }
 
@@ -829,7 +748,7 @@ mod connections {
     async fn connect(c: &Connected, host_id: &str) -> String {
         let mut t = c.target.clone();
         t.host_id = host_id.into();
-        t.connection_id = format!("{host_id}@none");
+        t.connection_id = host_id.into();
         let emit: Arc<dyn Fn(crate::ssh::ConnectEvent) + Send + Sync> = Arc::new(|_| {});
         c.manager.connect(&t, None, &|| true, emit).await.unwrap();
         t.connection_id
@@ -937,15 +856,14 @@ mod races {
         w: &World,
         ssh: &SshManager,
         host: &str,
-        env: Option<&str>,
         during: impl Future<Output = ()>,
     ) -> Result<ConnectionInfo, SshError> {
-        let target = resolve::target(&w.store, host, env).unwrap();
+        let target = resolve::target(&w.store, host).unwrap();
         let (tx, mut rx) = mpsc::unbounded_channel();
         let emit: Arc<dyn Fn(ConnectEvent) + Send + Sync> = Arc::new(move |e| {
             let _ = tx.send(e);
         });
-        let current = || resolve::target(&w.store, host, env).is_ok_and(|now| now == target);
+        let current = || resolve::target(&w.store, host).is_ok_and(|now| now == target);
         let credential: Credential = serde_json::from_value(
             serde_json::json!({"secret": SERVER_PASSWORD, "remember": true}),
         )
@@ -996,10 +914,8 @@ mod races {
                 .create_host(None, None, &literal("h", s.port))
                 .unwrap()
                 .id;
-        let info = connect_racing(&s.w, &s.ssh, &h, None, async {})
-            .await
-            .unwrap();
-        assert_eq!(info.connection_id, format!("{h}@none"));
+        let info = connect_racing(&s.w, &s.ssh, &h, async {}).await.unwrap();
+        assert_eq!(info.connection_id, h);
         assert_eq!(conn_accounts(&s.w, &h), 1);
         assert_eq!(s.ssh.list().await.len(), 1);
     }
@@ -1013,7 +929,7 @@ mod races {
                 .create_host(None, None, &literal("h", s.port))
                 .unwrap()
                 .id;
-        let err = connect_racing(&s.w, &s.ssh, &h, None, async {
+        let err = connect_racing(&s.w, &s.ssh, &h, async {
             let m = move_node_in(&s.w.store, &s.w.secrets, &s.ssh, &h, Some(&p), None)
                 .await
                 .unwrap();
@@ -1036,30 +952,8 @@ mod races {
                 .create_host(Some(&p), None, &literal("h", s.port))
                 .unwrap()
                 .id;
-        let err = connect_racing(&s.w, &s.ssh, &h, None, async {
+        let err = connect_racing(&s.w, &s.ssh, &h, async {
             move_node_in(&s.w.store, &s.w.secrets, &s.ssh, &h, Some(&q), None)
-                .await
-                .unwrap();
-        })
-        .await
-        .unwrap_err();
-        assert_eq!(err, SshError::HostChanged);
-        assert_eq!(conn_accounts(&s.w, &h), 0);
-        assert!(s.ssh.list().await.is_empty());
-    }
-
-    #[tokio::test]
-    async fn host_connected_in_an_old_environment_is_not_kept_after_a_move() {
-        let s = setup(43).await;
-        let p = s.w.store.create_project("P").unwrap().id;
-        let e = s.w.store.create_environment(&p, "dev").unwrap().id;
-        let h =
-            s.w.store
-                .create_host(Some(&p), None, &literal("h", s.port))
-                .unwrap()
-                .id;
-        let err = connect_racing(&s.w, &s.ssh, &h, Some(&e), async {
-            move_node_in(&s.w.store, &s.w.secrets, &s.ssh, &h, None, None)
                 .await
                 .unwrap();
         })
@@ -1081,7 +975,7 @@ mod races {
                 .create_host(Some(&p), Some(&c), &literal("h", s.port))
                 .unwrap()
                 .id;
-        let err = connect_racing(&s.w, &s.ssh, &h, None, async { delete(&s.w, &p, &c, &h) })
+        let err = connect_racing(&s.w, &s.ssh, &h, async { delete(&s.w, &p, &c, &h) })
             .await
             .unwrap_err();
         assert_eq!(err, SshError::HostChanged);
@@ -1112,37 +1006,4 @@ mod races {
         })
         .await;
     }
-}
-
-#[tokio::test]
-async fn delete_environment_closes_the_connections_in_that_environment_only() {
-    use crate::ssh::test_server::{manager_for, start_server};
-    let server = start_server(47).await;
-    let c = manager_for(&server, "unused");
-    let w = world();
-    let n = nodes(&w);
-    let mut ids = Vec::new();
-    for env in [None, Some(n.e1.as_str()), Some(n.e2.as_str())] {
-        let mut t = c.target.clone();
-        t.host_id = n.a.clone();
-        t.connection_id = crate::ssh::Target::connection_id_of(&n.a, env);
-        let emit: Arc<dyn Fn(crate::ssh::ConnectEvent) + Send + Sync> = Arc::new(|_| {});
-        c.manager.connect(&t, None, &|| true, emit).await.unwrap();
-        ids.push(t.connection_id);
-    }
-    let closing = remove_environment(&w.store, &w.secrets, &n.p1, &n.e1).unwrap();
-    assert!(closing.contains(&format!("{}@{}", n.a, n.e1)));
-    assert_eq!(closing.len(), 3, "every host of the project");
-    super::super::ssh::close_connections(&c.manager, &closing).await;
-    let mut open: Vec<String> = c
-        .manager
-        .list()
-        .await
-        .into_iter()
-        .map(|i| i.connection_id)
-        .collect();
-    open.sort();
-    let mut expected = vec![ids[0].clone(), ids[2].clone()];
-    expected.sort();
-    assert_eq!(open, expected);
 }

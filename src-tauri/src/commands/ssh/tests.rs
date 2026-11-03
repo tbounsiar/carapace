@@ -8,7 +8,6 @@ struct World {
     _dir: tempfile::TempDir,
     store: ConfigStore,
     project: String,
-    dev: String,
     host: String,
 }
 
@@ -32,7 +31,6 @@ fn world(auth: AuthMethod) -> World {
     let dir = tempfile::tempdir().unwrap();
     let store = ConfigStore::new(dir.path().to_path_buf());
     let p = store.create_project("p").unwrap().id;
-    let dev = store.create_environment(&p, "dev").unwrap().id;
     let host = store
         .create_host(
             Some(&p),
@@ -53,21 +51,12 @@ fn world(auth: AuthMethod) -> World {
         VariableScope::Project {
             project_id: p.clone(),
         },
-        &[("host", "project.example"), ("port", "22"), ("pw", "")],
-    );
-    set(
-        &store,
-        VariableScope::Environment {
-            project_id: p.clone(),
-            environment_id: dev.clone(),
-        },
-        &[("host", "127.0.0.1"), ("port", "2223")],
+        &[("host", "127.0.0.1"), ("port", "2223"), ("pw", "")],
     );
     World {
         _dir: dir,
         store,
         project: p,
-        dev,
         host,
     }
 }
@@ -79,17 +68,16 @@ fn pw_ref() -> AuthMethod {
 }
 
 #[test]
-fn target_is_keyed_by_host_and_environment() {
+fn target_is_keyed_by_host() {
     let w = world(pw_ref());
-    let t = resolve::target(&w.store, &w.host, Some(&w.dev)).unwrap();
+    let t = resolve::target(&w.store, &w.host).unwrap();
     assert_eq!(
         t,
         Target {
-            connection_id: format!("{}@{}", w.host, w.dev),
+            connection_id: w.host.clone(),
             host_id: w.host.clone(),
             project_id: Some(w.project.clone()),
-            environment_id: Some(w.dev.clone()),
-            saved: SavedKey::new(&w.host, Some(&w.dev)).unwrap(),
+            saved: SavedKey::new(&w.host).unwrap(),
             hostname: "127.0.0.1".into(),
             port: 2223,
             username: "carapace".into(),
@@ -98,11 +86,10 @@ fn target_is_keyed_by_host_and_environment() {
             },
         }
     );
-    let none = resolve::target(&w.store, &w.host, None).unwrap();
-    assert_eq!(none.connection_id, format!("{}@none", w.host));
-    assert_eq!(none.hostname, "project.example");
-    assert_eq!(none.port, 22);
-    assert_ne!(none.saved, t.saved);
+    assert_eq!(
+        t.saved.account(crate::secrets::SecretKind::Password),
+        format!("conn/{}/none/password", w.host)
+    );
 }
 
 #[test]
@@ -115,7 +102,7 @@ fn missing_variables_fail_before_connecting() {
         },
         &[],
     );
-    let err = resolve::target(&w.store, &w.host, None).unwrap_err();
+    let err = resolve::target(&w.store, &w.host).unwrap_err();
     assert_eq!(err.code, "missing_variables");
     assert_eq!(err.message, "missing variables: host, port, pw");
 }
@@ -125,62 +112,26 @@ fn secret_variable_in_a_plain_field_is_invalid_input() {
     let w = world(AuthMethod::Agent);
     set(
         &w.store,
-        VariableScope::Environment {
+        VariableScope::Project {
             project_id: w.project.clone(),
-            environment_id: w.dev.clone(),
         },
         &[("host", ""), ("port", "2223")],
     );
-    let err = resolve::target(&w.store, &w.host, Some(&w.dev)).unwrap_err();
+    let err = resolve::target(&w.store, &w.host).unwrap_err();
     assert_eq!(err.code, "invalid_input");
     assert_eq!(
         err.message,
         "secret variable host used in a non-secret field"
     );
-    assert!(resolve::target(&w.store, &w.host, None).is_ok());
 }
 
 #[test]
 fn unknown_ids_are_not_found() {
     let w = world(AuthMethod::Agent);
-    let code = |h: &str, e: Option<&str>| resolve::target(&w.store, h, e).unwrap_err().code;
-    assert_eq!(code("nope", None), "not_found");
-    assert_eq!(code(&w.host, Some("nope")), "not_found");
-    assert_eq!(code("", None), "invalid_input");
-    assert_eq!(code(&w.host, Some("")), "invalid_input");
-}
-
-#[test]
-fn environment_must_belong_to_the_host_scope() {
-    let w = world(AuthMethod::Agent);
-    let other = w.store.create_project("q").unwrap().id;
-    let foreign = w.store.create_environment(&other, "dev").unwrap().id;
-    let err = resolve::target(&w.store, &w.host, Some(&foreign)).unwrap_err();
-    assert_eq!(err.code, "invalid_input");
-    let home = w
-        .store
-        .create_host(
-            None,
-            None,
-            &HostInput {
-                name: "home".into(),
-                hostname: "${host}".into(),
-                port: "22".into(),
-                username: "${user}".into(),
-                auth: AuthMethod::Agent,
-            },
-        )
-        .unwrap()
-        .id;
-    let err = resolve::target(&w.store, &home, Some(&w.dev)).unwrap_err();
-    assert_eq!(err.code, "invalid_input");
-    assert_eq!(err.message, "a host outside a project has no environment");
-    assert_eq!(
-        resolve::target(&w.store, &home, Some("nope"))
-            .unwrap_err()
-            .code,
-        "invalid_input"
-    );
+    let code = |h: &str| resolve::target(&w.store, h).unwrap_err().code;
+    assert_eq!(code("nope"), "not_found");
+    assert_eq!(code(""), "invalid_input");
+    assert_eq!(code(" "), "invalid_input");
 }
 
 #[test]
@@ -201,7 +152,7 @@ fn home_host_resolves_with_global_variables_only() {
         )
         .unwrap()
         .id;
-    let err = resolve::target(&w.store, &home, None).unwrap_err();
+    let err = resolve::target(&w.store, &home).unwrap_err();
     assert_eq!(err.message, "missing variables: host, port, pw");
     set(
         &w.store,
@@ -213,11 +164,11 @@ fn home_host_resolves_with_global_variables_only() {
             ("pw", ""),
         ],
     );
-    let t = resolve::target(&w.store, &home, None).unwrap();
-    assert_eq!(t.connection_id, format!("{home}@none"));
+    let t = resolve::target(&w.store, &home).unwrap();
+    assert_eq!(t.connection_id, home);
     assert_eq!((t.hostname.as_str(), t.port), ("10.0.0.1", 2200));
-    assert_eq!(t.environment_id, None);
-    assert_eq!(t.saved, SavedKey::new(&home, None).unwrap());
+    assert_eq!(t.project_id, None);
+    assert_eq!(t.saved, SavedKey::new(&home).unwrap());
     assert_eq!(
         t.auth,
         TargetAuth::Password {
@@ -229,25 +180,22 @@ fn home_host_resolves_with_global_variables_only() {
 #[test]
 fn a_changed_variable_makes_the_target_stale() {
     let w = world(pw_ref());
-    let t = resolve::target(&w.store, &w.host, Some(&w.dev)).unwrap();
-    let current = || resolve::target(&w.store, &w.host, Some(&w.dev)).is_ok_and(|now| now == t);
+    let t = resolve::target(&w.store, &w.host).unwrap();
+    let current = || resolve::target(&w.store, &w.host).is_ok_and(|now| now == t);
     assert!(current());
+    let project = || VariableScope::Project {
+        project_id: w.project.clone(),
+    };
     set(
         &w.store,
-        VariableScope::Environment {
-            project_id: w.project.clone(),
-            environment_id: w.dev.clone(),
-        },
-        &[("host", "127.0.0.1"), ("port", "2224")],
+        project(),
+        &[("host", "127.0.0.1"), ("port", "2224"), ("pw", "")],
     );
     assert!(!current());
     set(
         &w.store,
-        VariableScope::Environment {
-            project_id: w.project.clone(),
-            environment_id: w.dev.clone(),
-        },
-        &[("host", "127.0.0.1"), ("port", "2223")],
+        project(),
+        &[("host", "127.0.0.1"), ("port", "2223"), ("pw", "")],
     );
     assert!(current());
     w.store.delete_host(&w.host).unwrap();

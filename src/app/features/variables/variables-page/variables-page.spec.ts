@@ -5,7 +5,6 @@ import { provideTaiga, TuiNotificationService, TuiRoot } from '@taiga-ui/core';
 import { of } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Project, VariableView } from '../../../core/ipc/config.models';
-import { ProjectActions } from '../../project-tree/project-actions';
 import { unsavedChangesGuard } from '../unsaved-changes-guard';
 import { VariablesPage } from './variables-page';
 
@@ -25,26 +24,12 @@ const v = (name: string, value: string): VariableView => ({
   hasValue: true,
 });
 
-const PROJECT: Project = {
-  id: 'p1',
-  name: 'Shop',
-  variables: [v('host', 'example.com')],
-  environments: [
-    { id: 'e1', name: 'Dev', variables: [v('host', '127.0.0.1')] },
-    { id: 'e2', name: 'Production', variables: [] },
-  ],
-  activeEnvironmentId: 'e2',
-};
+const PROJECT: Project = { id: 'p1', name: 'Shop', variables: [v('host', 'example.com')] };
 
 describe('VariablesPage', () => {
   const projects = signal<Project[]>([PROJECT]);
   const variables = signal<VariableView[]>([v('user', 'carapace')]);
   const loading = signal(false);
-  const actions = {
-    addEnvironment: vi.fn(),
-    renameEnvironment: vi.fn(),
-    removeEnvironment: vi.fn(() => Promise.resolve(true)),
-  };
   const setVariables = vi.fn(() => Promise.resolve([]));
   let fixture: ComponentFixture<Shell>;
   let router: Router;
@@ -105,7 +90,6 @@ describe('VariablesPage', () => {
           provide: ConfigService,
           useValue: { projects, variables, loading, setVariables, load: vi.fn() },
         },
-        { provide: ProjectActions, useValue: actions },
         { provide: TuiNotificationService, useValue: { open: vi.fn(() => of(undefined)) } },
       ],
     });
@@ -114,61 +98,23 @@ describe('VariablesPage', () => {
     await settle();
   });
 
-  it('edits the global variables without an environment list', async () => {
+  it('edits the global variables', async () => {
     await go('/variables');
-    expect(byId('vars-title')?.textContent).toContain('Global variables');
-    expect(byId('vars-scope-project')).toBeNull();
+    expect(byId('vars-title')?.textContent?.trim()).toBe('Global variables');
+    expect(document.body.textContent).toContain('Projects can override them.');
     expect(value('var-name-0')).toBe('user');
   });
 
-  it('shows project variables first, then the selected environment', async () => {
+  it('edits the project variables only', async () => {
     await go('/projects/p1/variables');
-    expect(byId('vars-title')?.textContent).toContain('Shop: variables and environments');
-    expect(byId('vars-scope-project')?.getAttribute('aria-current')).toBe('true');
+    expect(byId('vars-title')?.textContent?.trim()).toBe('Shop: variables');
+    expect(document.body.textContent).toContain('Project variables win over global ones.');
     expect(value('var-value-0')).toBe('example.com');
-
-    await click('vars-scope-env-Dev');
-    expect(byId('vars-scope-title')?.textContent).toContain('Environment Dev');
-    expect(value('var-value-0')).toBe('127.0.0.1');
-  });
-
-  it('marks the active environment and its kind', async () => {
-    await go('/projects/p1/variables');
-    const prod = byId('vars-scope-env-Production')!;
-    expect(prod.textContent).toContain('prod');
-    expect(prod.querySelector('[data-testid="vars-env-active"]')).not.toBeNull();
-    expect(byId('vars-scope-env-Dev')!.querySelector('[data-testid="vars-env-active"]')).toBeNull();
-  });
-
-  it('adds, renames and deletes environments', async () => {
-    await go('/projects/p1/variables');
-    await click('vars-env-add');
-    expect(actions.addEnvironment).toHaveBeenCalledWith(PROJECT);
-
-    await click('vars-env-menu-Dev');
-    await click('vars-env-rename');
-    expect(actions.renameEnvironment).toHaveBeenCalledOnce();
-    expect(actions.renameEnvironment).toHaveBeenCalledWith(PROJECT, PROJECT.environments[0]);
-
-    await click('vars-scope-env-Dev');
-    await click('vars-env-menu-Dev');
-    await click('vars-env-delete');
-    expect(actions.removeEnvironment).toHaveBeenCalledWith(PROJECT, PROJECT.environments[0]);
-    expect(byId('vars-scope-project')?.getAttribute('aria-current')).toBe('true');
-  });
-
-  it('asks before switching scope with unsaved changes', async () => {
-    await go('/projects/p1/variables');
-    await type('var-value-0', 'changed');
-    await click('vars-scope-env-Dev');
-    confirmButton('Keep editing')!.click();
-    await settle();
-    expect(value('var-value-0')).toBe('changed');
-
-    await click('vars-scope-env-Dev');
-    confirmButton('Discard')!.click();
-    await settle();
-    expect(value('var-value-0')).toBe('127.0.0.1');
+    await type('var-value-0', 'shop.example.com');
+    await click('vars-save');
+    expect(setVariables).toHaveBeenCalledWith({ kind: 'project', projectId: 'p1' }, [
+      { name: 'host', kind: 'plain', value: 'shop.example.com' },
+    ]);
   });
 
   it('guards navigation away with unsaved changes', async () => {

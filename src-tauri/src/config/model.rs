@@ -146,30 +146,11 @@ fn port_template<'de, D: Deserializer<'de>>(d: D) -> Result<Template, D::Error> 
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Environment {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub variables: Vec<Variable>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Project {
     pub id: String,
     pub name: String,
     #[serde(default)]
     pub variables: Vec<Variable>,
-    #[serde(default)]
-    pub environments: Vec<Environment>,
-    #[serde(default)]
-    pub active_environment_id: Option<String>,
-}
-
-impl Project {
-    pub fn environment(&self, id: &str) -> Option<&Environment> {
-        self.environments.iter().find(|e| e.id == id)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -268,11 +249,5 @@ impl Default for ConfigFile {
 )]
 pub enum VariableScope {
     Global,
-    Project {
-        project_id: String,
-    },
-    Environment {
-        project_id: String,
-        environment_id: String,
-    },
+    Project { project_id: String },
 }

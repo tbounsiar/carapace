@@ -3,19 +3,7 @@
     <header tuiHeader>
       <hgroup tuiTitle>
         <h1 data-testid="project-home-title">{{ project.name }}</h1>
-        <p tuiSubtitle class="subtitle">
-          <span>{{ summary() }} ·</span>
-          @if (environment(); as env) {
-            <span>Environment: {{ env.name }}</span>
-            @if (marker()?.label) {
-              <span tuiBadge size="s" [appearance]="marker()!.appearance">{{
-                marker()!.label
-              }}</span>
-            }
-          } @else {
-            <span>No environment</span>
-          }
-        </p>
+        <p tuiSubtitle>{{ summary() }}</p>
         @if (!empty()) {
           <p tuiSubtitle>Pick a host in the sidebar.</p>
         }

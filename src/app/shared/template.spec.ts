@@ -27,9 +27,8 @@ const secret = (name: string, hasValue = true): VariableView => ({
 });
 
 const layers: VariableLayers = {
-  global: [plain('user', 'carapace'), plain('port', '22')],
-  project: [plain('host', 'example.com'), secret('pw')],
-  environment: [plain('host', '127.0.0.1'), plain('port', '2223')],
+  global: [plain('user', 'carapace'), plain('port', '2223'), plain('host', 'global.example.com')],
+  project: [plain('host', '127.0.0.1'), secret('pw')],
 };
 
 describe('template', () => {
@@ -58,10 +57,10 @@ describe('template', () => {
     expect(secretReferenceName('plain')).toBeNull();
   });
 
-  it('lets the environment win over the project and global levels', () => {
+  it('lets the project win over the global level', () => {
     expect(lookupVariable(layers, 'host')?.value).toBe('127.0.0.1');
     expect(lookupVariable(layers, 'user')?.value).toBe('carapace');
-    expect(lookupVariable({ ...layers, environment: null }, 'host')?.value).toBe('example.com');
+    expect(lookupVariable({ ...layers, project: [] }, 'host')?.value).toBe('global.example.com');
     expect(lookupVariable(layers, 'Host')).toBeNull();
   });
 
@@ -118,11 +117,10 @@ describe('template', () => {
     });
   });
 
-  it('collects secret variable names from every level', () => {
+  it('collects secret variable names from both levels', () => {
     expect(
-      secretVariableNames([secret('b')], {
-        variables: [secret('a'), plain('c', '')],
-        environments: [{ id: 'e1', name: 'dev', variables: [secret('b'), secret('d')] }],
+      secretVariableNames([secret('b'), secret('d')], {
+        variables: [secret('a'), secret('b'), plain('c', '')],
       }),
     ).toEqual(['a', 'b', 'd']);
   });
@@ -138,10 +136,9 @@ describe('Home scope', () => {
   };
 
   it('layers global variables only', () => {
-    expect(variableLayers([plain('a', '1')], null, null)).toEqual({
+    expect(variableLayers([plain('a', '1')], null)).toEqual({
       global: [plain('a', '1')],
       project: [],
-      environment: null,
     });
     expect(secretVariableNames([secret('g')], null)).toEqual(['g']);
   });
@@ -149,9 +146,8 @@ describe('Home scope', () => {
   it('lists references no level of the target defines, sorted', () => {
     expect(undefinedReferences([host], [plain('host', 'h')], null)).toEqual(['port', 'pw']);
     expect(
-      undefinedReferences([host], [], {
-        variables: [plain('port', '22')],
-        environments: [{ id: 'e', name: 'dev', variables: [secret('pw'), plain('host', 'x')] }],
+      undefinedReferences([host], [plain('host', 'x')], {
+        variables: [plain('port', '22'), secret('pw')],
       }),
     ).toEqual([]);
   });

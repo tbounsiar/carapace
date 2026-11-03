@@ -157,20 +157,6 @@ export async function openGlobalVariables(): Promise<void> {
   await byId('vars-title').waitForDisplayed({ timeout: 10000 });
 }
 
-export async function addEnvironment(name: string): Promise<void> {
-  await clickId('vars-env-add');
-  await fillName(name);
-  await byId(`vars-scope-env-${name}`).waitForExist({ timeout: 10000 });
-}
-
-export async function selectScope(id: string): Promise<void> {
-  await clickId(id);
-  await browser.waitUntil(async () => (await byId(id).getAttribute('aria-current')) === 'true', {
-    timeout: 5000,
-    timeoutMsg: `${id} did not become the selected scope`,
-  });
-}
-
 export async function addPlainVariables(rows: VariableRow[]): Promise<void> {
   for (const row of rows) {
     const index = (await $$('[data-testid^="var-name-"]').length) as number;
@@ -184,22 +170,6 @@ export async function addPlainVariables(rows: VariableRow[]): Promise<void> {
 export async function saveVariables(): Promise<void> {
   await clickId('vars-save');
   await byId('vars-cancel').waitForEnabled({ timeout: 10000, reverse: true });
-}
-
-/** The environment item lives in the aside header of the current project; it is read by text. */
-export async function envLabel(): Promise<string> {
-  const text = await textOf('env-select');
-  return text.split('\n')[0].trim();
-}
-
-export async function selectEnvironment(name: string | null): Promise<void> {
-  await waitGone('env-option-none');
-  await clickId('env-select');
-  await clickId(name === null ? 'env-option-none' : `env-option-${name}`);
-  await browser.waitUntil(async () => (await envLabel()) === (name ?? 'No environment'), {
-    timeout: 10000,
-    timeoutMsg: `env item never showed ${name}`,
-  });
 }
 
 export async function hostStatus(name: string): Promise<string> {

@@ -21,15 +21,14 @@ use crate::secrets::{MemoryBackend, SavedKey};
 
 pub const TEST_HOST_ID: &str = "00000000-0000-4000-8000-0000000000a1";
 
-/// A target whose saved secrets live under `TEST_HOST_ID` without environment; the
-/// connection id is free so tests can name connections as they like.
+/// A target whose saved secrets live under `TEST_HOST_ID`; the connection id is free so tests
+/// can name connections as they like.
 pub fn target(connection_id: &str, port: u16, username: &str, auth: TargetAuth) -> Target {
     Target {
         connection_id: connection_id.into(),
         host_id: TEST_HOST_ID.into(),
         project_id: None,
-        environment_id: None,
-        saved: SavedKey::new(TEST_HOST_ID, None).unwrap(),
+        saved: SavedKey::new(TEST_HOST_ID).unwrap(),
         hostname: "127.0.0.1".into(),
         port,
         username: username.into(),
