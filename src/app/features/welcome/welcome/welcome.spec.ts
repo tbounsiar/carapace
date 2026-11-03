@@ -2,24 +2,38 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
-import type { Host, Project } from '../../../core/ipc/config.models';
+import type { ConfigNode, Project } from '../../../core/ipc/config.models';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { Welcome } from './welcome';
 
-describe('Welcome', () => {
+const shop: Project = {
+  id: 'p1',
+  name: 'Shop',
+  variables: [],
+  environments: [],
+  activeEnvironmentId: null,
+};
+
+describe('Welcome (Home page)', () => {
   const projects = signal<Project[]>([]);
-  const actions = { createProject: vi.fn(), addHost: vi.fn() };
+  const nodes = signal<ConfigNode[]>([]);
+  const loaded = signal(true);
+  const actions = { createProject: vi.fn(), addHost: vi.fn(), addCollection: vi.fn() };
   let fixture: ComponentFixture<Welcome>;
   const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
+  const byId = (id: string): HTMLButtonElement | null =>
+    el().querySelector<HTMLButtonElement>(`[data-testid="${id}"]`);
 
   beforeEach(async () => {
     vi.clearAllMocks();
     projects.set([]);
+    nodes.set([]);
+    loaded.set(true);
     await TestBed.configureTestingModule({
       imports: [Welcome],
       providers: [
         provideTaiga(),
-        { provide: ConfigService, useValue: { projects } },
+        { provide: ConfigService, useValue: { projects, nodes, loaded } },
         { provide: ProjectActions, useValue: actions },
       ],
     }).compileComponents();
@@ -27,42 +41,42 @@ describe('Welcome', () => {
     await fixture.whenStable();
   });
 
-  it('shows the app name and tagline', () => {
-    expect(el().textContent).toContain('Carapace');
-    expect(el().textContent).toContain(
-      'SSH and SFTP, organized by project, with environments and variables',
-    );
-  });
-
-  it('offers to create the first project', () => {
-    el().querySelector<HTMLButtonElement>('[data-testid="welcome-new-project"]')!.click();
+  it('offers a project, a Home host or a collection when Home is empty', () => {
+    expect(el().textContent).toContain('Nothing here yet');
+    byId('welcome-new-project')!.click();
+    byId('welcome-add-host')!.click();
+    byId('welcome-new-collection')!.click();
     expect(actions.createProject).toHaveBeenCalledOnce();
+    expect(actions.addHost).toHaveBeenCalledWith({ projectId: null, parentId: null });
+    expect(actions.addCollection).toHaveBeenCalledWith({ projectId: null, parentId: null });
   });
 
-  const shop: Project = {
-    id: 'p1',
-    name: 'Shop',
-    variables: [],
-    environments: [],
-    hosts: [],
-    activeEnvironmentId: null,
-  };
-
-  it('offers to add a host while no project has one', async () => {
+  it('shows the Home header and the sidebar hint once something exists', async () => {
     projects.set([shop]);
     await fixture.whenStable();
-    expect(el().textContent).toContain('Shop has no hosts yet');
-    expect(el().textContent).not.toContain('Select a host');
-    el().querySelector<HTMLButtonElement>('[data-testid="welcome-add-host"]')!.click();
-    expect(actions.addHost).toHaveBeenCalledWith(shop);
+    expect(el().querySelector('h1')?.textContent).toBe('Home');
+    expect(byId('home-hint')?.textContent).toBe('Double-click a project to open it.');
+    nodes.set([
+      {
+        kind: 'host',
+        id: 'h1',
+        name: 'vps',
+        projectId: null,
+        parentId: null,
+        hostname: 'h',
+        port: '22',
+        username: 'u',
+        auth: { kind: 'agent' },
+      },
+    ]);
+    await fixture.whenStable();
+    expect(byId('home-hint')?.textContent).toContain('Pick a host in the sidebar');
+    expect(byId('welcome-new-project')).toBeNull();
   });
 
-  it('points to the sidebar once a host exists', async () => {
-    projects.set([shop, { ...shop, id: 'p2', name: 'Blog', hosts: [{ id: 'h1' } as Host] }]);
+  it('shows nothing before the config is loaded', async () => {
+    loaded.set(false);
     await fixture.whenStable();
-    expect(el().querySelector('[data-testid="welcome-add-host"]')).toBeNull();
-    expect(el().querySelector('[data-testid="welcome-new-project"]')).toBeNull();
-    expect(el().textContent).toContain('Select a host');
-    expect(el().textContent).toContain('environment at the top right');
+    expect(el().textContent?.trim()).toBe('');
   });
 });

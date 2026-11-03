@@ -83,7 +83,7 @@
       </dd>
       <dt>Environment</dt>
       <dd data-testid="host-detail-env">
-        {{ located.project.name }} / {{ environment()?.name ?? 'No environment' }}
+        {{ scopeText() }}
       </dd>
       <dt>Authentication</dt>
       <dd data-testid="host-detail-auth">
@@ -136,6 +136,6 @@
   <tui-block-status size="m" data-testid="host-not-found">
     <h2>Host not found</h2>
     <p>It may have been deleted. Pick another host in the sidebar.</p>
-    <a tuiButton appearance="secondary" size="s" routerLink="/">Back to start</a>
+    <a tuiButton appearance="secondary" size="s" routerLink="/">Go to Home</a>
   </tui-block-status>
 }

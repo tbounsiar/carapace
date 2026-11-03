@@ -1,15 +1,14 @@
-import { Component, computed, effect, inject, input, resource, signal } from '@angular/core';
+import { Component, computed, inject, input, resource, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TuiButton, TuiIcon, TuiNotificationService, TuiTitle } from '@taiga-ui/core';
 import { TuiBadge, TuiButtonLoading, TuiSegmented, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiCardLarge, TuiHeader } from '@taiga-ui/layout';
 import { ConfigService } from '../../../core/ipc/config';
-import { connectionTarget } from '../../../core/ipc/connection';
+import { hostTarget } from '../../../core/ipc/connection';
 import { SecretsService } from '../../../core/ipc/secrets';
 import { SshService } from '../../../core/ipc/ssh';
 import { AUTH_LABELS } from '../../../shared/auth-method';
 import { connectionStatus } from '../../../shared/connection-status';
-import { CurrentProject } from '../../../shared/current-project';
 import { environmentMarker } from '../../../shared/environment-kind';
 import { FilesPanel } from '../../files/files-panel/files-panel';
 import { HostConnector } from '../../host-connection/host-connector';
@@ -50,7 +49,6 @@ export class HostDetail {
   private readonly connector = inject(HostConnector);
   private readonly actions = inject(ProjectActions);
   private readonly views = inject(HostViews);
-  private readonly current = inject(CurrentProject);
   private readonly alerts = inject(TuiNotificationService);
 
   readonly hostId = input.required<string>();
@@ -64,9 +62,7 @@ export class HostDetail {
 
   protected readonly target = computed(() => {
     const located = this.located();
-    return located
-      ? connectionTarget(located.project.id, located.host.id, located.project.activeEnvironmentId)
-      : null;
+    return located ? hostTarget(located.host, located.project) : null;
   });
 
   protected readonly marker = computed(() => {
@@ -79,15 +75,16 @@ export class HostDetail {
     params: () => {
       const target = this.target();
       return target
-        ? { target, config: this.config.projects(), vars: this.config.variables() }
+        ? {
+            target,
+            projects: this.config.projects(),
+            nodes: this.config.nodes(),
+            vars: this.config.variables(),
+          }
         : undefined;
     },
     loader: ({ params }) =>
-      this.config.resolveHost(
-        params.target.projectId,
-        params.target.hostId,
-        params.target.environmentId,
-      ),
+      this.config.resolveHost(params.target.hostId, params.target.environmentId),
   });
 
   protected readonly address = computed(() => {
@@ -139,14 +136,12 @@ export class HostDetail {
     VIEW_OPTIONS.findIndex((o) => o.view === this.view()),
   );
 
-  constructor() {
-    effect(() => {
-      const projectId = this.located()?.project.id;
-      if (projectId) {
-        this.current.select(projectId);
-      }
-    });
-  }
+  protected readonly scopeText = computed(() => {
+    const project = this.located()?.project;
+    return project
+      ? `${project.name} / ${this.environment()?.name ?? 'No environment'}`
+      : 'Home · no environment';
+  });
 
   protected selectView(index: number): void {
     const option = VIEW_OPTIONS[index];
@@ -172,7 +167,7 @@ export class HostDetail {
   protected edit(): void {
     const located = this.located();
     if (located) {
-      this.actions.editHost(located.project, located.host);
+      this.actions.editHost(located.host);
     }
   }
 

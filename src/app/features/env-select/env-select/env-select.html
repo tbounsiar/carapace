@@ -1,45 +1,75 @@
-@if (project(); as project) {
-  <span class="project" data-testid="env-select-project">{{ project.name }}</span>
-  <tui-textfield
+<div
+  class="dropdown"
+  tuiDropdownAppearance=""
+  [attr.tuiTheme]="theme()"
+  [tuiDropdown]="menu"
+  [tuiDropdownOpen]="open()"
+  (tuiDropdownOpenChange)="open.set($event)"
+>
+  <button
+    tuiAsideItem
     tuiChevron
-    tuiTextfieldSize="s"
-    class="field"
-    [stringify]="stringify"
-    [tuiTextfieldCleaner]="false"
+    type="button"
+    iconStart="@tui.layers"
+    data-testid="env-select"
+    [attr.aria-expanded]="open()"
+    [attr.aria-label]="ariaLabel()"
   >
-    <input
-      tuiSelect
-      data-testid="env-select"
-      [attr.aria-label]="'Environment of ' + project.name"
-      [ngModel]="selected()"
-      (ngModelChange)="choose($event)"
-    />
-    @if (marker()?.label) {
-      <span tuiBadge size="s" data-testid="env-select-kind" [appearance]="marker()!.appearance">
-        {{ marker()!.label }}
-      </span>
-    }
-    <tui-data-list *tuiDropdown size="s">
-      <button tuiOption type="button" data-testid="env-option-none" [value]="none">
-        No environment
-      </button>
-      @for (env of project.environments; track env.id) {
-        @let envMarker = markerOf(env.name);
-        <button
-          tuiOption
-          type="button"
-          class="option"
-          [value]="env.id"
-          [attr.data-testid]="'env-option-' + env.name"
-        >
-          <span class="option-name">{{ env.name }}</span>
-          @if (envMarker.label) {
-            <span tuiBadge size="s" [appearance]="envMarker.appearance">
-              {{ envMarker.label }}
-            </span>
-          }
-        </button>
+    @if (environment(); as env) {
+      <span class="name">{{ env.name }}</span>
+      @if (marker()?.label) {
+        <span tuiBadge size="s" data-testid="env-select-kind" [appearance]="marker()!.appearance">
+          {{ marker()!.label }}
+        </span>
       }
-    </tui-data-list>
-  </tui-textfield>
-}
+    } @else {
+      <span class="name none">No environment</span>
+    }
+  </button>
+</div>
+<ng-template #menu>
+  <tui-data-list size="s" role="menu" aria-label="Environment">
+    <button
+      tuiOption
+      type="button"
+      role="menuitemradio"
+      data-testid="env-option-none"
+      [iconEnd]="isActive(null) ? '@tui.check' : ''"
+      [attr.aria-checked]="isActive(null)"
+      (click)="choose(null)"
+    >
+      No environment
+    </button>
+    @if (project().environments.length) {
+      <hr />
+    }
+    @for (env of project().environments; track env.id) {
+      @let envMarker = markerOf(env.name);
+      <button
+        tuiOption
+        type="button"
+        role="menuitemradio"
+        [iconEnd]="isActive(env) ? '@tui.check' : ''"
+        [attr.aria-checked]="isActive(env)"
+        [attr.data-testid]="'env-option-' + env.name"
+        (click)="choose(env)"
+      >
+        <span class="name">{{ env.name }}</span>
+        @if (envMarker.label) {
+          <span tuiBadge size="s" [appearance]="envMarker.appearance">{{ envMarker.label }}</span>
+        }
+      </button>
+    }
+    <hr />
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.settings-2"
+      data-testid="env-option-manage"
+      (click)="manage()"
+    >
+      Manage environments
+    </button>
+  </tui-data-list>
+</ng-template>

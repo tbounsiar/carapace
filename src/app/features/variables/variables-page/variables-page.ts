@@ -1,13 +1,4 @@
-import {
-  Component,
-  computed,
-  effect,
-  inject,
-  input,
-  linkedSignal,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { Component, computed, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   TuiButton,
@@ -17,12 +8,11 @@ import {
   TuiHint,
   TuiTitle,
 } from '@taiga-ui/core';
-import { TUI_CONFIRM, TuiBadge } from '@taiga-ui/kit';
+import { TuiBadge } from '@taiga-ui/kit';
+import { confirmDestructive } from '../../../shared/destructive-confirm/confirm-destructive';
 import { TuiBlockStatus, TuiHeader } from '@taiga-ui/layout';
-import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Environment, VariableScope } from '../../../core/ipc/config.models';
-import { CurrentProject } from '../../../shared/current-project';
 import { environmentMarker, type EnvironmentMarker } from '../../../shared/environment-kind';
 import { ProjectActions } from '../../project-tree/project-actions';
 import type { LeaveGuarded } from '../unsaved-changes-guard';
@@ -51,7 +41,6 @@ export class VariablesPage implements LeaveGuarded {
   private readonly config = inject(ConfigService);
   private readonly actions = inject(ProjectActions);
   private readonly dialogs = inject(TuiDialogService);
-  private readonly current = inject(CurrentProject);
 
   /** Absent on the global variables route. */
   readonly projectId = input<string>();
@@ -105,32 +94,15 @@ export class VariablesPage implements LeaveGuarded {
     return env ? `Environment ${env.name}` : 'Project variables';
   });
 
-  constructor() {
-    effect(() => {
-      const id = this.projectId();
-      if (id && this.project()) {
-        this.current.select(id);
-      }
-    });
-  }
-
   async canLeave(): Promise<boolean> {
     if (!this.editor()?.dirty()) {
       return true;
     }
-    return firstValueFrom(
-      this.dialogs.open<boolean>(TUI_CONFIRM, {
-        label: 'Discard unsaved changes?',
-        size: 's',
-        data: {
-          content: 'Your changes to these variables are not saved.',
-          yes: 'Discard',
-          no: 'Keep editing',
-          appearance: ['primary-destructive', 'secondary'],
-        },
-      }),
-      { defaultValue: false },
-    );
+    return confirmDestructive(this.dialogs, 'Discard unsaved changes?', {
+      content: 'Your changes to these variables are not saved.',
+      yes: 'Discard',
+      no: 'Keep editing',
+    });
   }
 
   protected marker(env: Environment): EnvironmentMarker {

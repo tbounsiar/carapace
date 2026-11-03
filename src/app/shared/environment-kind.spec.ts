@@ -35,7 +35,7 @@ describe('environmentKind', () => {
 describe('environmentMarker', () => {
   it('maps kinds to Taiga status appearances', () => {
     expect(environmentMarker('prod')).toMatchObject({
-      appearance: 'negative',
+      appearance: 'primary-destructive',
       color: 'var(--tui-status-negative)',
     });
     expect(environmentMarker('qa').appearance).toBe('warning');

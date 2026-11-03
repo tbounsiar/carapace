@@ -1,0 +1,75 @@
+<span tuiNavigationSegments>
+  <span
+    class="anchor"
+    tuiDropdownAppearance=""
+    [attr.tuiTheme]="theme()"
+    [tuiDropdown]="menu"
+    [tuiDropdownMaxHeight]="320"
+    [tuiDropdownOpen]="open()"
+    (tuiDropdownOpenChange)="open.set($event)"
+  >
+    <button
+      tuiButton
+      tuiChevron
+      appearance="secondary-grayscale"
+      size="s"
+      type="button"
+      data-testid="project-select"
+      [attr.aria-expanded]="open()"
+      [attr.aria-label]="'Project: ' + label()"
+    >
+      <span class="label">{{ label() }}</span>
+    </button>
+  </span>
+</span>
+<ng-template #menu>
+  <tui-data-list size="s" role="menu" aria-label="Projects">
+    <button
+      tuiOption
+      type="button"
+      role="menuitemradio"
+      iconStart="@tui.house"
+      data-testid="project-option-home"
+      [iconEnd]="isCurrent(null) ? '@tui.check' : ''"
+      [attr.aria-checked]="isCurrent(null)"
+      (click)="go(null)"
+    >
+      Home
+    </button>
+    @if (projects().length) {
+      <hr />
+    }
+    @for (project of projects(); track project.id) {
+      <button
+        tuiOption
+        type="button"
+        role="menuitemradio"
+        iconStart="@tui.folder-kanban"
+        [iconEnd]="isCurrent(project) ? '@tui.check' : ''"
+        [attr.aria-checked]="isCurrent(project)"
+        [attr.data-testid]="'project-option-' + project.name"
+        (click)="go(project)"
+      >
+        <span class="name">{{ project.name }}</span>
+        @if (connections(project)) {
+          <span
+            role="img"
+            tuiStatus="var(--tui-status-positive)"
+            [attr.aria-label]="connectionsLabel(project)"
+          ></span>
+        }
+      </button>
+    }
+    <hr />
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.plus"
+      data-testid="project-option-new"
+      (click)="newProject()"
+    >
+      New project…
+    </button>
+  </tui-data-list>
+</ng-template>

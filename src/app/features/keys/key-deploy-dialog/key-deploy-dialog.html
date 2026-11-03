@@ -2,23 +2,23 @@
   <p class="note">
     Appends the public key of <strong>{{ key.name }}</strong> to
     <span class="mono">~/.ssh/authorized_keys</span> on the host, in its project's active
-    environment. You connect first, as usual.
+    environment (none for a Home host). You connect first, as usual.
   </p>
 
   <tui-textfield tuiChevron [stringify]="stringify" [tuiTextfieldCleaner]="false">
     <label tuiLabel>Host</label>
     <input tuiSelect placeholder="Pick a host" formControlName="hostId" data-testid="deploy-host" />
     <tui-data-list *tuiDropdown size="s" emptyContent="No hosts yet">
-      @for (project of projects(); track project.id) {
-        <tui-opt-group [label]="project.name">
-          @for (host of project.hosts; track host.id) {
+      @for (group of groups(); track group.project?.id ?? null) {
+        <tui-opt-group [label]="group.label">
+          @for (host of group.hosts; track host.id) {
             <button
               tuiOption
               type="button"
               [value]="host.id"
               [attr.data-testid]="'deploy-host-option-' + host.name"
             >
-              {{ label(project, host) }}
+              {{ label(group.project, host) }}
             </button>
           }
         </tui-opt-group>

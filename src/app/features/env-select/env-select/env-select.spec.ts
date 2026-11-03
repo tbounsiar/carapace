@@ -1,43 +1,48 @@
-import { Component, signal } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { provideTaiga, TuiNotificationService, TuiRoot } from '@taiga-ui/core';
+import { TuiNavigation } from '@taiga-ui/layout';
 import { of } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Project } from '../../../core/ipc/config.models';
 import { IpcError } from '../../../core/ipc/ipc-error';
-import { CurrentProject } from '../../../shared/current-project';
 import { EnvSelect } from './env-select';
 
-@Component({
-  imports: [EnvSelect, TuiRoot],
-  template: '<tui-root><app-env-select /></tui-root>',
-})
-class Host {}
+const projects = signal<Project[]>([]);
+const current = computed(() => projects()[0]);
 
-const project = (id: string, name: string, active: string | null): Project => ({
-  id,
-  name,
+@Component({
+  imports: [EnvSelect, TuiNavigation, TuiRoot],
+  template: `<tui-root>
+    <aside [tuiNavigationAside]="true"><app-env-select [project]="project()" /></aside>
+  </tui-root>`,
+})
+class Host {
+  protected readonly project = current;
+}
+
+const project = (active: string | null, envs = true): Project => ({
+  id: 'p1',
+  name: 'Shop',
   variables: [],
-  environments: [
-    { id: `${id}-dev`, name: 'Dev', variables: [] },
-    { id: `${id}-prod`, name: 'Production', variables: [] },
-  ],
-  hosts: [],
+  environments: envs
+    ? [
+        { id: 'dev', name: 'Dev', variables: [] },
+        { id: 'prod', name: 'Production', variables: [] },
+      ]
+    : [],
   activeEnvironmentId: active,
 });
 
 describe('EnvSelect', () => {
-  const projects = signal<Project[]>([]);
   const alerts = { open: vi.fn(() => of(undefined)) };
   const setActiveEnvironment = vi.fn((projectId: string, environmentId: string | null) => {
-    projects.update((list) =>
-      list.map((p) => (p.id === projectId ? { ...p, activeEnvironmentId: environmentId } : p)),
-    );
+    projects.update((list) => list.map((p) => ({ ...p, activeEnvironmentId: environmentId })));
     return Promise.resolve();
   });
   let fixture: ComponentFixture<Host>;
 
-  const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
   const byId = (id: string): HTMLElement | null =>
     document.body.querySelector<HTMLElement>(`[data-testid="${id}"]`);
   const settle = async (): Promise<void> => {
@@ -50,69 +55,73 @@ describe('EnvSelect', () => {
     await settle();
   };
 
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    projects.set([project('p1', 'Shop', null), project('p2', 'Blog', 'p2-prod')]);
+  async function setup(value: Project): Promise<void> {
+    projects.set([value]);
     await TestBed.configureTestingModule({
       imports: [Host],
       providers: [
         provideTaiga(),
+        provideRouter([]),
         { provide: ConfigService, useValue: { projects, setActiveEnvironment } },
         { provide: TuiNotificationService, useValue: alerts },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(Host);
     await settle();
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('shows the active environment with its kind badge and a production label', async () => {
+    await setup(project('prod'));
+    const item = byId('env-select')!;
+    expect(item.textContent).toContain('Production');
+    expect(byId('env-select-kind')?.textContent?.trim()).toBe('prod');
+    expect(item.getAttribute('aria-label')).toBe('Environment: Production, production');
   });
 
-  it('renders nothing without projects', async () => {
-    projects.set([]);
-    await settle();
-    expect(el().querySelector('[data-testid="env-select"]')).toBeNull();
-  });
-
-  it('shows the current project and "No environment" when none is active', () => {
-    expect(byId('env-select-project')?.textContent).toContain('Shop');
-    expect((byId('env-select') as HTMLInputElement).value).toBe('No environment');
+  it('reads "No environment" without an active one', async () => {
+    await setup(project(null));
+    expect(byId('env-select')!.textContent?.trim()).toBe('No environment');
     expect(byId('env-select-kind')).toBeNull();
   });
 
-  it('lists the environments of the project plus "No environment"', async () => {
+  it('switches the environment from the menu, never disconnecting', async () => {
+    await setup(project(null));
     await open();
-    expect(byId('env-option-none')?.textContent).toContain('No environment');
-    expect(byId('env-option-Dev')?.textContent).toContain('Dev');
-    expect(byId('env-option-Production')?.textContent).toContain('prod');
+    expect(byId('env-option-none')?.getAttribute('aria-checked')).toBe('true');
+    byId('env-option-Dev')!.click();
+    await settle();
+    expect(setActiveEnvironment).toHaveBeenCalledWith('p1', 'dev');
+    expect(byId('env-select')!.textContent).toContain('Dev');
   });
 
-  it('sets the active environment and shows its kind badge', async () => {
-    await open();
-    byId('env-option-Production')!.click();
-    await settle();
-    expect(setActiveEnvironment).toHaveBeenCalledWith('p1', 'p1-prod');
-    expect((byId('env-select') as HTMLInputElement).value).toBe('Production');
-    expect(byId('env-select-kind')?.textContent).toContain('prod');
-  });
-
-  it('clears the active environment with "No environment"', async () => {
-    TestBed.inject(CurrentProject).select('p2');
-    await settle();
-    expect(byId('env-select-project')?.textContent).toContain('Blog');
-    expect((byId('env-select') as HTMLInputElement).value).toBe('Production');
-    await open();
-    byId('env-option-none')!.click();
-    await settle();
-    expect(setActiveEnvironment).toHaveBeenCalledWith('p2', null);
-    expect(byId('env-select-kind')).toBeNull();
-  });
-
-  it('notifies when the backend refuses', async () => {
-    setActiveEnvironment.mockRejectedValueOnce(new IpcError('io', 'Could not save'));
+  it('does nothing when the active environment is picked again', async () => {
+    await setup(project('dev'));
     await open();
     byId('env-option-Dev')!.click();
     await settle();
+    expect(setActiveEnvironment).not.toHaveBeenCalled();
+  });
+
+  it('offers only No environment and Manage environments without environments', async () => {
+    await setup(project(null, false));
+    await open();
+    expect(byId('env-option-none')).not.toBeNull();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    byId('env-option-manage')!.click();
+    expect(navigate).toHaveBeenCalledWith(['/projects', 'p1', 'variables']);
+  });
+
+  it('notifies when the change fails', async () => {
+    await setup(project(null));
+    setActiveEnvironment.mockRejectedValueOnce(new IpcError('io', 'disk full'));
+    await open();
+    byId('env-option-Production')!.click();
+    await settle();
     expect(alerts.open).toHaveBeenCalledWith(
-      expect.stringContaining('Could not save. '),
-      expect.anything(),
+      expect.any(String),
+      expect.objectContaining({ label: 'Environment not changed' }),
     );
   });
 });

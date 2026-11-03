@@ -124,7 +124,9 @@
     }
 
     <section class="main" [attr.aria-label]="scopeLabel()">
-      <h2 class="scope-title" data-testid="vars-scope-title">{{ scopeLabel() }}</h2>
+      @if (project()) {
+        <h2 class="scope-title" data-testid="vars-scope-title">{{ scopeLabel() }}</h2>
+      }
       <app-variables-editor [scope]="scope" [variables]="variables()" />
     </section>
   </div>

@@ -1,128 +1,98 @@
-import { signal } from '@angular/core';
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
+import { TuiThemeColorService } from '@taiga-ui/addon-mobile';
 import { provideTaiga } from '@taiga-ui/core';
+import { signal } from '@angular/core';
 import { App } from './app';
 import { ConfigService } from './core/ipc/config';
-import type { Project } from './core/ipc/config.models';
+import { fakeConfig, project } from './core/ipc/config.fixture';
+import { SshService } from './core/ipc/ssh';
 import { ThemeService } from './core/theme/theme';
 
-const projects = signal<Project[]>([]);
-const prodProject: Project = {
-  id: 'p1',
-  name: 'Shop',
-  variables: [],
-  environments: [{ id: 'e1', name: 'Production', variables: [] }],
-  hosts: [],
-  activeEnvironmentId: 'e1',
-};
+@Component({ template: '' })
+class Blank {}
 
 describe('App', () => {
+  let config: ReturnType<typeof fakeConfig>;
+
+  const el = (): HTMLElement => document.body;
+  const byId = (id: string): HTMLElement | null => el().querySelector(`[data-testid="${id}"]`);
+
+  async function setup() {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    return fixture;
+  }
+
   beforeEach(async () => {
     localStorage.clear();
-    projects.set([]);
+    config = fakeConfig();
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [
-        provideRouter([]),
+        provideRouter([
+          { path: '', component: Blank },
+          { path: 'projects/:projectId', component: Blank },
+          { path: '**', component: Blank },
+        ]),
         provideTaiga(),
+        { provide: ConfigService, useValue: config },
         {
-          provide: ConfigService,
-          useValue: {
-            projects,
-            variables: signal([]),
-            loading: signal(false),
-            load: () => Promise.resolve(),
-          },
+          provide: SshService,
+          useValue: { states: signal({}), loadConnections: () => Promise.resolve([]) },
         },
       ],
     }).compileComponents();
   });
 
-  it('renders the navigation header, sidebar tree and router outlet inside tui-root', async () => {
-    const fixture = TestBed.createComponent(App);
+  it('lays out the full navigation: header, aside header/tree/footer and main subheader', async () => {
+    await setup();
+    expect(el().querySelector('header[tuiNavigationHeader]')?.textContent).toContain('Carapace');
+    expect(
+      el().querySelector('aside[tuiNavigationAside] > header app-aside-header'),
+    ).not.toBeNull();
+    expect(el().querySelector('aside[tuiNavigationAside] app-sidebar-tree')).not.toBeNull();
+    expect(
+      el().querySelector('main[tuiNavigationMain] nav[tuiSubheader] app-location-bar'),
+    ).not.toBeNull();
+    expect(el().querySelector('main[tuiNavigationMain] router-outlet')).not.toBeNull();
+    expect(byId('project-select')?.textContent?.trim()).toBe('Home');
+    expect(byId('env-select')).toBeNull();
+  });
+
+  it('re-themes the header and aside with the app theme and sets the chrome colour', async () => {
+    const color = TestBed.inject(TuiThemeColorService);
+    const fixture = await setup();
+    TestBed.inject(ThemeService).setMode('light');
     await fixture.whenStable();
-    const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('tui-root header[tuiNavigationHeader]')?.textContent).toContain(
-      'Carapace',
+    expect(el().querySelector('header[tuiNavigationHeader]')?.getAttribute('tuiTheme')).toBe(
+      'light',
     );
-    expect(el.querySelector('tui-root aside app-project-tree')).not.toBeNull();
-    expect(el.querySelector('tui-root main router-outlet')).not.toBeNull();
+    expect(el().querySelector('aside[tuiNavigationAside]')?.getAttribute('tuiTheme')).toBe('light');
+    expect(el().querySelector('tui-root')?.getAttribute('tuiTheme')).toBe('light');
+    expect(typeof color.color).toBe('string');
   });
 
-  it('changes the theme mode from the toggle', async () => {
-    const fixture = TestBed.createComponent(App);
+  it('shows the environment item only inside a project', async () => {
+    config.projects.set([project('p1', 'Shop')]);
+    const fixture = await setup();
+    await TestBed.inject(Router).navigateByUrl('/projects/p1');
     await fixture.whenStable();
-    const el = fixture.nativeElement as HTMLElement;
-    el.querySelector<HTMLButtonElement>('button[aria-label="Dark theme"]')!.click();
-    await fixture.whenStable();
-    expect(TestBed.inject(ThemeService).mode()).toBe('dark');
-    expect(el.querySelector('tui-root')?.getAttribute('tuiTheme')).toBe('dark');
+    expect(byId('project-select')?.textContent?.trim()).toBe('Shop');
+    expect(byId('env-select')?.textContent?.trim()).toBe('No environment');
+    expect(byId('aside-project')?.textContent).toContain('Shop');
   });
 
-  it('re-themes the navigation header and aside with the app theme', async () => {
-    const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
-    const el = fixture.nativeElement as HTMLElement;
-    el.querySelector<HTMLButtonElement>('[data-testid="theme-light"]')!.click();
-    await fixture.whenStable();
-    expect(el.querySelector('header[tuiNavigationHeader]')?.getAttribute('tuiTheme')).toBe('light');
-    expect(el.querySelector('aside[tuiNavigationAside]')?.getAttribute('tuiTheme')).toBe('light');
-    expect(el.querySelector('[data-testid="theme-toggle"]')).not.toBeNull();
-  });
-
-  it('links the sidebar footer to the global variables', async () => {
-    const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
-    const link = (fixture.nativeElement as HTMLElement).querySelector(
-      'aside footer [data-testid="global-variables"]',
+  it('links the global pages from the aside footer', async () => {
+    await setup();
+    const footer = el().querySelector('aside footer')!;
+    expect(footer.querySelector('[data-testid="global-variables"]')?.getAttribute('href')).toBe(
+      '/variables',
     );
-    expect(link?.getAttribute('href')).toBe('/variables');
-  });
-
-  it('links the SSH keys page from the sidebar footer', async () => {
-    const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
-    const link = (fixture.nativeElement as HTMLElement).querySelector(
-      'aside footer [data-testid="ssh-keys"]',
+    expect(footer.querySelector('[data-testid="ssh-keys"]')?.getAttribute('href')).toBe('/keys');
+    expect(footer.querySelector('[data-testid="settings"]')?.getAttribute('href')).toBe(
+      '/settings',
     );
-    expect(link?.getAttribute('href')).toBe('/keys');
-    expect(link?.textContent).toContain('SSH keys');
-  });
-
-  it('links the settings page from the sidebar footer', async () => {
-    const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
-    const link = (fixture.nativeElement as HTMLElement).querySelector(
-      'aside footer [data-testid="settings"]',
-    );
-    expect(link?.getAttribute('href')).toBe('/settings');
-    expect(link?.textContent).toContain('Settings');
-  });
-
-  it('keeps the header toggle in sync with a theme set elsewhere', async () => {
-    const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
-    TestBed.inject(ThemeService).setMode('dark');
-    await fixture.whenStable();
-    const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('[data-testid="theme-dark"]')?.getAttribute('aria-pressed')).toBe(
-      'true',
-    );
-    expect(el.querySelector('[data-testid="theme-system"]')?.getAttribute('aria-pressed')).toBe(
-      'false',
-    );
-  });
-
-  it('shows the environment selector and a prod accent on the header', async () => {
-    const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
-    const el = fixture.nativeElement as HTMLElement;
-    const header = el.querySelector('header[tuiNavigationHeader]')!;
-    expect(header.classList).not.toContain('_prod');
-    projects.set([prodProject]);
-    await fixture.whenStable();
-    expect(header.querySelector('[data-testid="env-select"]')).not.toBeNull();
-    expect(header.classList).toContain('_prod');
   });
 });

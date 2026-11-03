@@ -5,7 +5,6 @@ import { provideTaiga, TuiNotificationService, TuiRoot } from '@taiga-ui/core';
 import { of } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Project, VariableView } from '../../../core/ipc/config.models';
-import { CurrentProject } from '../../../shared/current-project';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { unsavedChangesGuard } from '../unsaved-changes-guard';
 import { VariablesPage } from './variables-page';
@@ -34,7 +33,6 @@ const PROJECT: Project = {
     { id: 'e1', name: 'Dev', variables: [v('host', '127.0.0.1')] },
     { id: 'e2', name: 'Production', variables: [] },
   ],
-  hosts: [],
   activeEnvironmentId: 'e2',
 };
 
@@ -85,6 +83,7 @@ describe('VariablesPage', () => {
     );
 
   beforeEach(async () => {
+    await import('../../../shared/destructive-confirm/destructive-confirm');
     vi.clearAllMocks();
     projects.set([PROJECT]);
     TestBed.configureTestingModule({
@@ -127,7 +126,6 @@ describe('VariablesPage', () => {
     expect(byId('vars-title')?.textContent).toContain('Shop: variables and environments');
     expect(byId('vars-scope-project')?.getAttribute('aria-current')).toBe('true');
     expect(value('var-value-0')).toBe('example.com');
-    expect(TestBed.inject(CurrentProject).project()?.id).toBe('p1');
 
     await click('vars-scope-env-Dev');
     expect(byId('vars-scope-title')?.textContent).toContain('Environment Dev');

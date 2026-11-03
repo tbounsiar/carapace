@@ -75,15 +75,16 @@ export interface VariableLayers {
   readonly environment: readonly VariableView[] | null;
 }
 
+/** A Home host (`project` null) sees the global variables only. */
 export function variableLayers(
   global: readonly VariableView[],
-  project: Project,
+  project: Project | null,
   environmentId: string | null,
 ): VariableLayers {
-  const environment = project.environments.find((e) => e.id === environmentId);
+  const environment = project?.environments.find((e) => e.id === environmentId);
   return {
     global,
-    project: project.variables,
+    project: project?.variables ?? [],
     environment: environment?.variables ?? null,
   };
 }
@@ -187,13 +188,13 @@ export function previewHost(host: HostInput, layers: VariableLayers): HostPrevie
 /** Secret variable names defined at any level a host of the project can see. */
 export function secretVariableNames(
   global: readonly VariableView[],
-  project: Pick<Project, 'variables' | 'environments'>,
+  project: Pick<Project, 'variables' | 'environments'> | null,
 ): string[] {
   const names = new Set<string>();
   for (const layer of [
     global,
-    project.variables,
-    ...project.environments.map((e) => e.variables),
+    project?.variables ?? [],
+    ...(project?.environments.map((e) => e.variables) ?? []),
   ]) {
     for (const variable of layer) {
       if (variable.kind === 'secret') {
@@ -202,4 +203,50 @@ export function secretVariableNames(
     }
   }
   return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+/** Every `${name}` the host's fields use, plain and secret. */
+export function hostReferences(host: HostInput): string[] {
+  const fields = [host.hostname, host.port, host.username];
+  if (host.auth.kind === 'key') {
+    fields.push(host.auth.keyPath, host.auth.passphrase ?? '');
+  } else if (host.auth.kind === 'password') {
+    fields.push(host.auth.password ?? '');
+  }
+  const names = new Set<string>();
+  for (const field of fields) {
+    for (const segment of parseTemplate(field)) {
+      if ('ref' in segment) {
+        names.add(segment.ref);
+      }
+    }
+  }
+  return [...names];
+}
+
+/**
+ * References no layer of the target scope defines (global, plus the project and every one of its
+ * environments), sorted; `project` null is Home.
+ */
+export function undefinedReferences(
+  hosts: readonly HostInput[],
+  global: readonly VariableView[],
+  project: Pick<Project, 'variables' | 'environments'> | null,
+): string[] {
+  const defined = new Set(
+    [
+      global,
+      project?.variables ?? [],
+      ...(project?.environments.map((e) => e.variables) ?? []),
+    ].flatMap((layer) => layer.map((v) => v.name)),
+  );
+  const missing = new Set<string>();
+  for (const host of hosts) {
+    for (const name of hostReferences(host)) {
+      if (!defined.has(name)) {
+        missing.add(name);
+      }
+    }
+  }
+  return [...missing].sort((a, b) => a.localeCompare(b));
 }

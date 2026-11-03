@@ -13,7 +13,10 @@ import { KeyActions } from './key-actions';
 import type { KeyDeployDialogData } from './key-deploy-dialog/key-deploy-dialog';
 
 const HOST: Host = {
+  kind: 'host',
   id: 'h1',
+  projectId: 'p1',
+  parentId: null,
   name: 'UI',
   hostname: '${host}',
   port: '22',
@@ -25,7 +28,6 @@ const PROJECT: Project = {
   name: 'Shop',
   variables: [],
   environments: [{ id: 'e1', name: 'Dev', variables: [] }],
-  hosts: [HOST],
   activeEnvironmentId: 'e1',
 };
 
@@ -118,7 +120,7 @@ describe('KeyActions', () => {
   it('switches the host to the key when asked', async () => {
     state = 'connected';
     await actions.deployTo(KEY, 'h1', true);
-    expect(config.updateHost).toHaveBeenCalledWith('p1', 'h1', {
+    expect(config.updateHost).toHaveBeenCalledWith('h1', {
       name: 'UI',
       hostname: '${host}',
       port: '22',

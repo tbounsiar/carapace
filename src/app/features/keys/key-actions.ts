@@ -3,7 +3,7 @@ import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../core/ipc/config';
-import { connectionTarget } from '../../core/ipc/connection';
+import { hostTarget } from '../../core/ipc/connection';
 import { KeyStore } from '../../core/ipc/key-store';
 import type { DeployResult, KeyView } from '../../core/ipc/keys';
 import { SshService } from '../../core/ipc/ssh';
@@ -134,7 +134,7 @@ export class KeyActions {
       return false;
     }
     const { project, host } = location;
-    const target = connectionTarget(project.id, host.id, project.activeEnvironmentId);
+    const target = hostTarget(host, project);
     if (this.ssh.stateOf(target.connectionId) !== 'connected') {
       await this.connector.connect(target);
       if (this.ssh.stateOf(target.connectionId) !== 'connected') {
@@ -170,19 +170,19 @@ export class KeyActions {
       )
       .subscribe();
     if (useKey) {
-      await this.useKeyFor(project.id, hostId, key);
+      await this.useKeyFor(hostId, key);
     }
     return true;
   }
 
-  private async useKeyFor(projectId: string, hostId: string, key: KeyView): Promise<void> {
+  private async useKeyFor(hostId: string, key: KeyView): Promise<void> {
     const host = this.config.findHost(hostId)?.host;
     if (!host) {
       return;
     }
     const { name, hostname, port, username } = host;
     try {
-      await this.config.updateHost(projectId, hostId, {
+      await this.config.updateHost(hostId, {
         name,
         hostname,
         port,

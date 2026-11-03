@@ -1,14 +1,10 @@
 :host {
-  display: flex;
-  min-block-size: calc(100dvh - 4.5rem);
-  align-items: center;
-  justify-content: center;
+  display: block;
 }
 
-.line {
-  margin: 0;
-
-  p {
-    margin: 0;
-  }
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-padding-l);
+  padding-block-start: var(--tui-padding-l);
 }

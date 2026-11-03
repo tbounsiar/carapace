@@ -91,11 +91,7 @@ export class HostConnector {
   private async subjects(target: ConnectionTarget, host: Host): Promise<Subjects> {
     const keyPath = host.auth.kind === 'key' ? host.auth.keyPath : '';
     try {
-      const r = await this.config.resolveHost(
-        target.projectId,
-        target.hostId,
-        target.environmentId,
-      );
+      const r = await this.config.resolveHost(target.hostId, target.environmentId);
       const address = `${r.username ?? host.username}@${r.hostname ?? host.hostname}:${r.port ?? host.port}`;
       return { address, keyPath: r.keyPath ?? keyPath };
     } catch {

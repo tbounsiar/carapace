@@ -38,8 +38,34 @@ export interface HostInput {
   auth: AuthMethod;
 }
 
-export interface Host extends HostInput {
+/** `projectId: null` is Home; `parentId: null` is the root of the scope, else a collection id. */
+export interface NodePlacement {
+  projectId: string | null;
+  parentId: string | null;
+}
+
+export interface Host extends HostInput, NodePlacement {
+  kind: 'host';
   id: string;
+}
+
+export interface Collection extends NodePlacement {
+  kind: 'collection';
+  id: string;
+  name: string;
+}
+
+export type ConfigNode = Collection | Host;
+
+export interface DeletedNodes {
+  collectionIds: string[];
+  hostIds: string[];
+}
+
+/** `nodes` is the moved node and its whole subtree after the move. */
+export interface MoveResult {
+  nodes: ConfigNode[];
+  scopeChanged: boolean;
 }
 
 export interface Environment {
@@ -53,13 +79,13 @@ export interface Project {
   name: string;
   variables: VariableView[];
   environments: Environment[];
-  hosts: Host[];
   activeEnvironmentId: string | null;
 }
 
 export interface ConfigView {
   variables: VariableView[];
   projects: Project[];
+  nodes: ConfigNode[];
 }
 
 /** Plain fields after template resolution, null when they can't be resolved; never secret values. */

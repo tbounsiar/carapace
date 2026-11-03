@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/ipc/config';
-import type { AuthMethod, Project, ResolvedHost } from '../../core/ipc/config.models';
+import type { AuthMethod, Host, Project, ResolvedHost } from '../../core/ipc/config.models';
 import { type ConnectionTarget, connectionTarget } from '../../core/ipc/connection';
 import { IpcError } from '../../core/ipc/ipc-error';
 import { type ConnectHandlers, SshService } from '../../core/ipc/ssh';
@@ -29,6 +29,7 @@ describe('HostConnector', () => {
   const alerts = { open: vi.fn(() => of(undefined)) };
   const credentials = { ask: vi.fn<CredentialPrompter['ask']>() };
   const projects = signal<Project[]>([]);
+  const hosts = signal<Host[]>([]);
   const resolved: ResolvedHost = {
     hostname: '127.0.0.1',
     port: 2223,
@@ -38,7 +39,7 @@ describe('HostConnector', () => {
     errors: [],
   };
   const resolveHost = vi.fn(() => Promise.resolve(resolved));
-  const withHost = (auth: AuthMethod): void =>
+  const withHost = (auth: AuthMethod): void => {
     projects.set([
       {
         id: 'p1',
@@ -46,18 +47,22 @@ describe('HostConnector', () => {
         variables: [],
         environments: [{ id: 'e1', name: 'Dev', variables: [] }],
         activeEnvironmentId: 'e1',
-        hosts: [
-          {
-            id: 'h1',
-            name: 'web',
-            hostname: '${host}',
-            port: '${port}',
-            username: '${user}',
-            auth,
-          },
-        ],
       },
     ]);
+    hosts.set([
+      {
+        kind: 'host',
+        id: 'h1',
+        projectId: 'p1',
+        parentId: null,
+        name: 'web',
+        hostname: '${host}',
+        port: '${port}',
+        username: '${user}',
+        auth,
+      },
+    ]);
+  };
   const fail = (code: 'secret_required' | 'invalid_passphrase' | 'auth_failed'): IpcError =>
     new IpcError(code, 'safe message');
   const target = connectionTarget('p1', 'h1', 'e1');
@@ -89,9 +94,8 @@ describe('HostConnector', () => {
             projects,
             resolveHost,
             findHost: (id: string) => {
-              const project = projects()[0];
-              const host = project?.hosts.find((h) => h.id === id);
-              return host ? { project, host } : null;
+              const host = hosts().find((h) => h.id === id);
+              return host ? { project: projects()[0], host } : null;
             },
           },
         },
@@ -151,7 +155,7 @@ describe('HostConnector', () => {
       ssh.connect.mockRejectedValueOnce(fail('secret_required'));
       credentials.ask.mockResolvedValueOnce({ secret: 'pw', remember: false });
       await connector.connect(target);
-      expect(resolveHost).toHaveBeenCalledWith('p1', 'h1', 'e1');
+      expect(resolveHost).toHaveBeenCalledWith('h1', 'e1');
       expect(credentials.ask).toHaveBeenCalledWith('Password', {
         kind: 'password',
         subject: 'carapace@127.0.0.1:2223',

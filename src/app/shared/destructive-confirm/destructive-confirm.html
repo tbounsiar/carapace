@@ -1,0 +1,20 @@
+<p class="content">{{ context.data.content }}</p>
+<footer class="buttons">
+  <button
+    tuiAutoFocus
+    tuiButton
+    appearance="flat"
+    type="button"
+    (click)="context.completeWith(false)"
+  >
+    {{ context.data.no }}
+  </button>
+  <button
+    tuiButton
+    appearance="primary-destructive"
+    type="button"
+    (click)="context.completeWith(true)"
+  >
+    {{ context.data.yes }}
+  </button>
+</footer>

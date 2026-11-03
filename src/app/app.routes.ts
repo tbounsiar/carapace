@@ -16,6 +16,11 @@ export const routes: Routes = [
       import('./features/host-detail/host-detail/host-detail').then((m) => m.HostDetail),
   },
   {
+    path: 'projects/:projectId',
+    loadComponent: () =>
+      import('./features/project-home/project-home/project-home').then((m) => m.ProjectHome),
+  },
+  {
     path: 'projects/:projectId/variables',
     loadComponent: variablesPage,
     canDeactivate: [unsavedChangesGuard],

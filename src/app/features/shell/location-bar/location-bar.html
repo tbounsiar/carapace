@@ -1,0 +1,65 @@
+<!-- Taiga always puts a separator after the first crumb when collapsing is on: off for Home alone. -->
+<tui-breadcrumbs size="m" data-testid="breadcrumbs" [itemsLimit]="crumbs().length > 1 ? 6 : 1">
+  @for (crumb of crumbs(); track crumb.id) {
+    @if ($last) {
+      <strong *tuiItem tuiFade class="crumb" data-testid="crumb-current">{{ crumb.text }}</strong>
+    } @else if (crumb.collection) {
+      <button
+        *tuiItem
+        tuiLink
+        tuiHintOverflow
+        type="button"
+        class="crumb"
+        [attr.data-testid]="crumb.id"
+        [textContent]="crumb.text"
+        (click)="reveal(crumb.collection)"
+      ></button>
+    } @else {
+      <a
+        *tuiItem
+        tuiLink
+        tuiHintOverflow
+        class="crumb"
+        [attr.data-testid]="crumb.id"
+        [routerLink]="crumb.link"
+        [textContent]="crumb.text"
+      ></a>
+    }
+  }
+</tui-breadcrumbs>
+
+@if (pageMenu(); as menu) {
+  <button
+    tuiIconButton
+    appearance="secondary"
+    iconStart="@tui.ellipsis"
+    type="button"
+    class="menu"
+    [attr.data-testid]="menu.id"
+    [attr.aria-label]="'Actions for ' + menu.name"
+    [tuiDropdown]="entries"
+    [tuiDropdownOpen]="menuOpen()"
+    (tuiDropdownOpenChange)="menuOpen.set($event)"
+  >
+    Actions
+  </button>
+  <ng-template #entries>
+    <tui-data-list size="s" role="menu">
+      @for (entry of menu.entries; track entry.id) {
+        @if ($last) {
+          <hr />
+        }
+        <button
+          tuiOption
+          type="button"
+          role="menuitem"
+          [iconStart]="entry.icon"
+          [attr.data-testid]="entry.id"
+          (click)="run(entry)"
+        >
+          {{ entry.label }}
+        </button>
+      }
+    </tui-data-list>
+  </ng-template>
+}

@@ -3,7 +3,8 @@ export type EnvironmentKind = 'production' | 'staging' | 'development' | 'other'
 export interface EnvironmentMarker {
   readonly kind: EnvironmentKind;
   readonly label: string;
-  readonly appearance: 'negative' | 'warning' | 'positive' | 'neutral';
+  /** Production uses a solid badge: the pale `negative` one is hard to read on the dark chrome. */
+  readonly appearance: 'primary-destructive' | 'warning' | 'positive' | 'neutral';
   readonly color: string;
 }
 
@@ -18,7 +19,7 @@ const MARKERS: Record<EnvironmentKind, EnvironmentMarker> = {
   production: {
     kind: 'production',
     label: 'prod',
-    appearance: 'negative',
+    appearance: 'primary-destructive',
     color: 'var(--tui-status-negative)',
   },
   staging: {

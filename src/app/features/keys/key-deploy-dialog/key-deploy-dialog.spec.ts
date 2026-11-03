@@ -7,9 +7,12 @@ import { ConfigService } from '../../../core/ipc/config';
 import type { Host, Project } from '../../../core/ipc/config.models';
 import { deployTargetLabel, KeyDeployDialog, type KeyDeployDialogData } from './key-deploy-dialog';
 
-const host = (id: string, name: string): Host => ({
+const host = (id: string, name: string, projectId: string | null): Host => ({
+  kind: 'host',
   id,
   name,
+  projectId,
+  parentId: null,
   hostname: 'h',
   port: '22',
   username: 'u',
@@ -21,21 +24,22 @@ const SHOP: Project = {
   name: 'Shop',
   variables: [],
   environments: [{ id: 'e1', name: 'Dev', variables: [] }],
-  hosts: [host('h1', 'UI')],
   activeEnvironmentId: 'e1',
 };
 const LAB: Project = {
   ...SHOP,
   id: 'p2',
   name: 'Lab',
-  hosts: [host('h2', 'box')],
   activeEnvironmentId: null,
 };
-const EMPTY: Project = { ...SHOP, id: 'p3', name: 'Empty', hosts: [] };
+const EMPTY: Project = { ...SHOP, id: 'p3', name: 'Empty' };
+const UI = host('h1', 'UI', 'p1');
+const BOX = host('h2', 'box', 'p2');
+const VPS = host('h3', 'vps', null);
 
 interface DialogApi {
   form: FormGroup;
-  projects(): Project[];
+  groups(): { label: string; hosts: Host[] }[];
   stringify(id: string | null): string;
   submit(): Promise<void>;
 }
@@ -54,7 +58,10 @@ describe('KeyDeployDialog', () => {
           provide: POLYMORPHEUS_CONTEXT,
           useValue: { data, completeWith, $implicit: { complete: vi.fn() } },
         },
-        { provide: ConfigService, useValue: { projects: signal([SHOP, LAB, EMPTY]) } },
+        {
+          provide: ConfigService,
+          useValue: { projects: signal([SHOP, LAB, EMPTY]), hosts: signal([UI, BOX, VPS]) },
+        },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(KeyDeployDialog);
@@ -66,13 +73,16 @@ describe('KeyDeployDialog', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('labels a target with its active environment', () => {
-    expect(deployTargetLabel(SHOP, SHOP.hosts[0])).toBe('UI · Dev');
-    expect(deployTargetLabel(LAB, LAB.hosts[0])).toBe('box');
+    expect(deployTargetLabel(SHOP, UI)).toBe('UI · Dev');
+    expect(deployTargetLabel(LAB, BOX)).toBe('box');
+    expect(deployTargetLabel(null, VPS)).toBe('vps');
   });
 
-  it('lists projects with hosts and shows the chosen target', async () => {
+  it('groups hosts by scope, Home first, skipping empty projects', async () => {
     const { el, dialog } = await setup();
-    expect(dialog.projects().map((p) => p.name)).toEqual(['Shop', 'Lab']);
+    expect(dialog.groups().map((g) => g.label)).toEqual(['Home', 'Lab', 'Shop']);
+    expect(dialog.groups()[0].hosts.map((h) => h.name)).toEqual(['vps']);
+    expect(dialog.stringify('h3')).toBe('vps');
     expect(dialog.stringify('h1')).toBe('UI · Dev');
     expect(dialog.stringify(null)).toBe('');
     expect(el.querySelector<HTMLInputElement>('[data-testid="deploy-use"]')!.checked).toBe(false);

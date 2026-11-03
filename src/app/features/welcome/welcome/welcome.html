@@ -1,39 +1,53 @@
-<tui-block-status size="m" data-testid="welcome">
-  <span tuiAvatar="@tui.terminal" size="xl" tuiSlot="top"></span>
-  <h1>Carapace</h1>
-  <p class="line">SSH and SFTP, organized by project, with environments and variables.</p>
-  @if (firstEmptyProject(); as project) {
-    <p class="line">{{ project.name }} has no hosts yet. Add one to connect to it.</p>
-  } @else if (hasProjects()) {
-    <div class="line">
-      <p>Select a host in the sidebar to connect.</p>
+<section class="page" data-testid="welcome">
+  @if (!loaded()) {
+    <!-- Nothing until the config is known, so the empty state never flashes. -->
+  } @else if (empty()) {
+    <tui-block-status size="m" class="empty">
+      <h1>Nothing here yet</h1>
       <p>
-        Pick the environment at the top right: host fields such as host, port or user can use its
-        variables.
+        Group hosts in a project to give them environments and variables, or add a host directly.
       </p>
-    </div>
+      <button
+        tuiButton
+        appearance="primary"
+        size="s"
+        iconStart="@tui.folder-kanban"
+        type="button"
+        data-testid="welcome-new-project"
+        (click)="createProject()"
+      >
+        New project
+      </button>
+      <button
+        tuiButton
+        appearance="secondary"
+        size="s"
+        iconStart="@tui.server"
+        type="button"
+        data-testid="welcome-add-host"
+        (click)="addHost()"
+      >
+        Add host
+      </button>
+      <button
+        tuiButton
+        appearance="flat"
+        size="s"
+        iconStart="@tui.folder-plus"
+        type="button"
+        data-testid="welcome-new-collection"
+        (click)="addCollection()"
+      >
+        New collection
+      </button>
+    </tui-block-status>
+  } @else {
+    <header tuiHeader>
+      <hgroup tuiTitle>
+        <h1>Home</h1>
+        <p tuiSubtitle>Hosts and collections outside projects, and your projects.</p>
+        <p tuiSubtitle data-testid="home-hint">{{ hint() }}</p>
+      </hgroup>
+    </header>
   }
-  @if (firstEmptyProject(); as project) {
-    <button
-      tuiButton
-      size="m"
-      iconStart="@tui.plus"
-      type="button"
-      data-testid="welcome-add-host"
-      (click)="addHost(project)"
-    >
-      Add host
-    </button>
-  } @else if (!hasProjects()) {
-    <button
-      tuiButton
-      size="m"
-      iconStart="@tui.plus"
-      type="button"
-      data-testid="welcome-new-project"
-      (click)="createProject()"
-    >
-      New project
-    </button>
-  }
-</tui-block-status>
+</section>

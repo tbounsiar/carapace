@@ -80,7 +80,8 @@ describe('SshService', () => {
     expect(result).toEqual(info);
     expect(service.stateOf('h1@e1')).toBe('connected');
     expect(calls[0].cmd).toBe('connect_host');
-    expect(calls[0].args).toMatchObject({ projectId: 'p1', hostId: 'h1', environmentId: 'e1' });
+    expect(calls[0].args).toMatchObject({ hostId: 'h1', environmentId: 'e1' });
+    expect(calls[0].args).not.toHaveProperty('projectId');
   });
 
   it('sends no credential by default', async () => {

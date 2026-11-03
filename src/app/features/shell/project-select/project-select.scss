@@ -1,0 +1,21 @@
+:host {
+  display: contents;
+}
+
+.anchor {
+  display: flex;
+  min-inline-size: 0;
+}
+
+.label {
+  max-inline-size: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

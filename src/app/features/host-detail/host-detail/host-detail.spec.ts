@@ -4,13 +4,12 @@ import { provideRouter } from '@angular/router';
 import { provideTaiga, TuiNotificationService } from '@taiga-ui/core';
 import { of } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
-import type { Project, ResolvedHost } from '../../../core/ipc/config.models';
+import type { Host, Project, ResolvedHost } from '../../../core/ipc/config.models';
 import { FileSources } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { SecretsService } from '../../../core/ipc/secrets';
 import { SshService } from '../../../core/ipc/ssh';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
-import { CurrentProject } from '../../../shared/current-project';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { HostViews } from '../host-view';
@@ -24,17 +23,19 @@ const PROJECT: Project = {
     { id: 'e1', name: 'production', variables: [] },
     { id: 'e2', name: 'Dev', variables: [] },
   ],
-  hosts: [
-    {
-      id: 'h1',
-      name: 'web-1',
-      hostname: '${host}',
-      port: '${port}',
-      username: 'deploy',
-      auth: { kind: 'key', keyPath: '~/.ssh/id_ed25519', passphrase: null },
-    },
-  ],
   activeEnvironmentId: 'e1',
+};
+
+const HOST: Host = {
+  kind: 'host',
+  id: 'h1',
+  projectId: 'p1',
+  parentId: null,
+  name: 'web-1',
+  hostname: '${host}',
+  port: '${port}',
+  username: 'deploy',
+  auth: { kind: 'key', keyPath: '~/.ssh/id_ed25519', passphrase: null },
 };
 
 const RESOLVED: ResolvedHost = {
@@ -48,6 +49,7 @@ const RESOLVED: ResolvedHost = {
 
 describe('HostDetail', () => {
   const projects = signal<Project[]>([PROJECT]);
+  const hosts = signal<Host[]>([HOST]);
   const states = signal<Record<string, ConnectionState>>({});
   const connector = { connect: vi.fn(() => Promise.resolve()), disconnect: vi.fn() };
   const actions = { editHost: vi.fn() };
@@ -78,6 +80,7 @@ describe('HostDetail', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     projects.set([PROJECT]);
+    hosts.set([HOST]);
     states.set({});
     resolveHost.mockResolvedValue(RESOLVED);
     await TestBed.configureTestingModule({
@@ -89,11 +92,12 @@ describe('HostDetail', () => {
           provide: ConfigService,
           useValue: {
             projects,
+            nodes: hosts,
             variables: signal([]),
             resolveHost,
             findHost: (id: string) => {
-              const project = projects()[0];
-              const host = project.hosts.find((h) => h.id === id);
+              const host = hosts().find((h) => h.id === id);
+              const project = projects().find((p) => p.id === host?.projectId) ?? null;
               return host ? { project, host } : null;
             },
           },
@@ -112,7 +116,7 @@ describe('HostDetail', () => {
     await setup();
     expect(byId('host-detail-title')?.textContent).toMatch(/web-1\s*· production/);
     expect(byId('host-detail-name')?.textContent).toContain('web-1');
-    expect(resolveHost).toHaveBeenCalledWith('p1', 'h1', 'e1');
+    expect(resolveHost).toHaveBeenCalledWith('h1', 'e1');
     expect(byId('host-detail-address')?.textContent).toContain('deploy@web1.example.com:2222');
     expect(byId('host-detail-env-kind')?.textContent).toContain('prod');
     expect(byId('host-detail-env')?.textContent).toContain('Shop / production');
@@ -134,12 +138,20 @@ describe('HostDetail', () => {
     expect(byId('host-detail-title-env')).toBeNull();
     expect(byId('host-detail-env-kind')).toBeNull();
     expect(byId('host-detail-env')?.textContent).toContain('Shop / No environment');
-    expect(resolveHost).toHaveBeenCalledWith('p1', 'h1', null);
+    expect(resolveHost).toHaveBeenCalledWith('h1', null);
   });
 
-  it('makes the host project current', async () => {
+  it('shows a Home host with no environment', async () => {
+    hosts.set([{ ...HOST, projectId: null }]);
     await setup();
-    expect(TestBed.inject(CurrentProject).project()?.id).toBe('p1');
+    expect(byId('host-detail-env')?.textContent?.trim()).toBe('Home · no environment');
+    expect(byId('host-detail-title-env')).toBeNull();
+    expect(byId('host-detail-env-kind')).toBeNull();
+    expect(resolveHost).toHaveBeenCalledWith('h1', null);
+    byId('host-connect')!.click();
+    expect(connector.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: null, connectionId: 'h1@none' }),
+    );
   });
 
   it('connects the connection of the active environment', async () => {
@@ -189,7 +201,7 @@ describe('HostDetail', () => {
   });
 
   it('offers no forget action for an agent host', async () => {
-    projects.set([{ ...PROJECT, hosts: [{ ...PROJECT.hosts[0], auth: { kind: 'agent' } }] }]);
+    hosts.set([{ ...HOST, auth: { kind: 'agent' } }]);
     await setup();
     expect(byId('host-forget-secrets')).toBeNull();
   });
@@ -197,7 +209,7 @@ describe('HostDetail', () => {
   it('opens the edit dialog for the host', async () => {
     await setup();
     byId('host-edit')!.click();
-    expect(actions.editHost).toHaveBeenCalledWith(PROJECT, PROJECT.hosts[0]);
+    expect(actions.editHost).toHaveBeenCalledWith(HOST);
   });
 
   it('shows a not-found state for an unknown host', async () => {

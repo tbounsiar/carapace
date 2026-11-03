@@ -30,7 +30,7 @@
 
 .view {
   /* xterm's fit addon needs a definite height; the detail page has no fixed-height ancestor. */
-  --app-terminal-offset: 24.5rem;
+  --app-terminal-offset: 28.25rem;
   block-size: clamp(16rem, calc(100dvh - var(--app-terminal-offset)), 60rem);
   padding: 0.5rem;
   border: 1px solid var(--tui-border-normal);
@@ -41,5 +41,5 @@
 
 /* The ended banner (2.25rem + gap) sits above the view. */
 .ended + .view {
-  --app-terminal-offset: 27.25rem;
+  --app-terminal-offset: 31rem;
 }

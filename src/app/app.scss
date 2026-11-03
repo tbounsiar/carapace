@@ -1,14 +1,3 @@
-/* TuiNavigation paints header and aside with --tui-theme-color (default #000, kept in dark). */
-tui-root[tuiTheme='light'] {
-  --tui-theme-color: var(--tui-background-base-alt);
-}
-
-/* Taiga's sliding pill does not render inside the navigation header; paint the active item instead. */
-tui-segmented > ._active {
-  background-color: var(--tui-background-accent-1);
-  color: var(--tui-text-primary-on-accent-1);
-}
-
 .body {
   display: flex;
 }
@@ -20,23 +9,8 @@ aside {
 [tuiNavigationLogo] {
   color: inherit;
   text-decoration: none;
-  font-weight: bold;
 }
 
-/* A production environment is active: a thin warning line under the header. */
-header._prod {
-  box-shadow: inset 0 -0.125rem var(--tui-status-negative);
-}
-
-app-env-select {
-  margin-inline-end: 0.75rem;
-}
-
-footer {
-  padding-block-end: 0.5rem;
-
-  ._active {
-    background: var(--tui-background-neutral-1-hover);
-    color: var(--tui-text-action);
-  }
+.subheader {
+  position: sticky;
 }

@@ -21,6 +21,13 @@ import { ConfigService } from '../../../core/ipc/config';
 import type { Host, Project } from '../../../core/ipc/config.models';
 import type { KeyView } from '../../../core/ipc/keys';
 import { ErrorLink } from '../../../shared/error-link';
+import { byName, HOME } from '../../project-tree/node-tree';
+
+interface HostGroup {
+  readonly label: string;
+  readonly project: Project | null;
+  readonly hosts: readonly Host[];
+}
 
 export interface KeyDeployDialogData {
   readonly key: Pick<KeyView, 'name' | 'path'>;
@@ -28,9 +35,9 @@ export interface KeyDeployDialogData {
   readonly deploy: (hostId: string, useKey: boolean) => Promise<boolean>;
 }
 
-/** `UI · Dev`, or the host name alone when its project has no active environment. */
-export function deployTargetLabel(project: Project, host: Host): string {
-  const env = project.environments.find((e) => e.id === project.activeEnvironmentId);
+/** `UI · Dev`, or the host name alone at Home or when its project has no active environment. */
+export function deployTargetLabel(project: Project | null, host: Host): string {
+  const env = project?.environments.find((e) => e.id === project.activeEnvironmentId);
   return env ? `${host.name} · ${env.name}` : host.name;
 }
 
@@ -68,14 +75,23 @@ export class KeyDeployDialog {
     useKey: [false],
   });
 
-  protected readonly projects = computed(() =>
-    this.config.projects().filter((p) => p.hosts.length > 0),
-  );
+  /** Home first, then each project with hosts; hosts sorted by name. */
+  protected readonly groups = computed<HostGroup[]>(() => {
+    const hosts = [...this.config.hosts()].sort(byName);
+    const scopes: (Project | null)[] = [null, ...[...this.config.projects()].sort(byName)];
+    return scopes
+      .map((project) => ({
+        label: project?.name ?? HOME,
+        project,
+        hosts: hosts.filter((h) => h.projectId === (project?.id ?? null)),
+      }))
+      .filter((group) => group.hosts.length > 0);
+  });
   private readonly labels = computed(() => {
     const map = new Map<string, string>();
-    for (const project of this.config.projects()) {
-      for (const host of project.hosts) {
-        map.set(host.id, deployTargetLabel(project, host));
+    for (const group of this.groups()) {
+      for (const host of group.hosts) {
+        map.set(host.id, deployTargetLabel(group.project, host));
       }
     }
     return map;
@@ -83,7 +99,7 @@ export class KeyDeployDialog {
   protected readonly stringify: TuiStringHandler<string | null> = (id) =>
     (id && this.labels().get(id)) || '';
 
-  protected label(project: Project, host: Host): string {
+  protected label(project: Project | null, host: Host): string {
     return deployTargetLabel(project, host);
   }
 

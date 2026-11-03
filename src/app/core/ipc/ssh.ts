@@ -47,7 +47,6 @@ export class SshService {
     };
     try {
       const info = await invokeCommand<ConnectionInfo>('connect_host', {
-        projectId: target.projectId,
         hostId: target.hostId,
         environmentId: target.environmentId,
         onEvent,

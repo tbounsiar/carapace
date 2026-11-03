@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: 0.5rem;
   /* Same clamp as the terminal view, minus its tab bar (2.75rem + gap): no fixed-height ancestor. */
-  block-size: clamp(16rem, calc(100dvh - 21.25rem), 60rem);
+  block-size: clamp(16rem, calc(100dvh - 25rem), 60rem);
 }
 
 .panes {

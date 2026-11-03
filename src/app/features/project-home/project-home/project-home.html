@@ -1,0 +1,85 @@
+@if (project(); as project) {
+  <section class="page" data-testid="project-home">
+    <header tuiHeader>
+      <hgroup tuiTitle>
+        <h1 data-testid="project-home-title">{{ project.name }}</h1>
+        <p tuiSubtitle class="subtitle">
+          <span>{{ summary() }} ·</span>
+          @if (environment(); as env) {
+            <span>Environment: {{ env.name }}</span>
+            @if (marker()?.label) {
+              <span tuiBadge size="s" [appearance]="marker()!.appearance">{{
+                marker()!.label
+              }}</span>
+            }
+          } @else {
+            <span>No environment</span>
+          }
+        </p>
+        @if (!empty()) {
+          <p tuiSubtitle>Pick a host in the sidebar.</p>
+        }
+      </hgroup>
+      @if (!empty()) {
+        <div tuiAccessories>
+          <button
+            tuiButton
+            appearance="primary"
+            size="s"
+            iconStart="@tui.server"
+            type="button"
+            data-testid="project-home-new-host"
+            (click)="newHost()"
+          >
+            New host
+          </button>
+          <button
+            tuiButton
+            appearance="secondary"
+            size="s"
+            iconStart="@tui.folder-plus"
+            type="button"
+            data-testid="project-home-new-collection"
+            (click)="newCollection()"
+          >
+            New collection
+          </button>
+        </div>
+      }
+    </header>
+    @if (empty()) {
+      <tui-block-status size="m" data-testid="project-empty">
+        <h2>This project is empty</h2>
+        <p>Add hosts here, or create collections to group them.</p>
+        <button
+          tuiButton
+          appearance="primary"
+          size="s"
+          iconStart="@tui.server"
+          type="button"
+          data-testid="project-home-new-host"
+          (click)="newHost()"
+        >
+          New host
+        </button>
+        <button
+          tuiButton
+          appearance="secondary"
+          size="s"
+          iconStart="@tui.folder-plus"
+          type="button"
+          data-testid="project-home-new-collection"
+          (click)="newCollection()"
+        >
+          New collection
+        </button>
+      </tui-block-status>
+    }
+  </section>
+} @else if (notFound()) {
+  <tui-block-status size="m" data-testid="project-not-found">
+    <h2>Project not found</h2>
+    <p>It may have been deleted.</p>
+    <a tuiButton appearance="secondary" size="s" routerLink="/">Go to Home</a>
+  </tui-block-status>
+}

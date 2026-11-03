@@ -8,6 +8,8 @@ import {
   resolveTemplate,
   secretReferenceName,
   secretVariableNames,
+  undefinedReferences,
+  variableLayers,
   type VariableLayers,
 } from './template';
 
@@ -123,5 +125,34 @@ describe('template', () => {
         environments: [{ id: 'e1', name: 'dev', variables: [secret('b'), secret('d')] }],
       }),
     ).toEqual(['a', 'b', 'd']);
+  });
+});
+
+describe('Home scope', () => {
+  const host: HostInput = {
+    name: 'vps',
+    hostname: '${host}',
+    port: '${port}',
+    username: 'me',
+    auth: { kind: 'password', password: '${pw}' },
+  };
+
+  it('layers global variables only', () => {
+    expect(variableLayers([plain('a', '1')], null, null)).toEqual({
+      global: [plain('a', '1')],
+      project: [],
+      environment: null,
+    });
+    expect(secretVariableNames([secret('g')], null)).toEqual(['g']);
+  });
+
+  it('lists references no level of the target defines, sorted', () => {
+    expect(undefinedReferences([host], [plain('host', 'h')], null)).toEqual(['port', 'pw']);
+    expect(
+      undefinedReferences([host], [], {
+        variables: [plain('port', '22')],
+        environments: [{ id: 'e', name: 'dev', variables: [secret('pw'), plain('host', 'x')] }],
+      }),
+    ).toEqual([]);
   });
 });

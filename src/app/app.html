@@ -1,75 +1,53 @@
 <tui-root [attr.tuiTheme]="effective()">
-  <header tuiNavigationHeader [attr.tuiTheme]="effective()" [class._prod]="isProd()">
+  <header tuiNavigationHeader [attr.tuiTheme]="effective()">
     <a tuiNavigationLogo routerLink="/" data-testid="home-link">
       <tui-icon icon="@tui.terminal" />
       Carapace
     </a>
+    <app-project-select />
     <hr />
-    <app-env-select />
-    <tui-segmented
-      size="s"
-      aria-label="Theme"
-      data-testid="theme-toggle"
-      [activeItemIndex]="activeIndex()"
-      (activeItemIndexChange)="selectIndex($event)"
-    >
-      @for (option of themeOptions; track option.mode) {
-        <button
-          type="button"
-          [class._active]="$index === activeIndex()"
-          [attr.aria-pressed]="$index === activeIndex()"
-          [attr.aria-label]="option.label"
-          [attr.data-testid]="'theme-' + option.mode"
-          [tuiHint]="option.label"
-        >
-          <tui-icon [icon]="option.icon" />
-        </button>
-      }
-    </tui-segmented>
+    <app-theme-menu />
   </header>
   <div class="body">
-    <aside aria-label="Projects" [tuiNavigationAside]="true" [attr.tuiTheme]="effective()">
-      <app-project-tree />
+    <aside aria-label="Hosts" [tuiNavigationAside]="true" [attr.tuiTheme]="effective()">
+      <header>
+        <app-aside-header />
+      </header>
+      <app-sidebar-tree />
       <footer>
         <a
-          tuiButton
-          appearance="flat-grayscale"
-          size="s"
+          tuiAsideItem
           iconStart="@tui.variable"
           routerLink="/variables"
-          routerLinkActive="_active"
-          ariaCurrentWhenActive="page"
           data-testid="global-variables"
+          [attr.aria-current]="page() === '/variables' ? 'page' : null"
         >
           Global variables
         </a>
         <a
-          tuiButton
-          appearance="flat-grayscale"
-          size="s"
+          tuiAsideItem
           iconStart="@tui.key-round"
           routerLink="/keys"
-          routerLinkActive="_active"
-          ariaCurrentWhenActive="page"
           data-testid="ssh-keys"
+          [attr.aria-current]="page() === '/keys' ? 'page' : null"
         >
           SSH keys
         </a>
         <a
-          tuiButton
-          appearance="flat-grayscale"
-          size="s"
+          tuiAsideItem
           iconStart="@tui.settings"
           routerLink="/settings"
-          routerLinkActive="_active"
-          ariaCurrentWhenActive="page"
           data-testid="settings"
+          [attr.aria-current]="page() === '/settings' ? 'page' : null"
         >
           Settings
         </a>
       </footer>
     </aside>
     <main tuiNavigationMain>
+      <nav tuiSubheader compact class="subheader">
+        <app-location-bar />
+      </nav>
       <router-outlet />
     </main>
   </div>

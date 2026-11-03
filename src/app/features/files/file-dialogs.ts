@@ -1,8 +1,7 @@
 import { inject, Service } from '@angular/core';
 import { TuiDialogService } from '@taiga-ui/core';
-import { TUI_CONFIRM } from '@taiga-ui/kit';
+import { confirmDestructive } from '../../shared/destructive-confirm/confirm-destructive';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
-import { firstValueFrom } from 'rxjs';
 import type { FileEntry, FileSide } from '../../core/ipc/files';
 import { NameDialog, type NameDialogData } from '../project-tree/name-dialog/name-dialog';
 import { fileNameValidator } from './file-path';
@@ -36,20 +35,12 @@ export class FileDialogs {
 
   confirmDelete(entry: FileEntry): Promise<boolean> {
     const dir = entry.kind === 'dir';
-    return firstValueFrom(
-      this.dialogs.open<boolean>(TUI_CONFIRM, {
-        label: `Delete ${dir ? 'folder' : 'file'} "${entry.name}"?`,
-        size: 's',
-        data: {
-          content: dir
-            ? 'The folder and everything inside it will be deleted. This cannot be undone.'
-            : 'The file will be deleted. This cannot be undone.',
-          yes: 'Delete',
-          no: 'Cancel',
-          appearance: ['primary-destructive', 'secondary'],
-        },
-      }),
-      { defaultValue: false },
-    );
+    return confirmDestructive(this.dialogs, `Delete ${dir ? 'folder' : 'file'} "${entry.name}"?`, {
+      content: dir
+        ? 'The folder and everything inside it will be deleted. This cannot be undone.'
+        : 'The file will be deleted. This cannot be undone.',
+      yes: 'Delete',
+      no: 'Cancel',
+    });
   }
 }
