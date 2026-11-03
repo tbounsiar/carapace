@@ -2,6 +2,8 @@
 name = "carapace"
 version = "0.1.0"
 description = "Desktop SSH/SFTP client"
+license = "MIT"
+repository = "https://github.com/tbounsiar/carapace"
 authors = ["Tahar BOUNSIAR"]
 edition = "2024"
 rust-version = "1.90"

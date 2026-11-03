@@ -1,6 +1,10 @@
 # Carapace
 
-Carapace is a desktop SSH and SFTP client: a dual-pane file explorer and terminal tabs in one window. It is built with Tauri 2 (Rust backend), Angular and Taiga UI.
+[![CI](https://github.com/tbounsiar/carapace/actions/workflows/ci.yml/badge.svg)](https://github.com/tbounsiar/carapace/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/tbounsiar/carapace)](https://github.com/tbounsiar/carapace/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Carapace is a free, open source desktop SSH and SFTP client: a dual-pane file explorer and terminal tabs in one window. It is built with Tauri 2 (Rust backend), Angular and Taiga UI.
 
 ## Features
 
@@ -23,7 +27,11 @@ Carapace is a desktop SSH and SFTP client: a dual-pane file explorer and termina
 
 ## Install
 
-Download the Windows installer and run it. Carapace is then available from the Start menu.
+Download the latest Windows installer (`.exe` or `.msi`) from the [Releases page](https://github.com/tbounsiar/carapace/releases/latest) and run it. Carapace is then available from the Start menu.
+
+The installers are not code-signed yet, so Windows SmartScreen may show "Windows protected your PC". Choose **More info**, then **Run anyway**.
+
+Linux and macOS builds are not available yet.
 
 ## Build from source
 
@@ -72,3 +80,11 @@ End-to-end tests run against a disposable OpenSSH server in Docker; see [e2e/REA
 - The host dialog cannot reference a secret variable that does not exist yet; create it in the variables editor first.
 - RSA key signing relies on a crate with a known advisory (RUSTSEC-2023-0071) that has no upstream fix. Prefer Ed25519.
 - Linux and macOS code paths have not been built or tested yet; the Windows build is the supported one.
+
+## Contributing
+
+Bug reports and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE)

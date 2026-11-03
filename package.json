@@ -1,6 +1,6 @@
 {
   "name": "carapace",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -56,5 +56,16 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "8.71.0",
     "vitest": "^5.0.0"
+  },
+  "license": "MIT",
+  "description": "Desktop SSH and SFTP client: dual-pane file explorer and terminal tabs",
+  "author": "Tahar BOUNSIAR",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tbounsiar/carapace.git"
+  },
+  "homepage": "https://github.com/tbounsiar/carapace",
+  "bugs": {
+    "url": "https://github.com/tbounsiar/carapace/issues"
   }
 }

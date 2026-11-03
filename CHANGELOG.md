@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Published as open source under the MIT license, with CI on Windows, Linux and macOS and release builds from tags.
+
 ### Changed
 
 - Hosts can live at Home or in a project, grouped in nested collections, and be moved between them.
