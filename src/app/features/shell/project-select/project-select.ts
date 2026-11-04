@@ -5,7 +5,6 @@ import { TuiChevron, TuiStatus } from '@taiga-ui/kit';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Project } from '../../../core/ipc/config.models';
 import { SshService } from '../../../core/ipc/ssh';
-import { ThemeService } from '../../../core/theme/theme';
 import { connectedCounts } from '../../../shared/connection-status';
 import { CurrentScope } from '../../../shared/current-scope';
 import { byName, HOME, plural } from '../../project-tree/node-tree';
@@ -25,7 +24,6 @@ export class ProjectSelect {
   private readonly actions = inject(ProjectActions);
   private readonly router = inject(Router);
 
-  protected readonly theme = inject(ThemeService).effective;
   protected readonly open = signal(false);
   protected readonly current = this.scope.project;
   protected readonly label = computed(() => this.current()?.name ?? HOME);

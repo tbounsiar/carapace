@@ -3,7 +3,7 @@
   @if (d.readOnly()) {
     <span
       tuiBadge
-      size="s"
+      size="m"
       appearance="neutral"
       iconStart="@tui.lock"
       tabindex="0"
@@ -109,7 +109,9 @@
     </span>
   }
   <span role="status" aria-live="polite" data-testid="editor-saved">
-    @if (d.savedAt(); as at) {
+    @if (d.modified()) {
+      Modified
+    } @else if (d.savedAt(); as at) {
       Saved {{ at }}
     }
   </span>

@@ -13,6 +13,11 @@
   gap: 0.5rem;
 }
 
+/* Same height with or without Save (read-only), so the editor does not move between tabs. */
+.toolbar {
+  min-block-size: var(--tui-height-s);
+}
+
 .spacer {
   flex: 1;
 }

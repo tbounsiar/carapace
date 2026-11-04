@@ -54,6 +54,9 @@ describe('AnalyticsEventsDialog', () => {
     expect(byId('analytics-system')?.textContent).toContain('SDK version');
     expect(byId('analytics-system')?.textContent).toContain('aptabase-tauri@1.0.0');
     expect(byId('analytics-system')?.textContent).toContain('Session ID');
+    expect(byId('analytics-system')?.textContent).toContain(
+      'Random, new at each launch, not linked to you.',
+    );
     expect(byId('analytics-system')?.textContent).toContain('17303125790123456');
     expect(byId('analytics-event-0')?.dataset['event']).toBe('connect_succeeded');
     expect(byId('analytics-event-0')?.textContent).toContain('auth=key');

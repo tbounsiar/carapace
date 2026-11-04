@@ -1,21 +1,23 @@
 <search tuiSearch>
-  <fieldset tuiTextfieldSize="s" class="fields">
-    <tui-textfield iconStart="@tui.search" class="search" [tuiTextfieldCleaner]="true">
-      <input
-        #field
-        tuiInput
-        type="text"
-        autocomplete="off"
-        aria-keyshortcuts="Control+F"
-        data-testid="hosts-search"
-        [placeholder]="placeholder()"
-        [attr.aria-label]="placeholder()"
-        [value]="query()"
-        (input)="onInput($event)"
-        (keydown)="onKeydown($event)"
-      />
-    </tui-textfield>
-    <span class="filters">
+  <form (submit)="$event.preventDefault()">
+    <fieldset tuiTextfieldSize="s">
+      <tui-textfield iconStart="@tui.search" [tuiTextfieldCleaner]="true">
+        <input
+          #field
+          tuiInput
+          type="text"
+          autocomplete="off"
+          aria-keyshortcuts="Control+F"
+          data-testid="hosts-search"
+          [placeholder]="placeholder()"
+          [attr.aria-label]="placeholder()"
+          [value]="query()"
+          (input)="onInput($event)"
+          (keydown)="onKeydown($event)"
+        />
+      </tui-textfield>
+    </fieldset>
+    <fieldset>
       <tui-segmented
         size="s"
         role="radiogroup"
@@ -46,8 +48,8 @@
         </label>
       </tui-segmented>
       @if (count(); as count) {
-        <span role="status" class="count" data-testid="hosts-count">{{ count }}</span>
+        <span role="status" data-testid="hosts-count">{{ count }}</span>
       }
-    </span>
-  </fieldset>
+    </fieldset>
+  </form>
 </search>

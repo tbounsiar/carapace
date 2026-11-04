@@ -17,19 +17,29 @@
     </button>
   </tui-block-status>
 } @else if (empty()) {
-  <tui-block-status size="m" data-testid="sidebar-empty">
-    <h2>{{ isHome() ? 'Nothing here yet' : 'This project is empty' }}</h2>
-    <p>
-      {{
-        isHome()
-          ? 'Use New to add a host, a collection or a project.'
-          : 'Use New to add a host or a collection.'
-      }}
+  <tui-block-status size="m" class="aside-block" data-testid="sidebar-empty">
+    <p tuiSubtitle>
+      {{ isHome() ? 'Nothing here yet.' : 'No hosts yet.' }}
+      {{ isHome() ? 'Use + for a collection or a project.' : 'Use + for a collection.' }}
     </p>
+    <button
+      tuiButton
+      appearance="flat"
+      size="s"
+      iconStart="@tui.plus"
+      type="button"
+      data-testid="sidebar-empty-new-host"
+      (click)="addHostAtRoot()"
+    >
+      New host
+    </button>
   </tui-block-status>
 } @else if (filter.noMatch()) {
-  <tui-block-status size="m" data-testid="sidebar-no-match">
-    <h2>No host matches “{{ filter.query().trim() }}”</h2>
+  <tui-block-status size="m" class="aside-block" data-testid="sidebar-no-match">
+    <p tuiTitle>
+      No host matches
+      <span tuiSubtitle tuiHintOverflow class="query">“{{ filter.query().trim() }}”</span>
+    </p>
     <button
       tuiButton
       appearance="flat"
@@ -57,7 +67,6 @@
           class="row"
           tuiDropdownContext
           tuiDropdownAppearance=""
-          [attr.tuiTheme]="theme()"
           [attr.data-drop]="key"
           [attr.data-drop-target]="dropTarget() === key ? 'true' : null"
           [class._menu]="menuKey() === key"
@@ -129,7 +138,6 @@
           class="row"
           tuiDropdownContext
           tuiDropdownAppearance=""
-          [attr.tuiTheme]="theme()"
           [attr.data-drop]="'collection:' + item.id"
           [attr.data-drop-target]="dropTarget() === item.id ? 'true' : null"
           [class._menu]="menuKey() === item.id"
@@ -189,7 +197,6 @@
         class="row"
         tuiDropdownContext
         tuiDropdownAppearance=""
-        [attr.tuiTheme]="theme()"
         [class._selected]="selectedHost() === host.id"
         [class._menu]="menuKey() === item.id"
         [attr.data-testid]="'tree-host-' + host.name"
@@ -203,6 +210,7 @@
           [attr.data-item]="item.id"
           [attr.tabindex]="tabindex(item.id)"
           [routerLink]="['/hosts', host.id]"
+          [class._active]="selectedHost() === host.id"
           [attr.data-testid]="'open-host-' + host.name"
           (dragstart)="startDrag($event, host)"
           (dblclick)="openTerminal(host)"
@@ -258,7 +266,6 @@
   <span
     class="menu-anchor"
     tuiDropdownAppearance=""
-    [attr.tuiTheme]="theme()"
     [tuiDropdown]="menu"
     [tuiDropdownOpen]="menuKey() === key"
     (tuiDropdownOpenChange)="setMenu(key, $event)"

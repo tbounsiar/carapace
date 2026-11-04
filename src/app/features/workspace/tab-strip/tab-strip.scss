@@ -59,8 +59,9 @@
   font-size: 1rem;
 }
 
+/* BadgeNotification [Custom color]: neutral, so "unsaved" does not read as an error. */
 .modified {
-  font-size: 0.625rem;
+  background: var(--tui-text-primary);
 }
 
 /* A modified tab shows its dot in the close slot; the × comes back on hover and focus. */

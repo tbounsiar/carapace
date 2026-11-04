@@ -35,7 +35,7 @@ import {
 import { TuiButtonLoading, TuiPassword, TuiSegmented, TuiTooltip } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
-import { merge } from 'rxjs';
+import { map, merge } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
@@ -55,20 +55,10 @@ import {
 } from '../key-validators';
 import { ErrorLink } from '../../../shared/error-link';
 
-/** Shown until the backend tells the real directory. */
-export const KEYS_DIR_FALLBACK = '~/.carapace/keys/';
 export const FOLDER_FALLBACK = '~/.carapace/keys';
 export const CHECK_DELAY_MS = 400;
 export const FOLDER_WARNING =
   'Other users can open this folder. The private key file stays readable only by you, but they may be able to replace or delete it.';
-
-export function keyFilePreview(dir: string | null, fileName: string): string {
-  if (!dir) {
-    return `${KEYS_DIR_FALLBACK}${fileName}`;
-  }
-  const sep = dir.includes('\\') ? '\\' : '/';
-  return dir.endsWith(sep) ? `${dir}${fileName}` : `${dir}${sep}${fileName}`;
-}
 
 export function samePath(a: string, b: string): boolean {
   const norm = (p: string): string => p.trim().replace(/[\\/]+$/, '');
@@ -185,7 +175,7 @@ export class KeygenDialog {
     remember: this.fb.control({ value: false, disabled: true }),
   });
 
-  private readonly fileName = toSignal(this.form.controls.fileName.valueChanges, {
+  protected readonly fileName = toSignal(this.form.controls.fileName.valueChanges, {
     initialValue: this.form.controls.fileName.value,
   });
   private readonly folder = toSignal(this.folderControl.valueChanges, {
@@ -195,8 +185,9 @@ export class KeygenDialog {
     initialValue: this.form.controls.algorithm.value,
   });
   protected readonly isRsa = computed(() => this.algorithm() === 'rsa4096');
-  protected readonly pathPreview = computed(() =>
-    keyFilePreview(this.folder().trim() || null, this.fileName()),
+  protected readonly folderInvalid = toSignal(
+    this.folderControl.statusChanges.pipe(map((status) => status === 'INVALID')),
+    { initialValue: this.folderControl.invalid },
   );
   protected readonly showReset = computed(() => !this.isDefaultFolder(this.folder().trim()));
   protected readonly warning = computed(() => {

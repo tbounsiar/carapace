@@ -11,17 +11,24 @@ p {
 .note {
   font: var(--tui-typography-body-s);
   color: var(--tui-text-secondary);
-  overflow-wrap: anywhere;
+}
+
+.path {
+  display: block;
+}
+
+/* A segment never breaks inside (not even after a hyphen); one wider than the dialog is cut. */
+.part {
+  display: inline-block;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .mono {
   font-family: var(--app-font-mono);
-}
-
-.check {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 footer {

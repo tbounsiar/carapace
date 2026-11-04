@@ -152,14 +152,14 @@
             @for (card of projectCards(); track card.project.id) {
               <a
                 tuiCardLarge="compact"
-                tuiHeader
+                tuiHeader="body-l"
                 appearance="outline-grayscale"
                 [routerLink]="['/projects', card.project.id]"
                 [attr.data-testid]="'project-card-' + card.project.name"
               >
                 <h3 tuiTitle class="card-title">
                   <span class="ellipsis" [textContent]="card.project.name"></span>
-                  <span tuiSubtitle>{{ card.summary }}</span>
+                  <span tuiSubtitle class="ellipsis">{{ card.summary }}</span>
                 </h3>
                 <aside tuiAccessories>
                   @if (card.connections; as connections) {
@@ -175,16 +175,18 @@
             }
             <button
               tuiCardLarge="compact"
-              tuiHeader
-              appearance="outline-grayscale"
+              tuiHeader="body-l"
+              appearance="flat"
               type="button"
               data-testid="home-new-project"
               (click)="createProject()"
             >
-              <h3 tuiTitle>New project</h3>
-              <aside tuiAccessories>
-                <tui-icon icon="@tui.plus" />
-              </aside>
+              <span tuiTitle>
+                <span tuiSubtitle class="new-project">
+                  <tui-icon icon="@tui.plus" />
+                  New project
+                </span>
+              </span>
             </button>
           </div>
         </section>

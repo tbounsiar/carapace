@@ -81,10 +81,12 @@
       />
     </tui-textfield>
     <tui-error appErrorLink formControlName="fileName" />
-    <p class="note path" data-testid="keygen-path">
-      Saved as <span class="mono">{{ pathPreview() }}</span> and
-      <span class="mono">{{ pathPreview() }}.pub</span>
-    </p>
+    @if (!folderInvalid()) {
+      <p class="note" data-testid="keygen-path">
+        Saved as <span class="mono">{{ fileName() }}</span> and
+        <span class="mono">{{ fileName() }}.pub</span> in this folder.
+      </p>
+    }
     @if (warning(); as text) {
       <div
         tuiNotification
@@ -109,31 +111,36 @@
     </tui-textfield>
     <tui-error appErrorLink formControlName="comment" />
 
-    <tui-textfield>
-      <label tuiLabel>Passphrase (optional)</label>
-      <input
-        tuiInput
-        type="password"
-        autocomplete="new-password"
-        formControlName="passphrase"
-        data-testid="keygen-passphrase"
-      />
-      <tui-icon tuiPassword />
-    </tui-textfield>
-    <tui-error appErrorLink formControlName="passphrase" />
-
-    <tui-textfield>
-      <label tuiLabel>Confirm passphrase</label>
-      <input
-        tuiInput
-        type="password"
-        autocomplete="new-password"
-        formControlName="confirm"
-        data-testid="keygen-confirm"
-      />
-      <tui-icon tuiPassword />
-    </tui-textfield>
-    <tui-error appErrorLink formControlName="confirm" />
+    <fieldset>
+      <div class="stack">
+        <tui-textfield>
+          <label tuiLabel>Passphrase (optional)</label>
+          <input
+            tuiInput
+            type="password"
+            autocomplete="new-password"
+            formControlName="passphrase"
+            data-testid="keygen-passphrase"
+          />
+          <tui-icon tuiPassword />
+        </tui-textfield>
+        <tui-error appErrorLink formControlName="passphrase" />
+      </div>
+      <div class="stack">
+        <tui-textfield>
+          <label tuiLabel>Confirm passphrase</label>
+          <input
+            tuiInput
+            type="password"
+            autocomplete="new-password"
+            formControlName="confirm"
+            data-testid="keygen-confirm"
+          />
+          <tui-icon tuiPassword />
+        </tui-textfield>
+        <tui-error appErrorLink formControlName="confirm" />
+      </div>
+    </fieldset>
 
     <label class="check">
       <input tuiCheckbox type="checkbox" formControlName="remember" data-testid="keygen-remember" />

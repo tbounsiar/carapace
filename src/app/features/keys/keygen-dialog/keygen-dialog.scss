@@ -15,8 +15,11 @@
   color: var(--tui-text-secondary);
 }
 
-.path {
-  overflow-wrap: anywhere;
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+  min-inline-size: 0;
 }
 
 .check {

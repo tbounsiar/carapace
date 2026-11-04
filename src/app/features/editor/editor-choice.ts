@@ -19,7 +19,8 @@ export async function askEditorChoice(
   return firstValueFrom(
     dialogs.open<EditorChoice>(new PolymorpheusComponent(EditorChoiceDialog), {
       label: LABELS[data.kind](data.name),
-      size: 's',
+      // The server variants hold a notification and up to three actions.
+      size: data.kind === 'unsaved' ? 's' : 'm',
       data,
     }),
     { defaultValue: 'cancel' as EditorChoice },

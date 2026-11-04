@@ -1,34 +1,48 @@
 <p>The key is removed from the list and any saved passphrase is forgotten.</p>
 @if (generated) {
-  <label class="check">
+  <label tuiLabel>
     <input tuiCheckbox type="checkbox" data-testid="key-delete-files" [formControl]="deleteFiles" />
-    Also delete the key files
+    <span tuiTitle>
+      Also delete the key files
+      <span tuiSubtitle>
+        <span class="mono path" data-testid="key-delete-path" [attr.title]="key.path">
+          @for (part of parts; track $index) {
+            <span class="part" [textContent]="part"></span><wbr />
+          }
+        </span>
+        <span>
+          and {{ fileName }}.pub.
+          @if (key.managed) {
+            Servers that trust this key can no longer be reached with it.
+          } @else {
+            Other tools may use this key.
+          }
+        </span>
+      </span>
+    </span>
   </label>
-  <p class="note">
-    Deletes <span class="mono">{{ key.path }}</span> and its <span class="mono">.pub</span> file.
-    @if (key.managed) {
-      Servers that trust this key can no longer be reached with it.
-    } @else {
-      Other tools may use this key.
-    }
-  </p>
 } @else {
   <p class="note">
-    The file stays at <span class="mono">{{ key.path }}</span
-    >: it was imported, not generated here.
+    The file stays where it is: it was imported, not generated here.
+    <span class="mono path" data-testid="key-delete-path" [attr.title]="key.path">
+      @for (part of parts; track $index) {
+        <span class="part" [textContent]="part"></span><wbr />
+      }
+    </span>
   </p>
 }
 <footer>
   <button
     tuiAutoFocus
     tuiButton
+    size="m"
     appearance="secondary"
     type="button"
     (click)="context.$implicit.complete()"
   >
     Cancel
   </button>
-  <button tuiButton appearance="primary-destructive" type="button" (click)="confirm()">
+  <button tuiButton size="m" appearance="primary-destructive" type="button" (click)="confirm()">
     Delete
   </button>
 </footer>

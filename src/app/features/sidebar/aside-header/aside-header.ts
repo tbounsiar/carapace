@@ -9,7 +9,6 @@ import {
   TuiTextfield,
 } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
-import { ThemeService } from '../../../core/theme/theme';
 import { CurrentScope } from '../../../shared/current-scope';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { ancestors } from '../../project-tree/node-tree';
@@ -38,7 +37,6 @@ export class AsideHeader {
 
   protected readonly isHome = this.scope.isHome;
   protected readonly loaded = this.config.loaded;
-  protected readonly theme = inject(ThemeService).effective;
   protected readonly newOpen = signal(false);
 
   constructor() {

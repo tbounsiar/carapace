@@ -1,7 +1,5 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
-  <p class="location" data-testid="host-location">
-    In: <span class="mono">{{ context.data.location }}</span>
-  </p>
+  <p class="location" data-testid="host-location">In: {{ context.data.location }}</p>
   <tui-textfield>
     <label tuiLabel>Name</label>
     <input tuiAutoFocus tuiInput formControlName="name" data-testid="host-name" />
@@ -34,13 +32,14 @@
 
   <fieldset class="auth">
     <legend>Authentication</legend>
-    <tui-radio-list
-      formControlName="authKind"
-      data-testid="host-auth"
-      [items]="authKinds"
-      [itemContent]="authLabel"
-    />
-    <ng-template #authLabel let-kind>{{ label(kind) }}</ng-template>
+    <tui-segmented size="s" data-testid="host-auth">
+      @for (kind of authKinds; track kind) {
+        <label>
+          <input type="radio" formControlName="authKind" [value]="kind" />
+          {{ label(kind) }}
+        </label>
+      }
+    </tui-segmented>
   </fieldset>
 
   @if (isKey()) {

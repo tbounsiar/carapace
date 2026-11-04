@@ -19,6 +19,7 @@ import {
   TuiHint,
   TuiLoader,
   TuiNotificationService,
+  TuiTitle,
 } from '@taiga-ui/core';
 import { TuiChevron, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiNavigation } from '@taiga-ui/layout';
@@ -26,7 +27,6 @@ import { ConfigService } from '../../../core/ipc/config';
 import type { Collection, ConfigNode, Host, Project } from '../../../core/ipc/config.models';
 import { hostTarget, type ConnectionTarget } from '../../../core/ipc/connection';
 import { SshService } from '../../../core/ipc/ssh';
-import { ThemeService } from '../../../core/theme/theme';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
 import {
   connectedCounts,
@@ -88,6 +88,7 @@ export function projectKey(projectId: string): string {
     TuiLoader,
     TuiNavigation,
     TuiStatus,
+    TuiTitle,
   ],
   selector: 'app-sidebar-tree',
   host: {
@@ -120,7 +121,6 @@ export class SidebarTree implements OnInit {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
 
   protected readonly rootDrop = ROOT_DROP;
-  protected readonly theme = inject(ThemeService).effective;
   protected readonly loading = computed(() => this.config.loading() && !this.config.loaded());
   private readonly failure = signal<string | null>(null);
   /** Cleared by any later successful load, including a retry from a dashboard. */
@@ -490,6 +490,10 @@ export class SidebarTree implements OnInit {
 
   protected createProject(): void {
     this.actions.createProject();
+  }
+
+  protected addHostAtRoot(): void {
+    this.addHost({ projectId: this.scope.projectId(), parentId: null });
   }
 
   protected addHost(container: Container): void {

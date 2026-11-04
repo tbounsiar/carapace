@@ -244,7 +244,9 @@ describe('keys', () => {
       await typeInto('keygen-name', CUSTOM);
       await typeInto('keygen-folder', customDir());
       await byId('keygen-folder-reset').waitForDisplayed({ timeout: 10000 });
-      await expect(byId('keygen-path')).toHaveText(expect.stringContaining(customKey()));
+      await expect(byId('keygen-path')).toHaveText(
+        expect.stringContaining(`${CUSTOM}.pub in this folder`),
+      );
       await shot('keys-15-generate-custom-folder');
       await clickId('keygen-submit');
       await waitGone('keygen-folder');

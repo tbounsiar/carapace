@@ -100,6 +100,7 @@ describe('EditorPanel', () => {
     doc.stats.update((s) => ({ ...s, modified: true, selected: 4 }));
     await settle();
     expect(byId('editor-position')?.textContent).toContain('Ln 2, Col 9, 4 selected');
+    expect(byId('editor-saved')?.textContent?.trim()).toBe('Modified');
     byId('editor-save')!.click();
     expect(doc.save).toHaveBeenCalled();
     byId('editor-reload')!.click();

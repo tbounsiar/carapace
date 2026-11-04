@@ -23,7 +23,6 @@ export class ThemeMenu {
   private readonly themes = inject(ThemeService);
 
   protected readonly options = THEME_OPTIONS;
-  protected readonly theme = this.themes.effective;
   protected readonly open = signal(false);
   protected readonly current = computed(
     () => THEME_OPTIONS.find((o) => o.mode === this.themes.mode()) ?? THEME_OPTIONS[0],

@@ -53,7 +53,7 @@ describe('MoveActions', () => {
     expect(dialogs.open).not.toHaveBeenCalled();
     expect(move).toHaveBeenCalledWith('h1', 'p1', 'c2');
     const options = (alerts.open.mock.calls[0] as unknown[])[1] as { data: MoveUndoData };
-    expect(options.data.text).toBe('Moved “api” to Legacy');
+    expect(options.data.text).toBe('Moved “api” to Backend / Legacy');
     expect(TestBed.inject(SidebarState).focusRequest()).toBe('h1');
 
     options.data.undo();
@@ -76,7 +76,7 @@ describe('MoveActions', () => {
   it('toasts a cross-scope move without Undo', async () => {
     vi.spyOn(config, 'moveNode').mockResolvedValue({ nodes: [], scopeChanged: true });
     await moves.drop(config.findNode('h1')!, { projectId: null, parentId: null });
-    expect(alerts.open).toHaveBeenCalledWith('Moved “api” to Home', expect.anything());
+    expect(alerts.open).toHaveBeenCalledWith('Moved “api” to Home (top level)', expect.anything());
   });
 
   it('returns a conflict for the dialog and toasts it for a drop', async () => {

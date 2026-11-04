@@ -161,6 +161,22 @@ describe('HostDialog', () => {
     expect(dialog.form.value.password).toBeNull();
   });
 
+  it('picks the authentication from one segmented row', async () => {
+    const { dialog, el, fixture } = await setup();
+    const auth = byId(el, 'host-auth')!;
+    expect(auth.tagName).toBe('TUI-SEGMENTED');
+    const labels = [...auth.querySelectorAll('label')];
+    expect(labels.map((l) => l.textContent!.trim())).toEqual([
+      'Password',
+      'Private key file',
+      'SSH agent',
+    ]);
+    labels[1].querySelector('input')!.click();
+    await fixture.whenStable();
+    expect(dialog.form.value.authKind).toBe('key');
+    expect(byId(el, 'host-key-path')).not.toBeNull();
+  });
+
   it('is invalid until required fields are filled', async () => {
     const { dialog } = await setup();
     await dialog.submit();
@@ -661,7 +677,9 @@ describe('HostDialog', () => {
       expect(options.data['yes']).toBe('Replace');
       expect(options.data['no']).toBe('Keep template');
       expect(options.data['content']).toContain('<code>${keys}</code>');
-      expect(options.data['content']).toContain('<code>/home/me/.ssh/id_work</code>');
+      expect(options.data['content']).toContain(
+        '<br /><code>/<wbr>home/<wbr>me/<wbr>.ssh/<wbr>id_work</code>',
+      );
       expect(dialog.form.get('keyPath')!.value).toBe('${keys}/id');
       expect(document.activeElement).toBe(byId(el, 'host-key-browse'));
       expect(byId(el, 'host-key-register')).toBeNull();

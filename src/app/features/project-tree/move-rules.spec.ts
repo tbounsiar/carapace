@@ -1,6 +1,6 @@
 import { collection, host, project } from '../../core/ipc/config.fixture';
 import type { VariableView } from '../../core/ipc/config.models';
-import { crossScopeWarning, moveTargets, targetName } from './move-rules';
+import { crossScopeWarning, moveDestination, moveTargets } from './move-rules';
 
 const plain = (name: string): VariableView => ({ name, kind: 'plain', value: 'x', hasValue: true });
 
@@ -64,8 +64,18 @@ describe('move-rules', () => {
     ).toBe('Moving into a project');
   });
 
-  it('names the target by its last segment', () => {
-    expect(targetName(NODES, PROJECTS, { projectId: 'p1', parentId: 'c2' })).toBe('Legacy');
-    expect(targetName(NODES, PROJECTS, { projectId: null, parentId: null })).toBe('Home');
+  it('names the destination, with the scope only across scopes', () => {
+    const legacy = { projectId: 'p1', parentId: 'c2' };
+    expect(moveDestination(NODES, PROJECTS, legacy, false)).toBe('Backend / Legacy');
+    expect(moveDestination(NODES, PROJECTS, legacy, true)).toBe('Payments / Backend / Legacy');
+    expect(moveDestination(NODES, PROJECTS, { projectId: 'p1', parentId: null }, false)).toBe(
+      'Payments (top level)',
+    );
+    expect(moveDestination(NODES, PROJECTS, { projectId: null, parentId: 'c3' }, true)).toBe(
+      'Home / Lab',
+    );
+    expect(moveDestination(NODES, PROJECTS, { projectId: null, parentId: null }, true)).toBe(
+      'Home (top level)',
+    );
   });
 });

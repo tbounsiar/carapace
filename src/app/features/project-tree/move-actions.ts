@@ -9,7 +9,7 @@ import { IpcError } from '../../core/ipc/ipc-error';
 import { SidebarState } from '../sidebar/sidebar-state';
 import type { MoveDialogData } from './move-dialog/move-dialog';
 import type { MoveUndoData } from './move-undo/move-undo';
-import { crossScopeWarning, targetName } from './move-rules';
+import { crossScopeWarning, moveDestination } from './move-rules';
 import { ancestors, canMoveInto, sameContainer, type Container } from './node-tree';
 import { errorText, notifyError } from './save-error';
 
@@ -93,7 +93,13 @@ export class MoveActions {
     try {
       const result = await this.config.moveNode(node.id, target.projectId, target.parentId);
       this.reveal(node.id);
-      const text = `Moved “${node.name}” to ${targetName(this.config.nodes(), this.config.projects(), target)}`;
+      const to = moveDestination(
+        this.config.nodes(),
+        this.config.projects(),
+        target,
+        result.scopeChanged,
+      );
+      const text = `Moved “${node.name}” to ${to}`;
       if (result.scopeChanged) {
         this.alerts.open(text, { appearance: 'positive' }).subscribe();
       } else {

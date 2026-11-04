@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { TuiItem } from '@taiga-ui/cdk';
 import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiIcon, TuiLoader } from '@taiga-ui/core';
-import { TuiStatus, TuiTabs, TuiTabsWithMore } from '@taiga-ui/kit';
+import { TuiBadgeNotification, TuiStatus, TuiTabs, TuiTabsWithMore } from '@taiga-ui/kit';
 import { ConfigService } from '../../../core/ipc/config';
 import { OpenDialogs } from '../../../shared/open-dialogs';
 import { HostLauncher } from '../../host-connection/host-launcher';
@@ -38,6 +38,7 @@ export function tabTestSuffix(tab: WorkspaceTab, host: string): string {
 @Component({
   imports: [
     NgTemplateOutlet,
+    TuiBadgeNotification,
     TuiButton,
     TuiDataList,
     TuiDropdown,

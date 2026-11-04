@@ -285,7 +285,7 @@ describe('collections', () => {
     await shot('coll-06-move-warning');
     await clickId('move-submit');
     await waitGone('move-submit');
-    await waitText(`Moved “pi” to ${PROJECT}`);
+    await waitText(`Moved “pi” to ${PROJECT} (top level)`);
     await waitGone('tree-host-pi');
     await enterProject(PROJECT);
     await byId('tree-host-pi').waitForExist({ timeout: 10000 });

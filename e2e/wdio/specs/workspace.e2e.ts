@@ -1,5 +1,5 @@
 import { HOST, PROJECT } from '../helpers/fixture';
-import { screenshotThemes } from '../helpers/screenshot';
+import { screenshotThemes, shotWithMenu } from '../helpers/screenshot';
 import {
   activeTab,
   byId,
@@ -78,7 +78,14 @@ describe('workspace tabs', () => {
       await byId('tabs-more').waitForDisplayed({ timeout: 10000 });
       await shot('ws-02-more-800px');
       await clickId('tabs-more');
-      const option = $$(`[data-testid^="tabs-more-option-"]`)[0];
+      const first = $$(`[data-testid^="tabs-more-option-"]`)[0];
+      await first.waitForDisplayed({ timeout: 10000 });
+      const optionId = (await first.getAttribute('data-testid')) ?? '';
+      await clickId('tabs-more');
+      await byId(optionId).waitForExist({ timeout: 10000, reverse: true });
+      await shotWithMenu('ws-02b-more-open', 'tabs-more', optionId);
+      await clickId('tabs-more');
+      const option = byId(optionId);
       await option.waitForDisplayed({ timeout: 10000 });
       const id = ((await option.getAttribute('data-testid')) ?? '').replace(
         'tabs-more-option-',

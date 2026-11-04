@@ -11,13 +11,7 @@ import { KEY } from '../../../core/ipc/keys.fixture';
 import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import type { KeyLocation } from '../../../core/ipc/keys';
 import { Settings } from '../../../core/settings/settings';
-import {
-  FOLDER_WARNING,
-  KeygenDialog,
-  keyFilePreview,
-  locationProblem,
-  samePath,
-} from './keygen-dialog';
+import { FOLDER_WARNING, KeygenDialog, locationProblem, samePath } from './keygen-dialog';
 
 interface DialogApi {
   form: FormGroup;
@@ -82,25 +76,32 @@ describe('KeygenDialog', () => {
     );
   });
 
-  it('builds the preview with the separator of the keys dir', () => {
-    expect(keyFilePreview(null, 'id')).toBe('~/.carapace/keys/id');
-    expect(keyFilePreview('C:\\Users\\me\\.carapace\\keys', 'id')).toBe(
-      'C:\\Users\\me\\.carapace\\keys\\id',
+  it('names both files without repeating the folder', async () => {
+    const { el } = await setup();
+    expect(byId(el, 'keygen-path').textContent!.replace(/\s+/g, ' ').trim()).toBe(
+      'Saved as id_ed25519 and id_ed25519.pub in this folder.',
     );
-    expect(keyFilePreview('/home/me/.carapace/keys', 'id')).toBe('/home/me/.carapace/keys/id');
-    expect(keyFilePreview('/srv/keys/', 'id')).toBe('/srv/keys/id');
+  });
+
+  it('hides the file names while the folder has an error', async () => {
+    const { fixture, el, c } = await setup();
+    c['folder'].setValue('');
+    await fixture.whenStable();
+    expect(c['folder'].invalid).toBe(true);
+    expect(byId(el, 'keygen-path')).toBeNull();
+    c['folder'].setValue('/srv/keys');
+    await fixture.whenStable();
+    expect(byId(el, 'keygen-path')).not.toBeNull();
   });
 
   it('shows the real keys dir once loaded, the default before or on failure', async () => {
     loadKeysDir.mockRejectedValueOnce(new IpcError('io', 'boom'));
-    const { fixture, el } = await setup();
+    const { fixture, c } = await setup();
     expect(loadKeysDir).toHaveBeenCalledOnce();
-    expect(byId(el, 'keygen-path').textContent).toContain('~/.carapace/keys/id_ed25519');
+    expect(c['folder'].value).toBe('~/.carapace/keys');
     keysDir.set('D:\\home\\keys');
     await fixture.whenStable();
-    const text = byId(el, 'keygen-path').textContent!;
-    expect(text).toContain('D:\\home\\keys\\id_ed25519');
-    expect(text).toContain('D:\\home\\keys\\id_ed25519.pub');
+    expect(c['folder'].value).toBe('D:\\home\\keys');
   });
 
   it('starts with Ed25519 defaults and remember off', async () => {
@@ -118,7 +119,7 @@ describe('KeygenDialog', () => {
     expect(byId<HTMLInputElement>(el, 'keygen-remember').disabled).toBe(true);
     expect(byId<HTMLInputElement>(el, 'keygen-passphrase').type).toBe('password');
     expect(byId<HTMLInputElement>(el, 'keygen-confirm').type).toBe('password');
-    expect(byId(el, 'keygen-path').textContent).toContain('~/.carapace/keys/id_ed25519');
+    expect(byId(el, 'keygen-path').textContent).toContain('id_ed25519.pub');
   });
 
   it('starts with the default key type from the settings', async () => {
@@ -137,7 +138,7 @@ describe('KeygenDialog', () => {
     expect(c['algorithm'].value).toBe('rsa4096');
     expect(c['name'].value).toBe('id_rsa');
     expect(c['fileName'].value).toBe('id_rsa');
-    expect(byId(el, 'keygen-path').textContent).toContain('~/.carapace/keys/id_rsa');
+    expect(byId(el, 'keygen-path').textContent).toContain('id_rsa.pub');
 
     c['name'].setValue('deploy key');
     c['name'].markAsDirty();
@@ -282,7 +283,6 @@ describe('KeygenDialog', () => {
       await settle(fixture);
       expect(c['folder'].value).toBe('/home/me/.ssh');
       expect(byId(el, 'keygen-folder-reset')).not.toBeNull();
-      expect(byId(el, 'keygen-path').textContent).toContain('/home/me/.ssh/id_ed25519');
       expect(checkLocation).toHaveBeenCalledWith('/home/me/.ssh', 'id_ed25519');
     });
 
@@ -309,7 +309,6 @@ describe('KeygenDialog', () => {
       expect(c['folder'].value).toBe('/srv/keys');
       expect(document.activeElement).toBe(byId(el, 'keygen-folder'));
       expect(checkLocation).toHaveBeenLastCalledWith('/srv/keys', 'id_ed25519');
-      expect(byId(el, 'keygen-path').textContent).toContain('/srv/keys/id_ed25519');
     });
 
     it('keeps the folder on a cancelled pick and focuses Browse', async () => {

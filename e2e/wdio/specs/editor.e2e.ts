@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { HOST, PROJECT } from '../helpers/fixture';
-import { screenshotThemes } from '../helpers/screenshot';
+import { screenshotThemes, shotWithMenu } from '../helpers/screenshot';
 import {
   byId,
   clickId,
@@ -125,6 +125,7 @@ describe('remote file editor', () => {
     await waitActiveTab(editTab('run'));
     await byId('editor-content').waitForDisplayed({ timeout: 20000 });
     expect(await language()).toBe('plain');
+    await shotWithMenu('edit-04-language-menu', 'editor-language', 'editor-language-shell');
     await clickId('editor-language');
     await byId('editor-language-shell').waitForDisplayed({ timeout: 5000 });
     // screenshotThemes closes open dropdowns (a JS click outside), so the shot comes after the pick.

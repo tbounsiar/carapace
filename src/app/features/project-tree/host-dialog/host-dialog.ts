@@ -38,7 +38,7 @@ import {
   TuiButtonLoading,
   TuiChevron,
   type TuiConfirmData,
-  TuiRadioList,
+  TuiSegmented,
   TuiSelect,
   TuiTooltip,
 } from '@taiga-ui/kit';
@@ -52,6 +52,7 @@ import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import { KeyStore } from '../../../core/ipc/key-store';
 import type { KeyView } from '../../../core/ipc/keys';
 import { AUTH_LABELS } from '../../../shared/auth-method';
+import { escapeHtml, pathHtml } from '../../../shared/path-breaks';
 import {
   hasReferences,
   parseTemplate,
@@ -92,14 +93,6 @@ export interface HostDialogData {
 
 export type AuthKind = AuthMethod['kind'];
 
-function escapeHtml(text: string): string {
-  return text
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
-}
-
 /** Case-insensitive for Windows paths, which contain a backslash. */
 export function sameKeyPath(a: string, b: string): boolean {
   return a.includes('\\') || b.includes('\\') ? a.toLowerCase() === b.toLowerCase() : a === b;
@@ -131,7 +124,7 @@ function reference(value: string | null): string | null {
     TuiLink,
     TuiLoader,
     TuiNotification,
-    TuiRadioList,
+    TuiSegmented,
     TuiSelect,
     TuiTextfield,
     TuiTitle,
@@ -377,7 +370,7 @@ export class HostDialog {
     if (refs.length) {
       const code = (text: string): string => `<code>${escapeHtml(text)}</code>`;
       const data: TuiConfirmData = {
-        content: `Key path uses ${refs.map(code).join(', ')}. Replace it with ${code(path)}? The host will no longer follow the variable.`,
+        content: `Key path uses ${refs.map(code).join(', ')}. Replace it with this file? The host will no longer follow the variable.<br /><code>${pathHtml(path)}</code>`,
         yes: 'Replace',
         no: 'Keep template',
         appearance: 'primary',

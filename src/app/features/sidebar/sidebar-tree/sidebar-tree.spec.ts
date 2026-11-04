@@ -242,8 +242,10 @@ describe('SidebarTree', () => {
       });
       await go(`/tabs/${tab.id}`);
       expect(byId('tree-host-pi-hole')?.classList).toContain('_selected');
+      expect(byId('open-host-pi-hole')?.classList).toContain('_active');
       expect(byId('tree-collection-Lab')?.getAttribute('aria-expanded')).toBe('true');
       expect(byId('tree-host-my-vps')?.classList).not.toContain('_selected');
+      expect(byId('open-host-my-vps')?.classList).not.toContain('_active');
       expect(document.activeElement).not.toBe(byId('open-host-pi-hole'));
     });
 
@@ -418,6 +420,9 @@ describe('SidebarTree', () => {
     config.nodes.set([]);
     await setup();
     expect(byId('sidebar-empty')?.textContent).toContain('Nothing here yet');
+    expect(byId('sidebar-empty')?.querySelector('h2')).toBeNull();
+    byId('sidebar-empty-new-host')!.click();
+    expect(actions.addHost).toHaveBeenCalledWith({ projectId: null, parentId: null });
     config.loaded.set(false);
     vi.spyOn(config, 'load').mockRejectedValueOnce(new IpcError('io', 'disk gone'));
     fixture.destroy();

@@ -65,7 +65,7 @@ describe('KeyDeleteDialog', () => {
   it('never deletes the file of an imported key', async () => {
     const { el } = await setup(false, 'imported');
     expect(el.querySelector('[data-testid="key-delete-files"]')).toBeNull();
-    expect(el.textContent).toContain('The file stays at');
+    expect(el.textContent).toContain('The file stays where it is');
     button(el, 'Delete').click();
     expect(completeWith).toHaveBeenCalledWith({ deleteFiles: false });
   });

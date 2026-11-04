@@ -105,11 +105,19 @@ export function crossScopeWarning(
     : { title: 'Moving into a project', question: 'Move into a project?', body, missing };
 }
 
-/** The last segment of the target path: "Backend", "Payments", "Home". */
-export function targetName(
+/**
+ * Where a moved node went, for the toast: "Payments (top level)" for a scope root, the path below
+ * the scope within one ("Backend / Legacy"), the scope first across scopes ("Home / Lab").
+ */
+export function moveDestination(
   nodes: readonly ConfigNode[],
   projects: readonly Project[],
   target: Container,
+  crossScope: boolean,
 ): string {
-  return containerPath(nodes, projects, target).at(-1) ?? HOME;
+  const [scope, ...below] = containerPath(nodes, projects, target);
+  if (!below.length) {
+    return `${scope} (top level)`;
+  }
+  return (crossScope ? [scope, ...below] : below).join(' / ');
 }

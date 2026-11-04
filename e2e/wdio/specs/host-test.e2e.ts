@@ -85,6 +85,9 @@ describe('test connection', () => {
     const hint = $('tui-hint');
     await hint.waitForDisplayed({ timeout: 10000 });
     await expect(hint).toHaveText(expect.stringContaining('Define the missing variables'));
+    await browser.execute(() =>
+      document.querySelector<HTMLElement>('[data-testid="host-test"]')?.focus(),
+    );
     console.log('screenshots', await screenshotThemes('test-01-disabled', { keepFocus: true }));
     await clickId('host-test');
     await expect(byId('host-test-result')).not.toHaveAttribute('data-result');

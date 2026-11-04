@@ -7,13 +7,13 @@ import {
   TuiNotificationService,
   TuiTitle,
 } from '@taiga-ui/core';
-import { TuiList } from '@taiga-ui/layout';
+import { TuiHeader, TuiList } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
 import { Analytics } from '../../../core/ipc/analytics';
 import { openPrivacyPage } from '../privacy-page';
 
 @Component({
-  imports: [TuiAutoFocus, TuiButton, TuiLink, TuiList, TuiTitle],
+  imports: [TuiAutoFocus, TuiButton, TuiHeader, TuiLink, TuiList, TuiTitle],
   selector: 'app-consent-dialog',
   styleUrl: './consent-dialog.scss',
   templateUrl: './consent-dialog.html',

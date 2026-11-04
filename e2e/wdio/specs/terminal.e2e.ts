@@ -98,6 +98,12 @@ describe('terminal tabs', () => {
     }
     await browser.pause(1000);
     await shot('term-02-first-tab');
+
+    await clickId('crumb-host');
+    await byId(`host-tab-${HOST.name}-terminal-1`).waitForDisplayed({ timeout: 10000 });
+    await shot('term-02b-host-open-tabs');
+    await clickId(`host-tab-${HOST.name}-terminal-1`);
+    await waitActiveTab(tab(1));
   });
 
   it('runs a command and themes the terminal', async () => {

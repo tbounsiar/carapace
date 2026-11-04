@@ -52,7 +52,7 @@
           }
           <span class="close-slot">
             @if (tab.modified()) {
-              <tui-icon icon="@tui.circle" class="modified" data-testid="tab-modified" />
+              <tui-badge-notification size="xs" class="modified" data-testid="tab-modified" />
             }
             <tui-icon
               icon="@tui.x"
@@ -110,7 +110,7 @@
           <tui-icon icon="@tui.lock" class="lock" />
         }
         @if (tab.modified()) {
-          <tui-icon icon="@tui.circle" class="modified" />
+          <tui-badge-notification size="xs" class="modified" />
         }
       </button>
     }

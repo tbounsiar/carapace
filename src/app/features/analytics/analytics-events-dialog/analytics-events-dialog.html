@@ -23,7 +23,10 @@
       <dt>SDK version</dt>
       <dd class="mono">{{ recent.value().system.sdkVersion }}</dd>
       <dt>Session ID</dt>
-      <dd class="mono session">{{ recent.value().system.sessionId }}</dd>
+      <dd>
+        <span class="mono session">{{ recent.value().system.sessionId }}</span>
+        <span class="note session-note">Random, new at each launch, not linked to you.</span>
+      </dd>
     </dl>
   </section>
 
@@ -52,10 +55,12 @@
             @for (row of rows(); track $index) {
               <tr [attr.data-testid]="'analytics-event-' + $index" [attr.data-event]="row.name">
                 <td tuiTd>{{ row.time }}</td>
-                <td tuiTd class="mono">{{ row.name }}</td>
-                <td tuiTd class="mono">
+                <td tuiTd>
+                  <span class="mono">{{ row.name }}</span>
+                </td>
+                <td tuiTd>
                   @for (prop of row.props; track $index) {
-                    <div>{{ prop }}</div>
+                    <div class="mono">{{ prop }}</div>
                   }
                 </td>
               </tr>
