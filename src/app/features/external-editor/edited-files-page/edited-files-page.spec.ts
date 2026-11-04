@@ -99,12 +99,20 @@ describe('EditedFilesPage', () => {
     await fixture.whenStable();
     expect(byId('edited-empty')?.textContent).toContain('No edited files');
     expect(byId('edited-empty')?.querySelector('button')?.textContent).toContain('Settings');
+    expect(byId('edited-empty')?.textContent).toContain(
+      'Open a remote file from a Files tab: row menu (…) → Open in external editor, or Shift+Enter.',
+    );
     expect(byId('edited-note')).toBeNull();
   });
 
   it('lists attention first with the state word, the location and the row action', async () => {
     const { byId, row } = await render([synced, recovered, failed, conflict]);
     expect(byId('edited-note')?.textContent).toContain('a copy of each file is stored');
+    expect(byId('edited-note')?.textContent).not.toContain('in use');
+    expect(document.body.querySelector('[tuiSubtitle]')?.textContent).toContain(
+      'If your editor briefly says the file is in use, save again.',
+    );
+    expect(document.body.querySelector('th.col-actions')?.classList).toContain('_wide');
     const rows = [...document.body.querySelectorAll('tbody tr')].map((r) =>
       r.getAttribute('data-testid'),
     );
@@ -124,6 +132,11 @@ describe('EditedFilesPage', () => {
     );
     const second = row('edited-row-db-1-app.env');
     expect(byId('edited-reason', second)?.textContent).toContain('Permission denied on db-1.');
+    expect(byId('edited-reason', second)?.querySelector('.negative')?.textContent).toBe(
+      'Permission denied on db-1.',
+    );
+    expect(second.querySelector('[tuiBadge]')?.getAttribute('data-size')).toBe('m');
+    expect(second.querySelector('.location > .path')?.textContent).toBe('db-1:/srv/app.env');
     expect(byId('edited-action', second)?.textContent).toContain('Retry');
     const third = row('edited-row-vps-backup.sh');
     expect(byId('edited-state', third)?.textContent).toContain('Not uploaded (from 3 Nov 23:10)');
@@ -132,6 +145,11 @@ describe('EditedFilesPage', () => {
     expect(byId('edited-state', last)?.textContent).toContain('Uploaded 14:02');
     expect(byId('edited-action', last)).toBeNull();
     expect(byId('edited-state', last)?.closest('td')?.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('keeps the actions column narrow when no row has a row action', async () => {
+    await render([synced]);
+    expect(document.body.querySelector('th.col-actions')?.classList).not.toContain('_wide');
   });
 
   it('runs the row actions', async () => {
@@ -153,7 +171,9 @@ describe('EditedFilesPage', () => {
     const { fixture, byId, row } = await render([synced, conflict]);
     await openMenu(fixture, row('edited-row-db-1-logo.png'));
     const upload = byId('edited-upload') as HTMLButtonElement;
-    expect(upload.disabled).toBe(true);
+    expect(upload.getAttribute('aria-disabled')).toBe('true');
+    upload.click();
+    expect(actions.upload).not.toHaveBeenCalled();
     expect(upload.textContent).toContain('No changes to upload');
     expect(byId('edited-reconnect')?.textContent).toContain('Reconnect db-1');
     expect(byId('edited-stop')).not.toBeNull();
@@ -163,9 +183,9 @@ describe('EditedFilesPage', () => {
     await settle();
     await openMenu(fixture, row('edited-row-vps-nginx.conf'));
     const builtin = byId('edited-builtin') as HTMLButtonElement;
-    expect(builtin.disabled).toBe(true);
+    expect(builtin.getAttribute('aria-disabled')).toBe('true');
     expect(builtin.textContent).toContain('Upload or discard your changes first');
-    expect((byId('edited-upload') as HTMLButtonElement).disabled).toBe(false);
+    expect(byId('edited-upload')?.getAttribute('aria-disabled')).toBeNull();
   });
 
   it('blocks Upload and Open for a recovered file whose host no longer exists', async () => {
@@ -173,15 +193,15 @@ describe('EditedFilesPage', () => {
     const { fixture, byId, row } = await render([orphan]);
     const line = row('edited-row-vps-backup.sh');
     expect(byId('edited-reason', line)?.textContent).toContain('vps no longer exists');
-    expect((byId('edited-action', line) as HTMLButtonElement).disabled).toBe(true);
+    expect(byId('edited-action', line)).toBeNull();
     expect((byId('edited-open', line) as HTMLButtonElement).disabled).toBe(true);
     await openMenu(fixture, line);
     for (const id of ['edited-upload', 'edited-reopen', 'edited-builtin']) {
       const option = byId(id) as HTMLButtonElement;
-      expect(option.disabled).toBe(true);
+      expect(option.getAttribute('aria-disabled')).toBe('true');
       expect(option.textContent).toContain('vps no longer exists');
     }
-    expect((byId('edited-reveal') as HTMLButtonElement).disabled).toBe(false);
+    expect(byId('edited-reveal')?.getAttribute('aria-disabled')).toBeNull();
     expect(byId('edited-discard')).not.toBeNull();
   });
 
@@ -196,12 +216,12 @@ describe('EditedFilesPage', () => {
     const { fixture, byId, row } = await render([changed]);
     const line = row('edited-row-db-1-app.env');
     expect(byId('edited-reason', line)?.textContent).toContain(
-      'Opened from another server; nothing was sent.',
+      'db-1 now points to another server. Nothing was sent. Copy your changes out with Show in folder, then stop editing.',
     );
     expect(byId('edited-action', line)).toBeNull();
     await openMenu(fixture, line);
-    expect((byId('edited-upload') as HTMLButtonElement).disabled).toBe(true);
-    expect(byId('edited-upload')?.textContent).toContain('Opened from another server');
+    expect(byId('edited-upload')?.getAttribute('aria-disabled')).toBe('true');
+    expect(byId('edited-upload')?.textContent).toContain('db-1 now points to another server');
     expect(byId('edited-reconnect')).toBeNull();
     expect(byId('edited-stop')).not.toBeNull();
   });
@@ -215,13 +235,15 @@ describe('EditedFilesPage', () => {
     });
     const { fixture, byId, row } = await render([blocked]);
     const line = row('edited-row-vps-run.bat');
-    expect(byId('edited-reason', line)?.textContent).toContain('run.bat would be run, not opened');
+    expect(byId('edited-reason', line)?.textContent).toContain(
+      'Your system would run this file. Choose an editor app in Settings.',
+    );
     expect(byId('edited-action', line)).toBeNull();
     await openMenu(fixture, line);
     for (const id of ['edited-upload', 'edited-reopen', 'edited-builtin']) {
-      expect((byId(id) as HTMLButtonElement).disabled).toBe(true);
+      expect(byId(id)?.getAttribute('aria-disabled')).toBe('true');
     }
-    expect((byId('edited-reveal') as HTMLButtonElement).disabled).toBe(false);
+    expect(byId('edited-reveal')?.getAttribute('aria-disabled')).toBeNull();
     expect(byId('edited-stop')).not.toBeNull();
   });
 

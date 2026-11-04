@@ -36,3 +36,8 @@
   flex: 1;
   min-inline-size: 0;
 }
+
+/* The switch is a row of its own, not a line of the note above it. */
+.switch {
+  margin-block-start: 0.5rem;
+}

@@ -96,7 +96,7 @@ describe('EditedActions', () => {
     ipc.resolveConflict.mockRejectedValueOnce(new IpcError('large_file', 'x is 31457280 bytes'));
     answers = ['useServer', true];
     await actions().resolve({ ...conflict, size: 31457280 });
-    expect(dialog(1)[1].label).toBe('Download 30 MiB to edit it?');
+    expect(dialog(1)[1].label).toBe('Download 30 MiB?');
     expect(ipc.resolveConflict).toHaveBeenLastCalledWith('e1', 'useServer', true);
   });
 

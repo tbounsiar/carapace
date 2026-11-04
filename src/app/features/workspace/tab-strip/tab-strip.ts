@@ -10,18 +10,12 @@ import {
   viewChild,
 } from '@angular/core';
 import { TuiItem } from '@taiga-ui/cdk';
-import {
-  TuiButton,
-  TuiDataList,
-  TuiDropdown,
-  TuiHint,
-  TuiIcon,
-  TuiLoader,
-  TuiTitle,
-} from '@taiga-ui/core';
+import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiIcon, TuiLoader } from '@taiga-ui/core';
 import { TuiBadgeNotification, TuiStatus, TuiTabs, TuiTabsWithMore } from '@taiga-ui/kit';
 import { ConfigService } from '../../../core/ipc/config';
 import { OpenDialogs } from '../../../shared/open-dialogs';
+import { OptionLabel } from '../../../shared/option-reason/option-label';
+import { OptionReason } from '../../../shared/option-reason/option-reason';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { type TabTitle, tabTitles } from '../tab-titles';
 import { Workspace, type WorkspaceTab } from '../workspace';
@@ -46,6 +40,8 @@ export function tabTestSuffix(tab: WorkspaceTab, host: string): string {
 @Component({
   imports: [
     NgTemplateOutlet,
+    OptionLabel,
+    OptionReason,
     TuiBadgeNotification,
     TuiButton,
     TuiDataList,
@@ -56,7 +52,6 @@ export function tabTestSuffix(tab: WorkspaceTab, host: string): string {
     TuiLoader,
     TuiStatus,
     TuiTabs,
-    TuiTitle,
   ],
   selector: 'app-tab-strip',
   host: { '[style.display]': "tabs().length ? 'flex' : 'none'" },

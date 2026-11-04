@@ -17,7 +17,8 @@ import { notifyError } from '../../project-tree/save-error';
 
 type Mode = ExternalEditorSetting['mode'];
 
-const NOT_AN_EDITOR = 'This app runs files instead of editing them. Choose an editor.';
+const NOT_AN_EDITOR =
+  "This program runs scripts or commands; it is not an editor. Pick your editor's program file.";
 
 /** Settings > External editor (spec X10, R6): which app opens edited files, and the notice. */
 @Component({

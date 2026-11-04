@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { TuiNotificationService } from '@taiga-ui/core';
-import { of } from 'rxjs';
+import { Observable } from 'rxjs';
 import { ConfigService } from '../../core/ipc/config';
 import { fakeConfig, host } from '../../core/ipc/config.fixture';
 import { EditedFiles } from '../../core/ipc/edited-files';
@@ -10,7 +10,14 @@ import { EditedActions } from './edited-actions';
 import { EditedAlerts, GROUP_WINDOW_MS } from './edited-alerts';
 
 describe('EditedAlerts', () => {
-  const alerts = { open: vi.fn(() => of(undefined)) };
+  /** Labels of the alerts closed by unsubscribing. */
+  let closed: string[];
+  const alerts = {
+    open: vi.fn(
+      (_content: unknown, options: { label: string }) =>
+        new Observable<void>(() => () => closed.push(options.label)),
+    ),
+  };
   const actions = { review: vi.fn(() => Promise.resolve()) };
   let focused: boolean;
 
@@ -18,6 +25,7 @@ describe('EditedAlerts', () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     focused = true;
+    closed = [];
     vi.spyOn(document, 'hasFocus').mockImplementation(() => focused);
     const config = fakeConfig();
     config.nodes.set([host('h1', 'vps')]);
@@ -150,8 +158,60 @@ describe('EditedAlerts', () => {
         label: '2 edited files were not uploaded',
         appearance: 'warning',
         autoClose: 0,
-        text: 'Carapace closed before their changes reached the server.',
+        text: 'Carapace closed before the changes reached the server.',
       },
     ]);
+  });
+
+  it('closes a conflict alert when its file is fine again', () => {
+    const { enter } = setup();
+    enter(editedFile('e1', 'h1', '/a', { state: 'conflict' }));
+    vi.advanceTimersByTime(GROUP_WINDOW_MS);
+    TestBed.tick();
+    expect(closed).toEqual([]);
+    enter(editedFile('e1', 'h1', '/a', { state: 'synced', lastUploadedAt: 1 }));
+    TestBed.tick();
+    expect(closed).toEqual(['a changed on vps']);
+  });
+
+  it('keeps a grouped alert until its last file leaves the state', () => {
+    const { enter } = setup();
+    enter(editedFile('e1', 'h1', '/a', { state: 'conflict' }));
+    enter(editedFile('e2', 'h1', '/b', { state: 'conflict' }));
+    vi.advanceTimersByTime(GROUP_WINDOW_MS);
+    enter(editedFile('e1', 'h1', '/a'));
+    TestBed.tick();
+    expect(closed).toEqual([]);
+    enter(editedFile('e2', 'h1', '/b', { state: 'uploading' }));
+    TestBed.tick();
+    expect(closed).toEqual(['2 files changed on vps']);
+  });
+
+  it('closes an alert when Review is used', () => {
+    const { enter } = setup();
+    enter(editedFile('e1', 'h1', '/a', { state: 'failed', error: { code: 'x', message: 'x' } }));
+    vi.advanceTimersByTime(GROUP_WINDOW_MS);
+    const data = (alerts.open.mock.calls[0] as unknown as [unknown, { data: { run(): void } }])[1]
+      .data;
+    data.run();
+    expect(closed).toEqual(['a not uploaded']);
+    expect(actions.review).toHaveBeenCalledWith('e1');
+  });
+
+  it('closes the recovered alert when its files are discarded', () => {
+    const { store } = setup();
+    const leftovers = [
+      editedFile('e1', 'h1', '/a', { state: 'recovered' }),
+      editedFile('e2', 'h1', '/b', { state: 'recovered' }),
+    ];
+    store.reset(leftovers);
+    store.snapshot.next(leftovers);
+    TestBed.tick();
+    store.remove(['e1']);
+    TestBed.tick();
+    expect(closed).toEqual([]);
+    store.remove(['e2']);
+    TestBed.tick();
+    expect(closed).toEqual(['2 edited files were not uploaded']);
   });
 });

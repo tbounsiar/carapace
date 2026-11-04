@@ -94,7 +94,7 @@ describe('ExternalOpener', () => {
     failures = [new IpcError('large_file', 'big.iso is 125829120 bytes; confirm to download it')];
     answers = [true];
     await expect(opener().open(vps, '/big.iso', 125829120)).resolves.toBe(true);
-    expect(labels()).toEqual(['Download 120 MiB to edit it?']);
+    expect(labels()).toEqual(['Download 120 MiB?']);
     expect(ipc.open).toHaveBeenLastCalledWith(expect.objectContaining({ confirmLarge: true }));
   });
 
@@ -102,7 +102,7 @@ describe('ExternalOpener', () => {
     failures = [new IpcError('large_file', 'big.iso is 31457280 bytes; confirm to download it')];
     answers = [false];
     await expect(opener().open(vps, '/big.iso', null)).resolves.toBe(false);
-    expect(labels()).toEqual(['Download 30 MiB to edit it?']);
+    expect(labels()).toEqual(['Download 30 MiB?']);
     expect(ipc.open).toHaveBeenCalledOnce();
   });
 

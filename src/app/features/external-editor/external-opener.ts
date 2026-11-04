@@ -31,14 +31,14 @@ function sizeOf(err: IpcError, listed: number | null): number | null {
   return match ? Number(match[1]) : null;
 }
 
-/** "Download 120 MiB to edit it?", before a copy over 20 MiB is downloaded. */
+/** "Download 120 MiB?", before a copy over 20 MiB is downloaded. */
 export function confirmLargeDownload(
   dialogs: TuiDialogService,
   size: number | null,
 ): Promise<boolean> {
   const what = size === null ? 'this file' : formatSize(size);
-  return confirmDestructive(dialogs, `Download ${what} to edit it?`, {
-    content: 'Each save in your editor uploads the whole file again.',
+  return confirmDestructive(dialogs, `Download ${what}?`, {
+    content: 'The file is large. Each save in your editor uploads it again.',
     yes: 'Download',
     no: 'Cancel',
     appearance: 'primary',
@@ -113,7 +113,7 @@ export class ExternalOpener {
     const answer = await firstValueFrom(
       this.dialogs.open<ExternalNoticeAnswer>(new PolymorpheusComponent(ExternalNoticeDialog), {
         label: 'Before you edit outside Carapace',
-        size: 's',
+        size: 'm',
       }),
       { defaultValue: null },
     );
@@ -129,14 +129,19 @@ export class ExternalOpener {
   }
 
   private confirmSensitive(name: string): Promise<boolean> {
-    return confirmDestructive(this.dialogs, 'Copy a file that may hold secrets?', {
-      content: `${name} may hold keys, passwords or tokens. While you edit it, a copy is stored in clear text on this computer (only your account can read it).`,
-      yes: 'Open anyway',
-      no: 'Cancel',
-      appearance: 'primary',
-      yesTestId: 'ext-sensitive-confirm',
-      warning: true,
-    });
+    return confirmDestructive(
+      this.dialogs,
+      'Copy a file that may hold secrets?',
+      {
+        content: `${name} may hold keys, passwords or tokens. While you edit it, a copy is stored in clear text on this computer (only your account can read it).`,
+        yes: 'Open anyway',
+        no: 'Cancel',
+        appearance: 'primary',
+        yesTestId: 'ext-sensitive-confirm',
+        warning: true,
+      },
+      'm',
+    );
   }
 
   private confirmLarge(size: number | null): Promise<boolean> {

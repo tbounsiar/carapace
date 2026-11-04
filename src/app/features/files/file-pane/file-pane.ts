@@ -25,10 +25,11 @@ import {
   TuiLoader,
   TuiNotification,
   TuiNotificationService,
-  TuiTitle,
 } from '@taiga-ui/core';
 import { TuiBadge, TuiBreadcrumbs } from '@taiga-ui/kit';
 import { MAX_EDIT_BYTES } from '../../../core/ipc/editor-files';
+import { OptionLabel } from '../../../shared/option-reason/option-label';
+import { OptionReason } from '../../../shared/option-reason/option-reason';
 import { type EditedFile, MAX_EXTERNAL_BYTES } from '../../../core/ipc/external-edits';
 import type { FileEntry, FileSource, Listing } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
@@ -87,6 +88,8 @@ const SORTERS = Object.fromEntries(
 
 @Component({
   imports: [
+    OptionLabel,
+    OptionReason,
     RouterLink,
     TuiBadge,
     TuiBreadcrumbs,
@@ -100,7 +103,6 @@ const SORTERS = Object.fromEntries(
     TuiLoader,
     TuiNotification,
     TuiTable,
-    TuiTitle,
   ],
   selector: 'app-file-pane',
   styleUrl: './file-pane.scss',

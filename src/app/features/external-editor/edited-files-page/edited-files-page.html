@@ -4,7 +4,8 @@
     <p tuiSubtitle>
       Files open in an external editor. Each save there is uploaded to the server.
       @if (rows().length) {
-        Closing the file in your editor does not stop syncing; use Stop editing.
+        Closing the file in your editor does not stop syncing; use Stop editing. If your editor
+        briefly says the file is in use, save again.
       }
     </p>
   </hgroup>
@@ -15,15 +16,14 @@
 } @else if (rows().length) {
   <div tuiNotification appearance="neutral" size="s" class="note" data-testid="edited-note">
     While you edit, a copy of each file is stored on this computer. Stop editing deletes it; your
-    editor may keep its own copies (backups, history). While a save is being uploaded, your editor
-    may briefly report the file as in use; save again if it does.
+    editor may keep its own copies (backups, history).
   </div>
   <table tuiTable size="s" class="table" aria-label="Edited files">
     <thead tuiThead>
       <tr>
         <th tuiTh>File</th>
         <th tuiTh class="col-state">State</th>
-        <th tuiTh class="col-actions" aria-label="Actions"></th>
+        <th tuiTh class="col-actions" aria-label="Actions" [class._wide]="hasRowAction()"></th>
       </tr>
     </thead>
     <tbody tuiTbody>
@@ -48,34 +48,39 @@
                   [textContent]="row.file.name"
                   (click)="actions.reopen(row.file)"
                 ></button>
-                <span
-                  tuiSubtitle
-                  tuiHintOverflow
-                  class="location"
-                  [textContent]="row.location"
-                ></span>
+                <span tuiSubtitle class="location">
+                  <span tuiHintOverflow class="path" [textContent]="row.location"></span>
+                </span>
               </span>
             </div>
           </td>
           <td tuiTd aria-live="polite">
-            <span class="state" data-testid="edited-state">
-              @let look = row.look;
-              @if (look.kind === 'loader') {
-                <tui-loader size="xs" />
-                <span>{{ look.word }}</span>
-              } @else if (look.kind === 'status') {
-                <span [tuiStatus]="look.color">{{ look.word }}</span>
-              } @else {
-                <span tuiBadge size="s" [appearance]="look.appearance" [iconStart]="look.icon">
-                  {{ look.word }}
+            <div tuiCell="s" class="state-cell">
+              <span tuiTitle class="state-text">
+                <span class="state" data-testid="edited-state">
+                  @let look = row.look;
+                  @if (look.kind === 'loader') {
+                    <tui-loader size="xs" />
+                    <span>{{ look.word }}</span>
+                  } @else if (look.kind === 'status') {
+                    <span [tuiStatus]="look.color">{{ look.word }}</span>
+                  } @else {
+                    <span tuiBadge size="m" [appearance]="look.appearance" [iconStart]="look.icon">
+                      <span tuiHintOverflow class="badge-text">{{ look.word }}</span>
+                    </span>
+                  }
                 </span>
-              }
-            </span>
-            @if (row.reason) {
-              <span tuiSubtitle class="reason" data-testid="edited-reason">{{ row.reason }}</span>
-            } @else if (row.blocked) {
-              <span tuiSubtitle class="hint" data-testid="edited-reason">{{ row.blocked }}</span>
-            }
+                @if (row.reason) {
+                  <span tuiSubtitle data-testid="edited-reason">
+                    <span class="reason negative">{{ row.reason }}</span>
+                  </span>
+                } @else if (row.blocked) {
+                  <span tuiSubtitle data-testid="edited-reason">
+                    <span class="reason">{{ row.blocked }}</span>
+                  </span>
+                }
+              </span>
+            </div>
           </td>
           <td tuiTd class="actions">
             <span class="buttons">
@@ -89,7 +94,6 @@
                   data-testid="edited-action"
                   aria-keyshortcuts="Delete"
                   [attr.data-action]="action.action"
-                  [disabled]="!!row.blocked"
                   (click)="runAction(row)"
                 >
                   {{ action.label }}
@@ -114,31 +118,16 @@
             </span>
             <ng-template #menu let-close>
               <tui-data-list size="s" role="menu">
-                <ng-template #option let-label let-reason="reason">
-                  @if (reason) {
-                    <span tuiTitle>
-                      {{ label }}
-                      <span tuiSubtitle>{{ reason }}</span>
-                    </span>
-                  } @else {
-                    {{ label }}
-                  }
-                </ng-template>
                 <button
                   tuiOption
                   iconStart="@tui.upload"
                   type="button"
                   role="menuitem"
                   data-testid="edited-upload"
-                  [disabled]="!!row.uploadReason"
+                  [appOptionReason]="row.uploadReason"
                   (click)="close(); actions.upload(row.file)"
                 >
-                  <ng-container
-                    *ngTemplateOutlet="
-                      option;
-                      context: { $implicit: 'Upload now', reason: row.uploadReason }
-                    "
-                  />
+                  <app-option-label>Upload now</app-option-label>
                 </button>
                 <button
                   tuiOption
@@ -146,15 +135,10 @@
                   type="button"
                   role="menuitem"
                   data-testid="edited-reopen"
-                  [disabled]="!!row.blocked"
+                  [appOptionReason]="row.blocked"
                   (click)="close(); actions.reopen(row.file)"
                 >
-                  <ng-container
-                    *ngTemplateOutlet="
-                      option;
-                      context: { $implicit: 'Open in external editor', reason: row.blocked }
-                    "
-                  />
+                  <app-option-label>Open in external editor</app-option-label>
                 </button>
                 <button
                   tuiOption
@@ -162,15 +146,10 @@
                   type="button"
                   role="menuitem"
                   data-testid="edited-builtin"
-                  [disabled]="!!row.builtInReason"
+                  [appOptionReason]="row.builtInReason"
                   (click)="close(); actions.openBuiltIn(row.file)"
                 >
-                  <ng-container
-                    *ngTemplateOutlet="
-                      option;
-                      context: { $implicit: 'Open in built-in editor', reason: row.builtInReason }
-                    "
-                  />
+                  <app-option-label>Open in built-in editor</app-option-label>
                 </button>
                 <button
                   tuiOption
@@ -230,8 +209,7 @@
     <span tuiAvatar="@tui.external-link" size="l" tuiSlot="top"></span>
     <h2 #emptyHeading tabindex="-1">No edited files</h2>
     <p>
-      Open a remote file in your editor from the Files tab: Actions → Open in external editor, or
-      Shift+Enter.
+      Open a remote file from a Files tab: row menu (…) → Open in external editor, or Shift+Enter.
     </p>
     <button tuiButton size="s" appearance="secondary" type="button" routerLink="/settings">
       Settings

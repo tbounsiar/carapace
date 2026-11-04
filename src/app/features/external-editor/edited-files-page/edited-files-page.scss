@@ -1,5 +1,6 @@
 :host {
   display: block;
+  container-type: inline-size;
 }
 
 .header {
@@ -15,17 +16,33 @@
   table-layout: fixed;
 }
 
+/*
+ * State is min(14rem, 30%) and File takes what is left. `min()` with a percentage is ignored on a
+ * fixed-layout column, hence the container query (14rem is 30% of 46.67rem).
+ */
 .col-state {
   inline-size: 14rem;
 }
 
-.col-actions {
-  inline-size: 8rem;
+@container (max-inline-size: 46.67rem) {
+  .col-state {
+    inline-size: 30%;
+  }
 }
 
-/* The File column shrinks first: its texts ellipsize instead of widening the table. */
+/* The xs "…" button plus padding; room for Resolve / Reconnect only when a row has one. */
+.col-actions {
+  inline-size: 2.75rem;
+
+  &._wide {
+    inline-size: 8rem;
+  }
+}
+
 .file,
-.file-text {
+.file-text,
+.state-cell,
+.state-text {
   min-inline-size: 0;
 }
 
@@ -38,10 +55,16 @@
 }
 
 .location {
-  font-family: var(--app-font-mono);
+  min-inline-size: 0;
+}
+
+/* Mono changes the family only; the subtitle keeps Taiga's size. */
+.path {
+  min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--app-font-mono);
 }
 
 .state {
@@ -49,15 +72,22 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  min-inline-size: 0;
 }
 
+.badge-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Taiga keeps table titles on one line; a reason wraps so its next step stays readable. */
 .reason {
-  display: block;
-  color: var(--tui-text-negative);
+  min-inline-size: 0;
+  white-space: normal;
 }
 
-.hint {
-  display: block;
+.negative {
+  color: var(--tui-text-negative);
 }
 
 .actions {

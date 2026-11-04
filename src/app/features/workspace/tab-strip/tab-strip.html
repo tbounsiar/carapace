@@ -160,17 +160,10 @@
         role="menuitem"
         [iconStart]="entry.icon"
         [attr.data-testid]="entry.id"
-        [disabled]="!!entry.disabledReason"
+        [appOptionReason]="entry.disabledReason"
         (click)="close(); run(entry)"
       >
-        @if (entry.disabledReason; as reason) {
-          <span tuiTitle>
-            {{ entry.label }}
-            <span tuiSubtitle>{{ reason }}</span>
-          </span>
-        } @else {
-          {{ entry.label }}
-        }
+        <app-option-label>{{ entry.label }}</app-option-label>
       </button>
     }
   </tui-data-list>

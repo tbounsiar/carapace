@@ -1,10 +1,10 @@
-import { DestroyRef, inject, Service } from '@angular/core';
+import { DestroyRef, effect, inject, Service } from '@angular/core';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
-import { take } from 'rxjs';
+import { type Subscription, take } from 'rxjs';
 import { ConfigService } from '../../core/ipc/config';
 import { type EditedChange, EditedFiles } from '../../core/ipc/edited-files';
-import type { EditedFile } from '../../core/ipc/external-edits';
+import type { EditedFile, EditedState } from '../../core/ipc/external-edits';
 import { AlertAction, type AlertActionData } from '../../shared/alert-action/alert-action';
 import { EditedActions } from './edited-actions';
 import { failureReason, hostName } from './edited-view';
@@ -13,6 +13,12 @@ import { failureReason, hostName } from './edited-view';
 export const GROUP_WINDOW_MS = 2000;
 
 type AlertState = 'conflict' | 'failed' | 'waiting';
+
+interface OpenAlert {
+  readonly state: EditedState;
+  readonly ids: readonly string[];
+  readonly subscription: Subscription;
+}
 
 interface Batch {
   readonly state: AlertState;
@@ -37,7 +43,16 @@ export class EditedAlerts {
   private readonly failures = new Map<string, string>();
   /** Hosts whose waiting changes were already announced since they disconnected. */
   private readonly waitingHosts = new Set<string>();
+  /** Alerts on screen: closed when all their files leave the state, or on Review. */
+  private readonly open = new Set<OpenAlert>();
   private started = false;
+
+  constructor() {
+    effect(() => {
+      this.store.files();
+      this.prune();
+    });
+  }
 
   start(): void {
     if (this.started) {
@@ -49,6 +64,7 @@ export class EditedAlerts {
     this.destroyRef.onDestroy(() => {
       changes.unsubscribe();
       snapshot.unsubscribe();
+      this.open.forEach((alert) => alert.subscription.unsubscribe());
     });
   }
 
@@ -95,8 +111,14 @@ export class EditedAlerts {
       recovered.length === 1
         ? '1 edited file was not uploaded'
         : `${recovered.length} edited files were not uploaded`;
-    this.show(label, 'Carapace closed before their changes reached the server.', 'warning', 0, () =>
-      this.actions.review(recovered.length === 1 ? recovered[0].id : null),
+    this.show(
+      'recovered',
+      recovered,
+      label,
+      'Carapace closed before the changes reached the server.',
+      'warning',
+      0,
+      () => this.actions.review(recovered.length === 1 ? recovered[0].id : null),
     );
   }
 
@@ -127,6 +149,8 @@ export class EditedAlerts {
     switch (batch.state) {
       case 'conflict':
         this.show(
+          batch.state,
+          files,
           one ? `${one.name} changed on ${host}` : `${files.length} files changed on ${host}`,
           one ? 'Your last save was not uploaded.' : 'Your last saves were not uploaded.',
           'warning',
@@ -136,8 +160,14 @@ export class EditedAlerts {
         return;
       case 'failed':
         this.show(
+          batch.state,
+          files,
           one ? `${one.name} not uploaded` : `${files.length} files not uploaded`,
-          (one && failureReason(this.store.find(one.id) ?? one, host)) ??
+          (one &&
+            failureReason(
+              this.store.find(one.id) ?? one,
+              this.config.findHost(batch.hostId)?.host.name ?? null,
+            )) ??
             `The uploads to ${host} failed.`,
           'negative',
           0,
@@ -146,6 +176,8 @@ export class EditedAlerts {
         return;
       case 'waiting':
         this.show(
+          batch.state,
+          files,
           one
             ? `Changes to ${one.name} are waiting for ${host}`
             : `Changes to ${files.length} files are waiting for ${host}`,
@@ -159,13 +191,25 @@ export class EditedAlerts {
   }
 
   private show(
+    state: EditedState,
+    files: readonly EditedFile[],
     label: string,
     text: string,
     appearance: string,
     autoClose: number | undefined,
     review: () => Promise<void>,
   ): void {
-    this.alerts
+    const ids = files.map((f) => f.id);
+    let entry: OpenAlert | null = null;
+    let done = false;
+    const close = () => {
+      done = true;
+      subscription.unsubscribe();
+      if (entry) {
+        this.open.delete(entry);
+      }
+    };
+    const subscription = this.alerts
       .open(new PolymorpheusComponent(AlertAction), {
         label,
         appearance,
@@ -174,9 +218,33 @@ export class EditedAlerts {
           text,
           action: 'Review',
           testId: 'edited-review',
-          run: () => void review(),
+          run: () => {
+            close();
+            void review();
+          },
         } satisfies AlertActionData,
       })
-      .subscribe();
+      .subscribe({
+        complete: () => {
+          done = true;
+          if (entry) {
+            this.open.delete(entry);
+          }
+        },
+      });
+    if (!done) {
+      entry = { state, ids, subscription };
+      this.open.add(entry);
+    }
+  }
+
+  /** Closes the alerts whose files all left the state they announced. */
+  private prune(): void {
+    for (const alert of this.open) {
+      if (!alert.ids.some((id) => this.store.find(id)?.state === alert.state)) {
+        alert.subscription.unsubscribe();
+        this.open.delete(alert);
+      }
+    }
   }
 }

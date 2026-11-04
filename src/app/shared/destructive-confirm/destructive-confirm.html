@@ -2,6 +2,12 @@
   <div tuiNotification appearance="warning" size="s" class="content">
     {{ context.data.content }}
   </div>
+} @else if (context.data.lines?.length) {
+  <ul tuiList="s" class="content" data-testid="confirm-lines">
+    @for (line of context.data.lines; track $index) {
+      <li>{{ line }}</li>
+    }
+  </ul>
 } @else {
   <p class="content">{{ context.data.content }}</p>
 }

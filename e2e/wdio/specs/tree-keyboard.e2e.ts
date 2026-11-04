@@ -101,7 +101,7 @@ describe('tree keyboard navigation', () => {
     await press('Home');
     await expectFocus(`tree-collection-${GROUP}`);
     await press('ArrowUp');
-    await expectFocus(`tree-collection-${GROUP}`);
+    await expectFocus('sidebar-filter');
   });
 
   it('keeps a single tab stop in the tree', async () => {

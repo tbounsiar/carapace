@@ -1,12 +1,14 @@
 import { Component, computed, inject, Injector, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TuiItem } from '@taiga-ui/cdk';
-import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiLink, TuiTitle } from '@taiga-ui/core';
+import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiLink } from '@taiga-ui/core';
 import { TuiBreadcrumbs, TuiFade } from '@taiga-ui/kit';
 import { ConfigService } from '../../../core/ipc/config';
 import { EditedFiles } from '../../../core/ipc/edited-files';
 import type { Collection, Host, Project } from '../../../core/ipc/config.models';
 import { CurrentScope } from '../../../shared/current-scope';
+import { OptionLabel } from '../../../shared/option-reason/option-label';
+import { OptionReason } from '../../../shared/option-reason/option-reason';
 import { MoveLauncher } from '../../project-tree/move-launcher';
 import { ancestors, HOME } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
@@ -55,6 +57,8 @@ interface Location {
 /** Breadcrumbs of the current route in the main subheader, with the page menu at its end. */
 @Component({
   imports: [
+    OptionLabel,
+    OptionReason,
     RouterLink,
     TuiBreadcrumbs,
     TuiButton,
@@ -64,7 +68,6 @@ interface Location {
     TuiHint,
     TuiItem,
     TuiLink,
-    TuiTitle,
   ],
   selector: 'app-location-bar',
   templateUrl: './location-bar.html',

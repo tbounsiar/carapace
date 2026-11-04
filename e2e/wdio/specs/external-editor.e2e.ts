@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { appPids, waitAppExited } from '../helpers/app-process';
 import { HOST, NOOP_EDITOR, PROJECT } from '../helpers/fixture';
@@ -26,6 +26,14 @@ import {
 // The external app is the no-op program seeded by `beforeSession` (Custom app): a save in the
 // editor is simulated by writing the local copy under $CARAPACE_HOME/edit/ directly.
 const LAB = { ...HOST, name: 'lab' };
+/** A program the backend refuses as an editor (`app_not_editor`). */
+const POWERSHELL = join(
+  process.env['SystemRoot'] ?? 'C:\\Windows',
+  'System32',
+  'WindowsPowerShell',
+  'v1.0',
+  'powershell.exe',
+);
 const dir = `carapace-e2e-ext-${randomBytes(4).toString('hex')}`;
 const remoteDir = `/home/carapace/${dir}`;
 const LONG_DIR = 'a-very-long-directory-name-for-the-narrow-window-check/and-another-long-segment';
@@ -74,6 +82,21 @@ async function waitRemote(path: string, check: (text: string) => boolean): Promi
     timeout: 20000,
     timeoutMsg: `${path} never matched`,
   });
+}
+
+/** Waits until no alert on screen contains `text`. */
+async function waitToastGone(text: string, timeout = 15000): Promise<void> {
+  await browser.waitUntil(
+    async () =>
+      browser.execute(
+        (t: string) =>
+          ![...document.querySelectorAll('tui-notification-alert')].some((a) =>
+            a.textContent?.includes(t),
+          ),
+        text,
+      ) as Promise<boolean>,
+    { timeout, timeoutMsg: `the alert "${text}" stayed` },
+  );
 }
 
 async function waitToast(text: string, timeout = 15000): Promise<void> {
@@ -183,12 +206,28 @@ async function rowMenu(host: string, name: string, option: string): Promise<void
  * A crash: the e2e app instance is terminated, so nothing is cleaned up on the way out (a normal
  * close would also be held by the quit guard while a file is not uploaded).
  */
-async function killAndRestart(): Promise<void> {
+async function killAndRestart(whileStopped?: () => void): Promise<void> {
   const pids = appPids();
   for (const pid of pids) process.kill(pid);
   await browser.deleteSession().catch(() => undefined);
   await waitAppExited(pids);
+  whileStopped?.();
   await browser.reloadSession();
+}
+
+/** Rewrites the manifest next to an edited file's local copy (the app must be stopped). */
+function editManifest(name: string, change: Record<string, string>): void {
+  const file = join(localCopy(name), '..', '.carapace-edit.json');
+  const manifest = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+  writeFileSync(file, JSON.stringify({ ...manifest, ...change }));
+}
+
+/** Rewrites the app config (the app must be stopped). */
+function editConfig(change: (config: Record<string, unknown>) => void): void {
+  const file = join(process.env['E2E_CARAPACE_HOME'] ?? '', 'config.json');
+  const config = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+  change(config);
+  writeFileSync(file, JSON.stringify(config, null, 2));
 }
 
 describe('external editor', () => {
@@ -198,6 +237,7 @@ describe('external editor', () => {
         `mkdir -p ${remoteDir}/ro ${remoteDir}/${LONG_DIR}`,
         `printf 'user www-data;\\n' > ${remoteDir}/nginx.conf`,
         `printf 'lab\\n' > ${remoteDir}/lab.conf`,
+        `printf 'readme\\n' > ${remoteDir}/readme.txt`,
         `printf 'notes\\n' > ${remoteDir}/ro/notes.txt`,
         `printf 'TOKEN=dummy\\n' > ${remoteDir}/id_deploy`,
         `printf 'echo hi\\r\\n' > ${remoteDir}/deploy.bat`,
@@ -276,6 +316,8 @@ describe('external editor', () => {
     await rowButton(HOST.name, 'nginx.conf', 'edited-action');
     await clickId('conflict-ext-overwrite');
     await waitState(HOST.name, 'nginx.conf', 'synced');
+    await waitToastGone('nginx.conf changed on sshd');
+    await shot('ext-22-alert-closed');
     const overwritten = remoteSh(`cat ${remoteDir}/nginx.conf`);
     expect(overwritten).toContain('# local 2');
     expect(overwritten).not.toContain('server edit 1');
@@ -296,6 +338,8 @@ describe('external editor', () => {
     saveInEditor('nginx.conf', '# after delete\n');
     await waitState(HOST.name, 'nginx.conf', 'conflict');
     await rowButton(HOST.name, 'nginx.conf', 'edited-action');
+    await byId('conflict-ext-upload-anyway').waitForDisplayed({ timeout: 10000 });
+    await shot('ext-26-deleted-conflict');
     await clickId('conflict-ext-upload-anyway');
     await waitState(HOST.name, 'nginx.conf', 'synced');
     expect(remoteSh(`cat ${remoteDir}/nginx.conf`)).toContain('# after delete');
@@ -335,11 +379,22 @@ describe('external editor', () => {
     await expect(row(HOST.name, 'notes.txt').$(tid('edited-reason'))).toHaveText(
       'Permission denied on sshd.',
     );
+    // A synced file next to one that needs attention, in the same pane.
+    await openFilesOf(HOST.name);
+    await openExternal('readme.txt');
+    await remote('entry-external-marker-readme.txt').waitForExist({ timeout: 20000 });
+    await browser.waitUntil(
+      async () =>
+        (await remote('entry-external-marker-nginx.conf').getAttribute('data-state')) ===
+        'conflict',
+      { timeout: 10000 },
+    );
+    await remote('entry-readme.txt').moveTo();
+    await shot('ext-03-remote-marker');
     await openFilesOf(LAB.name);
     await enterRemote(dir);
     await openExternal('lab.conf');
     await remote('entry-external-marker-lab.conf').waitForExist({ timeout: 20000 });
-    await shot('ext-03-remote-marker');
     await disconnect(LAB.name);
     saveInEditor('lab.conf', 'offline\n');
     await openEditedPage();
@@ -347,10 +402,11 @@ describe('external editor', () => {
     const order = await $$('tbody tr[data-testid^="edited-row-"]').map((r) =>
       r.getAttribute('data-testid'),
     );
-    expect(order.slice(0, 3)).toEqual([
+    expect(order).toEqual([
       'edited-row-sshd-nginx.conf',
       'edited-row-sshd-notes.txt',
       'edited-row-lab-lab.conf',
+      'edited-row-sshd-readme.txt',
     ]);
     await shot('ext-08-mixed-states');
     await shotRowMenu('ext-09-row-menu', HOST.name, 'nginx.conf', 'edited-builtin');
@@ -361,6 +417,7 @@ describe('external editor', () => {
     const text = await $('tui-dialog').getText();
     expect(text).toContain('1 file open in an external editor will stop syncing.');
     expect(text).toContain('Changes not uploaded in lab.conf will be lost.');
+    await shot('ext-25-delete-host-confirm');
     await confirmDialog('Cancel');
   });
 
@@ -398,8 +455,8 @@ describe('external editor', () => {
     }
     await dialogButton('Quit without saving').waitForDisplayed({ timeout: 15000 });
     const text = await $('tui-dialog').getText();
-    expect(text).toContain('Unsaved changes in nginx.conf (sshd).');
-    expect(text).toContain('Not uploaded: nginx.conf (sshd).');
+    expect(text).toContain('Unsaved in Carapace: nginx.conf (sshd)');
+    expect(text).toContain('Not uploaded from your editor: nginx.conf (sshd)');
     await shot('ext-12-quit-dialog');
     await confirmDialog('Cancel');
   });
@@ -419,6 +476,7 @@ describe('external editor', () => {
     await byId('conflict-ext-overwrite').waitForDisplayed({ timeout: 20000 });
     await clickId('conflict-ext-overwrite');
     await waitState(HOST.name, 'nginx.conf', 'synced');
+    await waitToastGone('1 edited file was not uploaded');
     expect(remoteSh(`cat ${remoteDir}/nginx.conf`)).toContain('# held');
   });
 
@@ -478,7 +536,11 @@ describe('external editor', () => {
     for (const segment of LONG_DIR.split('/')) await enterRemote(segment);
     await openExternal(LONG_NAME);
     await remote(`entry-external-marker-${LONG_NAME}`).waitForExist({ timeout: 20000 });
+    // A Waiting row checks the Reconnect button width at 800 px.
+    await disconnect(HOST.name);
+    saveInEditor(LONG_NAME, 'offline\n');
     await openEditedPage();
+    await waitState(HOST.name, LONG_NAME, 'waiting');
     const size = await browser.getWindowSize();
     try {
       await browser.setWindowSize(800, size.height);
@@ -493,9 +555,70 @@ describe('external editor', () => {
     }
   });
 
+  it('locks files whose host now reaches another server or no longer exists', async () => {
+    saveInEditor('id_deploy', 'offline\n');
+    await waitState(HOST.name, 'id_deploy', 'waiting');
+    // Seeded while the app is stopped, without touching the shared sshd: id_deploy remembers
+    // another host key, the long file a host id the config does not have, and the custom app
+    // becomes a program the backend refuses as an editor.
+    await killAndRestart(() => {
+      editManifest('id_deploy', { hostKey: `SHA256:${'A'.repeat(43)}` });
+      editManifest(LONG_NAME, { hostId: '00000000-0000-4000-8000-000000000000' });
+      editConfig((config) => {
+        config['externalEditor'] = { mode: 'custom', appPath: POWERSHELL, noticeSeen: true };
+      });
+    });
+    await waitForApp();
+    await waitToast('2 edited files were not uploaded', 20000);
+    await closeToasts();
+    await openEditedPage();
+    await waitState('deleted', LONG_NAME, 'recovered');
+    await expect(row('deleted', LONG_NAME).$(tid('edited-reason'))).toHaveText(
+      'The host no longer exists',
+    );
+    await expect(row('deleted', LONG_NAME).$(tid('edited-action'))).not.toExist();
+    await shot('ext-20-host-gone');
+
+    await rowButton(HOST.name, 'id_deploy', 'edited-action');
+    await acceptHostKeyIfAsked();
+    await waitState(HOST.name, 'id_deploy', 'failed');
+    await expect(row(HOST.name, 'id_deploy').$(tid('edited-reason'))).toHaveText(
+      'sshd now points to another server. Nothing was sent. Copy your changes out with Show in folder, then stop editing.',
+    );
+    await expect(row(HOST.name, 'id_deploy').$(tid('edited-action'))).not.toExist();
+    await closeToasts();
+    await shotRowMenu('ext-19-locked', HOST.name, 'id_deploy', 'edited-upload');
+    await rowButton(HOST.name, 'id_deploy', 'edited-row-menu');
+    await expect(byId('edited-upload')).toHaveAttribute('aria-disabled', 'true');
+    await rowButton(HOST.name, 'id_deploy', 'edited-row-menu');
+    await byId('edited-upload').waitForExist({ timeout: 10000, reverse: true });
+  });
+
+  it('shows a program that is not an editor as a field error in Settings', async () => {
+    await clickId('settings');
+    await byId('settings-ext-notice').waitForExist({ timeout: 10000 });
+    await browser.waitUntil(
+      async () => (await byId('settings-ext-path').getValue()) === POWERSHELL,
+      { timeout: 10000 },
+    );
+    // Any save sends the stored app again, which the backend refuses.
+    await byId('settings-ext-notice').click();
+    await byId('settings-ext-error').waitForDisplayed({ timeout: 10000 });
+    await expect(byId('settings-ext-error')).toHaveText(
+      "This program runs scripts or commands; it is not an editor. Pick your editor's program file.",
+    );
+    await expect(byId('settings-ext-path')).toHaveAttribute('aria-invalid', 'true');
+    await byId('settings-ext-notice').scrollIntoView({ block: 'center' });
+    await shot('ext-21-settings-error');
+  });
+
   it('stops all and shows the empty page, the aside item gone', async () => {
+    await openEditedPage();
+    await shotWithMenu('ext-23-stop-all-menu', 'edited-menu', 'edited-stop-all');
     await clickId('edited-menu');
     await clickId('edited-stop-all');
+    await dialogButton('Stop all').waitForDisplayed({ timeout: 10000 });
+    await shot('ext-24-stop-all-confirm');
     await confirmDialog('Stop all');
     await byId('edited-empty').waitForDisplayed({ timeout: 15000 });
     await waitGone('aside-edited-files');

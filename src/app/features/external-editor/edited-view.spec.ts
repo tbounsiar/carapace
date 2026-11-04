@@ -68,8 +68,12 @@ describe('edited-view', () => {
       state: 'failed',
       error: { code: 'host_changed', message: '/a was opened from another server' },
     });
-    expect(failureReason(changed, 'vps')).toBe('Opened from another server; nothing was sent.');
-    expect(uploadBlocker(changed, 'vps')).toBe('Opened from another server');
+    expect(failureReason(changed, 'vps')).toBe(
+      'vps now points to another server. Nothing was sent. Copy your changes out with Show in folder, then stop editing.',
+    );
+    expect(failureReason(changed, null)).toMatch(/^The host now points to another server\./);
+    expect(uploadBlocker(changed, 'vps')).toBe('vps now points to another server');
+    expect(uploadBlocker(changed, null)).toBe('The host now points to another server');
     const orphan = editedFile('e', 'h', '/a', { state: 'recovered', canUpload: false });
     expect(uploadBlocker(orphan, 'vps')).toBe('vps no longer exists');
     expect(uploadBlocker(editedFile('e', 'h', '/a'), null)).toBe('The host no longer exists');
@@ -80,7 +84,7 @@ describe('edited-view', () => {
     });
     expect(uploadBlocker(blocked, 'vps')).toBe('Your system would run this file');
     expect(failureReason(blocked, 'vps')).toBe(
-      'run.bat would be run, not opened, by your system. Choose an editor app in Settings to edit .bat files.',
+      'Your system would run this file. Choose an editor app in Settings.',
     );
     expect(rowAction(blocked)?.label).toBe('Retry');
   });

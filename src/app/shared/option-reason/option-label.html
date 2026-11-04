@@ -1,0 +1,11 @@
+<ng-template #label><ng-content /></ng-template>
+@if (option.appOptionReason(); as reason) {
+  <span tuiTitle>
+    <span tuiAppearance="" tuiAppearanceState="disabled">
+      <ng-container [ngTemplateOutlet]="label" />
+    </span>
+    <span tuiSubtitle data-testid="option-reason">{{ reason }}</span>
+  </span>
+} @else {
+  <ng-container [ngTemplateOutlet]="label" />
+}

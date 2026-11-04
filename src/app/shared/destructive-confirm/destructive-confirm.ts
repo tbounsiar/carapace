@@ -1,10 +1,13 @@
 import { Component } from '@angular/core';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
 import { TuiButton, type TuiDialogContext, TuiNotification } from '@taiga-ui/core';
+import { TuiList } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
 
 export interface DestructiveConfirmData {
   readonly content: string;
+  /** Shown as a list instead of `content`, one labelled line each. */
+  readonly lines?: readonly string[];
   /** The destructive action, "Delete" or "Discard". */
   readonly yes: string;
   readonly no: string;
@@ -22,7 +25,7 @@ export interface DestructiveConfirmData {
  * button: `TUI_CONFIRM` always autofocuses its confirming button.
  */
 @Component({
-  imports: [TuiAutoFocus, TuiButton, TuiNotification],
+  imports: [TuiAutoFocus, TuiButton, TuiList, TuiNotification],
   selector: 'app-destructive-confirm',
   templateUrl: './destructive-confirm.html',
   styleUrl: './destructive-confirm.scss',

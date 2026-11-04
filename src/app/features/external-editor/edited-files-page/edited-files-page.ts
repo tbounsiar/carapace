@@ -11,7 +11,6 @@ import {
   viewChild,
   viewChildren,
 } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { TuiTable } from '@taiga-ui/addon-table';
 import {
@@ -33,10 +32,11 @@ import { hostTarget } from '../../../core/ipc/connection';
 import { EditedFiles } from '../../../core/ipc/edited-files';
 import type { EditedFile } from '../../../core/ipc/external-edits';
 import { SshService } from '../../../core/ipc/ssh';
+import { OptionLabel } from '../../../shared/option-reason/option-label';
+import { OptionReason } from '../../../shared/option-reason/option-reason';
 import { builtInBlocker, EditedActions } from '../edited-actions';
 import {
   failureReason,
-  lockedFailure,
   hostLabel,
   hostName,
   rowAction,
@@ -67,8 +67,9 @@ interface Row {
 /** `/edited-files`: every file open in an external editor, across hosts (spec R1). */
 @Component({
   imports: [
-    NgTemplateOutlet,
     RouterLink,
+    OptionLabel,
+    OptionReason,
     TuiAvatar,
     TuiBadge,
     TuiBlockStatus,
@@ -117,8 +118,8 @@ export class EditedFilesPage {
         testId: `edited-row-${host?.name ?? 'deleted'}-${file.name}`,
         location: `${hostLabel(this.config, file.hostId) ?? 'Deleted host'}:${file.remotePath}`,
         look: stateLook(file),
-        reason: file.state === 'failed' ? failureReason(file, name) : null,
-        action: lockedFailure(file) ? null : rowAction(file),
+        reason: file.state === 'failed' ? failureReason(file, host?.name ?? null) : null,
+        action: blocked ? null : rowAction(file),
         blocked,
         uploadReason:
           blocked ?? (file.state === 'synced' || file.state === 'opening' ? NO_CHANGES : null),
@@ -127,6 +128,9 @@ export class EditedFilesPage {
       };
     }),
   );
+
+  /** The actions column is wide only when a row shows a button next to its "…". */
+  protected readonly hasRowAction = computed(() => this.rows().some((r) => r.action));
 
   constructor() {
     effect(() => {

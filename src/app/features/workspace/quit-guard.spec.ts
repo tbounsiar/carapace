@@ -98,8 +98,9 @@ describe('QuitGuard', () => {
       expect.anything(),
       expect.objectContaining({
         label: 'Quit with unsaved changes?',
+        size: 'm',
         data: expect.objectContaining({
-          content: 'Unsaved changes in nginx.conf (vps).',
+          lines: ['Unsaved in Carapace: nginx.conf (vps)'],
           yes: 'Quit without saving',
         }),
       }),
@@ -137,7 +138,10 @@ describe('QuitGuard', () => {
       expect.anything(),
       expect.objectContaining({
         data: expect.objectContaining({
-          content: 'Unsaved changes in nginx.conf (vps). Not uploaded: app.env (vps).',
+          lines: [
+            'Unsaved in Carapace: nginx.conf (vps)',
+            'Not uploaded from your editor: app.env (vps)',
+          ],
         }),
       }),
     );
@@ -159,7 +163,7 @@ describe('QuitGuard', () => {
     expect(dialogs.open).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        data: expect.objectContaining({ content: 'Not uploaded: app.env (vps).' }),
+        data: expect.objectContaining({ lines: ['Not uploaded from your editor: app.env (vps)'] }),
       }),
     );
     expect(events.quit).not.toHaveBeenCalled();

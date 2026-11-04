@@ -78,4 +78,33 @@ describe('DestructiveConfirm', () => {
       }),
     ).resolves.toBe(false);
   });
+
+  it('shows labelled lines as a list instead of the content', async () => {
+    await TestBed.configureTestingModule({
+      imports: [DestructiveConfirm],
+      providers: [
+        provideTaiga(),
+        {
+          provide: POLYMORPHEUS_CONTEXT,
+          useValue: {
+            data: {
+              content: 'a b',
+              lines: ['Unsaved in Carapace: a (vps)', 'Not uploaded from your editor: b (vps)'],
+              yes: 'Quit without saving',
+              no: 'Cancel',
+            },
+            completeWith: vi.fn(),
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(DestructiveConfirm);
+    await fixture.whenStable();
+    const items = [...(fixture.nativeElement as HTMLElement).querySelectorAll('ul[tuiList] li')];
+    expect(items.map((li) => li.textContent?.trim())).toEqual([
+      'Unsaved in Carapace: a (vps)',
+      'Not uploaded from your editor: b (vps)',
+    ]);
+    expect((fixture.nativeElement as HTMLElement).querySelector('p')).toBeNull();
+  });
 });

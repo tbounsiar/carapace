@@ -69,14 +69,17 @@ export class QuitGuard {
       }
       const hostName = (id: string) => this.config.findHost(id)?.host.name ?? 'Unknown host';
       const lines = [
-        modified.length ? `Unsaved changes in ${unsavedNames(modified, hostName)}.` : '',
-        pending.length ? `Not uploaded: ${notUploadedNames(pending, hostName)}.` : '',
-      ];
-      const quit = await confirmDestructive(this.dialogs, 'Quit with unsaved changes?', {
-        content: lines.filter(Boolean).join(' '),
-        yes: 'Quit without saving',
-        no: 'Cancel',
-      });
+        modified.length ? `Unsaved in Carapace: ${unsavedNames(modified, hostName)}` : '',
+        pending.length
+          ? `Not uploaded from your editor: ${notUploadedNames(pending, hostName)}`
+          : '',
+      ].filter(Boolean);
+      const quit = await confirmDestructive(
+        this.dialogs,
+        'Quit with unsaved changes?',
+        { content: lines.join(' '), lines, yes: 'Quit without saving', no: 'Cancel' },
+        'm',
+      );
       if (quit) {
         if (pending.length) {
           await this.external.stopAll(true).catch(() => undefined);

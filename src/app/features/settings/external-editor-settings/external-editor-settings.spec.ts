@@ -71,7 +71,10 @@ describe('ExternalEditorSettings', () => {
     expect(radio('settings-ext-system').checked).toBe(true);
     expect(byId('settings-ext-path')).toBeNull();
     expect(byId<HTMLInputElement>('settings-ext-notice')!.checked).toBe(true);
-    expect(document.body.textContent).toContain('Scripts and programs are never run');
+    const description = byId('settings-ext-description')!;
+    expect(description.textContent).toContain('Scripts and programs are never run');
+    expect(radio('settings-ext-system').getAttribute('aria-describedby')).toBe(description.id);
+    expect(radio('settings-ext-custom').getAttribute('aria-describedby')).toBe(description.id);
   });
 
   it('switches to Custom app with no app chosen yet, then picks one with Browse', async () => {
@@ -79,6 +82,9 @@ describe('ExternalEditorSettings', () => {
     radio('settings-ext-custom').click();
     await stable();
     expect(saves.at(-1)).toEqual({ mode: 'custom', appPath: null, noticeSeen: false });
+    expect(byId('settings-ext-description')!.textContent?.trim()).toBe(
+      'Files open with this app; the file is its only argument.',
+    );
     const path = byId<HTMLInputElement>('settings-ext-path')!;
     expect(path.value).toBe('');
     expect(path.placeholder).toBe('No app chosen');
@@ -114,10 +120,13 @@ describe('ExternalEditorSettings', () => {
     picked = '/usr/bin/sh';
     byId('settings-ext-browse')!.click();
     await stable();
+    await vi.waitFor(() => expect(byId('settings-ext-error')).not.toBeNull());
     expect(byId('settings-ext-error')?.textContent).toContain(
-      'This app runs files instead of editing them. Choose an editor.',
+      "This program runs scripts or commands; it is not an editor. Pick your editor's program file.",
     );
-    expect(byId('settings-ext-path')!.getAttribute('aria-invalid')).toBe('true');
+    await vi.waitFor(() =>
+      expect(byId('settings-ext-path')!.getAttribute('aria-invalid')).toBe('true'),
+    );
     expect(alerts.open).not.toHaveBeenCalled();
     saveError = null;
     picked = '/usr/bin/code';

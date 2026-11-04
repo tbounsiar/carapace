@@ -157,8 +157,6 @@
           >
             <td tuiTd>
               <span class="name">
-                <tui-icon class="kind" [icon]="row.icon" />
-                <span class="label" [attr.title]="row.entry.name">{{ row.entry.name }}</span>
                 @if (row.marker; as marker) {
                   <a
                     class="marker"
@@ -174,7 +172,10 @@
                       [icon]="marker.attention ? '@tui.triangle-alert' : '@tui.external-link'"
                     />
                   </a>
+                } @else {
+                  <tui-icon class="kind" [icon]="row.icon" />
                 }
+                <span class="label" [attr.title]="row.entry.name">{{ row.entry.name }}</span>
               </span>
             </td>
             <td tuiTd class="num">{{ row.size }}</td>
@@ -208,17 +209,10 @@
                       iconStart="@tui.file-pen"
                       type="button"
                       data-testid="entry-edit"
-                      [disabled]="tooLarge"
+                      [appOptionReason]="tooLarge ? 'Too large to edit (max 5 MiB)' : null"
                       (click)="close(); edit.emit(row.entry)"
                     >
-                      @if (tooLarge) {
-                        <span tuiTitle>
-                          Edit
-                          <span tuiSubtitle>Too large to edit (max 5 MiB)</span>
-                        </span>
-                      } @else {
-                        Edit
-                      }
+                      <app-option-label>Edit</app-option-label>
                     </button>
                     @let external = isTooLargeExternal(row.entry);
                     <button
@@ -226,17 +220,10 @@
                       iconStart="@tui.external-link"
                       type="button"
                       data-testid="entry-external"
-                      [disabled]="external"
+                      [appOptionReason]="external ? 'Too large (max 1 GiB)' : null"
                       (click)="close(); openExternal.emit(row.entry)"
                     >
-                      @if (external) {
-                        <span tuiTitle>
-                          Open in external editor
-                          <span tuiSubtitle>Too large (max 1 GiB)</span>
-                        </span>
-                      } @else {
-                        Open in external editor
-                      }
+                      <app-option-label>Open in external editor</app-option-label>
                     </button>
                   }
                   <button

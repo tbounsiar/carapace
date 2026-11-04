@@ -248,7 +248,7 @@ describe('FilePane', () => {
     await settle();
     await click(byId('entry-menu-big.log'));
     const editEntry = document.querySelector<HTMLButtonElement>('[data-testid="entry-edit"]')!;
-    expect(editEntry.disabled).toBe(true);
+    expect(editEntry.getAttribute('aria-disabled')).toBe('true');
     expect(editEntry.textContent).toContain('Too large to edit (max 5 MiB)');
     byId('entry-link')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     await settle();
@@ -279,8 +279,10 @@ describe('FilePane', () => {
     expect(fixture.componentInstance.edited).toEqual([]);
     await click(byId('entry-menu-disk.img'));
     const tooLarge = document.querySelector<HTMLButtonElement>('[data-testid="entry-external"]')!;
-    expect(tooLarge.disabled).toBe(true);
+    expect(tooLarge.getAttribute('aria-disabled')).toBe('true');
     expect(tooLarge.textContent).toContain('Too large (max 1 GiB)');
+    tooLarge.click();
+    expect(fixture.componentInstance.external).toHaveLength(2);
     await click(byId('entry-menu-src'));
     expect(document.querySelector('[data-testid="entry-external"]')).toBeNull();
   });
@@ -305,9 +307,14 @@ describe('FilePane', () => {
     expect(marker.getAttribute('aria-label')).toBe('Open in an external editor · No changes');
     expect(marker.getAttribute('href')).toBe('/edited-files');
     expect(marker.classList.contains('_attention')).toBe(false);
+    const name = byId('entry-notes.txt')!.querySelector('.name')!;
+    expect(name.firstElementChild).toBe(marker);
+    expect(name.querySelector('.kind')).toBeNull();
+    expect(marker.innerHTML).toContain('external-link');
     await click(byId('pane-hidden'));
     const warning = byId('entry-external-marker-.profile')!;
     expect(warning.classList.contains('_attention')).toBe(true);
+    expect(warning.innerHTML).toContain('triangle-alert');
     expect(warning.getAttribute('aria-label')).toBe(
       'Open in an external editor · Changed on server',
     );

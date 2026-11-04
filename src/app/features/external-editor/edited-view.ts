@@ -128,7 +128,7 @@ export function uploadBlocker(file: EditedFile, host: string | null): string | n
   if (lockedFailure(file)) {
     return file.error?.code === 'blocked_type'
       ? 'Your system would run this file'
-      : 'Opened from another server';
+      : `${host ?? 'The host'} now points to another server`;
   }
   if (!file.canUpload || host === null) {
     return host === null ? 'The host no longer exists' : `${host} no longer exists`;
@@ -141,12 +141,16 @@ export function hostName(config: ConfigService, hostId: string): string {
   return config.findHost(hostId)?.host.name ?? 'the server';
 }
 
-/** Why an upload failed, in the user's words (spec Copy, upload failure reasons). */
-export function failureReason(file: EditedFile, host: string): string | null {
+/**
+ * Why an upload failed, in the user's words (spec Copy, upload failure reasons and lock reasons).
+ * `host` is null when the config no longer has the host.
+ */
+export function failureReason(file: EditedFile, hostName: string | null): string | null {
   const error = file.error;
   if (!error) {
     return null;
   }
+  const host = hostName ?? 'the server';
   switch (error.code) {
     case 'permission_denied':
       return `Permission denied on ${host}.`;
@@ -156,9 +160,9 @@ export function failureReason(file: EditedFile, host: string): string | null {
     case 'not_connected':
       return 'Connection lost during the upload.';
     case 'host_changed':
-      return 'Opened from another server; nothing was sent.';
+      return `${hostName ?? 'The host'} now points to another server. Nothing was sent. Copy your changes out with Show in folder, then stop editing.`;
     case 'blocked_type':
-      return blockedTypeText(file.name);
+      return 'Your system would run this file. Choose an editor app in Settings.';
     default:
       return errorText(error);
   }
