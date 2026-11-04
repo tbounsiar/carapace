@@ -3,6 +3,8 @@
 
 use std::ffi::OsStr;
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use notify::event::{AccessKind, AccessMode};
@@ -26,12 +28,18 @@ fn relevant(kind: &EventKind) -> bool {
     }
 }
 
-/// Sends `()` for every change touching `dir/name`.
-pub fn watch(dir: &Path, name: &str, tx: mpsc::UnboundedSender<()>) -> notify::Result<Watch> {
+/// Sends `()` and bumps `changes` for every change touching `dir/name`.
+pub fn watch(
+    dir: &Path,
+    name: &str,
+    changes: Arc<AtomicU64>,
+    tx: mpsc::UnboundedSender<()>,
+) -> notify::Result<Watch> {
     let name = name.to_owned();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         let Ok(event) = res else {
             // An overflow or a backend error may have hidden a save.
+            changes.fetch_add(1, Ordering::SeqCst);
             let _ = tx.send(());
             return;
         };
@@ -41,6 +49,7 @@ pub fn watch(dir: &Path, name: &str, tx: mpsc::UnboundedSender<()>) -> notify::R
                 .iter()
                 .any(|p| p.file_name() == Some(OsStr::new(&name)));
         if ours && relevant(&event.kind) {
+            changes.fetch_add(1, Ordering::SeqCst);
             let _ = tx.send(());
         }
     })?;
@@ -126,16 +135,24 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("a.conf"), b"1").unwrap();
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let _w = watch(dir.path(), "a.conf", tx).unwrap();
+        let changes = Arc::new(AtomicU64::new(0));
+        let _w = watch(dir.path(), "a.conf", changes.clone(), tx).unwrap();
+        // FSEvents may still report the write made just before the watch started.
+        while matches!(
+            timeout(Duration::from_millis(300), rx.recv()).await,
+            Ok(Some(()))
+        ) {}
         std::fs::write(dir.path().join("other"), b"x").unwrap();
         assert!(
             timeout(Duration::from_millis(400), rx.recv())
                 .await
                 .is_err()
         );
+        let before = changes.load(Ordering::SeqCst);
         std::fs::write(dir.path().join("a.conf.tmp"), b"2").unwrap();
         std::fs::rename(dir.path().join("a.conf.tmp"), dir.path().join("a.conf")).unwrap();
         let got = timeout(Duration::from_secs(5), rx.recv()).await;
         assert!(matches!(got, Ok(Some(()))));
+        assert!(changes.load(Ordering::SeqCst) > before);
     }
 }

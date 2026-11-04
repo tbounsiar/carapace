@@ -91,7 +91,8 @@ fn the_app_path_is_a_plain_local_program() {
     std::fs::write(&app, b"").unwrap();
     let ok = app.to_string_lossy().into_owned();
     assert_eq!(check_app_path(&format!(" {ok} ")).unwrap(), ok);
-    for bad in ["", "relative.exe", "${EDITOR}", "/x\n", "~/bin/vi"] {
+    let control = format!("{ok}\nx");
+    for bad in ["", "relative.exe", "${EDITOR}", &control, "~/bin/vi"] {
         assert_eq!(
             check_app_path(bad).unwrap_err().code,
             "invalid_input",

@@ -9,11 +9,18 @@
 - Test connection in the host dialog.
 - Choose the folder of a generated key, and browse for key files.
 - Sidebar host filter and dashboards for Home and projects.
+- macOS (Apple Silicon and Intel) and Linux (x64 and ARM64: AppImage, deb, rpm) builds, and a Windows ARM64 installer. Release files have fixed names, so the README links always download the latest version.
+- User documentation in `docs/`.
 
 ### Changed
 
 - Hosts can live at Home or in a project, grouped in nested collections, and be moved between them.
 - Variables are global or per project; the project value wins.
+
+### Fixed
+
+- Stopping the edit of a file in an external editor no longer refuses on macOS right after opening it, and never deletes a copy that changed, could not be read, or was saved again while Carapace was checking it.
+- On Linux and macOS, a folder that was deleted and recreated in place is now recognised as a different folder before Carapace writes into it.
 
 ### Removed
 

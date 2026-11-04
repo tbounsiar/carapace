@@ -18,6 +18,8 @@ use crate::sftp::{self, Version};
 
 pub const MANIFEST: &str = ".carapace-edit.json";
 const MANIFEST_TEMP: &str = ".carapace-edit.json.carapace-part";
+/// The copy, renamed while a stop judges it (`local_name` never yields this name).
+pub const REMOVING: &str = ".carapace-removing";
 const MAX_MANIFEST_BYTES: u64 = 64 * 1024;
 const MAX_TEMPS: u32 = 16;
 const CHUNK: usize = 64 * 1024;
@@ -345,22 +347,7 @@ impl Slot {
     }
 
     pub fn local_state(&self) -> io::Result<LocalState> {
-        let mut file = self.open()?;
-        let mut hasher = Sha256::new();
-        let mut buf = vec![0; CHUNK];
-        let mut size = 0u64;
-        loop {
-            let n = file.read(&mut buf)?;
-            if n == 0 {
-                break;
-            }
-            hasher.update(&buf[..n]);
-            size += n as u64;
-        }
-        Ok(LocalState {
-            hash: crate::sftp::hex(&hasher.finalize()),
-            size,
-        })
+        hash_file(&mut self.open()?)
     }
 
     pub fn modified_ms(&self) -> Option<u64> {
@@ -369,9 +356,137 @@ impl Slot {
         Some(t.as_millis() as u64)
     }
 
+    /// Deletes the slot, whatever the copy holds. A directory that is not this slot's is
+    /// refused (`not_ours`); a slot already gone is fine.
     pub fn remove(&self) -> io::Result<()> {
-        remove_dir(&self.dir)
+        match self.check() {
+            // Dropped first: on Windows the handle keeps the directory from being removed.
+            Ok(held) => drop(held),
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e),
+        }
+        fs::remove_dir_all(&self.dir)
     }
+
+    fn aside(&self) -> PathBuf {
+        self.dir.join(REMOVING)
+    }
+
+    /// Deletes the slot only if its copy still holds `synced`. The copy is first renamed to
+    /// `.carapace-removing` in the slot, so an editor saving by path recreates the copy
+    /// instead of writing into what is judged; a recreated copy keeps the slot. A missing
+    /// copy counts as unchanged only if `missing_ok()` says so when it is found missing. Nothing is lost on any path: a copy
+    /// that differs goes back, or stays aside when the copy was recreated meanwhile (the
+    /// startup scan lists it as recovered).
+    ///
+    /// Residual: an editor writing through a handle it kept open after the stamp is taken, or
+    /// recreating the copy between the last check and the directory removal, is not seen.
+    pub fn remove_if_synced(
+        &self,
+        synced: &str,
+        missing_ok: impl Fn() -> bool,
+    ) -> io::Result<Judged> {
+        self.remove_if_synced_then(synced, missing_ok, || {})
+    }
+
+    /// `remove_if_synced`, with `hashed` run right after the aside copy is hashed (tests).
+    fn remove_if_synced_then(
+        &self,
+        synced: &str,
+        missing_ok: impl Fn() -> bool,
+        hashed: impl FnOnce(),
+    ) -> io::Result<Judged> {
+        match self.check() {
+            Ok(held) => drop(held),
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Judged::Removed),
+            Err(e) => return Err(e),
+        }
+        let aside = self.aside();
+        if fs::symlink_metadata(&aside).is_ok() && !self.restore_aside()? {
+            return Ok(Judged::Kept);
+        }
+        match localfs::rename_no_replace(&self.file(), &aside) {
+            Ok(()) => {}
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                if !missing_ok() {
+                    return Ok(Judged::Kept);
+                }
+                return self.remove_unless_recreated();
+            }
+            Err(e) => return Err(e),
+        }
+        let judged = fsutil::open_regular(&aside, false).and_then(|mut f| {
+            let stamp = Stamp::of(&f)?;
+            let local = hash_file(&mut f)?;
+            drop(f);
+            hashed();
+            let now = fsutil::open_regular(&aside, false).and_then(|f| Stamp::of(&f))?;
+            Ok(local.hash == synced && now == stamp)
+        });
+        match judged {
+            Ok(true) => {
+                fs::remove_file(&aside)?;
+                self.remove_unless_recreated()
+            }
+            Ok(false) => self.restore_aside().map(|_| Judged::Kept),
+            Err(e) => {
+                let _ = self.restore_aside();
+                Err(e)
+            }
+        }
+    }
+
+    /// Puts the aside copy back as the copy; false when the copy was recreated meanwhile:
+    /// both then stay, the aside one is never put over it.
+    fn restore_aside(&self) -> io::Result<bool> {
+        let _held = self.check()?;
+        match localfs::rename_no_replace(&self.aside(), &self.file()) {
+            Ok(()) => Ok(true),
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+                log::warn!("an edited file was saved again while it was stopped; both copies kept");
+                Ok(false)
+            }
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(true),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn remove_unless_recreated(&self) -> io::Result<Judged> {
+        match fs::symlink_metadata(self.file()) {
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Ok(_) => return Ok(Judged::Recreated),
+            Err(e) => return Err(e),
+        }
+        self.remove()?;
+        Ok(Judged::Removed)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Judged {
+    Removed,
+    /// Differs from the server, or could not be judged; the slot is untouched.
+    Kept,
+    /// Equal, but saved again at its path while judged.
+    Recreated,
+}
+
+fn hash_file(file: &mut File) -> io::Result<LocalState> {
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0; CHUNK];
+    let mut size = 0u64;
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+        size += n as u64;
+    }
+    Ok(LocalState {
+        hash: crate::sftp::hex(&hasher.finalize()),
+        size,
+    })
 }
 
 #[cfg(unix)]
@@ -508,8 +623,21 @@ fn check_leftover(dir: &Path, id: String) -> Option<Leftover> {
         dir_id: fsutil::open_dir(dir).ok()?.id,
         name: manifest.file_name.clone(),
     };
+    // A stop interrupted while the copy was renamed aside.
+    let aside = slot.aside();
+    let mut both = false;
+    match fs::symlink_metadata(&aside) {
+        Ok(m) if localfs::is_link(&m) || !m.is_file() => {
+            if remove_entry(&aside).is_err() {
+                log::warn!("an edit leftover holds an unexpected entry and was kept");
+                return None;
+            }
+        }
+        Ok(_) => both = localfs::rename_no_replace(&aside, &slot.file()).is_err(),
+        Err(_) => {}
+    }
     match slot.local_state() {
-        Ok(local) if local.hash == manifest.synced_hash => remove("synced"),
+        Ok(local) if local.hash == manifest.synced_hash && !both => remove("synced"),
         Ok(local) => Some(Leftover {
             modified_ms: slot.modified_ms(),
             size: local.size,

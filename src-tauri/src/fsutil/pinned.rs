@@ -66,9 +66,12 @@ pub fn file_id(file: &File) -> io::Result<FileId> {
     imp::file_id(file)
 }
 
-/// Identity of a directory (volume + file id on Windows, device + inode on Unix).
+/// Identity of a directory: volume + file id on Windows. On Unix device + inode, plus birth
+/// time (ext4 hands a freed inode to the next directory created; 0 where the file system has
+/// none), owner and permission bits, so a directory recreated by someone else always differs.
+/// Callers never change the mode of a directory whose identity they hold.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DirId(u64, u64);
+pub struct DirId(u64, u64, u128, u32, u32);
 
 /// An open handle on a directory. On Windows it is opened without delete sharing, so the
 /// directory cannot be renamed or removed while held.
@@ -178,7 +181,7 @@ mod imp {
         }
         let index = (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow);
         Ok(DirHandle {
-            id: DirId(u64::from(info.dwVolumeSerialNumber), index),
+            id: DirId(u64::from(info.dwVolumeSerialNumber), index, 0, 0, 0),
             _file: file,
         })
     }
@@ -258,7 +261,10 @@ mod imp {
         if r != 0 {
             return Err(io::Error::last_os_error());
         }
-        if st.st_dev as u64 != opened.dev() || st.st_ino as u64 != opened.ino() {
+        // `dev_t` and `ino_t` are not `u64` on every target.
+        #[allow(clippy::unnecessary_cast)]
+        let same = st.st_dev as u64 == opened.dev() && st.st_ino as u64 == opened.ino();
+        if !same {
             return Err(io::Error::new(
                 ErrorKind::InvalidInput,
                 "the file was replaced",
@@ -271,11 +277,24 @@ mod imp {
         Ok(())
     }
 
+    fn birth(meta: &std::fs::Metadata) -> u128 {
+        meta.created()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_nanos())
+    }
+
     pub(super) fn open_dir(path: &Path) -> io::Result<DirHandle> {
         let file = dir_fd(path)?;
         let meta = file.metadata()?;
         Ok(DirHandle {
-            id: DirId(meta.dev(), meta.ino()),
+            id: DirId(
+                meta.dev(),
+                meta.ino(),
+                birth(&meta),
+                meta.uid(),
+                meta.mode() & 0o7777,
+            ),
             _file: file,
         })
     }
@@ -307,6 +326,20 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::FileTooLarge);
         let err = open_for_delete(dir.path(), 4).err().unwrap();
         assert_eq!(err.kind(), ErrorKind::InvalidInput);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_identity_survives_writes_and_covers_its_permission_bits() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        let before = open_dir(dir.path()).unwrap().id;
+        fs::write(dir.path().join("f"), b"x").unwrap();
+        fs::rename(dir.path().join("f"), dir.path().join("g")).unwrap();
+        assert_eq!(open_dir(dir.path()).unwrap().id, before);
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        assert_ne!(open_dir(dir.path()).unwrap().id, before);
     }
 
     #[test]

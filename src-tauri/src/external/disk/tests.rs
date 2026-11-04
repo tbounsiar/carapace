@@ -79,6 +79,174 @@ fn a_replaced_slot_directory_is_refused() {
         ErrorKind::InvalidInput
     );
     assert!(slot.write_manifest(&manifest(&slot, "h")).is_err());
+    assert_eq!(slot.remove().unwrap_err().kind(), ErrorKind::InvalidInput);
+    assert_eq!(
+        slot.remove_if_synced(&hash_of(b"x"), || true)
+            .unwrap_err()
+            .kind(),
+        ErrorKind::InvalidInput
+    );
+    assert_eq!(fs::read(slot.file()).unwrap(), b"x", "not ours to delete");
+}
+
+fn never() -> bool {
+    false
+}
+
+fn names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn a_synced_copy_is_judged_aside_and_removed() {
+    let home = tempfile::tempdir().unwrap();
+    let slot = slot_with(&root(home.path()), b"x", Some(b"x"));
+    let judged = slot
+        .remove_if_synced_then(&hash_of(b"x"), never, || {
+            assert!(
+                !slot.file().exists(),
+                "an editor saving by path recreates it"
+            );
+            assert!(slot.dir.join(REMOVING).exists());
+        })
+        .unwrap();
+    assert_eq!(judged, Judged::Removed);
+    assert!(!slot.dir.exists());
+    assert_eq!(slot.remove_if_synced("h", never).unwrap(), Judged::Removed);
+}
+
+#[test]
+fn a_changed_copy_goes_back_in_place() {
+    let home = tempfile::tempdir().unwrap();
+    let slot = slot_with(&root(home.path()), b"edited", Some(b"x"));
+    assert_eq!(
+        slot.remove_if_synced(&hash_of(b"x"), never).unwrap(),
+        Judged::Kept
+    );
+    assert_eq!(fs::read(slot.file()).unwrap(), b"edited");
+    assert_eq!(names(&slot.dir), [MANIFEST, "a.conf"]);
+}
+
+#[test]
+fn a_copy_saved_again_while_judged_is_never_deleted() {
+    let home = tempfile::tempdir().unwrap();
+    let slot = slot_with(&root(home.path()), b"x", Some(b"x"));
+    let judged = slot
+        .remove_if_synced_then(&hash_of(b"x"), never, || {
+            fs::write(slot.file(), b"saved meanwhile").unwrap()
+        })
+        .unwrap();
+    assert_eq!(judged, Judged::Recreated);
+    assert_eq!(fs::read(slot.file()).unwrap(), b"saved meanwhile");
+    assert_eq!(names(&slot.dir), [MANIFEST, "a.conf"]);
+}
+
+#[test]
+fn a_changed_copy_and_one_recreated_meanwhile_are_both_kept() {
+    let home = tempfile::tempdir().unwrap();
+    let root = root(home.path());
+    let slot = slot_with(&root, b"edited", Some(b"x"));
+    let judged = slot
+        .remove_if_synced_then(&hash_of(b"x"), never, || {
+            fs::write(slot.file(), b"x").unwrap()
+        })
+        .unwrap();
+    assert_eq!(judged, Judged::Kept);
+    assert_eq!(fs::read(slot.file()).unwrap(), b"x");
+    assert_eq!(fs::read(slot.dir.join(REMOVING)).unwrap(), b"edited");
+    assert_eq!(
+        slot.remove_if_synced(&hash_of(b"x"), never).unwrap(),
+        Judged::Kept,
+        "never removed while a copy waits aside"
+    );
+    assert_eq!(fs::read(slot.dir.join(REMOVING)).unwrap(), b"edited");
+
+    let found = scan(&root);
+    assert_eq!(
+        found.len(),
+        1,
+        "listed as recovered although the copy is synced"
+    );
+    assert_eq!(fs::read(slot.file()).unwrap(), b"x");
+    assert_eq!(fs::read(slot.dir.join(REMOVING)).unwrap(), b"edited");
+}
+
+#[test]
+fn a_copy_rewritten_while_hashed_is_kept() {
+    let home = tempfile::tempdir().unwrap();
+    let slot = slot_with(&root(home.path()), b"x", Some(b"x"));
+    let judged = slot
+        .remove_if_synced_then(&hash_of(b"x"), never, || {
+            let aside = File::options()
+                .write(true)
+                .open(slot.dir.join(REMOVING))
+                .unwrap();
+            aside.set_modified(UNIX_EPOCH).unwrap();
+        })
+        .unwrap();
+    assert_eq!(judged, Judged::Kept);
+    assert_eq!(fs::read(slot.file()).unwrap(), b"x");
+    assert_eq!(names(&slot.dir), [MANIFEST, "a.conf"]);
+}
+
+#[test]
+fn a_missing_copy_is_removed_only_when_allowed() {
+    let home = tempfile::tempdir().unwrap();
+    let slot = slot_with(&root(home.path()), b"x", Some(b"x"));
+    fs::remove_file(slot.file()).unwrap();
+    assert_eq!(
+        slot.remove_if_synced(&hash_of(b"x"), never).unwrap(),
+        Judged::Kept
+    );
+    assert!(slot.dir.exists());
+    assert_eq!(
+        slot.remove_if_synced(&hash_of(b"x"), || true).unwrap(),
+        Judged::Removed
+    );
+    assert!(!slot.dir.exists());
+}
+
+#[cfg(windows)]
+#[test]
+fn a_copy_an_editor_keeps_locked_is_not_judged() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let home = tempfile::tempdir().unwrap();
+    let slot = slot_with(&root(home.path()), b"x", Some(b"x"));
+    // FILE_SHARE_READ only, like editors that lock the file they edit.
+    let held = File::options()
+        .read(true)
+        .share_mode(1)
+        .open(slot.file())
+        .unwrap();
+    assert!(slot.remove_if_synced(&hash_of(b"x"), never).is_err());
+    assert_eq!(fs::read(slot.file()).unwrap(), b"x");
+    drop(held);
+    assert_eq!(
+        slot.remove_if_synced(&hash_of(b"x"), never).unwrap(),
+        Judged::Removed
+    );
+}
+
+#[test]
+fn a_copy_left_aside_by_a_crash_is_restored_then_judged() {
+    let home = tempfile::tempdir().unwrap();
+    let root = root(home.path());
+    let changed = slot_with(&root, b"edited", Some(b"original"));
+    let synced = slot_with(&root, b"same", Some(b"same"));
+    for slot in [&changed, &synced] {
+        fs::rename(slot.file(), slot.dir.join(REMOVING)).unwrap();
+    }
+    let found = scan(&root);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].slot.id, changed.id);
+    assert_eq!(fs::read(changed.file()).unwrap(), b"edited");
+    assert!(!changed.dir.join(REMOVING).exists());
+    assert!(!synced.dir.exists());
 }
 
 #[test]

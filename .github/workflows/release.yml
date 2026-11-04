@@ -5,30 +5,95 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
+# Actions are pinned to commits and the build starts without a cache, so what ships depends only on this tag.
 jobs:
-  windows:
-    runs-on: windows-latest
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: windows-x64, os: windows-latest, target: x86_64-pc-windows-msvc, bundles: 'nsis,msi' }
+          # WiX cannot build ARM64 installers; NSIS can.
+          - { name: windows-arm64, os: windows-11-arm, target: aarch64-pc-windows-msvc, bundles: nsis }
+          - { name: macos-arm64, os: macos-latest, target: aarch64-apple-darwin, bundles: dmg }
+          - { name: macos-x64, os: macos-latest, target: x86_64-apple-darwin, bundles: dmg }
+          # The oldest supported Ubuntu keeps the AppImage and packages compatible with older glibc.
+          - { name: linux-x64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, bundles: 'appimage,deb,rpm' }
+          - { name: linux-arm64, os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, bundles: 'appimage,deb,rpm' }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check the tag matches the app version
+        shell: bash
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libdbus-1-dev file
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 26
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
-          workspaces: src-tauri
+          targets: ${{ matrix.target }}
       - run: npm ci
-      - uses: tauri-apps/tauri-action@v0
+      - name: Build
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Compiled into the release build; forks and local builds have none and send no usage data.
           APTABASE_KEY: ${{ secrets.APTABASE_KEY }}
+        run: npm run tauri build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      # Names without the version, so releases/latest/download/<name> always serves the latest build.
+      - name: Collect installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          b=src-tauri/target/${{ matrix.target }}/release/bundle
+          n=carapace-${{ matrix.name }}
+          mkdir out
+          for f in $b/nsis/*-setup.exe; do cp "$f" "out/$n-setup.exe"; done
+          for f in $b/msi/*.msi; do cp "$f" "out/$n.msi"; done
+          for f in $b/dmg/*.dmg; do cp "$f" "out/$n.dmg"; done
+          for f in $b/appimage/*.AppImage; do cp "$f" "out/$n.AppImage"; done
+          for f in $b/deb/*.deb; do cp "$f" "out/$n.deb"; done
+          for f in $b/rpm/*.rpm; do cp "$f" "out/$n.rpm"; done
+          ls -l out
+          [ "$(ls out | wc -l)" -gt 0 ]
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Carapace ${{ github.ref_name }}
-          releaseBody: See CHANGELOG.md for the changes in this release.
-          releaseDraft: true
-          prerelease: false
+          name: ${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    # A failed target must not hold back the others; the release stays a draft until it is reviewed.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Checksums
+        working-directory: out
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" out/*
+          --repo "$GITHUB_REPOSITORY" --draft
+          --title "Carapace $GITHUB_REF_NAME"
+          --notes "See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/CHANGELOG.md) for the changes and the [README](https://github.com/$GITHUB_REPOSITORY#download) for which file to download."

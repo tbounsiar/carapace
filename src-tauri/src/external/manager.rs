@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::Duration;
 
@@ -83,6 +84,10 @@ struct Entry {
     seen: bool,
     /// A save upload is waiting for the upload lock; later saves need no other task.
     queued: bool,
+    /// Bumped by the watcher for every change it sees in the copy.
+    changes: Arc<AtomicU64>,
+    /// `changes` when the copy last matched `synced_hash`.
+    synced_changes: u64,
     watch: Option<Watch>,
     upload: Arc<tokio::sync::Mutex<()>>,
     /// Host key fingerprint and endpoint the file was opened from; uploads require the same.
@@ -247,6 +252,8 @@ impl ExternalEdits {
                     error: None,
                     seen: false,
                     queued: false,
+                    changes: Default::default(),
+                    synced_changes: 0,
                     watch: None,
                     upload: Default::default(),
                 },
@@ -446,13 +453,8 @@ impl ExternalEdits {
             if e.state.not_uploaded() || e.state == State::Opening {
                 continue;
             }
-            match e.slot.local_state() {
-                Ok(local) if local.hash == e.synced_hash => {
-                    if e.slot.remove().is_err() {
-                        log::warn!("could not delete the copy of an edited file at exit");
-                    }
-                }
-                _ => {}
+            if e.slot.remove_if_synced(&e.synced_hash, || false).is_err() {
+                log::warn!("could not check or delete the copy of an edited file at exit");
             }
         }
     }
@@ -597,7 +599,14 @@ impl Shared {
     fn start_watch(self: &Arc<Self>, id: &str) -> Result<(), EditError> {
         let slot = self.slot(id)?;
         let (tx, rx) = mpsc::unbounded_channel();
-        let watch = watcher::watch(&slot.dir, &slot.name, tx).map_err(|_| EditError::Local)?;
+        let changes = self
+            .lock()
+            .files
+            .get(id)
+            .map(|e| e.changes.clone())
+            .ok_or(EditError::UnknownId)?;
+        let watch =
+            watcher::watch(&slot.dir, &slot.name, changes, tx).map_err(|_| EditError::Local)?;
         {
             let mut inner = self.lock();
             let Some(e) = inner.files.get_mut(id) else {
@@ -707,6 +716,8 @@ impl Shared {
             error: None,
             seen: false,
             queued: false,
+            changes: Default::default(),
+            synced_changes: 0,
             watch: None,
             upload: Default::default(),
             host_key: identity.fingerprint,
@@ -926,7 +937,7 @@ impl Shared {
                 .clone()
         };
         let _held = lock.lock().await;
-        let (slot, host, path, token, target, synced, before) = {
+        let (slot, host, path, token, target, synced, before, count) = {
             let mut inner = self.lock();
             let e = inner.files.get_mut(id).ok_or(EditError::UnknownId)?;
             if trigger == Trigger::Save {
@@ -950,6 +961,7 @@ impl Shared {
                 e.target.clone(),
                 e.synced_hash.clone(),
                 e.state,
+                e.changes.load(Ordering::SeqCst),
             )
         };
         let s = slot.clone();
@@ -986,6 +998,7 @@ impl Shared {
                 .update(id, |e| {
                     e.state = state::unchanged(e.state, connected);
                     e.error = None;
+                    e.synced_changes = count;
                 })
                 .ok_or(EditError::UnknownId);
         }
@@ -1034,6 +1047,7 @@ impl Shared {
                 let now = disk::now_ms();
                 let view = self.update(id, |e| {
                     e.synced_hash = version_hash(&saved.version);
+                    e.synced_changes = count;
                     e.token = saved.version;
                     e.synced_size = saved.size;
                     e.synced_at = Some(now);
@@ -1123,6 +1137,7 @@ impl Shared {
         let now = disk::now_ms();
         let view = self.update(id, |e| {
             e.synced_hash = version_hash(&got.version);
+            e.synced_changes = e.changes.load(Ordering::SeqCst);
             e.token = got.version;
             e.target = got.target;
             e.synced_size = got.size;
@@ -1151,36 +1166,62 @@ impl Shared {
         view.ok_or(EditError::UnknownId)
     }
 
-    async fn stop(&self, id: &str, force: bool, recovered_only: bool) -> Result<(), EditError> {
-        let (slot, state, seen, synced, path) = {
+    async fn stop(
+        self: &Arc<Self>,
+        id: &str,
+        force: bool,
+        recovered_only: bool,
+    ) -> Result<(), EditError> {
+        let lock = self
+            .lock()
+            .files
+            .get(id)
+            .ok_or(EditError::UnknownId)?
+            .upload
+            .clone();
+        // Uploads and "use server version" write the copy under this lock.
+        let _held = lock.lock().await;
+        let (slot, state, synced, path, changes, synced_changes, seen) = {
             let inner = self.lock();
             let e = inner.files.get(id).ok_or(EditError::UnknownId)?;
             (
                 e.slot.clone(),
                 e.state,
-                e.seen,
                 e.synced_hash.clone(),
                 e.remote_path.clone(),
+                e.changes.clone(),
+                e.synced_changes,
+                e.seen,
             )
         };
         if recovered_only && state != State::Recovered {
             return Err(EditError::invalid("only a recovered file can be discarded"));
         }
-        if !force {
-            if state.not_uploaded() || seen {
+        if force {
+            let removed = self.lock().files.remove(id);
+            drop(removed);
+            if blocking(move || slot.remove()).await.is_err() {
+                log::warn!("could not delete the copy of an edited file");
+            }
+        } else {
+            if state.not_uploaded() {
                 return Err(EditError::NotUploaded(path));
             }
-            let s = slot.clone();
-            if let Ok(local) = blocking(move || s.local_state()).await
-                && local.hash != synced
-            {
-                return Err(EditError::NotUploaded(path));
+            // A missing copy is unchanged only if nothing was seen since it last matched the
+            // server: an editor that saves by delete then rename may be halfway.
+            let missing_ok = move || !seen && changes.load(Ordering::SeqCst) == synced_changes;
+            let judged = blocking(move || slot.remove_if_synced(&synced, missing_ok)).await?;
+            match judged {
+                disk::Judged::Removed => {
+                    let removed = self.lock().files.remove(id);
+                    drop(removed);
+                }
+                disk::Judged::Kept => return Err(EditError::NotUploaded(path)),
+                disk::Judged::Recreated => {
+                    self.saved(id);
+                    return Err(EditError::NotUploaded(path));
+                }
             }
-        }
-        let removed = self.lock().files.remove(id);
-        drop(removed);
-        if blocking(move || slot.remove()).await.is_err() {
-            log::warn!("could not delete the copy of an edited file");
         }
         self.deliver(Out {
             events: vec![EditEvent::Removed { id: id.to_owned() }],

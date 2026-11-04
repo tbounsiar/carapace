@@ -352,10 +352,13 @@ async fn output_is_bounded_while_the_receiver_is_slow_and_stays_in_order() {
     let gate = Arc::new(AtomicBool::new(false));
     let (tx, mut rx) = mpsc::unbounded_channel();
     let open = gate.clone();
+    // A worker blocked in place would strand the task in its LIFO slot (seen on Linux).
     let emit: Emit = Arc::new(move |e| {
-        while !open.load(Ordering::SeqCst) {
-            std::thread::sleep(Duration::from_millis(5));
-        }
+        tokio::task::block_in_place(|| {
+            while !open.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        });
         tx.send(e).is_ok()
     });
     let id = w

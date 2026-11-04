@@ -35,8 +35,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-    # Windows is the supported platform; Linux and macOS run to surface Unix code paths that were never built.
-    continue-on-error: ${{ matrix.os != 'windows-latest' }}
     defaults:
       run:
         working-directory: src-tauri

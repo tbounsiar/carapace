@@ -555,6 +555,78 @@ async fn stopping_and_deleting_hosts_remove_copies() {
 }
 
 #[tokio::test]
+async fn a_change_seen_and_not_hashed_yet_is_judged_by_the_hash() {
+    let w = world(81).await;
+    let f = w.open("a.conf", b"a").await;
+    w.edits.0.lock().files.get_mut(&f.id).unwrap().seen = true;
+    assert!(w.edits.has_unsynced());
+    w.edits.stop(&f.id, false).await.unwrap();
+    assert_eq!(w.edit_dirs(), 0);
+}
+
+#[tokio::test]
+async fn a_copy_that_cannot_be_read_is_never_stopped_as_unchanged() {
+    let w = world(82).await;
+    let f = w.open("a.conf", b"a").await;
+    // Unwatched, so no upload attempt fails the file first.
+    w.edits.0.lock().files.get_mut(&f.id).unwrap().watch = None;
+    fs::remove_file(w.copy(&f.id)).unwrap();
+    fs::create_dir(w.copy(&f.id)).unwrap();
+    assert_eq!(w.edits.stop(&f.id, false).await.unwrap_err().code(), "io");
+    assert!(w.file(&f.id).is_some());
+    assert_eq!(w.edit_dirs(), 1);
+    w.edits.stop(&f.id, true).await.unwrap();
+    assert_eq!(w.edit_dirs(), 0);
+}
+
+#[tokio::test]
+async fn a_missing_copy_is_stopped_only_if_nothing_changed_since_the_last_sync() {
+    let w = world(84).await;
+    let f = w.open("a.conf", b"a").await;
+    let changes = {
+        let mut inner = w.edits.0.lock();
+        let e = inner.files.get_mut(&f.id).unwrap();
+        e.watch = None;
+        e.changes.clone()
+    };
+    fs::remove_file(w.copy(&f.id)).unwrap();
+    changes.fetch_add(1, Ordering::SeqCst);
+    assert_eq!(
+        w.edits.stop(&f.id, false).await.unwrap_err().code(),
+        "not_uploaded"
+    );
+    assert_eq!(w.edit_dirs(), 1);
+    w.edits
+        .0
+        .lock()
+        .files
+        .get_mut(&f.id)
+        .unwrap()
+        .synced_changes = changes.load(Ordering::SeqCst);
+    w.edits.stop(&f.id, false).await.unwrap();
+    assert_eq!(w.edit_dirs(), 0);
+}
+
+#[cfg(windows)]
+#[tokio::test]
+async fn a_copy_an_editor_keeps_locked_is_kept_and_still_watched() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let w = world(83).await;
+    let f = w.open("a.conf", b"a").await;
+    let held = fs::File::options()
+        .read(true)
+        .share_mode(1)
+        .open(w.copy(&f.id))
+        .unwrap();
+    assert_eq!(w.edits.stop(&f.id, false).await.unwrap_err().code(), "io");
+    assert!(w.file(&f.id).unwrap().watched);
+    drop(held);
+    assert_eq!(fs::read(w.copy(&f.id)).unwrap(), b"a");
+    w.edits.stop(&f.id, false).await.unwrap();
+    assert_eq!(w.edit_dirs(), 0);
+}
+
+#[tokio::test]
 async fn choices_apply_to_conflicts_only() {
     let w = world(71).await;
     let f = w.open("a.conf", b"one").await;
@@ -755,8 +827,9 @@ async fn the_in_place_route_uploads_a_frozen_snapshot() {
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
+    // The manifest may still be being rewritten: only the snapshot must be gone.
     assert!(
-        !names.iter().any(|n| n.ends_with(".carapace-part")),
+        !names.iter().any(|n| n.starts_with(".a.conf.")),
         "{names:?}"
     );
 }
