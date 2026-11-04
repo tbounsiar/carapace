@@ -282,7 +282,7 @@ fn busy() -> CommandError {
 /// (macOS requires it) and awaited on its own thread, like the OS dialog itself; the command
 /// only waits on a channel. The webview has no dialog permission: only these commands open
 /// pickers.
-async fn pick(
+pub(super) async fn pick(
     app: &AppHandle,
     title: &'static str,
     start: Option<PathBuf>,

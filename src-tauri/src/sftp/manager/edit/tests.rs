@@ -458,14 +458,20 @@ async fn in_place_rewrite_refuses_a_file_swapped_for_a_link() {
     let r = w.remote().await;
     let original = r.lstat(&p).await.unwrap();
     w.server.fs().link(&p, &victim);
-    let err = r.rewrite(&p, b"new", &original, &p).await.unwrap_err();
+    let err = r
+        .rewrite(&p, &mut Body::bytes(b"new"), &original, &p)
+        .await
+        .unwrap_err();
     assert_eq!(err, FsError::Changed(p.clone()));
     assert_eq!(w.bytes(&victim), b"precious data");
 
     // Same size and mtime, other owner: still refused.
     w.put(&victim, b"original");
     w.server.fs().set_owner(&victim, 0, 0);
-    let err = r.rewrite(&p, b"new", &original, &p).await.unwrap_err();
+    let err = r
+        .rewrite(&p, &mut Body::bytes(b"new"), &original, &p)
+        .await
+        .unwrap_err();
     assert_eq!(err, FsError::Changed(p.clone()));
     assert_eq!(w.bytes(&victim), b"original");
 }
@@ -563,7 +569,9 @@ async fn a_new_file_never_replaces_one_created_meanwhile() {
     let r = w.remote().await;
     w.put(&p, b"theirs");
     assert_eq!(
-        r.create_file(&p, b"mine", &p).await.unwrap_err(),
+        r.create_file(&p, &mut Body::bytes(b"mine"), &p)
+            .await
+            .unwrap_err(),
         FsError::Changed(p.clone())
     );
     assert_eq!(w.bytes(&p), b"theirs");

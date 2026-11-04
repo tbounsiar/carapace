@@ -10,7 +10,8 @@ use uuid::Uuid;
 
 use super::migrate::{self, Dropped, LegacyProject, MigrationPlan};
 use super::model::{
-    AnalyticsConsent, ConfigFile, Host, KeyEntry, KeyOrigin, Node, Project, Variable, VariableScope,
+    AnalyticsConsent, ConfigFile, ExternalEditor, Host, KeyEntry, KeyOrigin, Node, Project,
+    Variable, VariableScope,
 };
 use super::validate::{self, same_name};
 
@@ -535,6 +536,15 @@ impl ConfigStore {
         self.transact(|cfg| {
             let changed = cfg.analytics != Some(value);
             cfg.analytics = Some(value);
+            Ok(((), changed))
+        })
+    }
+
+    /// Rewrites the file only when the value changes.
+    pub fn set_external_editor(&self, value: ExternalEditor) -> Result<(), ConfigError> {
+        self.transact(|cfg| {
+            let changed = cfg.external_editor.as_ref() != Some(&value);
+            cfg.external_editor = Some(value);
             Ok(((), changed))
         })
     }

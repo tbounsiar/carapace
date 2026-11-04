@@ -1,6 +1,7 @@
 mod analytics;
 mod commands;
 mod config;
+mod external;
 mod files;
 mod fsutil;
 mod keys;
@@ -35,6 +36,7 @@ pub fn run() {
             app.manage(terminal::TerminalManager::default());
             app.manage(sftp::SftpManager::default());
             app.manage(quit::QuitGuard::default());
+            let home_dir = home.clone();
             let store = commands::secrets::config_store(home, &secrets);
             // Loading moves a version 1 file aside or drops environments; their keychain entries go
             // with them. Consent is read here, before the webview runs: an unreadable file is unset.
@@ -46,6 +48,21 @@ pub fn run() {
                 Arc::new(commands::transfer::AppConnections(app.handle().clone())),
                 commands::transfer::observer(analytics.clone()),
             ));
+            let handle = app.handle().clone();
+            let edits = external::ExternalEdits::new(
+                &home_dir,
+                Arc::new(commands::transfer::AppConnections(app.handle().clone())),
+                Arc::new(external::OsLauncher),
+                Arc::new(move || {
+                    let store = handle.state::<config::ConfigStore>();
+                    let cfg = store.snapshot().ok().and_then(|c| c.external_editor);
+                    commands::external::opener_of(cfg.as_ref())
+                }),
+            );
+            let known = store.snapshot().ok();
+            edits.retain_known_hosts(|id| known.as_ref().is_some_and(|c| c.host(id).is_some()));
+            edits.set_attention(commands::app::attention(app.handle().clone()));
+            app.manage(edits);
             app.manage(secrets);
             app.manage(store);
             app.manage(analytics.clone());
@@ -81,6 +98,9 @@ pub fn run() {
             }
             if let Some(ssh) = webview.try_state::<ssh::SshManager>() {
                 ssh.unsubscribe_ends();
+            }
+            if let Some(edits) = webview.try_state::<external::ExternalEdits>() {
+                edits.unsubscribe();
             }
             // The new page has no unsaved editor and has not subscribed yet.
             if let Some(guard) = webview.try_state::<quit::QuitGuard>() {
@@ -167,6 +187,20 @@ pub fn run() {
             commands::app::set_quit_guard,
             commands::app::subscribe_app_events,
             commands::app::quit_app,
+            commands::external::open_external,
+            commands::external::subscribe_edited,
+            commands::external::list_edited,
+            commands::external::has_unsynced,
+            commands::external::upload_now,
+            commands::external::resolve_conflict,
+            commands::external::stop_editing,
+            commands::external::stop_all_editing,
+            commands::external::discard_recovered,
+            commands::external::reveal,
+            commands::external::edited_affected,
+            commands::external::get_external_editor,
+            commands::external::set_external_editor,
+            commands::external::pick_external_editor,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -180,6 +214,11 @@ pub fn run() {
                 && commands::app::on_quit_request(app)
             {
                 api.prevent_exit();
+            }
+            if let RunEvent::Exit = event
+                && let Some(edits) = app.try_state::<external::ExternalEdits>()
+            {
+                edits.shutdown();
             }
             if let RunEvent::Exit = event
                 && let Some(analytics) = app.try_state::<analytics::Analytics>()

@@ -58,6 +58,14 @@ impl Doomed {
     }
 }
 
+/// Identity of an open file (volume + file id on Windows, device + inode on Unix).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileId(u64, u64);
+
+pub fn file_id(file: &File) -> io::Result<FileId> {
+    imp::file_id(file)
+}
+
 /// Identity of a directory (volume + file id on Windows, device + inode on Unix).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DirId(u64, u64);
@@ -89,7 +97,13 @@ mod imp {
         GetFileInformationByHandle, SetFileInformationByHandle,
     };
 
-    use super::{DirHandle, DirId, Doomed, not_regular};
+    use super::{DirHandle, DirId, Doomed, FileId, not_regular};
+
+    pub(super) fn file_id(file: &File) -> io::Result<FileId> {
+        let info = info(file)?;
+        let index = (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow);
+        Ok(FileId(u64::from(info.dwVolumeSerialNumber), index))
+    }
 
     const DELETE: u32 = 0x0001_0000;
     const SYNCHRONIZE: u32 = 0x0010_0000;
@@ -180,7 +194,12 @@ mod imp {
     use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
     use std::path::Path;
 
-    use super::{DirHandle, DirId, Doomed, not_regular};
+    use super::{DirHandle, DirId, Doomed, FileId, not_regular};
+
+    pub(super) fn file_id(file: &File) -> io::Result<FileId> {
+        let meta = file.metadata()?;
+        Ok(FileId(meta.dev(), meta.ino()))
+    }
 
     fn dir_fd(path: &Path) -> io::Result<File> {
         OpenOptions::new()

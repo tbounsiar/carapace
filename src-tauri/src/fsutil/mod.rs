@@ -4,7 +4,7 @@ mod pinned;
 #[cfg(windows)]
 mod windows;
 
-pub use pinned::{DirHandle, DirId, open_dir, open_for_delete};
+pub use pinned::{DirHandle, DirId, FileId, file_id, open_dir, open_for_delete};
 
 use std::fs::{self, File};
 use std::io::{self, ErrorKind, Read, Write};
@@ -99,8 +99,42 @@ fn check_existing_dir(path: &Path, _meta: &fs::Metadata) -> io::Result<()> {
 /// after a check is never read. `follow: false` refuses a link at the last component.
 /// Errors: `InvalidInput` (not a regular file, or a link when not following), `FileTooLarge`.
 pub fn read_regular_capped(path: &Path, max: u64, follow: bool) -> io::Result<Zeroizing<Vec<u8>>> {
+    let file = open_regular(path, follow)?;
+    if file.metadata()?.len() > max {
+        return Err(ErrorKind::FileTooLarge.into());
+    }
+    let mut data = Zeroizing::new(Vec::new());
+    file.take(max + 1).read_to_end(&mut data)?;
+    if data.len() as u64 > max {
+        return Err(ErrorKind::FileTooLarge.into());
+    }
+    Ok(data)
+}
+
+/// Opens a regular file for reading; the type is checked on the handle. `follow: false`
+/// refuses a link (or any reparse point on Windows) at the last component. Errors:
+/// `InvalidInput` for anything that is not a regular file.
+pub fn open_regular(path: &Path, follow: bool) -> io::Result<File> {
+    open_regular_with(path, follow, false)
+}
+
+/// `open_regular` without following a link, and on Windows without letting anyone else write,
+/// rename or delete the file while it is open (others may still read it).
+pub fn open_regular_locked(path: &Path) -> io::Result<File> {
+    open_regular_with(path, false, true)
+}
+
+fn open_regular_with(path: &Path, follow: bool, locked: bool) -> io::Result<File> {
     let mut options = fs::OpenOptions::new();
     options.read(true);
+    #[cfg(windows)]
+    if locked {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_SHARE_READ: u32 = 0x1;
+        options.share_mode(FILE_SHARE_READ);
+    }
+    #[cfg(not(windows))]
+    let _ = locked;
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
@@ -126,15 +160,7 @@ pub fn read_regular_capped(path: &Path, max: u64, follow: bool) -> io::Result<Ze
     if !meta.is_file() || meta.file_type().is_symlink() || (!follow && localfs::is_link(&meta)) {
         return Err(not_regular());
     }
-    if meta.len() > max {
-        return Err(ErrorKind::FileTooLarge.into());
-    }
-    let mut data = Zeroizing::new(Vec::new());
-    file.take(max + 1).read_to_end(&mut data)?;
-    if data.len() as u64 > max {
-        return Err(ErrorKind::FileTooLarge.into());
-    }
-    Ok(data)
+    Ok(file)
 }
 
 /// Whether the file's DACL lets accounts other than the current user, SYSTEM and the
@@ -142,6 +168,20 @@ pub fn read_regular_capped(path: &Path, max: u64, follow: bool) -> io::Result<Ze
 #[cfg(windows)]
 pub fn readable_by_others(file: &File) -> io::Result<bool> {
     windows::readable_by_others(file)
+}
+
+/// Whether the directory itself (never a link's target) is owned by the current user.
+pub fn dir_owned_by_me(dir: &Path) -> io::Result<bool> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        // SAFETY: geteuid has no preconditions.
+        Ok(fs::symlink_metadata(dir)?.uid() == unsafe { libc::geteuid() })
+    }
+    #[cfg(windows)]
+    {
+        windows::owned_by_current_user(dir)
+    }
 }
 
 /// Whether accounts other than the current user (and SYSTEM / Administrators on Windows) can

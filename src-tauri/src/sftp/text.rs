@@ -86,6 +86,11 @@ fn sha256_hex(data: &[u8]) -> String {
     data_encoding::HEXLOWER.encode(&Sha256::digest(data))
 }
 
+/// Lowercase hex of a finished SHA-256.
+pub fn hex(digest: &[u8]) -> String {
+    data_encoding::HEXLOWER.encode(digest)
+}
+
 fn is_hash(s: &str) -> bool {
     s.len() == 64 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
@@ -108,6 +113,16 @@ impl Version {
             size: data.len() as u64,
             mtime,
             hash: sha256_hex(data),
+            place: Self::place_of(real),
+        }
+    }
+
+    /// `hash` is the lowercase hex SHA-256 of `size` bytes.
+    pub fn hashed(size: u64, hash: String, mtime: Option<u32>, real: &str) -> Self {
+        Self {
+            size,
+            mtime,
+            hash,
             place: Self::place_of(real),
         }
     }

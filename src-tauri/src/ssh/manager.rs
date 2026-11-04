@@ -233,6 +233,8 @@ struct Shared {
     closed: Mutex<bool>,
     request_id: Mutex<Option<String>>,
     rejection: Mutex<Option<Rejection>>,
+    /// SHA256 fingerprint of the host key the check accepted.
+    accepted: Mutex<Option<String>>,
 }
 
 impl Shared {
@@ -332,6 +334,17 @@ pub struct SessionRef {
     pub handle: Session,
     /// Becomes `Some` once when the connection ends; a closed sender also means it ended.
     pub ended: watch::Receiver<Option<SessionEnd>>,
+    pub identity: Arc<HostIdentity>,
+}
+
+/// Which server a session reached: the accepted host key and the resolved endpoint. Used to
+/// tell whether work queued for a host id still targets the same server. Never sent to the
+/// frontend.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct HostIdentity {
+    pub fingerprint: String,
+    /// `hostname:port:username`.
+    pub endpoint: String,
 }
 
 pub struct ClientHandler {
@@ -430,15 +443,32 @@ impl client::Handler for ClientHandler {
         &mut self,
         server_public_key: &PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
+        let accepted = self.check_key(server_public_key).await;
+        if let Ok((true, fp)) = &accepted
+            && let Ok(mut slot) = self.shared.accepted.lock()
+        {
+            *slot = Some(fp.clone());
+        }
+        accepted.map(|(ok, _)| ok)
+    }
+}
+
+impl ClientHandler {
+    /// The verdict, and the fingerprint of the key it is about.
+    async fn check_key(
+        &mut self,
+        server_public_key: &PublicKeyOrCertificate,
+    ) -> Result<(bool, String), russh::Error> {
         let key = match server_public_key {
             PublicKeyOrCertificate::PublicKey { key, .. } => key.clone(),
             PublicKeyOrCertificate::Certificate(cert) => {
                 PublicKey::new(cert.public_key().clone(), "")
             }
         };
+        let fp = fingerprint(&key);
         let status = self.known_hosts.check(&self.hostname, self.port, &key);
         if let Some(verdict) = self.verdict(status, &key) {
-            return Ok(verdict);
+            return Ok((verdict, fp));
         }
 
         let request_id = Uuid::new_v4().to_string();
@@ -447,7 +477,7 @@ impl client::Handler for ClientHandler {
             Ok(mut map) => map.insert(request_id.clone(), tx),
             Err(_) => {
                 self.shared.reject(Rejection::Io);
-                return Ok(false);
+                return Ok((false, fp));
             }
         };
         let _guard = PendingGuard {
@@ -475,21 +505,21 @@ impl client::Handler for ClientHandler {
             Ok(Ok(true)) => {}
             Ok(Ok(false)) | Ok(Err(_)) => {
                 self.shared.reject(Rejection::Rejected);
-                return Ok(false);
+                return Ok((false, fp));
             }
             Err(_) => {
                 self.shared.reject(Rejection::TimedOut);
-                return Ok(false);
+                return Ok((false, fp));
             }
         }
         let Ok(closed) = self.shared.closed.lock() else {
             self.shared.reject(Rejection::Io);
-            return Ok(false);
+            return Ok((false, fp));
         };
         if *closed {
             drop(closed);
             self.shared.reject(Rejection::Rejected);
-            return Ok(false);
+            return Ok((false, fp));
         }
         // Re-checked with the write: another connect or test may have trusted a key for this
         // host while the user was deciding.
@@ -497,10 +527,11 @@ impl client::Handler for ClientHandler {
             .known_hosts
             .trust_if_unknown(&self.hostname, self.port, &key);
         drop(closed);
-        Ok(match stored {
+        let ok = match stored {
             Ok(HostKeyStatus::Unknown) => true,
             other => self.verdict(other, &key).unwrap_or(false),
-        })
+        };
+        Ok((ok, fp))
     }
 }
 
@@ -566,6 +597,7 @@ struct Connection {
     handle: Session,
     ended: EndSignal,
     info: ConnectionInfo,
+    identity: Arc<HostIdentity>,
 }
 
 impl Connection {
@@ -730,6 +762,7 @@ impl SshManager {
             Some(c) if c.is_live() => Some(SessionRef {
                 handle: c.handle.clone(),
                 ended: c.ended.subscribe(),
+                identity: c.identity.clone(),
             }),
             Some(_) => {
                 if let Some(c) = sessions.remove(connection_id) {
@@ -887,6 +920,15 @@ impl SshManager {
                 handle: Arc::new(handle),
                 ended,
                 info: info.clone(),
+                identity: Arc::new(HostIdentity {
+                    fingerprint: shared
+                        .accepted
+                        .lock()
+                        .ok()
+                        .and_then(|a| a.clone())
+                        .unwrap_or_default(),
+                    endpoint: format!("{}:{}:{}", target.hostname, target.port, target.username),
+                }),
             },
         );
         emit(ConnectEvent::Status {

@@ -31,6 +31,8 @@ pub enum FsError {
     Io(String),
     #[error("the file transfer channel to the host failed")]
     Network,
+    #[error("the local copy changed during the upload")]
+    SourceChanged,
 }
 
 impl FsError {
@@ -48,6 +50,7 @@ impl FsError {
             Self::InvalidInput(_) => "invalid_input",
             Self::Io(_) => "io",
             Self::Network => "network",
+            Self::SourceChanged => "io",
         }
     }
 

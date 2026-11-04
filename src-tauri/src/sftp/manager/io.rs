@@ -60,6 +60,11 @@ impl Remote {
         self.session.ended.clone()
     }
 
+    /// The server this channel's session reached (accepted host key, endpoint).
+    pub fn identity(&self) -> &crate::ssh::HostIdentity {
+        &self.session.identity
+    }
+
     /// Whether `rename_replace` is atomic on this server (`posix-rename@openssh.com`).
     pub fn has_posix_rename(&self) -> bool {
         self.posix_rename

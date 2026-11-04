@@ -66,6 +66,20 @@
     "allow-open-privacy-page",
     "allow-set-quit-guard",
     "allow-subscribe-app-events",
-    "allow-quit-app"
+    "allow-quit-app",
+    "allow-open-external",
+    "allow-subscribe-edited",
+    "allow-list-edited",
+    "allow-has-unsynced",
+    "allow-upload-now",
+    "allow-resolve-conflict",
+    "allow-stop-editing",
+    "allow-stop-all-editing",
+    "allow-discard-recovered",
+    "allow-reveal",
+    "allow-edited-affected",
+    "allow-get-external-editor",
+    "allow-set-external-editor",
+    "allow-pick-external-editor"
   ]
 }

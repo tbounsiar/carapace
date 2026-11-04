@@ -4,6 +4,7 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 
 use super::error::CommandError;
+use crate::external::ExternalEdits;
 use crate::quit::{AppEvent, Decision, QuitGuard};
 
 /// While active, closing the main window sends `quitRequested` instead of closing. Setting it
@@ -38,7 +39,10 @@ pub fn on_quit_request(app: &AppHandle) -> bool {
     let Some(guard) = app.try_state::<QuitGuard>() else {
         return false;
     };
-    match guard.intercept() {
+    let unsynced = app
+        .try_state::<ExternalEdits>()
+        .is_some_and(|e| e.has_unsynced());
+    match guard.intercept(unsynced) {
         Decision::Proceed => false,
         Decision::Asked | Decision::Wait => true,
         Decision::Confirm => {
@@ -46,6 +50,17 @@ pub fn on_quit_request(app: &AppHandle) -> bool {
             true
         }
     }
+}
+
+/// Flashes the taskbar entry (or bounces the dock icon) when the main window is not focused.
+pub fn attention(app: AppHandle) -> Arc<dyn Fn() + Send + Sync> {
+    Arc::new(move || {
+        if let Some(window) = app.get_webview_window("main")
+            && !window.is_focused().unwrap_or(true)
+        {
+            let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+        }
+    })
 }
 
 /// The page did not answer: the user decides in a native dialog parented to the main window.

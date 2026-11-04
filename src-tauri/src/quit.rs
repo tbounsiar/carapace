@@ -57,10 +57,11 @@ impl QuitGuard {
         self.lock().subscriber = Some(emit);
     }
 
-    /// For a close request on the main window or a quit request of the app.
-    pub fn intercept(&self) -> Decision {
+    /// For a close request on the main window or a quit request of the app. `unsynced`: some
+    /// edited file has changes not uploaded, which guards like an unsaved editor.
+    pub fn intercept(&self, unsynced: bool) -> Decision {
         let mut inner = self.lock();
-        if inner.quitting || !inner.active {
+        if inner.quitting || !(inner.active || unsynced) {
             return Decision::Proceed;
         }
         if inner.confirming {
@@ -138,42 +139,42 @@ mod tests {
         let guard = QuitGuard::default();
         let (emit, count) = counting(true);
         guard.subscribe(emit);
-        assert_eq!(guard.intercept(), Decision::Proceed);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
         assert_eq!(count.load(Ordering::SeqCst), 0);
     }
 
     #[test]
     fn active_guard_asks_the_page_and_an_answer_rearms_it() {
         let (guard, count) = guarded();
-        assert_eq!(guard.intercept(), Decision::Asked);
+        assert_eq!(guard.intercept(false), Decision::Asked);
         // The page declined (Cancel) and says so.
         guard.set_active(true);
-        assert_eq!(guard.intercept(), Decision::Asked);
+        assert_eq!(guard.intercept(false), Decision::Asked);
         assert_eq!(count.load(Ordering::SeqCst), 2);
         guard.set_active(false);
-        assert_eq!(guard.intercept(), Decision::Proceed);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
     }
 
     #[test]
     fn an_unanswered_request_falls_back_to_the_native_dialog() {
         let (guard, count) = guarded();
-        assert_eq!(guard.intercept(), Decision::Asked);
-        assert_eq!(guard.intercept(), Decision::Confirm);
-        assert_eq!(guard.intercept(), Decision::Wait);
+        assert_eq!(guard.intercept(false), Decision::Asked);
+        assert_eq!(guard.intercept(false), Decision::Confirm);
+        assert_eq!(guard.intercept(false), Decision::Wait);
         assert_eq!(count.load(Ordering::SeqCst), 1);
         guard.confirmed(false);
-        assert_eq!(guard.intercept(), Decision::Asked);
-        assert_eq!(guard.intercept(), Decision::Confirm);
+        assert_eq!(guard.intercept(false), Decision::Asked);
+        assert_eq!(guard.intercept(false), Decision::Confirm);
         guard.confirmed(true);
-        assert_eq!(guard.intercept(), Decision::Proceed);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
     }
 
     #[test]
     fn quit_app_bypasses_the_guard() {
         let (guard, count) = guarded();
-        assert_eq!(guard.intercept(), Decision::Asked);
+        assert_eq!(guard.intercept(false), Decision::Asked);
         guard.allow_quit();
-        assert_eq!(guard.intercept(), Decision::Proceed);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
         assert_eq!(count.load(Ordering::SeqCst), 1);
     }
 
@@ -181,22 +182,36 @@ mod tests {
     fn unreachable_or_missing_page_never_blocks_the_close() {
         let guard = QuitGuard::default();
         guard.set_active(true);
-        assert_eq!(guard.intercept(), Decision::Proceed);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
         let (emit, count) = counting(false);
         guard.subscribe(emit);
-        assert_eq!(guard.intercept(), Decision::Proceed);
-        assert_eq!(guard.intercept(), Decision::Proceed);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn unsynced_edited_files_guard_like_an_unsaved_editor() {
+        let guard = QuitGuard::default();
+        let (emit, count) = counting(true);
+        guard.subscribe(emit);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
+        assert_eq!(guard.intercept(true), Decision::Asked);
+        assert_eq!(guard.intercept(true), Decision::Confirm);
+        guard.confirmed(false);
+        guard.allow_quit();
+        assert_eq!(guard.intercept(true), Decision::Proceed);
         assert_eq!(count.load(Ordering::SeqCst), 1);
     }
 
     #[test]
     fn reset_clears_the_guard_and_the_subscription() {
         let (guard, count) = guarded();
-        assert_eq!(guard.intercept(), Decision::Asked);
+        assert_eq!(guard.intercept(false), Decision::Asked);
         guard.reset();
-        assert_eq!(guard.intercept(), Decision::Proceed);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
         guard.set_active(true);
-        assert_eq!(guard.intercept(), Decision::Proceed);
+        assert_eq!(guard.intercept(false), Decision::Proceed);
         assert_eq!(count.load(Ordering::SeqCst), 1);
     }
 }

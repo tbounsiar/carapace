@@ -9,6 +9,7 @@ use super::resolve::{self, required};
 use super::secrets::check_secret;
 use crate::analytics::{Analytics, Attempt, Auth, ErrorCode, Event, TestResult, Took};
 use crate::config::{ConfigStore, HostInput};
+use crate::external::ExternalEdits;
 use crate::ssh::{
     ConnectEvent, Connected, ConnectionEnd, ConnectionEvent, ConnectionInfo, Credential, Emit,
     HostTestResult, SshManager, TestTicket,
@@ -23,6 +24,7 @@ pub async fn connect_host(
     store: State<'_, ConfigStore>,
     ssh: State<'_, SshManager>,
     analytics: State<'_, Analytics>,
+    edits: State<'_, ExternalEdits>,
     host_id: String,
     on_event: Channel<ConnectEvent>,
     credential: Option<Credential>,
@@ -30,7 +32,11 @@ pub async fn connect_host(
     let emit: Emit = Arc::new(move |event| {
         let _ = on_event.send(event);
     });
-    connect_in(&store, &ssh, &analytics, &host_id, credential, emit).await
+    let info = connect_in(&store, &ssh, &analytics, &host_id, credential, emit).await?;
+    // Edited files waiting for this host upload now; the connect does not wait for them.
+    let edits = edits.inner().clone();
+    tauri::async_runtime::spawn(async move { edits.host_connected(&host_id).await });
+    Ok(info)
 }
 
 /// The codes after which the frontend asks for a secret and calls again with it; `typed`:

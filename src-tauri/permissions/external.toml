@@ -1,0 +1,69 @@
+[[permission]]
+identifier = "allow-open-external"
+description = "Allows the open_external command."
+commands.allow = ["open_external"]
+
+[[permission]]
+identifier = "allow-subscribe-edited"
+description = "Allows the subscribe_edited command."
+commands.allow = ["subscribe_edited"]
+
+[[permission]]
+identifier = "allow-list-edited"
+description = "Allows the list_edited command."
+commands.allow = ["list_edited"]
+
+[[permission]]
+identifier = "allow-has-unsynced"
+description = "Allows the has_unsynced command."
+commands.allow = ["has_unsynced"]
+
+[[permission]]
+identifier = "allow-upload-now"
+description = "Allows the upload_now command."
+commands.allow = ["upload_now"]
+
+[[permission]]
+identifier = "allow-resolve-conflict"
+description = "Allows the resolve_conflict command."
+commands.allow = ["resolve_conflict"]
+
+[[permission]]
+identifier = "allow-stop-editing"
+description = "Allows the stop_editing command."
+commands.allow = ["stop_editing"]
+
+[[permission]]
+identifier = "allow-stop-all-editing"
+description = "Allows the stop_all_editing command."
+commands.allow = ["stop_all_editing"]
+
+[[permission]]
+identifier = "allow-discard-recovered"
+description = "Allows the discard_recovered command."
+commands.allow = ["discard_recovered"]
+
+[[permission]]
+identifier = "allow-reveal"
+description = "Allows the reveal command."
+commands.allow = ["reveal"]
+
+[[permission]]
+identifier = "allow-edited-affected"
+description = "Allows the edited_affected command."
+commands.allow = ["edited_affected"]
+
+[[permission]]
+identifier = "allow-get-external-editor"
+description = "Allows the get_external_editor command."
+commands.allow = ["get_external_editor"]
+
+[[permission]]
+identifier = "allow-set-external-editor"
+description = "Allows the set_external_editor command."
+commands.allow = ["set_external_editor"]
+
+[[permission]]
+identifier = "allow-pick-external-editor"
+description = "Allows the pick_external_editor command."
+commands.allow = ["pick_external_editor"]

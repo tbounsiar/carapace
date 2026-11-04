@@ -171,6 +171,40 @@ pub struct ConfigFile {
         deserialize_with = "lenient_analytics"
     )]
     pub analytics: Option<AnalyticsConsent>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "lenient_external_editor"
+    )]
+    pub external_editor: Option<ExternalEditor>,
+}
+
+/// How remote files are opened outside the app. `appPath` is kept while `mode` is `system` so
+/// switching back restores it; it is only used with `custom`. Missing or malformed means the
+/// system default with the notice still shown.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalEditor {
+    pub mode: EditorMode,
+    #[serde(default)]
+    pub app_path: Option<String>,
+    #[serde(default)]
+    pub notice_seen: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EditorMode {
+    #[default]
+    System,
+    Custom,
+}
+
+fn lenient_external_editor<'de, D: Deserializer<'de>>(
+    d: D,
+) -> Result<Option<ExternalEditor>, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    Ok(serde_json::from_value(value).ok())
 }
 
 /// Usage analytics consent. Missing, or written by a hand edit in a shape we do not know,
@@ -281,6 +315,7 @@ impl Default for ConfigFile {
             nodes: Vec::new(),
             keys: Vec::new(),
             analytics: None,
+            external_editor: None,
         }
     }
 }

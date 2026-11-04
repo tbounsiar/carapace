@@ -16,7 +16,7 @@ use super::path::{file_name, join, normalize, parent};
 use crate::files::{self, EntryKind, FileEntry, FsError, Listing, MAX_DEPTH, MAX_ENTRIES};
 use crate::ssh::{SessionRef, SshManager};
 
-pub use edit::{Saved, TextFile, WriteText};
+pub use edit::{Body, Downloaded, Saved, TextFile, WriteText};
 pub use io::RemoteMeta;
 
 const OPEN_TIMEOUT: Duration = Duration::from_secs(15);

@@ -4,9 +4,14 @@
 
 use russh_sftp::protocol::OpenFlags;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use super::*;
 use crate::sftp::text::{self, Eol, LineEnding, MAX_TEXT_BYTES, Version};
+
+/// Names a failure on this machine's side without saying where the file is.
+const LOCAL_COPY: &str = "the local copy";
 
 pub const FSYNC: &str = "fsync@openssh.com";
 const CHUNK: u32 = 32 * 1024;
@@ -46,6 +51,102 @@ pub struct WriteText<'a> {
     pub expected_target: Option<&'a str>,
     pub eol: Eol,
     pub bom: bool,
+}
+
+/// What a save writes: bytes in memory, or a local file streamed in chunks. It counts and hashes
+/// what was sent, so the version of the written file is known without reading it back.
+pub struct Body<'a> {
+    src: Src<'a>,
+    sent: u64,
+    hasher: Sha256,
+}
+
+/// Called at the end of a streamed file; `false` means the file changed while it was read.
+pub type Unchanged<'a> = Box<dyn FnMut() -> bool + Send + 'a>;
+
+enum Src<'a> {
+    Bytes(&'a [u8]),
+    File {
+        file: &'a mut tokio::fs::File,
+        max: u64,
+        unchanged: Unchanged<'a>,
+    },
+}
+
+impl<'a> Body<'a> {
+    pub fn bytes(data: &'a [u8]) -> Self {
+        Self::new(Src::Bytes(data))
+    }
+
+    /// Read from the current position to the end. More than `max` bytes is `TooLarge`, and
+    /// `unchanged` returning false at the end is `SourceChanged`; both fail before the written
+    /// temp is renamed into place.
+    pub fn file(file: &'a mut tokio::fs::File, max: u64, unchanged: Unchanged<'a>) -> Self {
+        Self::new(Src::File {
+            file,
+            max,
+            unchanged,
+        })
+    }
+
+    fn new(src: Src<'a>) -> Self {
+        Self {
+            src,
+            sent: 0,
+            hasher: Sha256::new(),
+        }
+    }
+
+    async fn next(&mut self) -> Result<Option<Vec<u8>>, FsError> {
+        let chunk = match &mut self.src {
+            Src::Bytes(data) => {
+                let start = self.sent as usize;
+                if start >= data.len() {
+                    return Ok(None);
+                }
+                data[start..(start + CHUNK as usize).min(data.len())].to_vec()
+            }
+            Src::File {
+                file,
+                max,
+                unchanged,
+            } => {
+                let mut buf = vec![0; CHUNK as usize];
+                let n = file
+                    .read(&mut buf)
+                    .await
+                    .map_err(|_| FsError::Io(LOCAL_COPY.into()))?;
+                if n == 0 {
+                    if !unchanged() {
+                        return Err(FsError::SourceChanged);
+                    }
+                    return Ok(None);
+                }
+                if self.sent + n as u64 > *max {
+                    return Err(FsError::TooLarge(LOCAL_COPY.into()));
+                }
+                buf.truncate(n);
+                buf
+            }
+        };
+        self.hasher.update(&chunk);
+        self.sent += chunk.len() as u64;
+        Ok(Some(chunk))
+    }
+
+    fn version(&self, mtime: Option<u32>, real: &str) -> Version {
+        let hash = text::hex(&self.hasher.clone().finalize());
+        Version::hashed(self.sent, hash, mtime, real)
+    }
+}
+
+/// A regular file copied from the server, with the version a later save must match.
+#[derive(Debug)]
+pub struct Downloaded {
+    pub version: String,
+    pub size: u64,
+    /// The file actually read when the path is a symlink to another path.
+    pub target: Option<String>,
 }
 
 enum Target {
@@ -231,16 +332,115 @@ impl Remote {
         if !expected.may_match(attrs.size, attrs.mtime) {
             return Err(FsError::Changed(path.into()));
         }
-        let (data, attrs) = match self.read_file(real, path).await {
-            Ok(read) => read,
+        let now = match self.hash_file(real, expected.size, path).await {
+            Ok(v) => v,
             Err(FsError::TooLarge(_)) => return Err(FsError::Changed(path.into())),
             Err(e) if missing(&e) => return Err(FsError::Deleted(path.into())),
             Err(e) => return Err(e),
         };
-        if Version::of(&data, attrs.mtime, real) != *expected {
+        if now != *expected {
             return Err(FsError::Changed(path.into()));
         }
         Ok(())
+    }
+
+    /// Version of the regular file `real`, read through one handle without keeping its content;
+    /// more than `cap` bytes is `TooLarge`.
+    async fn hash_file(&self, real: &str, cap: u64, path: &str) -> Result<Version, FsError> {
+        let handle = self.open_regular(real, path).await?;
+        let result = async {
+            let attrs = self.handle_attrs(&handle, path).await?;
+            if !is_file(&attrs) {
+                return Err(not_regular(path));
+            }
+            let mut hasher = Sha256::new();
+            let mut size = 0u64;
+            while let Some(chunk) = self.read_at(&handle, size, CHUNK, path).await? {
+                if chunk.is_empty() {
+                    break;
+                }
+                size += chunk.len() as u64;
+                if size > cap {
+                    return Err(FsError::TooLarge(path.into()));
+                }
+                hasher.update(&chunk);
+            }
+            let hash = text::hex(&hasher.finalize());
+            Ok(Version::hashed(size, hash, attrs.mtime, real))
+        }
+        .await;
+        let _ = self.close_handle(&handle, path).await;
+        result
+    }
+
+    async fn open_regular(&self, real: &str, path: &str) -> Result<String, FsError> {
+        self.raw
+            .open(real, OpenFlags::READ, FileAttributes::empty())
+            .await
+            .map(|h| h.handle)
+            .map_err(|e| self.fail(e, path))
+    }
+
+    /// Size of the regular file at `path` (a link is followed to one) and the path actually
+    /// reached; `InvalidInput` for anything else.
+    pub async fn edit_size(&self, path: &str) -> Result<(Option<u64>, String), FsError> {
+        match self.edit_target(path).await? {
+            Target::File { attrs, real, .. } => Ok((attrs.size, real)),
+            Target::Missing | Target::Dangling => Err(FsError::NotFound(path.into())),
+        }
+    }
+
+    /// Copies the regular file at `path` into `out`; more than `max` bytes is `TooLarge`.
+    /// Type and size are checked again on the open handle.
+    pub async fn download(
+        &self,
+        path: &str,
+        max: u64,
+        out: &mut tokio::fs::File,
+    ) -> Result<Downloaded, FsError> {
+        let Target::File { real, attrs, link } = self.edit_target(path).await? else {
+            return Err(FsError::NotFound(path.into()));
+        };
+        if attrs.size.is_some_and(|s| s > max) {
+            return Err(FsError::TooLarge(path.into()));
+        }
+        let handle = self.open_regular(&real, path).await?;
+        let result = async {
+            let attrs = self.handle_attrs(&handle, path).await?;
+            if !is_file(&attrs) {
+                return Err(not_regular(path));
+            }
+            if attrs.size.is_some_and(|s| s > max) {
+                return Err(FsError::TooLarge(path.into()));
+            }
+            let mut hasher = Sha256::new();
+            let mut size = 0u64;
+            while let Some(chunk) = self.read_at(&handle, size, CHUNK, path).await? {
+                if chunk.is_empty() {
+                    break;
+                }
+                size += chunk.len() as u64;
+                if size > max {
+                    return Err(FsError::TooLarge(path.into()));
+                }
+                hasher.update(&chunk);
+                out.write_all(&chunk)
+                    .await
+                    .map_err(|_| FsError::Io(LOCAL_COPY.into()))?;
+            }
+            out.flush()
+                .await
+                .map_err(|_| FsError::Io(LOCAL_COPY.into()))?;
+            let hash = text::hex(&hasher.finalize());
+            Ok(Downloaded {
+                version: Version::hashed(size, hash, attrs.mtime, &real).token(),
+                size,
+                target: link.then(|| real.clone()),
+            })
+        }
+        .await;
+        let _ = self.close_handle(&handle, path).await;
+        result
     }
 
     /// Right before the file is replaced: still the file `edit_target` saw, to narrow the
@@ -268,15 +468,29 @@ impl Remote {
         if data.len() > MAX_TEXT_BYTES {
             return Err(FsError::TooLarge(path.into()));
         }
-        let expected = req
-            .expected
+        let mut body = Body::bytes(&data);
+        self.write_body(path, req.expected, req.expected_target, &mut body)
+            .await
+    }
+
+    /// The save of `write_text` for any content: same conflict check (`expected` token, or
+    /// `expected_target` when forced), same atomic placement. `path` must be normalized and
+    /// not `/`.
+    pub async fn write_body(
+        &self,
+        path: &str,
+        expected: Option<&str>,
+        expected_target: Option<&str>,
+        body: &mut Body<'_>,
+    ) -> Result<Saved, FsError> {
+        let expected = expected
             .map(|t| {
                 Version::parse(t).ok_or_else(|| FsError::invalid("expectedVersion is invalid"))
             })
             .transpose()?;
         let (real, original) = match self.edit_target(path).await? {
             Target::File { real, attrs, link } => {
-                if expected.is_none() && link.then_some(real.as_str()) != req.expected_target {
+                if expected.is_none() && link.then_some(real.as_str()) != expected_target {
                     return Err(FsError::Retargeted(path.into()));
                 }
                 (real, Some(attrs))
@@ -292,24 +506,24 @@ impl Remote {
             }
         };
         let mtime = match &original {
-            None => self.create_file(&real, &data, path).await?,
+            None => self.create_file(&real, body, path).await?,
             Some(attrs) => {
                 if let Some(v) = &expected {
                     self.check_unchanged(&real, attrs, v, path).await?;
                 }
                 let checked = expected.is_some();
                 match self
-                    .replace_via_temp(&real, &data, attrs, checked, path)
+                    .replace_via_temp(&real, body, attrs, checked, path)
                     .await?
                 {
                     Placed::Done(mtime) => mtime,
-                    Placed::InPlace => self.rewrite(&real, &data, attrs, path).await?,
+                    Placed::InPlace => self.rewrite(&real, body, attrs, path).await?,
                 }
             }
         };
         Ok(Saved {
-            version: Version::of(&data, mtime, &real).token(),
-            size: data.len() as u64,
+            version: body.version(mtime, &real).token(),
+            size: body.sent,
         })
     }
 
@@ -337,12 +551,12 @@ impl Remote {
     async fn fill_temp(
         &self,
         handle: &str,
-        data: &[u8],
+        body: &mut Body<'_>,
         mode: u32,
         path: &str,
     ) -> Result<Option<u32>, FsError> {
         let written = async {
-            self.write_chunks(handle, data, path).await?;
+            self.write_chunks(handle, body, path).await?;
             self.sync(handle, path).await?;
             self.set_handle_mode(handle, mode, path).await?;
             Ok(self.handle_attrs(handle, path).await?.mtime)
@@ -357,7 +571,7 @@ impl Remote {
     async fn create_file(
         &self,
         real: &str,
-        data: &[u8],
+        body: &mut Body<'_>,
         path: &str,
     ) -> Result<Option<u32>, FsError> {
         let dir = parent(real).ok_or_else(|| not_regular(path))?;
@@ -368,7 +582,7 @@ impl Remote {
         let Some((temp, handle)) = created else {
             return Err(FsError::invalid(format!("{path} has too long a name")));
         };
-        let placed = match self.fill_temp(&handle, data, NEW_FILE_MODE, path).await {
+        let placed = match self.fill_temp(&handle, body, NEW_FILE_MODE, path).await {
             Ok(mtime) => self.rename_new(&temp, real).await.map(|()| mtime),
             Err(e) => Err(e),
         };
@@ -387,7 +601,7 @@ impl Remote {
     async fn replace_via_temp(
         &self,
         real: &str,
-        data: &[u8],
+        body: &mut Body<'_>,
         original: &FileAttributes,
         checked: bool,
         path: &str,
@@ -417,7 +631,7 @@ impl Remote {
         let mode = original
             .permissions
             .map_or(NEW_FILE_MODE, |p| p & COPIED_MODE);
-        let mtime = match self.fill_temp(&handle, data, mode, path).await {
+        let mtime = match self.fill_temp(&handle, body, mode, path).await {
             Ok(m) => m,
             Err(e) => return Err(self.discard_now(&temp, e).await),
         };
@@ -447,7 +661,7 @@ impl Remote {
     async fn rewrite(
         &self,
         real: &str,
-        data: &[u8],
+        body: &mut Body<'_>,
         original: &FileAttributes,
         path: &str,
     ) -> Result<Option<u32>, FsError> {
@@ -463,11 +677,11 @@ impl Remote {
                 return Err(FsError::Changed(path.into()));
             }
             let partial = |_| FsError::PartialWrite(path.into());
-            self.write_chunks(&handle, data, path)
+            self.write_chunks(&handle, body, path)
                 .await
                 .map_err(partial)?;
             let size = FileAttributes {
-                size: Some(data.len() as u64),
+                size: Some(body.sent),
                 ..FileAttributes::empty()
             };
             self.raw
@@ -476,7 +690,7 @@ impl Remote {
                 .map_err(|e| partial(self.fail(e, path)))?;
             self.sync(&handle, path).await.map_err(partial)?;
             let after = self.handle_attrs(&handle, path).await.map_err(partial)?;
-            if after.size != Some(data.len() as u64) {
+            if after.size != Some(body.sent) {
                 return Err(FsError::PartialWrite(path.into()));
             }
             Ok(after.mtime)
@@ -490,12 +704,19 @@ impl Remote {
         }
     }
 
-    async fn write_chunks(&self, handle: &str, data: &[u8], path: &str) -> Result<(), FsError> {
-        for (i, chunk) in data.chunks(CHUNK as usize).enumerate() {
-            let offset = (i * CHUNK as usize) as u64;
-            self.write_at(handle, offset, chunk.to_vec(), path).await?;
+    async fn write_chunks(
+        &self,
+        handle: &str,
+        body: &mut Body<'_>,
+        path: &str,
+    ) -> Result<(), FsError> {
+        loop {
+            let offset = body.sent;
+            let Some(chunk) = body.next().await? else {
+                return Ok(());
+            };
+            self.write_at(handle, offset, chunk, path).await?;
         }
-        Ok(())
     }
 
     async fn sync(&self, handle: &str, path: &str) -> Result<(), FsError> {

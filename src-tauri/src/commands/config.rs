@@ -11,6 +11,7 @@ use crate::analytics::{Analytics, Count, Event, Scope};
 use crate::config::{
     ConfigStore, HostInput, Moved, Node, Project, Variable, VariableKind, VariableScope,
 };
+use crate::external::ExternalEdits;
 use crate::secrets::{SecretError, SecretStore, VarKey, fits_keychain};
 use crate::ssh::SshManager;
 
@@ -353,10 +354,12 @@ pub async fn delete_project(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
     ssh: State<'_, SshManager>,
+    edits: State<'_, ExternalEdits>,
     project_id: String,
 ) -> Res<()> {
     let hosts = remove_project(&store, &secrets, &project_id)?;
     close_hosts(&ssh, &hosts).await;
+    edits.forget_hosts(&hosts);
     Ok(())
 }
 
@@ -420,10 +423,12 @@ pub async fn delete_collection(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
     ssh: State<'_, SshManager>,
+    edits: State<'_, ExternalEdits>,
     collection_id: String,
 ) -> Res<DeletedNodes> {
     let deleted = remove_collection(&store, &secrets, &collection_id)?;
     close_hosts(&ssh, &deleted.host_ids).await;
+    edits.forget_hosts(&deleted.host_ids);
     Ok(deleted)
 }
 
@@ -487,10 +492,12 @@ pub async fn delete_host(
     store: State<'_, ConfigStore>,
     secrets: State<'_, SecretStore>,
     ssh: State<'_, SshManager>,
+    edits: State<'_, ExternalEdits>,
     host_id: String,
 ) -> Res<()> {
     let hosts = remove_host(&store, &secrets, &host_id)?;
     close_hosts(&ssh, &hosts).await;
+    edits.forget_hosts(&hosts);
     Ok(())
 }
 

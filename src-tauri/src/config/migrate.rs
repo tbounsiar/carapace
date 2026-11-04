@@ -78,6 +78,7 @@ pub(super) fn from_v2(raw: &[u8], version: u32) -> Result<ConfigFile, serde_json
         nodes,
         keys: v2.keys,
         analytics: None,
+        external_editor: None,
     })
 }
 
