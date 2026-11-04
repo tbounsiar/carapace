@@ -99,6 +99,12 @@ export class HostLauncher {
     await this.injector.get(EditorDocs).open(host, path, size);
   }
 
+  /** Open a remote file in the external editor app; `size` comes from the listing. */
+  async openExternal(host: Host, path: string, size: number | null): Promise<boolean> {
+    const { ExternalOpener } = await import('../external-editor/external-opener');
+    return this.injector.get(ExternalOpener).open(host, path, size);
+  }
+
   private isRunning(tab: WorkspaceTab): boolean {
     return !!tab.terminal && tab.terminal.state() !== 'ended';
   }

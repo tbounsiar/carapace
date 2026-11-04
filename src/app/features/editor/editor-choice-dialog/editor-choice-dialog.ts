@@ -1,10 +1,19 @@
 import { Component, computed } from '@angular/core';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
-import { TuiButton, type TuiDialogContext, TuiHint, TuiNotification } from '@taiga-ui/core';
+import {
+  TuiButton,
+  type TuiDialogContext,
+  TuiHint,
+  TuiNotification,
+  TuiTitle,
+} from '@taiga-ui/core';
 import { injectContext } from '@taiga-ui/polymorpheus';
 
-export type EditorChoiceKind = 'unsaved' | 'changed' | 'deleted' | 'retargeted';
-export type EditorChoice = 'save' | 'discard' | 'overwrite' | 'reload' | 'saveAnyway' | 'cancel';
+/** The `external*` kinds are a file open in an external editor (spec X3). */
+export type EditorChoiceKind =
+  'unsaved' | 'changed' | 'deleted' | 'retargeted' | 'externalChanged' | 'externalDeleted';
+export type EditorChoice =
+  'save' | 'discard' | 'overwrite' | 'reload' | 'saveAnyway' | 'useServer' | 'stop' | 'cancel';
 
 export interface EditorChoiceData {
   readonly kind: EditorChoiceKind;
@@ -92,11 +101,54 @@ const BUTTONS: Readonly<Record<EditorChoiceKind, readonly ChoiceButton[]>> = {
       focus: true,
     },
   ],
+  externalChanged: [
+    {
+      choice: 'overwrite',
+      label: 'Overwrite server',
+      appearance: 'flat-destructive',
+      testId: 'conflict-ext-overwrite',
+    },
+    {
+      choice: 'useServer',
+      label: 'Use server version',
+      appearance: 'flat-destructive',
+      testId: 'conflict-ext-server',
+      hint: 'Replaces your local copy. Unsaved edits in your editor may be lost.',
+    },
+    {
+      choice: 'cancel',
+      label: 'Keep my copy',
+      appearance: 'primary',
+      testId: 'conflict-ext-keep',
+      focus: true,
+    },
+  ],
+  externalDeleted: [
+    {
+      choice: 'overwrite',
+      label: 'Upload anyway',
+      appearance: 'flat-destructive',
+      testId: 'conflict-ext-upload-anyway',
+    },
+    {
+      choice: 'stop',
+      label: 'Stop editing',
+      appearance: 'flat-destructive',
+      testId: 'conflict-ext-stop',
+    },
+    {
+      choice: 'cancel',
+      label: 'Keep my copy',
+      appearance: 'primary',
+      testId: 'conflict-ext-keep',
+      focus: true,
+    },
+  ],
 };
 
 /** Three-way choices for an editor buffer; Taiga's confirm has two buttons only. */
 @Component({
-  imports: [TuiAutoFocus, TuiButton, TuiHint, TuiNotification],
+  imports: [TuiAutoFocus, TuiButton, TuiHint, TuiNotification, TuiTitle],
   selector: 'app-editor-choice-dialog',
   templateUrl: './editor-choice-dialog.html',
   styleUrl: './editor-choice-dialog.scss',

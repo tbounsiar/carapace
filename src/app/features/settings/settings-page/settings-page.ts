@@ -21,6 +21,7 @@ import { FONT_SIZE_MAX, FONT_SIZE_MIN, Settings } from '../../../core/settings/s
 import type { ThemeMode } from '../../../core/theme/theme';
 import { openPrivacyPage, UNSAVED_DENIAL, unsavedDenial } from '../../analytics/privacy-page';
 import { notifyError } from '../../project-tree/save-error';
+import { ExternalEditorSettings } from '../external-editor-settings/external-editor-settings';
 
 const THEME_OPTIONS: readonly { value: ThemeMode; label: string; icon: string }[] = [
   { value: 'system', label: 'System', icon: '@tui.monitor' },
@@ -35,6 +36,7 @@ const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
 
 @Component({
   imports: [
+    ExternalEditorSettings,
     FormsModule,
     ReactiveFormsModule,
     TuiError,

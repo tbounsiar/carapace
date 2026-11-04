@@ -1,0 +1,75 @@
+:host {
+  display: block;
+}
+
+.header {
+  margin-block-end: var(--tui-padding-l);
+}
+
+.note {
+  margin-block-end: var(--tui-padding-l);
+}
+
+.table {
+  inline-size: 100%;
+  table-layout: fixed;
+}
+
+.col-state {
+  inline-size: 14rem;
+}
+
+.col-actions {
+  inline-size: 8rem;
+}
+
+/* The File column shrinks first: its texts ellipsize instead of widening the table. */
+.file,
+.file-text {
+  min-inline-size: 0;
+}
+
+.name {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+
+.location {
+  font-family: var(--app-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.reason {
+  display: block;
+  color: var(--tui-text-negative);
+}
+
+.hint {
+  display: block;
+}
+
+.actions {
+  text-align: end;
+}
+
+.buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.loader {
+  margin-block-start: var(--tui-padding-l);
+}

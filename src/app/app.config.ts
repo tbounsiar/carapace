@@ -9,6 +9,7 @@ import {
 import { provideRouter, withComponentInputBinding, withRouterConfig } from '@angular/router';
 import { routes } from './app.routes';
 import { ConnectionEvents } from './core/ipc/connection-events';
+import { EditedFiles } from './core/ipc/edited-files';
 import { provideOpenDialogs } from './shared/open-dialogs';
 
 export const appConfig: ApplicationConfig = {
@@ -27,6 +28,11 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(() => {
       const injector = inject(Injector);
       void inject(ConnectionEvents).start();
+      void inject(EditedFiles).start();
+      // The alerts subscribe to the store's snapshot, so a late start still sees it.
+      void import('./features/external-editor/edited-alerts').then(({ EditedAlerts }) =>
+        injector.get(EditedAlerts).start(),
+      );
       void import('./features/workspace/quit-guard').then(({ QuitGuard }) =>
         injector.get(QuitGuard).start(),
       );

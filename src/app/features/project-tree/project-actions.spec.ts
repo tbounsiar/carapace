@@ -5,6 +5,9 @@ import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { of } from 'rxjs';
 import { ConfigService } from '../../core/ipc/config';
 import { collection, fakeConfig, host, project } from '../../core/ipc/config.fixture';
+import { EditedFiles } from '../../core/ipc/edited-files';
+import { type EditedFile, ExternalEditsIpc } from '../../core/ipc/external-edits';
+import { editedFile } from '../../core/ipc/external-edits.fixture';
 import { IpcError } from '../../core/ipc/ipc-error';
 import { SidebarState } from '../sidebar/sidebar-state';
 import type { HostDialogData } from './host-dialog/host-dialog';
@@ -25,6 +28,8 @@ describe('ProjectActions', () => {
   let opened: Opened[];
   let answer: boolean;
   const alerts = { open: vi.fn(() => of(undefined)) };
+  let affected: EditedFile[];
+  const external = { affected: vi.fn(() => Promise.resolve(affected)) };
 
   const dialogs = {
     open: vi.fn((_content: unknown, options: Opened) => {
@@ -46,6 +51,7 @@ describe('ProjectActions', () => {
     localStorage.clear();
     opened = [];
     answer = true;
+    affected = [];
     config = fakeConfig();
     config.projects.set([project('p1', 'Payments')]);
     config.nodes.set([
@@ -61,6 +67,7 @@ describe('ProjectActions', () => {
         { provide: ConfigService, useValue: config },
         { provide: TuiDialogService, useValue: dialogs },
         { provide: TuiNotificationService, useValue: alerts },
+        { provide: ExternalEditsIpc, useValue: external },
       ],
     });
     actions = TestBed.inject(ProjectActions);
@@ -174,5 +181,29 @@ describe('ProjectActions', () => {
       expect.any(String),
       expect.objectContaining({ label: 'Host not deleted' }),
     );
+  });
+
+  it('lists the files open in an external editor in the delete confirms', async () => {
+    const store = TestBed.inject(EditedFiles);
+    affected = [
+      editedFile('e1', 'h1', '/etc/nginx.conf', { notUploaded: true, state: 'conflict' }),
+      editedFile('e2', 'h1', '/srv/app.env', { notUploaded: true, state: 'waiting' }),
+      editedFile('e3', 'h1', '/srv/ok.txt'),
+    ];
+    store.reset(affected);
+    await actions.deleteHost(config.findHost('h1')!.host);
+    expect(external.affected).toHaveBeenCalledWith({ kind: 'host', id: 'h1' });
+    expect(lastData<{ content: string }>().content).toContain(
+      ' 3 files open in an external editor will stop syncing. Changes not uploaded in nginx.conf, app.env will be lost.',
+    );
+    expect(store.count()).toBe(0);
+    affected = [editedFile('e4', 'h2', '/a')];
+    await actions.deleteCollection(config.findNode('c1') as never);
+    expect(external.affected).toHaveBeenLastCalledWith({ kind: 'collection', id: 'c1' });
+    expect(lastData<{ content: string }>().content).toMatch(
+      / 1 file open in an external editor will stop syncing\.$/,
+    );
+    await actions.deleteProject(config.findProject('p1')!);
+    expect(external.affected).toHaveBeenLastCalledWith({ kind: 'project', id: 'p1' });
   });
 });

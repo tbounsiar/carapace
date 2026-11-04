@@ -1,5 +1,6 @@
 import { TuiThemeColorService } from '@taiga-ui/addon-mobile';
 import { TUI_DARK_MODE, TuiIcon, TuiRoot } from '@taiga-ui/core';
+import { TuiBadge } from '@taiga-ui/kit';
 import { TuiNavigation } from '@taiga-ui/layout';
 import {
   afterRenderEffect,
@@ -13,6 +14,7 @@ import {
   ViewContainerRef,
 } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
+import { EditedFiles } from './core/ipc/edited-files';
 import { ThemeService } from './core/theme/theme';
 import { CurrentScope } from './shared/current-scope';
 import { LocationBar } from './features/shell/location-bar/location-bar';
@@ -34,6 +36,7 @@ const CHROME_TOKEN = '--tui-background-base-alt';
     RouterOutlet,
     SidebarTree,
     ThemeMenu,
+    TuiBadge,
     TuiIcon,
     TuiNavigation,
     TuiRoot,
@@ -53,6 +56,16 @@ export class App {
   protected readonly hasTabs = computed(() => this.workspace.tabs().length > 0);
   private readonly stripSlot = viewChild.required('tabStrip', { read: ViewContainerRef });
   private stripLoading = false;
+  protected readonly edited = inject(EditedFiles);
+  /** "Edited files, 3 files, 1 needs attention". */
+  protected readonly editedLabel = computed(() => {
+    const count = this.edited.count();
+    const attention = this.edited.attention();
+    const files = count === 1 ? '1 file' : `${count} files`;
+    const needs =
+      attention === 1 ? ', 1 needs attention' : attention ? `, ${attention} need attention` : '';
+    return `Edited files, ${files}${needs}`;
+  });
   /** Global pages in the aside footer; Taiga's item shows the active one but sets no aria-current. */
   protected readonly page = computed(() => {
     const route = this.scope.route();

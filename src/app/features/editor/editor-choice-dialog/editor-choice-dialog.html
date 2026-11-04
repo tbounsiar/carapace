@@ -13,6 +13,19 @@
       would change.
     </div>
   }
+  @case ('externalChanged') {
+    <div tuiNotification appearance="warning" size="s" class="content">
+      <span tuiTitle>
+        {{ data.name }} was modified on {{ data.host }} after your last upload.
+        <span tuiSubtitle>Your local copy has changes that are not on the server.</span>
+      </span>
+    </div>
+  }
+  @case ('externalDeleted') {
+    <div tuiNotification appearance="warning" size="s" class="content">
+      {{ data.name }} no longer exists on {{ data.host }}.
+    </div>
+  }
   @case ('deleted') {
     <div tuiNotification appearance="warning" size="s" class="content">
       {{ data.name }} no longer exists on {{ data.host }}.

@@ -121,6 +121,20 @@
   white-space: nowrap;
 }
 
+.marker {
+  display: inline-flex;
+  flex: none;
+  color: var(--tui-text-secondary);
+
+  tui-icon {
+    font-size: 1rem;
+  }
+
+  &._attention {
+    color: var(--tui-status-warning);
+  }
+}
+
 .num {
   text-align: end;
   white-space: nowrap;

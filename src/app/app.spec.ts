@@ -6,6 +6,8 @@ import { provideTaiga } from '@taiga-ui/core';
 import { signal } from '@angular/core';
 import { App } from './app';
 import { ConfigService } from './core/ipc/config';
+import { EditedFiles } from './core/ipc/edited-files';
+import { editedFile } from './core/ipc/external-edits.fixture';
 import { fakeConfig, project } from './core/ipc/config.fixture';
 import { SshService } from './core/ipc/ssh';
 import { ThemeService } from './core/theme/theme';
@@ -96,5 +98,27 @@ describe('App', () => {
     expect(footer.querySelector('[data-testid="settings"]')?.getAttribute('href')).toBe(
       '/settings',
     );
+  });
+
+  it('shows Edited files first in the footer only while files are edited, with the attention badge', async () => {
+    const fixture = await setup();
+    expect(byId('aside-edited-files')).toBeNull();
+    const store = TestBed.inject(EditedFiles);
+    store.reset([editedFile('e1', 'h1', '/a'), editedFile('e2', 'h1', '/b')]);
+    await fixture.whenStable();
+    const item = byId('aside-edited-files')!;
+    expect(el().querySelector('aside footer')?.firstElementChild).toBe(item);
+    expect(item.getAttribute('href')).toBe('/edited-files');
+    expect(byId('aside-edited-count')?.textContent?.trim()).toBe('2');
+    expect(byId('aside-edited-attention')).toBeNull();
+    expect(item.getAttribute('aria-label')).toBe('Edited files, 2 files');
+    store.upsert(editedFile('e2', 'h1', '/b', { state: 'conflict', needsAttention: true }));
+    await fixture.whenStable();
+    expect(byId('aside-edited-attention')?.textContent?.trim()).toBe('1');
+    expect(byId('aside-edited-attention')?.getAttribute('data-appearance')).toBe('warning');
+    expect(item.getAttribute('aria-label')).toBe('Edited files, 2 files, 1 needs attention');
+    store.reset([]);
+    await fixture.whenStable();
+    expect(byId('aside-edited-files')).toBeNull();
   });
 });

@@ -1,9 +1,10 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, Injector, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TuiItem } from '@taiga-ui/cdk';
-import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiLink } from '@taiga-ui/core';
+import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiLink, TuiTitle } from '@taiga-ui/core';
 import { TuiBreadcrumbs, TuiFade } from '@taiga-ui/kit';
 import { ConfigService } from '../../../core/ipc/config';
+import { EditedFiles } from '../../../core/ipc/edited-files';
 import type { Collection, Host, Project } from '../../../core/ipc/config.models';
 import { CurrentScope } from '../../../shared/current-scope';
 import { MoveLauncher } from '../../project-tree/move-launcher';
@@ -16,6 +17,7 @@ const PAGES: Readonly<Record<string, string>> = {
   '/variables': 'Global variables',
   '/keys': 'SSH keys',
   '/settings': 'Settings',
+  '/edited-files': 'Edited files',
 };
 
 interface Crumb {
@@ -31,6 +33,8 @@ interface PageMenuEntry {
   readonly icon: string;
   readonly run: () => void;
   readonly separated?: boolean;
+  /** Why the entry is disabled, shown under its label. */
+  readonly disabledReason?: string;
 }
 
 interface PageMenu {
@@ -60,6 +64,7 @@ interface Location {
     TuiHint,
     TuiItem,
     TuiLink,
+    TuiTitle,
   ],
   selector: 'app-location-bar',
   templateUrl: './location-bar.html',
@@ -72,6 +77,8 @@ export class LocationBar {
   private readonly moves = inject(MoveLauncher);
   private readonly sidebar = inject(SidebarState);
   private readonly workspace = inject(WorkspaceActions);
+  private readonly edited = inject(EditedFiles);
+  private readonly injector = inject(Injector);
 
   protected readonly menuOpen = signal(false);
 
@@ -178,6 +185,21 @@ export class LocationBar {
         entries: this.workspace.menu(tab),
       };
     }
+    const route = this.scope.route();
+    if (route.kind === 'other' && route.path === '/edited-files' && this.edited.count()) {
+      return {
+        id: 'edited-menu',
+        name: 'Edited files',
+        entries: [
+          {
+            id: 'edited-stop-all',
+            label: 'Stop all',
+            icon: '@tui.x',
+            run: () => void this.stopAllEdited(),
+          },
+        ],
+      };
+    }
     const { host } = this.location();
     if (host) {
       return {
@@ -202,6 +224,11 @@ export class LocationBar {
     }
     return null;
   });
+
+  private async stopAllEdited(): Promise<void> {
+    const { EditedActions } = await import('../../external-editor/edited-actions');
+    await this.injector.get(EditedActions).stopAll();
+  }
 
   protected run(entry: PageMenuEntry): void {
     this.menuOpen.set(false);

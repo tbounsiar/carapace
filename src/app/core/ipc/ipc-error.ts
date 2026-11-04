@@ -27,6 +27,15 @@ const KNOWN_CODES: readonly string[] = [
   'cancelled',
   'not_text',
   'partial_write',
+  'large_file',
+  'sensitive',
+  'blocked_type',
+  'app_not_found',
+  'app_not_editor',
+  'app_failed',
+  'host_changed',
+  'not_regular_file',
+  'not_uploaded',
 ];
 
 export class IpcError extends Error {

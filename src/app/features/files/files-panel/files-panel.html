@@ -19,8 +19,10 @@
       [transferTarget]="downloadTarget()"
       [revisions]="remoteRevisions()"
       [editable]="true"
+      [edited]="editedFiles()"
       (pathChange)="remember('remote', $event)"
       (edit)="edit($event)"
+      (openExternal)="openExternal($event)"
       (send)="download($event)"
       (receive)="upload($event)"
     />

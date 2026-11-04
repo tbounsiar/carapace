@@ -1,7 +1,10 @@
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideTaiga, TuiNotificationService, TuiRoot } from '@taiga-ui/core';
 import { of } from 'rxjs';
+import type { EditedFile } from '../../../core/ipc/external-edits';
+import { editedFile } from '../../../core/ipc/external-edits.fixture';
 import type { FileEntry, FileSide, FileSource, Listing } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { FileDialogs } from '../file-dialogs';
@@ -87,6 +90,8 @@ class FakeSource implements FileSource {
       [editable]="editable()"
       (receive)="received.push($event)"
       (edit)="edited.push($event.path)"
+      [edited]="editedFiles()"
+      (openExternal)="external.push($event.path)"
     />
   </tui-root>`,
 })
@@ -100,6 +105,8 @@ class Host {
   readonly received: PaneTransfer[] = [];
   readonly editable = signal(false);
   readonly edited: string[] = [];
+  readonly editedFiles = signal<ReadonlyMap<string, EditedFile>>(new Map());
+  readonly external: string[] = [];
 }
 
 describe('FilePane', () => {
@@ -166,6 +173,7 @@ describe('FilePane', () => {
       imports: [Host],
       providers: [
         provideTaiga(),
+        provideRouter([]),
         { provide: FileDialogs, useValue: dialogs },
         { provide: TuiNotificationService, useValue: alerts },
       ],
@@ -247,6 +255,63 @@ describe('FilePane', () => {
     expect(source.list).toHaveBeenCalledWith('/home/u/link');
     expect(fixture.componentInstance.edited).toEqual(['/home/u/link']);
     expect(alerts.open).not.toHaveBeenCalled();
+  });
+
+  it('opens remote files in the external editor from the menu and with Shift+Enter', async () => {
+    TREE['/home/u'].entries.push(entry('/home/u', 'disk.img', { size: 2 * 1024 ** 3 }));
+    fixture = TestBed.createComponent(Host);
+    source = new FakeSource('remote');
+    fixture.componentInstance.source.set(source);
+    fixture.componentInstance.editable.set(true);
+    await settle();
+    expect(byId('entry-notes.txt')!.getAttribute('aria-keyshortcuts')).toContain('Shift+Enter');
+    await click(byId('entry-menu-notes.txt'));
+    const options = [...document.querySelectorAll('tui-data-list [data-testid]')].map((o) =>
+      o.getAttribute('data-testid'),
+    );
+    expect(options.slice(0, 2)).toEqual(['entry-edit', 'entry-external']);
+    await click(document.querySelector('[data-testid="entry-external"]'));
+    byId('entry-notes.txt')!.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true }),
+    );
+    await settle();
+    expect(fixture.componentInstance.external).toEqual(['/home/u/notes.txt', '/home/u/notes.txt']);
+    expect(fixture.componentInstance.edited).toEqual([]);
+    await click(byId('entry-menu-disk.img'));
+    const tooLarge = document.querySelector<HTMLButtonElement>('[data-testid="entry-external"]')!;
+    expect(tooLarge.disabled).toBe(true);
+    expect(tooLarge.textContent).toContain('Too large (max 1 GiB)');
+    await click(byId('entry-menu-src'));
+    expect(document.querySelector('[data-testid="entry-external"]')).toBeNull();
+  });
+
+  it('marks the rows of files open in an external editor, warning when they need attention', async () => {
+    fixture = TestBed.createComponent(Host);
+    source = new FakeSource('remote');
+    fixture.componentInstance.source.set(source);
+    fixture.componentInstance.editable.set(true);
+    fixture.componentInstance.editedFiles.set(
+      new Map([
+        ['/home/u/notes.txt', editedFile('e1', 'h1', '/home/u/notes.txt')],
+        [
+          '/home/u/.profile',
+          editedFile('e2', 'h1', '/home/u/.profile', { state: 'conflict', needsAttention: true }),
+        ],
+      ]),
+    );
+    await settle();
+    const marker = byId('entry-external-marker-notes.txt')!;
+    expect(marker.getAttribute('data-state')).toBe('synced');
+    expect(marker.getAttribute('aria-label')).toBe('Open in an external editor · No changes');
+    expect(marker.getAttribute('href')).toBe('/edited-files');
+    expect(marker.classList.contains('_attention')).toBe(false);
+    await click(byId('pane-hidden'));
+    const warning = byId('entry-external-marker-.profile')!;
+    expect(warning.classList.contains('_attention')).toBe(true);
+    expect(warning.getAttribute('aria-label')).toBe(
+      'Open in an external editor · Changed on server',
+    );
+    expect(byId('entry-external-marker-src')).toBeNull();
   });
 
   it('navigates with the breadcrumbs', async () => {

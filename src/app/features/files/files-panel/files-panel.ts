@@ -4,6 +4,7 @@ import { TuiAvatar, TuiButtonLoading } from '@taiga-ui/kit';
 import { TuiBlockStatus } from '@taiga-ui/layout';
 import type { ConnectionTarget } from '../../../core/ipc/connection';
 import { ConfigService } from '../../../core/ipc/config';
+import { EditedFiles } from '../../../core/ipc/edited-files';
 import { type FileEntry, FileSources, type FileSide } from '../../../core/ipc/files';
 import { SshService } from '../../../core/ipc/ssh';
 import { connectionStatus } from '../../../shared/connection-status';
@@ -29,10 +30,12 @@ export class FilesPanel {
   private readonly queue = inject(TransferQueue);
   private readonly config = inject(ConfigService);
   private readonly launcher = inject(HostLauncher);
+  private readonly edited = inject(EditedFiles);
 
   readonly target = input.required<ConnectionTarget>();
 
   protected readonly local = this.sources.local;
+  protected readonly editedFiles = computed(() => this.edited.ofHost(this.target().hostId));
   protected readonly remote = computed(() => this.sources.remote(this.target().connectionId));
   private readonly state = computed(() => this.ssh.states()[this.target().connectionId] ?? 'idle');
   protected readonly connected = computed(() => this.state() === 'connected');
@@ -72,6 +75,13 @@ export class FilesPanel {
     const host = this.config.findHost(this.target().hostId)?.host;
     if (host) {
       void this.launcher.openFile(host, entry.path, entry.size);
+    }
+  }
+
+  protected openExternal(entry: FileEntry): void {
+    const host = this.config.findHost(this.target().hostId)?.host;
+    if (host) {
+      void this.launcher.openExternal(host, entry.path, entry.size);
     }
   }
 

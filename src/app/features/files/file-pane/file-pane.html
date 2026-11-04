@@ -137,7 +137,11 @@
             #row
             class="row"
             draggable="true"
-            aria-keyshortcuts="Enter Backspace F2 Delete Control+A"
+            [attr.aria-keyshortcuts]="
+              editable()
+                ? 'Enter Shift+Enter Backspace F2 Delete Control+A'
+                : 'Enter Backspace F2 Delete Control+A'
+            "
             [class._selected]="selection.has(row.entry.path)"
             [class._drop]="activeDrop() === row.entry.path"
             [attr.data-drop-dir]="row.entry.kind === 'dir' ? row.entry.path : null"
@@ -155,6 +159,22 @@
               <span class="name">
                 <tui-icon class="kind" [icon]="row.icon" />
                 <span class="label" [attr.title]="row.entry.name">{{ row.entry.name }}</span>
+                @if (row.marker; as marker) {
+                  <a
+                    class="marker"
+                    routerLink="/edited-files"
+                    tabindex="-1"
+                    [class._attention]="marker.attention"
+                    [attr.aria-label]="marker.label"
+                    [attr.data-testid]="'entry-external-marker-' + row.entry.name"
+                    [attr.data-state]="marker.state"
+                    [tuiHint]="marker.label"
+                  >
+                    <tui-icon
+                      [icon]="marker.attention ? '@tui.triangle-alert' : '@tui.external-link'"
+                    />
+                  </a>
+                }
               </span>
             </td>
             <td tuiTd class="num">{{ row.size }}</td>
@@ -198,6 +218,24 @@
                         </span>
                       } @else {
                         Edit
+                      }
+                    </button>
+                    @let external = isTooLargeExternal(row.entry);
+                    <button
+                      tuiOption
+                      iconStart="@tui.external-link"
+                      type="button"
+                      data-testid="entry-external"
+                      [disabled]="external"
+                      (click)="close(); openExternal.emit(row.entry)"
+                    >
+                      @if (external) {
+                        <span tuiTitle>
+                          Open in external editor
+                          <span tuiSubtitle>Too large (max 1 GiB)</span>
+                        </span>
+                      } @else {
+                        Open in external editor
                       }
                     </button>
                   }

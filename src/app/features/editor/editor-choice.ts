@@ -8,6 +8,8 @@ const LABELS = {
   changed: () => 'File changed on the server',
   deleted: () => 'File changed on the server',
   retargeted: () => 'Link changed on the server',
+  externalChanged: () => 'File changed on the server',
+  externalDeleted: () => 'File changed on the server',
 } as const;
 
 /** Esc and the close button answer Cancel. */

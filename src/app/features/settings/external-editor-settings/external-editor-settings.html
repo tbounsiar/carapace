@@ -1,0 +1,78 @@
+<fieldset class="group">
+  <legend class="legend">External editor</legend>
+  <!-- Taiga's pill follows clicks only: the index is bound for values set from the backend. -->
+  <tui-segmented size="s" [activeItemIndex]="setting()?.mode === 'custom' ? 1 : 0">
+    <label data-testid="settings-ext-system">
+      <input type="radio" name="externalEditor" value="system" [formControl]="mode" />
+      System default
+    </label>
+    <label data-testid="settings-ext-custom">
+      <input type="radio" name="externalEditor" value="custom" [formControl]="mode" />
+      Custom app
+    </label>
+  </tui-segmented>
+  <p class="note">
+    Files open with the app your system uses for their type. Scripts and programs are never run:
+    pick a custom app to edit them.
+  </p>
+  @if (setting()?.mode === 'custom') {
+    @let path = setting()?.appPath ?? null;
+    <div class="app">
+      <tui-textfield tuiTextfieldSize="s" class="path" [tuiTextfieldCleaner]="false">
+        <input
+          tuiInput
+          [readOnly]="true"
+          placeholder="No app chosen"
+          aria-label="Editor app"
+          data-testid="settings-ext-path"
+          [attr.aria-invalid]="appError() ? true : null"
+          [attr.aria-describedby]="appError() ? 'settings-ext-error' : null"
+          [value]="path ?? ''"
+          [tuiHint]="path"
+        />
+      </tui-textfield>
+      <button
+        tuiButton
+        size="s"
+        appearance="secondary"
+        type="button"
+        data-testid="settings-ext-browse"
+        [disabled]="picking()"
+        (click)="browse()"
+      >
+        Browse…
+      </button>
+      <button
+        tuiButton
+        size="s"
+        appearance="flat"
+        type="button"
+        data-testid="settings-ext-clear"
+        (click)="clear()"
+      >
+        Clear
+      </button>
+    </div>
+    @if (appError(); as error) {
+      <tui-error id="settings-ext-error" data-testid="settings-ext-error" [error]="error" />
+    }
+    @if (!path) {
+      <p class="note">
+        Pick the editor's program file. Until then, files open with the system default app.
+      </p>
+    }
+  }
+  <p class="note">
+    While you edit, a copy of the file is stored on this computer and deleted when you stop editing.
+  </p>
+  <label tuiLabel>
+    <input
+      tuiSwitch
+      type="checkbox"
+      size="s"
+      data-testid="settings-ext-notice"
+      [formControl]="notice"
+    />
+    Show a notice before opening a file outside Carapace
+  </label>
+</fieldset>

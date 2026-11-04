@@ -1,0 +1,240 @@
+<header tuiHeader class="header">
+  <hgroup tuiTitle>
+    <h1 #heading tabindex="-1" data-testid="edited-title">Edited files</h1>
+    <p tuiSubtitle>
+      Files open in an external editor. Each save there is uploaded to the server.
+      @if (rows().length) {
+        Closing the file in your editor does not stop syncing; use Stop editing.
+      }
+    </p>
+  </hgroup>
+</header>
+
+@if (!loaded()) {
+  <tui-loader size="m" class="loader" />
+} @else if (rows().length) {
+  <div tuiNotification appearance="neutral" size="s" class="note" data-testid="edited-note">
+    While you edit, a copy of each file is stored on this computer. Stop editing deletes it; your
+    editor may keep its own copies (backups, history). While a save is being uploaded, your editor
+    may briefly report the file as in use; save again if it does.
+  </div>
+  <table tuiTable size="s" class="table" aria-label="Edited files">
+    <thead tuiThead>
+      <tr>
+        <th tuiTh>File</th>
+        <th tuiTh class="col-state">State</th>
+        <th tuiTh class="col-actions" aria-label="Actions"></th>
+      </tr>
+    </thead>
+    <tbody tuiTbody>
+      @for (row of rows(); track row.file.id) {
+        <tr
+          #row
+          [attr.data-testid]="row.testId"
+          [attr.data-state]="row.file.state"
+          (keydown)="onRowKeydown($event, row)"
+        >
+          <td tuiTd>
+            <div tuiCell="s" class="file">
+              <span tuiTitle class="file-text">
+                <button
+                  tuiLink
+                  type="button"
+                  class="name"
+                  data-testid="edited-open"
+                  aria-keyshortcuts="Delete"
+                  [disabled]="!!row.blocked"
+                  [attr.aria-label]="'Open ' + row.file.name + ' in the external editor'"
+                  [textContent]="row.file.name"
+                  (click)="actions.reopen(row.file)"
+                ></button>
+                <span
+                  tuiSubtitle
+                  tuiHintOverflow
+                  class="location"
+                  [textContent]="row.location"
+                ></span>
+              </span>
+            </div>
+          </td>
+          <td tuiTd aria-live="polite">
+            <span class="state" data-testid="edited-state">
+              @let look = row.look;
+              @if (look.kind === 'loader') {
+                <tui-loader size="xs" />
+                <span>{{ look.word }}</span>
+              } @else if (look.kind === 'status') {
+                <span [tuiStatus]="look.color">{{ look.word }}</span>
+              } @else {
+                <span tuiBadge size="s" [appearance]="look.appearance" [iconStart]="look.icon">
+                  {{ look.word }}
+                </span>
+              }
+            </span>
+            @if (row.reason) {
+              <span tuiSubtitle class="reason" data-testid="edited-reason">{{ row.reason }}</span>
+            } @else if (row.blocked) {
+              <span tuiSubtitle class="hint" data-testid="edited-reason">{{ row.blocked }}</span>
+            }
+          </td>
+          <td tuiTd class="actions">
+            <span class="buttons">
+              @if (row.action; as action) {
+                <button
+                  tuiButton
+                  size="xs"
+                  appearance="secondary"
+                  type="button"
+                  data-row-action
+                  data-testid="edited-action"
+                  aria-keyshortcuts="Delete"
+                  [attr.data-action]="action.action"
+                  [disabled]="!!row.blocked"
+                  (click)="runAction(row)"
+                >
+                  {{ action.label }}
+                </button>
+              }
+              <button
+                tuiIconButton
+                appearance="flat-grayscale"
+                size="xs"
+                iconStart="@tui.ellipsis"
+                type="button"
+                data-testid="edited-row-menu"
+                aria-keyshortcuts="Delete Shift+F10"
+                [attr.aria-label]="'Actions for ' + row.file.name"
+                [tuiDropdown]="menu"
+                tuiDropdownAlign="end"
+                [tuiDropdownOpen]="openMenu() === row.file.id"
+                (tuiDropdownOpenChange)="setMenu(row, $event)"
+              >
+                Actions
+              </button>
+            </span>
+            <ng-template #menu let-close>
+              <tui-data-list size="s" role="menu">
+                <ng-template #option let-label let-reason="reason">
+                  @if (reason) {
+                    <span tuiTitle>
+                      {{ label }}
+                      <span tuiSubtitle>{{ reason }}</span>
+                    </span>
+                  } @else {
+                    {{ label }}
+                  }
+                </ng-template>
+                <button
+                  tuiOption
+                  iconStart="@tui.upload"
+                  type="button"
+                  role="menuitem"
+                  data-testid="edited-upload"
+                  [disabled]="!!row.uploadReason"
+                  (click)="close(); actions.upload(row.file)"
+                >
+                  <ng-container
+                    *ngTemplateOutlet="
+                      option;
+                      context: { $implicit: 'Upload now', reason: row.uploadReason }
+                    "
+                  />
+                </button>
+                <button
+                  tuiOption
+                  iconStart="@tui.external-link"
+                  type="button"
+                  role="menuitem"
+                  data-testid="edited-reopen"
+                  [disabled]="!!row.blocked"
+                  (click)="close(); actions.reopen(row.file)"
+                >
+                  <ng-container
+                    *ngTemplateOutlet="
+                      option;
+                      context: { $implicit: 'Open in external editor', reason: row.blocked }
+                    "
+                  />
+                </button>
+                <button
+                  tuiOption
+                  iconStart="@tui.file-pen"
+                  type="button"
+                  role="menuitem"
+                  data-testid="edited-builtin"
+                  [disabled]="!!row.builtInReason"
+                  (click)="close(); actions.openBuiltIn(row.file)"
+                >
+                  <ng-container
+                    *ngTemplateOutlet="
+                      option;
+                      context: { $implicit: 'Open in built-in editor', reason: row.builtInReason }
+                    "
+                  />
+                </button>
+                <button
+                  tuiOption
+                  iconStart="@tui.folder-open"
+                  type="button"
+                  role="menuitem"
+                  data-testid="edited-reveal"
+                  (click)="close(); actions.reveal(row.file)"
+                >
+                  Show in folder
+                </button>
+                @if (row.host && !row.connected && !row.blocked) {
+                  <button
+                    tuiOption
+                    iconStart="@tui.plug"
+                    type="button"
+                    role="menuitem"
+                    data-testid="edited-reconnect"
+                    (click)="close(); actions.reconnect(row.file)"
+                  >
+                    Reconnect {{ row.hostName }}
+                  </button>
+                }
+                <hr />
+                @if (row.file.state === 'recovered') {
+                  <button
+                    tuiOption
+                    iconStart="@tui.trash"
+                    type="button"
+                    role="menuitem"
+                    data-testid="edited-discard"
+                    (click)="close(); stop(row)"
+                  >
+                    Discard
+                  </button>
+                } @else {
+                  <button
+                    tuiOption
+                    iconStart="@tui.x"
+                    type="button"
+                    role="menuitem"
+                    data-testid="edited-stop"
+                    (click)="close(); stop(row)"
+                  >
+                    Stop editing
+                  </button>
+                }
+              </tui-data-list>
+            </ng-template>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+} @else {
+  <tui-block-status size="m" data-testid="edited-empty">
+    <span tuiAvatar="@tui.external-link" size="l" tuiSlot="top"></span>
+    <h2 #emptyHeading tabindex="-1">No edited files</h2>
+    <p>
+      Open a remote file in your editor from the Files tab: Actions → Open in external editor, or
+      Shift+Enter.
+    </p>
+    <button tuiButton size="s" appearance="secondary" type="button" routerLink="/settings">
+      Settings
+    </button>
+  </tui-block-status>
+}

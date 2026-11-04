@@ -53,6 +53,9 @@ describe('SettingsPage', () => {
           persisted: true,
         };
       }
+      if (cmd === 'get_external_editor') {
+        return { mode: 'system', appPath: null, noticeSeen: false };
+      }
       if (cmd === 'analytics_recent') {
         return {
           system: {
@@ -230,6 +233,7 @@ describe('SettingsPage', () => {
     expect(radio('settings-key-type-rsa4096').checked).toBe(true);
     expect(fontSize.value).toBe('16');
     expect(fontSize.getAttribute('aria-valuetext')).toBe('16 pixels');
+    expect(radio('settings-ext-system').checked).toBe(true);
   });
 
   it('changes the theme through the theme service', async () => {

@@ -74,6 +74,39 @@ describe('EditorChoiceDialog', () => {
     expect(completeWith).toHaveBeenCalledWith('reload');
   });
 
+  it('offers the external variant: Overwrite server, Use server version, Keep my copy', async () => {
+    const { el, completeWith, button } = await render({
+      kind: 'externalChanged',
+      name: 'nginx.conf',
+      host: 'vps',
+    });
+    expect(el.textContent).toContain('nginx.conf was modified on vps after your last upload.');
+    expect(el.textContent).toContain('Your local copy has changes that are not on the server.');
+    expect(button('conflict-ext-keep')?.hasAttribute('tuiAutoFocus')).toBe(true);
+    expect(button('conflict-ext-keep')?.textContent).toContain('Keep my copy');
+    expect(button('conflict-ext-server')?.getAttribute('data-appearance')).toBe('flat-destructive');
+    button('conflict-ext-overwrite')?.click();
+    expect(completeWith).toHaveBeenCalledWith('overwrite');
+    button('conflict-ext-server')?.click();
+    expect(completeWith).toHaveBeenCalledWith('useServer');
+    button('conflict-ext-keep')?.click();
+    expect(completeWith).toHaveBeenCalledWith('cancel');
+  });
+
+  it('offers Upload anyway and Stop editing when the server file was deleted', async () => {
+    const { el, completeWith, button } = await render({
+      kind: 'externalDeleted',
+      name: 'nginx.conf',
+      host: 'vps',
+    });
+    expect(el.textContent).toContain('nginx.conf no longer exists on vps.');
+    expect(button('conflict-ext-server')).toBeNull();
+    button('conflict-ext-upload-anyway')?.click();
+    expect(completeWith).toHaveBeenCalledWith('overwrite');
+    button('conflict-ext-stop')?.click();
+    expect(completeWith).toHaveBeenCalledWith('stop');
+  });
+
   it('answers cancel when the dialog closes without a choice', async () => {
     const dialogs = { open: vi.fn(() => of()) };
     await expect(

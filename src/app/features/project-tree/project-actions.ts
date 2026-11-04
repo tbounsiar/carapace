@@ -3,6 +3,8 @@ import { Router } from '@angular/router';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { ConfigService } from '../../core/ipc/config';
+import { EditedFiles } from '../../core/ipc/edited-files';
+import { type DeleteTarget, ExternalEditsIpc } from '../../core/ipc/external-edits';
 import type {
   Collection,
   ConfigNode,
@@ -12,6 +14,7 @@ import type {
 } from '../../core/ipc/config.models';
 import { CurrentScope } from '../../shared/current-scope';
 import { confirmDestructive } from '../../shared/destructive-confirm/confirm-destructive';
+import { deleteLines } from '../external-editor/edited-view';
 import { SidebarState } from '../sidebar/sidebar-state';
 import { Workspace } from '../workspace/workspace';
 import type { HostDialogData } from './host-dialog/host-dialog';
@@ -42,6 +45,8 @@ export class ProjectActions {
   private readonly scope = inject(CurrentScope);
   private readonly sidebar = inject(SidebarState);
   private readonly workspace = inject(Workspace);
+  private readonly external = inject(ExternalEditsIpc);
+  private readonly edited = inject(EditedFiles);
 
   createProject(): void {
     void this.openNameDialog({
@@ -73,9 +78,10 @@ export class ProjectActions {
       : `“${project.name}” is empty. It will be deleted with its variables. This cannot be undone.`;
     const inside = this.scope.projectId() === project.id;
     const ids = new Set(nodes.map((n) => n.id));
+    const affected = await this.affected({ kind: 'project', id: project.id });
     const deleted = await this.confirmDelete(
       'Delete project?',
-      content + this.tabLines(ids),
+      content + this.tabLines(ids) + deleteLines(affected),
       'Project not deleted',
       () => this.config.deleteProject(project.id),
     );
@@ -129,9 +135,10 @@ export class ProjectActions {
       : `“${collection.name}” is empty.`;
     const next = this.focusAfterDelete(collection);
     const ids = new Set([collection.id, ...inside.map((n) => n.id)]);
+    const affected = await this.affected({ kind: 'collection', id: collection.id });
     const deleted = await this.confirmDelete(
       'Delete collection?',
-      content + this.tabLines(ids),
+      content + this.tabLines(ids) + deleteLines(affected),
       'Collection not deleted',
       async () => {
         await this.config.deleteCollection(collection.id);
@@ -175,10 +182,12 @@ export class ProjectActions {
   /** Resolves true when the host was deleted. */
   async deleteHost(host: Host, { sidebarFocus = true }: HostActionOptions = {}): Promise<boolean> {
     const next = this.focusAfterDelete(host);
+    const affected = await this.affected({ kind: 'host', id: host.id });
     const deleted = await this.confirmDelete(
       'Delete host?',
       `“${host.name}” and its saved passwords will be deleted. Open connections to it are closed.` +
-        this.tabLines(new Set([host.id])),
+        this.tabLines(new Set([host.id])) +
+        deleteLines(affected),
       'Host not deleted',
       () => this.config.deleteHost(host.id),
     );
@@ -234,10 +243,22 @@ export class ProjectActions {
   }
 
   private closeTabs(ids: ReadonlySet<string>): void {
+    // The backend deleted their copies with the hosts.
+    this.edited.remove(
+      this.edited
+        .files()
+        .filter((f) => ids.has(f.hostId))
+        .map((f) => f.id),
+    );
     const tabs = this.workspace.tabs().filter((t) => ids.has(t.hostId));
     if (tabs.length) {
       this.workspace.drop(tabs.map((t) => t.id));
     }
+  }
+
+  /** Files open in an external editor that a delete would stop; none when the query fails. */
+  private affected(target: DeleteTarget) {
+    return this.external.affected(target).catch(() => []);
   }
 
   private async confirmDelete(

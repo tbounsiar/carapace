@@ -1,0 +1,38 @@
+<p class="content">
+  Carapace downloads a copy of the file to this computer (only your account can read it), opens it
+  in your editor and uploads it each time you save. The copy is deleted when you stop editing or
+  quit. Your editor may keep its own copies, such as backups or history.
+</p>
+<label tuiLabel class="option">
+  <input
+    tuiCheckbox
+    type="checkbox"
+    size="s"
+    data-testid="ext-notice-dont-show"
+    [formControl]="dontShow"
+  />
+  Don't show this again
+</label>
+<footer class="buttons">
+  <button
+    tuiButton
+    size="m"
+    appearance="flat"
+    type="button"
+    data-testid="ext-notice-cancel"
+    (click)="context.$implicit.complete()"
+  >
+    Cancel
+  </button>
+  <button
+    tuiAutoFocus
+    tuiButton
+    size="m"
+    appearance="primary"
+    type="button"
+    data-testid="ext-notice-continue"
+    (click)="continue()"
+  >
+    Continue
+  </button>
+</footer>

@@ -32,6 +32,15 @@ const NEXT_STEP: Readonly<Record<IpcErrorCode, string>> = {
   cancelled: 'Start it again when ready.',
   not_text: 'Only UTF-8 text files can be edited here.',
   partial_write: 'The remote file may be damaged: save again to write it whole.',
+  large_file: 'Confirm the download to edit it.',
+  sensitive: 'Confirm to copy it to this computer.',
+  blocked_type: 'Choose an editor app in Settings to edit this type of file.',
+  app_not_found: 'Choose the editor app again in Settings.',
+  app_not_editor: 'Choose an editor app in Settings.',
+  host_changed: 'Stop editing it, then open it again from the current server.',
+  app_failed: 'Check the editor app chosen in Settings.',
+  not_regular_file: 'Only regular files can be opened in an editor.',
+  not_uploaded: 'Upload the changes first, or stop editing and delete them.',
   unknown: 'Try again. Restart the app if it keeps happening.',
 };
 

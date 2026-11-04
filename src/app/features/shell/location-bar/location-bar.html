@@ -56,9 +56,17 @@
           role="menuitem"
           [iconStart]="entry.icon"
           [attr.data-testid]="entry.id"
+          [disabled]="!!entry.disabledReason"
           (click)="run(entry)"
         >
-          {{ entry.label }}
+          @if (entry.disabledReason; as reason) {
+            <span tuiTitle>
+              {{ entry.label }}
+              <span tuiSubtitle>{{ reason }}</span>
+            </span>
+          } @else {
+            {{ entry.label }}
+          }
         </button>
       }
     </tui-data-list>

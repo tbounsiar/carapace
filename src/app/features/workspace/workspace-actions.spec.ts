@@ -24,7 +24,12 @@ describe('WorkspaceActions', () => {
   let router: Router;
   let answers: unknown[];
   const dialogs = { open: vi.fn(() => of(answers.shift())) };
-  const launcher = { newTerminal: vi.fn(), openFiles: vi.fn(), open: vi.fn() };
+  const launcher = {
+    newTerminal: vi.fn(),
+    openFiles: vi.fn(),
+    open: vi.fn(),
+    openExternal: vi.fn(),
+  };
   const connector = { connect: vi.fn(), disconnect: vi.fn() };
   const state = signal<'connected' | 'idle'>('connected');
   const hosts = [host('h1', 'vps'), host('h2', 'db')];
@@ -176,5 +181,24 @@ describe('WorkspaceActions', () => {
       .find((e) => e.id === 'tab-menu-connect')!
       .run();
     expect(connector.connect).toHaveBeenCalledWith(expect.objectContaining({ hostId: 'h1' }));
+  });
+
+  it('offers Open in external editor on an editor tab, disabled while it is modified', () => {
+    const clean = editor('h1', 'nginx.conf', false);
+    const entry = () => actions.menu(clean).find((e) => e.id === 'tab-menu-external');
+    expect(
+      actions
+        .menu(clean)
+        .map((e) => e.id)
+        .slice(0, 3),
+    ).toEqual(['tab-menu-new-terminal', 'tab-menu-files', 'tab-menu-external']);
+    expect(entry()?.disabledReason).toBeUndefined();
+    entry()!.run();
+    expect(launcher.openExternal).toHaveBeenCalledWith(hosts[0], '/nginx.conf', null);
+    const dirty = editor('h1', 'app.env', true);
+    expect(actions.menu(dirty).find((e) => e.id === 'tab-menu-external')?.disabledReason).toBe(
+      'Save your changes first',
+    );
+    expect(actions.menu(terminal('h1')).some((e) => e.id === 'tab-menu-external')).toBe(false);
   });
 });

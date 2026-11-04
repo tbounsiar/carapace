@@ -47,5 +47,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/settings/settings-page/settings-page').then((m) => m.SettingsPage),
   },
+  {
+    path: 'edited-files',
+    loadComponent: () =>
+      import('./features/external-editor/edited-files-page/edited-files-page').then(
+        (m) => m.EditedFilesPage,
+      ),
+  },
   { path: '**', redirectTo: '' },
 ];

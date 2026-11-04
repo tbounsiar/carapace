@@ -1,11 +1,17 @@
-<p class="content">{{ context.data.content }}</p>
+@if (context.data.warning) {
+  <div tuiNotification appearance="warning" size="s" class="content">
+    {{ context.data.content }}
+  </div>
+} @else {
+  <p class="content">{{ context.data.content }}</p>
+}
 <footer class="buttons">
   <button
-    tuiAutoFocus
     tuiButton
     size="m"
     appearance="flat"
     type="button"
+    [tuiAutoFocus]="!context.data.focusYes"
     (click)="context.completeWith(false)"
   >
     {{ context.data.no }}
@@ -13,8 +19,10 @@
   <button
     tuiButton
     size="m"
-    appearance="primary-destructive"
     type="button"
+    [tuiAutoFocus]="!!context.data.focusYes"
+    [appearance]="context.data.appearance ?? 'primary-destructive'"
+    [attr.data-testid]="context.data.yesTestId ?? null"
     (click)="context.completeWith(true)"
   >
     {{ context.data.yes }}

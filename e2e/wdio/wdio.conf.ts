@@ -4,6 +4,7 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { application, waitAppExited } from './helpers/app-process';
+import { NOOP_EDITOR } from './helpers/fixture';
 
 const root = resolve(__dirname, '..', '..');
 const driverBin = join(
@@ -32,6 +33,18 @@ function seedDeclinedConfig(): void {
   const home = homeDir();
   if (!home) return;
   const config = { version: 3, analytics: { consent: 'denied', catalogueVersion: 1 } };
+  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
+}
+
+/** Consent denied, and the external editor set to the no-op program; the notice still shows. */
+function seedExternalEditorConfig(): void {
+  const home = homeDir();
+  if (!home) return;
+  const config = {
+    version: 3,
+    analytics: { consent: 'denied', catalogueVersion: 1 },
+    externalEditor: { mode: 'custom', appPath: NOOP_EDITOR, noticeSeen: false },
+  };
   writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
 }
 
@@ -147,6 +160,7 @@ export const config: WebdriverIO.Config = {
     emptyHome();
     if (specs.some((spec) => spec.includes('migration-v3'))) seedV3ConfigWithEnvironments();
     else if (specs.some((spec) => spec.includes('migration'))) seedV2Config();
+    else if (specs.some((spec) => spec.includes('external-editor'))) seedExternalEditorConfig();
     else if (!specs.some((spec) => spec.includes('analytics'))) seedDeclinedConfig();
   },
   afterSession: emptyHome,

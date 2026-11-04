@@ -15,6 +15,32 @@
       </header>
       <app-sidebar-tree />
       <footer>
+        @if (edited.count(); as count) {
+          <a
+            tuiAsideItem
+            iconStart="@tui.external-link"
+            routerLink="/edited-files"
+            data-testid="aside-edited-files"
+            [attr.aria-label]="editedLabel()"
+            [attr.aria-current]="page() === '/edited-files' ? 'page' : null"
+          >
+            <span class="label">Edited files</span>
+            @if (edited.attention(); as attention) {
+              <span
+                tuiBadge
+                size="s"
+                appearance="warning"
+                iconStart="@tui.triangle-alert"
+                data-testid="aside-edited-attention"
+              >
+                {{ attention }}
+              </span>
+            }
+            <span tuiBadge size="s" appearance="neutral" data-testid="aside-edited-count">
+              {{ count }}
+            </span>
+          </a>
+        }
         <a
           tuiAsideItem
           iconStart="@tui.variable"

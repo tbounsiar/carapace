@@ -18,3 +18,9 @@ main[tuiNavigationMain] {
 .subheader {
   position: sticky;
 }
+
+/* Taiga centres the content of an aside item's button: the label grows so the badges sit at the end. */
+.label {
+  flex: 1;
+  text-align: start;
+}

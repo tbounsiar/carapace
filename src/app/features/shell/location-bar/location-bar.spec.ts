@@ -3,6 +3,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
+import { EditedFiles } from '../../../core/ipc/edited-files';
+import { editedFile } from '../../../core/ipc/external-edits.fixture';
 import { collection, fakeConfig, host, project } from '../../../core/ipc/config.fixture';
 import { MoveLauncher } from '../../project-tree/move-launcher';
 import { ProjectActions } from '../../project-tree/project-actions';
@@ -127,5 +129,16 @@ describe('LocationBar', () => {
     await go('/keys');
     expect(crumbs()).toEqual(['Home', 'SSH keys']);
     expect(byId('host-menu')).toBeNull();
+  });
+
+  it('names the Edited files page, with Stop all in its menu while files are edited', async () => {
+    await go('/edited-files');
+    expect(crumbs()).toEqual(['Home', 'Edited files']);
+    expect(byId('edited-menu')).toBeNull();
+    TestBed.inject(EditedFiles).reset([editedFile('e1', 'h1', '/a')]);
+    await settle();
+    byId('edited-menu')!.click();
+    await settle();
+    expect(byId('edited-stop-all')?.textContent).toContain('Stop all');
   });
 });

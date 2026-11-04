@@ -12,6 +12,7 @@ import {
   untracked,
   viewChildren,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { TuiTable, type TuiComparator, type TuiTableSortChange } from '@taiga-ui/addon-table';
 import { TuiItem } from '@taiga-ui/cdk';
 import {
@@ -28,8 +29,10 @@ import {
 } from '@taiga-ui/core';
 import { TuiBadge, TuiBreadcrumbs } from '@taiga-ui/kit';
 import { MAX_EDIT_BYTES } from '../../../core/ipc/editor-files';
+import { type EditedFile, MAX_EXTERNAL_BYTES } from '../../../core/ipc/external-edits';
 import type { FileEntry, FileSource, Listing } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
+import { stateLook } from '../../external-editor/edited-view';
 import { errorText, notifyError } from '../../project-tree/save-error';
 import { FileDialogs } from '../file-dialogs';
 import { DRAG_PLACEHOLDER, DRAG_TYPE, FileDrag } from '../file-drag';
@@ -47,11 +50,18 @@ import {
 import { crumbs, upTarget } from '../file-path';
 import { FileSelection } from '../file-selection';
 
+interface Marker {
+  readonly state: EditedFile['state'];
+  readonly attention: boolean;
+  readonly label: string;
+}
+
 interface Row {
   entry: FileEntry;
   icon: string;
   size: string;
   modified: string;
+  marker: Marker | null;
 }
 
 /** Paths to copy and the directory they go into. */
@@ -77,6 +87,7 @@ const SORTERS = Object.fromEntries(
 
 @Component({
   imports: [
+    RouterLink,
     TuiBadge,
     TuiBreadcrumbs,
     TuiButton,
@@ -118,6 +129,10 @@ export class FilePane {
   readonly editable = input(false);
   /** A file to open in the editor: Edit, Enter or double-click. */
   readonly edit = output<FileEntry>();
+  /** Files of this host open in an external editor, by remote path (remote panes only). */
+  readonly edited = input<ReadonlyMap<string, EditedFile>>(new Map());
+  /** A file to open in the external editor: its menu entry or Shift+Enter. */
+  readonly openExternal = output<FileEntry>();
 
   protected readonly sorters = SORTERS;
   protected readonly selection = new FileSelection();
@@ -157,6 +172,7 @@ export class FilePane {
       icon: KIND_ICONS[entry.kind],
       size: entry.kind === 'dir' ? '' : formatSize(entry.size),
       modified: formatModified(entry.modified),
+      marker: this.markerOf(this.edited().get(entry.path)),
     })),
   );
   protected readonly transferLabel = computed(() =>
@@ -232,7 +248,7 @@ export class FilePane {
   }
 
   protected onRowClick(event: MouseEvent, entry: FileEntry): void {
-    if (event.target instanceof Element && event.target.closest('button')) {
+    if (event.target instanceof Element && event.target.closest('button, a')) {
       return;
     }
     if (event.ctrlKey || event.metaKey) {
@@ -322,6 +338,21 @@ export class FilePane {
     return this.editable() && (entry.kind === 'file' || entry.kind === 'symlink');
   }
 
+  protected isTooLargeExternal(entry: FileEntry): boolean {
+    return entry.size !== null && entry.size > MAX_EXTERNAL_BYTES;
+  }
+
+  private markerOf(file: EditedFile | undefined): Marker | null {
+    if (!file) {
+      return null;
+    }
+    return {
+      state: file.state,
+      attention: file.needsAttention,
+      label: `Open in an external editor · ${stateLook(file).word}`,
+    };
+  }
+
   protected isTooLarge(entry: FileEntry): boolean {
     return entry.size !== null && entry.size > MAX_EDIT_BYTES;
   }
@@ -338,7 +369,7 @@ export class FilePane {
   }
 
   protected onDblClick(event: MouseEvent, entry: FileEntry): void {
-    if (!(event.target instanceof Element && event.target.closest('button'))) {
+    if (!(event.target instanceof Element && event.target.closest('button, a'))) {
       this.open(entry);
     }
   }
@@ -375,7 +406,11 @@ export class FilePane {
         next = rows.length - 1;
         break;
       case 'Enter':
-        this.open(entry, true);
+        if (!event.shiftKey) {
+          this.open(entry, true);
+        } else if (this.canEdit(entry)) {
+          this.openExternal.emit(entry);
+        }
         break;
       case 'Backspace':
         this.up(true);

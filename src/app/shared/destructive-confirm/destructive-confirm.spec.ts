@@ -29,11 +29,43 @@ describe('DestructiveConfirm', () => {
     expect(el.textContent).toContain('“ui” is empty.');
     expect(cancel.getAttribute('data-appearance')).toBe('flat');
     expect(remove.getAttribute('data-appearance')).toBe('primary-destructive');
-    expect(cancel.hasAttribute('tuiAutoFocus')).toBe(true);
+    expect(document.activeElement).toBe(cancel);
     remove.click();
     expect(completeWith).toHaveBeenCalledWith(true);
     cancel.click();
     expect(completeWith).toHaveBeenCalledWith(false);
+  });
+
+  it('shows a warning variant with a primary, focused, identified confirming button', async () => {
+    await TestBed.configureTestingModule({
+      imports: [DestructiveConfirm],
+      providers: [
+        provideTaiga(),
+        {
+          provide: POLYMORPHEUS_CONTEXT,
+          useValue: {
+            data: {
+              content: 'id_rsa may hold keys.',
+              yes: 'Open anyway',
+              no: 'Cancel',
+              appearance: 'primary',
+              yesTestId: 'ext-sensitive-confirm',
+              warning: true,
+              focusYes: true,
+            },
+            completeWith: vi.fn(),
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(DestructiveConfirm);
+    await fixture.whenStable();
+    await new Promise((r) => setTimeout(r, 50));
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[tuiNotification]')?.textContent).toContain('id_rsa may hold keys.');
+    const yes = el.querySelector<HTMLElement>('[data-testid="ext-sensitive-confirm"]')!;
+    expect(yes.getAttribute('data-appearance')).toBe('primary');
+    expect(document.activeElement).toBe(yes);
   });
 
   it('resolves false when the dialog closes without an answer', async () => {

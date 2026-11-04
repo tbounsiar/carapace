@@ -18,6 +18,8 @@ export interface TabMenuEntry {
   readonly icon: string;
   readonly run: () => void;
   readonly separated?: boolean;
+  /** Why the entry is disabled, shown under its label. */
+  readonly disabledReason?: string;
 }
 
 /** Closing tabs (with the unsaved-changes questions) and the tab menu. */
@@ -116,6 +118,7 @@ export class WorkspaceActions {
         icon: '@tui.folder-open',
         run: () => void this.launcher.openFiles(host),
       },
+      ...this.externalEntry(tab, host),
       {
         id: 'tab-menu-close',
         label: 'Close',
@@ -141,6 +144,23 @@ export class WorkspaceActions {
         label: 'Go to host page',
         icon: '@tui.server',
         run: () => void this.launcher.open(host),
+      },
+    ];
+  }
+
+  /** An editor tab's file can move to the external editor once its buffer is saved. */
+  private externalEntry(tab: WorkspaceTab, host: Host): TabMenuEntry[] {
+    const path = tab.path;
+    if (tab.kind !== 'edit' || path === null) {
+      return [];
+    }
+    return [
+      {
+        id: 'tab-menu-external',
+        label: 'Open in external editor',
+        icon: '@tui.external-link',
+        disabledReason: tab.modified() ? 'Save your changes first' : undefined,
+        run: () => void this.launcher.openExternal(host, path, null),
       },
     ];
   }
