@@ -1,5 +1,5 @@
 use std::fs;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Instant;
 
 use super::*;
@@ -583,10 +583,15 @@ async fn a_copy_that_cannot_be_read_is_never_stopped_as_unchanged() {
 async fn a_missing_copy_is_stopped_only_if_nothing_changed_since_the_last_sync() {
     let w = world(84).await;
     let f = w.open("a.conf", b"a").await;
+    // Unwatched (the debounce task is aborted with the watch) and with a counter no late
+    // event of the old watcher can reach: only this test moves it.
     let changes = {
         let mut inner = w.edits.0.lock();
         let e = inner.files.get_mut(&f.id).unwrap();
         e.watch = None;
+        e.seen = false;
+        e.changes = Arc::new(AtomicU64::new(0));
+        e.synced_changes = 0;
         e.changes.clone()
     };
     fs::remove_file(w.copy(&f.id)).unwrap();

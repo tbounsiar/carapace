@@ -605,29 +605,26 @@ impl Shared {
             .get(id)
             .map(|e| e.changes.clone())
             .ok_or(EditError::UnknownId)?;
-        let watch =
+        let mut watch =
             watcher::watch(&slot.dir, &slot.name, changes, tx).map_err(|_| EditError::Local)?;
-        {
-            let mut inner = self.lock();
-            let Some(e) = inner.files.get_mut(id) else {
-                return Ok(());
-            };
-            e.watch = Some(watch);
-        }
         let weak: Weak<Shared> = Arc::downgrade(self);
-        let id = id.to_owned();
+        let key = id.to_owned();
         let quiet = self.quiet;
-        tokio::spawn(watcher::debounce(rx, quiet, move |signal| {
+        watch.attach(tokio::spawn(watcher::debounce(rx, quiet, move |signal| {
             let Some(shared) = weak.upgrade() else { return };
             match signal {
                 Signal::Seen => {
-                    if let Some(e) = shared.lock().files.get_mut(&id) {
+                    if let Some(e) = shared.lock().files.get_mut(&key) {
                         e.seen = true;
                     }
                 }
-                Signal::Settled => shared.saved(&id),
+                Signal::Settled => shared.saved(&key),
             }
-        }));
+        })));
+        let mut inner = self.lock();
+        if let Some(e) = inner.files.get_mut(id) {
+            e.watch = Some(watch);
+        }
         Ok(())
     }
 

@@ -346,16 +346,38 @@ async fn full_input_budget_is_busy_and_recovers() {
     .await;
 }
 
+/// Opens the gate when dropped, so a failing assertion never leaves the emitter blocked: the
+/// runtime's drop waits for threads in `block_in_place`, and the test would hang instead.
+struct OpenOnDrop(Arc<AtomicBool>);
+
+impl Drop for OpenOnDrop {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn output_is_bounded_while_the_receiver_is_slow_and_stays_in_order() {
-    let w = world(51).await;
     let gate = Arc::new(AtomicBool::new(false));
+    let _opens = OpenOnDrop(gate.clone());
+    timeout(
+        Duration::from_secs(60),
+        flood_with_a_slow_receiver(gate.clone()),
+    )
+    .await
+    .expect("the flood test did not finish within 60 s");
+}
+
+async fn flood_with_a_slow_receiver(gate: Arc<AtomicBool>) {
+    let w = world(51).await;
     let (tx, mut rx) = mpsc::unbounded_channel();
     let open = gate.clone();
-    // A worker blocked in place would strand the task in its LIFO slot (seen on Linux).
+    // A worker blocked in place would strand the task in its LIFO slot (seen on Linux). The
+    // wait is bounded too, so even a runtime that outlives the test cannot hang on it.
     let emit: Emit = Arc::new(move |e| {
         tokio::task::block_in_place(|| {
-            while !open.load(Ordering::SeqCst) {
+            let until = std::time::Instant::now() + Duration::from_secs(90);
+            while !open.load(Ordering::SeqCst) && std::time::Instant::now() < until {
                 std::thread::sleep(Duration::from_millis(5));
             }
         });
@@ -370,12 +392,23 @@ async fn output_is_bounded_while_the_receiver_is_slow_and_stays_in_order() {
         .write(&id, std::str::from_utf8(SHELL_FLOOD).unwrap())
         .unwrap();
     eventually("the flood to start", || w.server.flood_sent() > 0).await;
-    tokio::time::sleep(Duration::from_millis(1500)).await;
-    let stalled = w.server.flood_sent();
+    // Stalled = no byte sent for 300 ms; a loaded machine fills the windows slowly.
+    let mut stalled = w.server.flood_sent();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+    loop {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let now = w.server.flood_sent();
+        if now == stalled {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the server never stalled: {now}"
+        );
+        stalled = now;
+    }
     assert!(stalled < FLOOD_BYTES, "server sent everything: {stalled}");
     assert!(w.terminals.queued_output(&id).unwrap() <= OUTPUT_BUDGET);
-    tokio::time::sleep(Duration::from_millis(300)).await;
-    assert_eq!(w.server.flood_sent(), stalled, "server kept sending");
 
     gate.store(true, Ordering::SeqCst);
     let mut received = Vec::new();

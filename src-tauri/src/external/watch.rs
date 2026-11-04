@@ -14,9 +14,25 @@ use tokio::time::timeout;
 
 pub const QUIET: Duration = Duration::from_millis(500);
 
-/// Stops watching when dropped, which also ends its debounce task.
+/// Stops watching when dropped, and aborts the debounce task attached to it: no signal is
+/// delivered for the file once its watch is gone, even for events already queued.
 pub struct Watch {
     _watcher: RecommendedWatcher,
+    task: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl Watch {
+    pub fn attach(&mut self, task: tokio::task::JoinHandle<()>) {
+        self.task = Some(task);
+    }
+}
+
+impl Drop for Watch {
+    fn drop(&mut self) {
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
+    }
 }
 
 fn relevant(kind: &EventKind) -> bool {
@@ -54,7 +70,10 @@ pub fn watch(
         }
     })?;
     watcher.watch(dir, RecursiveMode::NonRecursive)?;
-    Ok(Watch { _watcher: watcher })
+    Ok(Watch {
+        _watcher: watcher,
+        task: None,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,7 +106,8 @@ pub async fn debounce(
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
-    use std::time::Instant;
+
+    use tokio::time::Instant;
 
     use super::*;
 
@@ -97,7 +117,8 @@ mod tests {
         (seen, move |sig| s.lock().unwrap().push(sig))
     }
 
-    #[tokio::test]
+    // Paused clock: the timings hold whatever the machine's load.
+    #[tokio::test(start_paused = true)]
     async fn a_burst_settles_once_after_the_quiet_time() {
         let (tx, rx) = mpsc::unbounded_channel();
         let (seen, on) = recorder();
@@ -118,7 +139,7 @@ mod tests {
         task.await.unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn closing_mid_burst_never_settles() {
         let (tx, rx) = mpsc::unbounded_channel();
         let (seen, on) = recorder();

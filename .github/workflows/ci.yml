@@ -3,7 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', '**.md', 'LICENSE', '.vscode/**']
   pull_request:
+    paths-ignore: ['docs/**', '**.md', 'LICENSE', '.vscode/**']
   workflow_dispatch:
 
 permissions:
@@ -16,6 +18,7 @@ concurrency:
 jobs:
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,6 +34,8 @@ jobs:
   rust:
     name: rust (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # A hung test must not burn the default six hours.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -52,6 +57,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # Keep the compiled dependencies even when a test fails, so the next run starts warm.
+          cache-on-failure: true
       # generate_context! embeds the frontend; an empty dist is enough to compile and test the backend.
       - name: Placeholder frontend
         working-directory: .

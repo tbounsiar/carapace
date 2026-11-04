@@ -517,11 +517,19 @@ mod analytics_events {
         assert_eq!(run(typed("wrong")).await.unwrap_err().code, "auth_failed");
         run(typed(SERVER_PASSWORD)).await.unwrap();
         run(None).await.unwrap();
+        let mut events = a.recorded();
+        assert_eq!(events.len(), 1, "{events:?}");
+        // The bucket depends on the machine's load; the bucketing has its own tests.
+        let took = events[0].1["duration"].take();
+        assert!(
+            ["<1s", "1-3s", "3-10s", "10s+"].contains(&took.as_str().unwrap()),
+            "{took}"
+        );
         assert_eq!(
-            a.recorded(),
+            events,
             [(
                 "connect_succeeded",
-                json!({"auth": "password", "duration": "<1s"})
+                json!({"auth": "password", "duration": null})
             )]
         );
 

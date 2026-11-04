@@ -1,57 +1,32 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 (unreleased)
 
-### Added
-
-- Published as open source under the MIT license, with CI on Windows, Linux and macOS and release builds from tags.
-- Optional anonymous usage data. Carapace asks once at first launch and sends nothing unless you agree; Settings > Privacy turns it on or off and shows the events of the session. See PRIVACY.md for what is and is never sent.
-- Test connection in the host dialog.
-- Choose the folder of a generated key, and browse for key files.
-- Sidebar host filter and dashboards for Home and projects.
-- macOS (Apple Silicon and Intel) and Linux (x64 and ARM64: AppImage, deb, rpm) builds, and a Windows ARM64 installer. Release files have fixed names, so the README links always download the latest version.
-- User documentation in `docs/`.
-
-### Changed
-
-- Hosts can live at Home or in a project, grouped in nested collections, and be moved between them.
-- Variables are global or per project; the project value wins.
-
-### Fixed
-
-- Stopping the edit of a file in an external editor no longer refuses on macOS right after opening it, and never deletes a copy that changed, could not be read, or was saved again while Carapace was checking it.
-- Running Carapace as administrator on Windows no longer makes it refuse its own folders, which Windows then assigns to the Administrators group.
-- On Linux and macOS, a folder that was deleted and recreated in place is now recognised as a different folder before Carapace writes into it.
-
-### Removed
-
-- Environments. On upgrade, the active environment of each project becomes that project's variables (its values win over project variables of the same name), so hosts resolve as before. Other environments are dropped and their keychain entries deleted. The previous `config.json` is kept as `config.json.v2.bak`.
-
-## 0.1.0
-
-First release (Windows).
+First public release, for Windows (x64, ARM64), macOS (Apple Silicon, Intel) and Linux (x64, ARM64: AppImage, deb, rpm).
 
 ### Features
 
-- Projects, environments and variables with layered resolution (global, project, active environment) and `${var}` templates in host fields.
-- Hosts connected per environment, several environments of one host at once.
+- Hosts at Home or in projects, grouped in nested collections and movable between them, with a host filter and dashboards for Home and each project.
+- Global and per-project variables (the project value wins) and `${var}` templates in host fields; secret variables live in the OS keychain.
 - Host key verification against the app `known_hosts` and `~/.ssh/known_hosts`, with explicit prompts for unknown and changed keys.
-- Password, passphrase-protected key, unencrypted key and SSH agent authentication; secrets stored in the OS keychain.
+- Password, passphrase-protected key, unencrypted key and SSH agent authentication, and a test connection in the host dialog. Passwords and passphrases are stored in the OS keychain.
 - Terminal tabs sharing one SSH connection per host.
-- Dual-pane SFTP explorer (local and remote).
-- Transfer queue with progress, cancel, conflict handling, multi-selection and drag and drop.
-- SSH key generation (Ed25519, RSA 4096), import and deployment to `authorized_keys`, with owner-only private key files.
+- Dual-pane SFTP explorer (local and remote) and a transfer queue with progress, cancel, conflict handling, multi-selection and drag and drop.
+- A built-in editor for remote text files, and opening remote files in a local editor of your choice: saves are uploaded back with conflict detection, listed on the Edited files page.
+- SSH key generation (Ed25519, RSA 4096) in a folder of your choice, import, and deployment to `authorized_keys`, with owner-only private key files.
 - Dark and light themes following the system, with a manual toggle.
-- Settings page: theme, default key type, terminal font size.
+- Settings: theme, default key type, terminal font size, external editor, privacy.
+- Optional anonymous usage data: Carapace asks once at first launch and sends nothing unless you agree. See PRIVACY.md.
+- Installers with fixed file names, so the README download links always point to the latest version, and user documentation in `docs/`.
 
 ### Known limitations
 
+- Installers are not code-signed: Windows SmartScreen and macOS Gatekeeper warn on first launch.
 - Host key checked on the initial key exchange only, not on rekey.
-- No keyboard-interactive authentication; SSH agent untested on Windows.
+- No keyboard-interactive authentication; SSH agent use is less tested on Windows.
 - Heavy terminal output can stall the shared connection.
 - Transfers on one host share a single SFTP channel.
 - Concurrent edits of `authorized_keys` during a key deployment can be lost.
 - Downloaded files on Windows inherit the folder permissions; leftover `.carapace-part` files are not removed automatically.
 - Secret variables must exist before a host can reference them.
 - RSA signing depends on a crate with an unfixed advisory (RUSTSEC-2023-0071).
-- Linux and macOS builds are untested.

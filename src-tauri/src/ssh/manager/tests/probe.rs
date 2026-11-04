@@ -229,10 +229,17 @@ async fn unknown_key_accepted_is_written_rejected_is_not() {
 
     let (task, mut rx) = spawn_probe(&env, "t1", None);
     let (id, _) = next_prompt(&mut rx).await;
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    // Counted, the wait alone would make the duration at least this long; the probe itself
+    // stays far below it even on a loaded machine.
+    let wait = Duration::from_secs(2);
+    tokio::time::sleep(wait).await;
     env.manager.answer_host_key(&id, true).unwrap();
     let r = task.await.unwrap().unwrap();
-    assert!(r.duration_ms < 300, "prompt time is not counted");
+    assert!(
+        u128::from(r.duration_ms) < wait.as_millis(),
+        "prompt time is not counted: {} ms",
+        r.duration_ms
+    );
     let stored = std::fs::read_to_string(&env.app_known_hosts).unwrap();
     assert!(stored.starts_with(&format!("[127.0.0.1]:{} ssh-ed25519 ", server.port)));
 
