@@ -19,7 +19,8 @@ use windows_sys::Win32::Security::Authorization::{
 use windows_sys::Win32::Security::{
     ACCESS_ALLOWED_ACE, ACL, ACL_SIZE_INFORMATION, AclSizeInformation, DACL_SECURITY_INFORMATION,
     EqualSid, GetAce, GetAclInformation, GetTokenInformation, OWNER_SECURITY_INFORMATION,
-    PSECURITY_DESCRIPTOR, PSID, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER, TokenUser,
+    PSECURITY_DESCRIPTOR, PSID, SECURITY_ATTRIBUTES, TOKEN_INFORMATION_CLASS, TOKEN_OWNER,
+    TOKEN_QUERY, TOKEN_USER, TokenOwner, TokenUser,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CREATE_NEW, CreateDirectoryW, CreateFileW, FILE_ATTRIBUTE_NORMAL,
@@ -40,10 +41,21 @@ impl Drop for Token {
 }
 
 /// The `TOKEN_USER` buffer of the current process; the SID points into it.
-pub(super) struct UserSid(Vec<u64>);
+/// A SID read from the process token: the user, or the default owner of new objects.
+pub(super) struct UserSid(Vec<u64>, TOKEN_INFORMATION_CLASS);
 
 impl UserSid {
     pub(super) fn current() -> io::Result<Self> {
+        Self::query(TokenUser)
+    }
+
+    /// The owner Windows gives objects this process creates without an explicit owner: the
+    /// user, or BUILTIN\Administrators when the token is elevated.
+    fn default_owner() -> io::Result<Self> {
+        Self::query(TokenOwner)
+    }
+
+    fn query(class: TOKEN_INFORMATION_CLASS) -> io::Result<Self> {
         let mut raw: HANDLE = ptr::null_mut();
         // SAFETY: the pseudo handle of the current process is always valid; `raw` is writable.
         if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut raw) } == 0 {
@@ -52,25 +64,30 @@ impl UserSid {
         let token = Token(raw);
         let mut len = 0u32;
         // SAFETY: a null buffer of length 0 only asks for the needed size.
-        unsafe { GetTokenInformation(token.0, TokenUser, ptr::null_mut(), 0, &mut len) };
+        unsafe { GetTokenInformation(token.0, class, ptr::null_mut(), 0, &mut len) };
         if len == 0 {
             return Err(io::Error::last_os_error());
         }
-        // u64 elements keep the buffer aligned for TOKEN_USER.
+        // u64 elements keep the buffer aligned for TOKEN_USER / TOKEN_OWNER.
         let mut buf = vec![0u64; (len as usize).div_ceil(8)];
         // SAFETY: `buf` holds at least `len` writable bytes.
-        let ok = unsafe {
-            GetTokenInformation(token.0, TokenUser, buf.as_mut_ptr().cast(), len, &mut len)
-        };
+        let ok =
+            unsafe { GetTokenInformation(token.0, class, buf.as_mut_ptr().cast(), len, &mut len) };
         if ok == 0 {
             return Err(io::Error::last_os_error());
         }
-        Ok(Self(buf))
+        Ok(Self(buf, class))
     }
 
     pub(super) fn psid(&self) -> *mut core::ffi::c_void {
-        // SAFETY: the buffer was filled by GetTokenInformation(TokenUser).
-        unsafe { (*self.0.as_ptr().cast::<TOKEN_USER>()).User.Sid }
+        // SAFETY: the buffer was filled by GetTokenInformation for the recorded class.
+        unsafe {
+            if self.1 == TokenOwner {
+                (*self.0.as_ptr().cast::<TOKEN_OWNER>()).Owner
+            } else {
+                (*self.0.as_ptr().cast::<TOKEN_USER>()).User.Sid
+            }
+        }
     }
 
     fn to_string(&self) -> io::Result<String> {
@@ -231,9 +248,21 @@ pub fn owned_by_current_user(dir: &Path) -> io::Result<bool> {
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
         .open(dir)?;
     let info = security_info(handle.as_raw_handle(), OWNER_SECURITY_INFORMATION)?;
+    owner_is_me(info.owner)
+}
+
+/// The current user, or the token's default owner. An elevated process gets Administrators
+/// as the owner of what it creates without an explicit owner (`create_dir_all`, temp dirs),
+/// and Administrators already control every file of the machine; a non-elevated token's
+/// default owner is the user, so Administrators is never accepted there.
+fn owner_is_me(owner: PSID) -> io::Result<bool> {
+    if owner.is_null() {
+        return Ok(false);
+    }
     let user = UserSid::current()?;
-    // SAFETY: both SIDs are valid while `info` and `user` live.
-    Ok(!info.owner.is_null() && unsafe { EqualSid(info.owner, user.psid()) } != 0)
+    let default = UserSid::default_owner()?;
+    // SAFETY: all SIDs are valid while their buffers live.
+    Ok(unsafe { EqualSid(owner, user.psid()) != 0 || EqualSid(owner, default.psid()) != 0 })
 }
 
 fn sid_string(sid: PSID) -> io::Result<String> {
@@ -330,6 +359,48 @@ fn granted_to_others(handle: HANDLE, rights: u32) -> io::Result<bool> {
         }
     }
     Ok(false)
+}
+
+#[cfg(test)]
+mod owner_tests {
+    use std::ptr;
+
+    use windows_sys::Win32::Foundation::LocalFree;
+    use windows_sys::Win32::Security::Authorization::ConvertStringSidToSidW;
+    use windows_sys::Win32::Security::{EqualSid, PSID};
+
+    use super::{UserSid, owner_is_me};
+
+    fn with_sid(text: &str, f: impl FnOnce(PSID)) {
+        let wide: Vec<u16> = text.encode_utf16().chain([0]).collect();
+        let mut sid: PSID = ptr::null_mut();
+        // SAFETY: NUL-terminated input; `sid` receives a LocalAlloc'd SID.
+        assert_ne!(
+            unsafe { ConvertStringSidToSidW(wide.as_ptr(), &mut sid) },
+            0
+        );
+        f(sid);
+        // SAFETY: allocated by ConvertStringSidToSidW.
+        unsafe { LocalFree(sid) };
+    }
+
+    #[test]
+    fn owners_accepted_are_the_user_and_the_default_owner_only() {
+        let user = UserSid::current().unwrap();
+        let default = UserSid::default_owner().unwrap();
+        assert!(owner_is_me(user.psid()).unwrap());
+        assert!(owner_is_me(default.psid()).unwrap());
+        assert!(!owner_is_me(ptr::null_mut()).unwrap());
+        with_sid("S-1-1-0", |everyone| {
+            assert!(!owner_is_me(everyone).unwrap())
+        });
+        with_sid("S-1-5-18", |system| assert!(!owner_is_me(system).unwrap()));
+        with_sid("S-1-5-32-544", |admins| {
+            // SAFETY: both SIDs are valid for the call.
+            let elevated = unsafe { EqualSid(admins, default.psid()) } != 0;
+            assert_eq!(owner_is_me(admins).unwrap(), elevated);
+        });
+    }
 }
 
 #[cfg(test)]

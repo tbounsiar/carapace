@@ -20,6 +20,7 @@
 ### Fixed
 
 - Stopping the edit of a file in an external editor no longer refuses on macOS right after opening it, and never deletes a copy that changed, could not be read, or was saved again while Carapace was checking it.
+- Running Carapace as administrator on Windows no longer makes it refuse its own folders, which Windows then assigns to the Administrators group.
 - On Linux and macOS, a folder that was deleted and recreated in place is now recognised as a different folder before Carapace writes into it.
 
 ### Removed
