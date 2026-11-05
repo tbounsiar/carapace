@@ -41,4 +41,4 @@ Only official release builds can send usage data. Development builds and your ow
 
 ## Where settings are stored
 
-Theme, default key type and terminal font size are stored by the app's web view on this computer. The external editor choice and the usage data choices are stored in `config.json` in the [data folder](faq.md#where-is-my-data).
+All settings on this page are stored in `settings.toml` in the [data folder](faq.md#where-is-my-data). It is a plain text file you can read, back up or edit by hand while Carapace is closed.

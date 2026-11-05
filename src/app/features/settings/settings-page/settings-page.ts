@@ -1,6 +1,6 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import {
   TuiDialogService,
   TuiError,
@@ -33,7 +33,7 @@ import {
   UNSAVED_DENIAL,
   unsavedDenial,
 } from '../../analytics/privacy-page';
-import { notifyError } from '../../project-tree/save-error';
+import { notifyError } from '../../../shared/save-error';
 import { ExternalEditorSettings } from '../external-editor-settings/external-editor-settings';
 
 const THEME_OPTIONS: readonly { value: ThemeMode; label: string; icon: string }[] = [
@@ -50,7 +50,6 @@ const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
 @Component({
   imports: [
     ExternalEditorSettings,
-    FormsModule,
     ReactiveFormsModule,
     TuiError,
     TuiForm,
@@ -79,9 +78,22 @@ export class SettingsPage {
   protected readonly fontSizeMin = FONT_SIZE_MIN;
   protected readonly fontSizeMax = FONT_SIZE_MAX;
 
-  protected readonly theme = this.settings.theme;
-  protected readonly keyType = this.settings.defaultKeyType;
   protected readonly fontSize = this.settings.terminalFontSize;
+  /**
+   * Controls rather than `[ngModel]`: a save that fails before change detection runs reverts the
+   * signal to the value the binding already holds, and the input would keep showing the click.
+   */
+  protected readonly themeControl = new FormControl<ThemeMode>(this.settings.theme(), {
+    nonNullable: true,
+  });
+  protected readonly keyTypeControl = new FormControl<KeyType>(this.settings.defaultKeyType(), {
+    nonNullable: true,
+  });
+  protected readonly fontSizeControl = new FormControl<number>(this.fontSize(), {
+    nonNullable: true,
+  });
+  protected readonly themeIndex = signal(0);
+  protected readonly keyTypeIndex = signal(0);
 
   protected readonly analyticsState = this.analytics.current;
   protected readonly analyticsError = signal(false);
@@ -120,6 +132,26 @@ export class SettingsPage {
   private readonly wanted = new Map<AnalyticsCategory, boolean>();
 
   constructor() {
+    effect(() => {
+      const theme = this.settings.theme();
+      this.themeControl.setValue(theme, { emitEvent: false });
+      this.themeIndex.set(THEME_OPTIONS.findIndex((o) => o.value === theme));
+    });
+    effect(() => {
+      const type = this.settings.defaultKeyType();
+      this.keyTypeControl.setValue(type, { emitEvent: false });
+      this.keyTypeIndex.set(KEY_TYPE_OPTIONS.findIndex((o) => o.value === type));
+    });
+    effect(() => this.fontSizeControl.setValue(this.fontSize(), { emitEvent: false }));
+    this.themeControl.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((mode) => this.settings.setTheme(mode));
+    this.keyTypeControl.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((type) => this.settings.setDefaultKeyType(type));
+    this.fontSizeControl.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((size) => this.settings.setTerminalFontSize(size));
     this.analytics.state().catch(() => this.analyticsError.set(true));
     effect(() => {
       const state = this.analyticsState();
@@ -146,18 +178,6 @@ export class SettingsPage {
         .pipe(takeUntilDestroyed())
         .subscribe((granted) => void this.setCategory(category, granted));
     }
-  }
-
-  protected setTheme(mode: ThemeMode): void {
-    this.settings.setTheme(mode);
-  }
-
-  protected setKeyType(type: KeyType): void {
-    this.settings.setDefaultKeyType(type);
-  }
-
-  protected setFontSize(size: number | null): void {
-    this.settings.setTerminalFontSize(size);
   }
 
   /** Toggles made during a save are coalesced: the last choice per category is saved next. */

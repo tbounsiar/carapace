@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { TuiButton, TuiDataList, TuiDropdown, TuiHint } from '@taiga-ui/core';
+import { Settings } from '../../../core/settings/settings';
 import { type ThemeMode, ThemeService } from '../../../core/theme/theme';
 
 interface ThemeOption {
@@ -21,6 +22,7 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
 })
 export class ThemeMenu {
   private readonly themes = inject(ThemeService);
+  private readonly settings = inject(Settings);
 
   protected readonly options = THEME_OPTIONS;
   protected readonly open = signal(false);
@@ -33,7 +35,7 @@ export class ThemeMenu {
   }
 
   protected choose(option: ThemeOption): void {
-    this.themes.setMode(option.mode);
+    this.settings.setTheme(option.mode);
     this.open.set(false);
   }
 }

@@ -1,6 +1,6 @@
 import { of } from 'rxjs';
 import type { TuiNotificationService } from '@taiga-ui/core';
-import { IpcError } from '../../core/ipc/ipc-error';
+import { IpcError } from '../core/ipc/ipc-error';
 import { errorText, notifyError } from './save-error';
 
 describe('errorText', () => {

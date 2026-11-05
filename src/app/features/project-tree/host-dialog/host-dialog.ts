@@ -68,7 +68,7 @@ import {
   testingView,
   type HostTestView,
 } from '../../host-test/host-test-view';
-import { handleSaveError, notifyError } from '../save-error';
+import { handleSaveError, notifyError } from '../../../shared/save-error';
 import {
   hostnameValidator,
   keyPathValidator,

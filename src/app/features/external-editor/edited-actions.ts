@@ -16,7 +16,7 @@ import { confirmDestructive } from '../../shared/destructive-confirm/confirm-des
 import { askEditorChoice } from '../editor/editor-choice';
 import { HostConnector } from '../host-connection/host-connector';
 import { HostLauncher } from '../host-connection/host-launcher';
-import { notifyError } from '../project-tree/save-error';
+import { notifyError } from '../../shared/save-error';
 import { blockedTypeText, hostName, nameList } from './edited-view';
 
 /** Why "Open in built-in editor" is unavailable for a file, or null when it is available. */

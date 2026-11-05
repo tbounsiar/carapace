@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { appHome, homeFile, readData, readSettings } from '../helpers/app-files';
+import { NOOP_EDITOR } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
   byId,
@@ -15,9 +16,8 @@ import {
   waitStatus,
 } from '../helpers/ui';
 
-// The app home was seeded with a v3 config still holding environment fields by the
+// The app home was seeded with a v3 `config.json` still holding environment fields by the
 // `beforeSession` hook of wdio.conf.ts, before the app started.
-const home = () => process.env['E2E_CARAPACE_HOME'] ?? '';
 const shot = async (name: string) => console.log('screenshots', await screenshotThemes(name));
 
 const values = (prefix: string) =>
@@ -34,15 +34,34 @@ describe('v3 config with leftover environments', () => {
     await saveConsentDefaults();
   });
 
-  it('rewrites the file without the environment fields', () => {
-    const config = JSON.parse(readFileSync(join(home(), 'config.json'), 'utf8'));
+  it('splits the file into data.json without the environment fields and settings.toml', () => {
+    expect(existsSync(homeFile('config.json'))).toBe(false);
+    const backup = JSON.parse(readFileSync(homeFile('config.json.v4.bak'), 'utf8'));
+    expect(Object.keys(backup.projects[0])).toContain('environments');
+    expect(backup.externalEditor).toEqual({
+      mode: 'custom',
+      appPath: NOOP_EDITOR,
+      noticeSeen: true,
+    });
+    // Only the preferences the old file held move; the consent comes from `before`.
+    const settings = readSettings();
+    expect(settings?.['external_editor']).toEqual({
+      mode: 'custom',
+      app_path: NOOP_EDITOR,
+      notice_seen: true,
+    });
+    for (const key of ['default_key_type', 'terminal_font_size', 'key_folder'])
+      expect(Object.keys(settings ?? {})).not.toContain(key);
+    const config = readData();
+    expect(Object.keys(config)).not.toContain('externalEditor');
     expect(config.version).toBe(3);
     expect(Object.keys(config.projects[0])).not.toContain('environments');
     expect(Object.keys(config.projects[0])).not.toContain('activeEnvironmentId');
     expect(config.projects[0].variables).toEqual([{ name: 'port', kind: 'plain', value: '2223' }]);
     expect(config.nodes.map((n: { name: string }) => n.name)).toEqual(['Servers', 'sshd']);
-    expect(readdirSync(home()).filter((f) => f.endsWith('.bak'))).toEqual([]);
-    expect(existsSync(join(home(), 'config.json.v2.bak'))).toBe(false);
+    expect(readdirSync(appHome()).filter((f) => f.endsWith('.bak'))).toEqual([
+      'config.json.v4.bak',
+    ]);
   });
 
   it('keeps the project and global variables', async () => {

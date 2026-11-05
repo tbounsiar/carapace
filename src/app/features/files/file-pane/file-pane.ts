@@ -34,7 +34,7 @@ import { type EditedFile, MAX_EXTERNAL_BYTES } from '../../../core/ipc/external-
 import type { FileEntry, FileSource, Listing } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { stateLook } from '../../external-editor/edited-view';
-import { errorText, notifyError } from '../../project-tree/save-error';
+import { errorText, notifyError } from '../../../shared/save-error';
 import { FileDialogs } from '../file-dialogs';
 import { DRAG_PLACEHOLDER, DRAG_TYPE, FileDrag } from '../file-drag';
 import {

@@ -29,7 +29,7 @@ import { IpcError } from '../../../core/ipc/ipc-error';
 import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import { KeyStore } from '../../../core/ipc/key-store';
 import type { KeyView } from '../../../core/ipc/keys';
-import { notifyError } from '../../project-tree/save-error';
+import { notifyError } from '../../../shared/save-error';
 import {
   baseName,
   keyFilePathValidator,

@@ -4,6 +4,9 @@ use super::migrate::{LegacyEnvironment, ProjectMove};
 use super::*;
 use crate::config::model::{AuthMethod, HostInput, VariableKind};
 
+const V1_BACKUP: &str = "config.json.v1.bak";
+const V2_BACKUP: &str = "config.json.v2.bak";
+
 /// Records the plans it is given; fails them while `fail` is set.
 #[derive(Default)]
 struct Recorder {
@@ -119,7 +122,7 @@ fn unsupported_version_is_corrupt() {
 #[test]
 fn version_2_with_bad_shape_is_corrupt() {
     let (d, s) = store();
-    fs::write(d.path().join(FILE_NAME), r#"{"version":2,"projects":7}"#).unwrap();
+    fs::write(d.path().join(LEGACY_NAME), r#"{"version":2,"projects":7}"#).unwrap();
     assert!(matches!(s.snapshot(), Err(ConfigError::Corrupt)));
 }
 
@@ -127,15 +130,20 @@ fn version_2_with_bad_shape_is_corrupt() {
 fn version_1_is_backed_up_and_the_app_starts_empty() {
     let (d, s) = store();
     let v1 = r#"{"version":1,"projects":[{"id":"p","name":"Old","environments":[]}]}"#;
-    fs::write(d.path().join(FILE_NAME), v1).unwrap();
+    fs::write(d.path().join(LEGACY_NAME), v1).unwrap();
     assert!(s.snapshot().unwrap().projects.is_empty());
     assert_eq!(fs::read_to_string(d.path().join(V1_BACKUP)).unwrap(), v1);
+    assert!(!d.path().join(LEGACY_NAME).exists());
     assert!(!d.path().join(FILE_NAME).exists());
 
     s.create_project("New").unwrap();
     assert_eq!(s.snapshot().unwrap().projects[0].name, "New");
 
-    fs::write(d.path().join(FILE_NAME), v1).unwrap();
+    // Once data.json exists a config.json is never read again.
+    fs::write(d.path().join(LEGACY_NAME), v1).unwrap();
+    s.snapshot().unwrap();
+    assert_eq!(fs::read_to_string(d.path().join(LEGACY_NAME)).unwrap(), v1);
+    fs::remove_file(d.path().join(FILE_NAME)).unwrap();
     assert!(s.create_project("Again").is_ok());
     assert_eq!(
         fs::read_to_string(d.path().join("config.json.v1.2.bak")).unwrap(),
@@ -160,7 +168,7 @@ fn version_1_hosts_are_reported_once_for_keychain_cleanup() {
             {"id":"e1","name":"dev","hosts":[{"id":"h1"},{"id":"h2"},{"name":"no id"}]},
             {"id":"e2","name":"prod","hosts":"garbage"}]},
         {"name":"no id","environments":[{"id":"e3","hosts":[{"id":"h3"}]}]}]}"#;
-    fs::write(d.path().join(FILE_NAME), v1).unwrap();
+    fs::write(d.path().join(LEGACY_NAME), v1).unwrap();
     assert!(s.take_legacy_hosts().is_empty());
     s.snapshot().unwrap();
     let host = |h: &str| LegacyHost {
@@ -754,7 +762,7 @@ fn v2_fixture_holds_no_secret_value() {
 #[test]
 fn v2_fixture_migrates_losslessly_with_a_byte_identical_backup() {
     let (d, s, rec) = recording_store();
-    fs::write(d.path().join(FILE_NAME), V2_FIXTURE).unwrap();
+    fs::write(d.path().join(LEGACY_NAME), V2_FIXTURE).unwrap();
     let cfg = s.snapshot().unwrap();
     assert_eq!(fs::read(d.path().join(V2_BACKUP)).unwrap(), V2_FIXTURE);
     let expected = expected_v3(&json(V2_FIXTURE));
@@ -847,7 +855,7 @@ fn v2_fields_are_copied_one_by_one() {
         "keys":[{{"id":"k","name":"key","path":"/k","managed":false,"algorithm":"rsa","bits":4096,
           "publicKey":"ssh-rsa AAAA","fingerprint":"SHA256:x","comment":"c","encrypted":true}}]}}"#
     );
-    fs::write(d.path().join(FILE_NAME), &v2).unwrap();
+    fs::write(d.path().join(LEGACY_NAME), &v2).unwrap();
     let cfg = s.snapshot().unwrap();
     assert_eq!(cfg.version, 3);
     assert_eq!(cfg.variables, vec![plain("g", "1")]);
@@ -912,7 +920,7 @@ fn v2_fields_are_copied_one_by_one() {
 fn v2_backups_are_never_overwritten() {
     let (d, s) = store();
     fs::write(d.path().join(V2_BACKUP), "older").unwrap();
-    fs::write(d.path().join(FILE_NAME), V2_FIXTURE).unwrap();
+    fs::write(d.path().join(LEGACY_NAME), V2_FIXTURE).unwrap();
     s.snapshot().unwrap();
     assert_eq!(
         fs::read_to_string(d.path().join(V2_BACKUP)).unwrap(),
@@ -925,29 +933,34 @@ fn v2_backups_are_never_overwritten() {
 }
 
 #[test]
-fn failed_v2_backup_changes_nothing() {
+fn a_split_without_a_free_backup_name_leaves_the_old_file_unread() {
     let (d, s) = store();
     fs::write(d.path().join(V2_BACKUP), "taken").unwrap();
     for n in 2..=MAX_BACKUPS {
         fs::write(d.path().join(format!("config.json.v2.{n}.bak")), "taken").unwrap();
     }
-    fs::write(d.path().join(FILE_NAME), V2_FIXTURE).unwrap();
-    assert!(matches!(s.snapshot(), Err(ConfigError::Io)));
-    assert!(matches!(s.create_project("x"), Err(ConfigError::Io)));
-    assert_eq!(fs::read(d.path().join(FILE_NAME)).unwrap(), V2_FIXTURE);
+    fs::write(d.path().join(LEGACY_NAME), V2_FIXTURE).unwrap();
+    let cfg = s.snapshot().unwrap();
+    assert_eq!(fs::read(d.path().join(LEGACY_NAME)).unwrap(), V2_FIXTURE);
     assert_eq!(
         fs::read_to_string(d.path().join(V2_BACKUP)).unwrap(),
         "taken"
     );
+    assert!(d.path().join(SETTINGS_NAME).exists());
+    s.create_project("x").unwrap();
+    assert_eq!(s.snapshot().unwrap().projects.len(), cfg.projects.len() + 1);
+    assert_eq!(fs::read(d.path().join(LEGACY_NAME)).unwrap(), V2_FIXTURE);
 }
 
 #[test]
 fn v2_breaking_the_invariants_is_corrupt_and_left_alone() {
     let (d, s) = store();
     let raw = r#"{"version":2,"projects":[{"id":"p1","name":"A","hosts":[]}]}"#;
-    fs::write(d.path().join(FILE_NAME), raw).unwrap();
+    fs::write(d.path().join(LEGACY_NAME), raw).unwrap();
     assert!(matches!(s.snapshot(), Err(ConfigError::Corrupt)));
-    assert_eq!(fs::read_to_string(d.path().join(FILE_NAME)).unwrap(), raw);
+    assert_eq!(fs::read_to_string(d.path().join(LEGACY_NAME)).unwrap(), raw);
+    assert!(!d.path().join(FILE_NAME).exists());
+    assert!(!d.path().join(SETTINGS_NAME).exists());
     assert!(!d.path().join(V2_BACKUP).exists());
 }
 
@@ -1065,9 +1078,18 @@ fn v3_with_environments(active: Option<&str>) -> serde_json::Value {
         "keys":[]})
 }
 
+/// Version 2 files only exist as a `config.json`.
+fn name_of(raw: &str) -> &'static str {
+    if json(raw.as_bytes())["version"] == 2 {
+        LEGACY_NAME
+    } else {
+        FILE_NAME
+    }
+}
+
 fn write(d: &tempfile::TempDir, file: &serde_json::Value) -> String {
     let raw = file.to_string();
-    fs::write(d.path().join(FILE_NAME), &raw).unwrap();
+    fs::write(d.path().join(name_of(&raw)), &raw).unwrap();
     raw
 }
 
@@ -1091,7 +1113,10 @@ fn moves(project: &str, env: &str, delete: &[&str], copy: &[&str]) -> ProjectMov
 
 fn refused(s: &ConfigStore, d: &tempfile::TempDir, raw: &str) {
     assert!(matches!(s.snapshot(), Err(ConfigError::Corrupt)), "{raw}");
-    assert_eq!(fs::read_to_string(d.path().join(FILE_NAME)).unwrap(), raw);
+    assert_eq!(
+        fs::read_to_string(d.path().join(name_of(raw))).unwrap(),
+        raw
+    );
     assert!(!d.path().join(V2_BACKUP).exists());
     assert!(s.take_legacy_projects().is_empty());
 }
@@ -1338,7 +1363,11 @@ fn failed_keychain_step_writes_nothing_and_is_retried() {
         let raw = write(&d, &file);
         assert!(matches!(s.snapshot(), Err(ConfigError::Keychain)));
         assert!(matches!(s.create_project("x"), Err(ConfigError::Keychain)));
-        assert_eq!(fs::read_to_string(d.path().join(FILE_NAME)).unwrap(), raw);
+        assert_eq!(
+            fs::read_to_string(d.path().join(name_of(&raw))).unwrap(),
+            raw
+        );
+        assert!(!d.path().join(SETTINGS_NAME).exists());
         assert!(!d.path().join(V2_BACKUP).exists());
         assert!(s.take_legacy_projects().is_empty());
     }
@@ -1357,7 +1386,10 @@ fn secrets_need_a_keychain_but_plain_variables_do_not() {
     let s = ConfigStore::new(dir.path().to_path_buf());
     let raw = write(&dir, &v2_with(&[], &[var("pw", None)]));
     assert!(matches!(s.snapshot(), Err(ConfigError::Keychain)));
-    assert_eq!(fs::read_to_string(dir.path().join(FILE_NAME)).unwrap(), raw);
+    assert_eq!(
+        fs::read_to_string(dir.path().join(LEGACY_NAME)).unwrap(),
+        raw
+    );
 
     write(
         &dir,

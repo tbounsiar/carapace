@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { homeFile, readData, readSettings } from '../helpers/app-files';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
   byId,
@@ -18,7 +18,6 @@ import {
 
 // The app home was seeded with the v2 backend fixture (plus an `sshd` host in Website) by the
 // `beforeSession` hook of wdio.conf.ts, before the app started.
-const home = () => process.env['E2E_CARAPACE_HOME'] ?? '';
 const shot = async (name: string) => console.log('screenshots', await screenshotThemes(name));
 
 const values = (prefix: string) =>
@@ -42,13 +41,28 @@ describe('migration from a v2 config', () => {
     await saveConsentDefaults();
   });
 
-  it('rewrites the file as v3 without environments and keeps the v2 backup', () => {
-    const backup = join(home(), 'config.json.v2.bak');
+  it('splits the file into data.json (v3, no environments) and settings.toml, keeping a v2 backup', () => {
+    const backup = homeFile('config.json.v2.bak');
     expect(existsSync(backup)).toBe(true);
     const original = JSON.parse(readFileSync(backup, 'utf8'));
     expect(original.version).toBe(2);
     expect(original.projects[0].environments.length).toBe(2);
-    const migrated = JSON.parse(readFileSync(join(home(), 'config.json'), 'utf8'));
+    expect(existsSync(homeFile('config.json'))).toBe(false);
+    expect(existsSync(homeFile('config.json.v4.bak'))).toBe(false);
+    // The consent saved in `before` went to the settings file, not to the data file.
+    expect(readSettings()?.['analytics']).toEqual({
+      launch: { consent: 'granted', version: 2 },
+      features: { consent: 'granted', version: 2 },
+      connections: { consent: 'granted', version: 2 },
+    });
+    const migrated = readData();
+    expect(Object.keys(migrated).sort()).toEqual([
+      'keys',
+      'nodes',
+      'projects',
+      'variables',
+      'version',
+    ]);
     expect(migrated.version).toBe(3);
     expect(migrated.nodes.every((n: { kind: string }) => n.kind === 'host')).toBe(true);
     expect(migrated.nodes.length).toBe(6);

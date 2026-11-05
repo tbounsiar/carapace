@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readSettings } from '../helpers/app-files';
 import { DNT_ANALYTICS } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
 import { byId, clickId, waitForApp, waitGone } from '../helpers/ui';
@@ -7,11 +6,9 @@ import { byId, clickId, waitForApp, waitGone } from '../helpers/ui';
 // This spec runs on the second tauri-driver of wdio.conf.ts, started with DO_NOT_TRACK=1, so the
 // app inherits it. `beforeSession` seeds DNT_ANALYTICS: without the variable the dialog would ask
 // for connection results and launch and feature usage would be on.
-const home = () => process.env['E2E_CARAPACE_HOME'] ?? '';
 const shot = async (name: string) => console.log('screenshots', await screenshotThemes(name));
 const CATEGORIES = ['launch', 'features', 'connections'];
-const storedAnalytics = () =>
-  JSON.parse(readFileSync(join(home(), 'config.json'), 'utf8')).analytics;
+const storedAnalytics = () => readSettings()?.['analytics'];
 
 describe('usage analytics under DO_NOT_TRACK', () => {
   before(waitForApp);

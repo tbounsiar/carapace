@@ -31,7 +31,7 @@ The host dialog previews the result ("Resolves to …") as you type.
 
 ## Secret variables
 
-Set the **Type** of a variable to **Secret** for passwords and passphrases. Its value is stored in the system keychain, never in `config.json`, and is never shown again: the field shows **Set. Type to replace** or **Not set**, with a lock icon.
+Set the **Type** of a variable to **Secret** for passwords and passphrases. Its value is stored in the system keychain, never in `data.json`, and is never shown again: the field shows **Set. Type to replace** or **Not set**, with a lock icon.
 
 - The host's **Password** and **Passphrase** fields only take a secret variable, picked from a list. The other fields only take plain variables, because they are displayed and appear in messages.
 - The variable must exist before a host can pick it. Create it here first.

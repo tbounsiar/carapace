@@ -1,6 +1,6 @@
 import type { HostTestResult } from '../../core/ipc/host-test';
 import type { IpcError } from '../../core/ipc/ipc-error';
-import { errorText, sentence } from '../project-tree/save-error';
+import { errorText, sentence } from '../../shared/save-error';
 import type { HostTestDraft, HostTestOutcome, SecretOrigin } from './host-tester';
 
 /** A piece of copy; `mono` for addresses, paths and references. */

@@ -7,7 +7,7 @@ import { Analytics, type AnalyticsChoices, type AnalyticsState } from '../../cor
 import { ConfigService } from '../../core/ipc/config';
 import { ThemeService } from '../../core/theme/theme';
 import { OpenDialogs } from '../../shared/open-dialogs';
-import { notifyError } from '../project-tree/save-error';
+import { notifyError } from '../../shared/save-error';
 import { initialChoices, UNSAVED_DENIAL, unsavedDenial } from './privacy-page';
 
 /** Asks for the analytics choices once per launch while a category is undecided. */

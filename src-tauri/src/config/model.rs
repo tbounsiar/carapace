@@ -165,18 +165,6 @@ pub struct ConfigFile {
     pub nodes: Vec<Node>,
     #[serde(default)]
     pub keys: Vec<KeyEntry>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "lenient_analytics"
-    )]
-    pub analytics: Option<AnalyticsSettings>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "lenient_external_editor"
-    )]
-    pub external_editor: Option<ExternalEditor>,
 }
 
 /// How remote files are opened outside the app. `appPath` is kept while `mode` is `system` so
@@ -200,16 +188,9 @@ pub enum EditorMode {
     Custom,
 }
 
-fn lenient_external_editor<'de, D: Deserializer<'de>>(
-    d: D,
-) -> Result<Option<ExternalEditor>, D::Error> {
-    let value = serde_json::Value::deserialize(d)?;
-    Ok(serde_json::from_value(value).ok())
-}
-
-/// Usage analytics choices, one per category. Missing, or written by a hand edit in a shape we
-/// do not know, means unset: a bad value must never turn a category on, nor make the whole file
-/// corrupt. The single consent of the first release is read through `migrate::analytics`.
+/// Usage analytics choices, one per category, kept in `settings.toml`. Missing, or written by a
+/// hand edit in a shape we do not know, means unset: a bad value must never turn a category on,
+/// nor make the whole file corrupt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyticsSettings {
@@ -289,13 +270,6 @@ pub enum Consent {
     Unset,
     Granted,
     Denied,
-}
-
-fn lenient_analytics<'de, D: Deserializer<'de>>(
-    d: D,
-) -> Result<Option<AnalyticsSettings>, D::Error> {
-    let value = serde_json::Value::deserialize(d)?;
-    Ok(super::migrate::analytics(&value))
 }
 
 impl ConfigFile {
@@ -380,8 +354,6 @@ impl Default for ConfigFile {
             projects: Vec::new(),
             nodes: Vec::new(),
             keys: Vec::new(),
-            analytics: None,
-            external_editor: None,
         }
     }
 }

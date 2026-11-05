@@ -3,28 +3,33 @@ import { Service, computed, signal } from '@angular/core';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type EffectiveTheme = 'light' | 'dark';
 
-const STORAGE_KEY = 'carapace.theme';
+/** Also the pre-import theme preference; the e2e screenshot helper reads it too. */
+export const THEME_CACHE = 'carapace.theme';
 const QUERY = '(prefers-color-scheme: dark)';
 
-function isMode(value: unknown): value is ThemeMode {
+export function isThemeMode(value: unknown): value is ThemeMode {
   return value === 'system' || value === 'light' || value === 'dark';
 }
 
-function readStored(): ThemeMode {
+export function readCachedTheme(): ThemeMode | null {
   try {
-    const value = localStorage.getItem(STORAGE_KEY);
-    return isMode(value) ? value : 'system';
+    const value = localStorage.getItem(THEME_CACHE);
+    return isThemeMode(value) ? value : null;
   } catch {
-    return 'system';
+    return null;
   }
 }
 
+/**
+ * The displayed theme. The preference is persisted by `Settings` in the backend; this keeps a
+ * synchronous copy in localStorage so the first frame already has the right theme.
+ */
 @Service()
 export class ThemeService {
   private readonly query = window.matchMedia(QUERY);
   private readonly systemDark = signal(this.query.matches);
 
-  readonly mode = signal<ThemeMode>(readStored());
+  readonly mode = signal<ThemeMode>(readCachedTheme() ?? 'system');
   readonly effective = computed<EffectiveTheme>(() => {
     const mode = this.mode();
     if (mode === 'system') {
@@ -37,12 +42,13 @@ export class ThemeService {
     this.query.addEventListener('change', (event) => this.systemDark.set(event.matches));
   }
 
-  setMode(mode: ThemeMode): void {
+  /** Shows `mode` and refreshes the cache; does not save the preference (see `Settings.setTheme`). */
+  apply(mode: ThemeMode): void {
     this.mode.set(mode);
     try {
-      localStorage.setItem(STORAGE_KEY, mode);
+      localStorage.setItem(THEME_CACHE, mode);
     } catch {
-      // Storage can be unavailable; the choice then lasts for the session only.
+      // Storage can be unavailable; the next launch then starts from the system theme.
     }
   }
 }

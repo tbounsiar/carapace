@@ -38,10 +38,12 @@ pub fn run() {
             app.manage(quit::QuitGuard::default());
             let home_dir = home.clone();
             let store = commands::secrets::config_store(home, &secrets);
-            // Loading moves a version 1 file aside or drops environments; their keychain entries go
-            // with them. Analytics choices are read here, before the webview runs; a failed read
-            // keeps analytics off and silent until a later read succeeds.
-            let choices = store.snapshot().map(|c| c.analytics);
+            // Loading splits a config.json, moves a version 1 file aside or drops environments;
+            // their keychain entries go with them. It runs before the settings are read, so the
+            // analytics choices come from the split file. They are read here, before the webview
+            // runs; a failed read keeps analytics off and silent until a later read succeeds.
+            let known = store.snapshot().ok();
+            let choices = store.analytics();
             commands::secrets::forget_legacy(&store, &secrets);
             let version = app.package_info().version.to_string();
             let analytics = analytics::Analytics::for_app(choices, &version);
@@ -57,11 +59,10 @@ pub fn run() {
                 Arc::new(external::OsLauncher),
                 Arc::new(move || {
                     let store = handle.state::<config::ConfigStore>();
-                    let cfg = store.snapshot().ok().and_then(|c| c.external_editor);
+                    let cfg = store.external_editor().ok().flatten();
                     commands::external::opener_of(cfg.as_ref())
                 }),
             );
-            let known = store.snapshot().ok();
             edits.retain_known_hosts(|id| known.as_ref().is_some_and(|c| c.host(id).is_some()));
             edits.set_attention(commands::app::attention(app.handle().clone()));
             app.manage(edits);
@@ -77,7 +78,7 @@ pub fn run() {
                     let handle = handle.clone();
                     let _ = tauri::async_runtime::spawn_blocking(move || {
                         let store = handle.state::<config::ConfigStore>();
-                        sender.reload(|| store.snapshot().map(|c| c.analytics));
+                        sender.reload(|| store.analytics());
                         sender.retry_save(|w| store.update_analytics(w));
                         sender.flush(analytics::PERIODIC_FLUSH);
                     })
@@ -182,6 +183,9 @@ pub fn run() {
             commands::keys::delete_key,
             commands::keys::forget_key_passphrase,
             commands::keys::deploy_public_key,
+            commands::settings::app_settings,
+            commands::settings::update_app_settings,
+            commands::settings::import_legacy_settings,
             commands::analytics::analytics_state,
             commands::analytics::set_analytics_choices,
             commands::analytics::set_analytics_category,

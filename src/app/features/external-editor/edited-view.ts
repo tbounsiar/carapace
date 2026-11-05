@@ -1,6 +1,6 @@
 import type { ConfigService } from '../../core/ipc/config';
 import type { EditedFile, EditedState } from '../../core/ipc/external-edits';
-import { errorText } from '../project-tree/save-error';
+import { errorText } from '../../shared/save-error';
 
 export type StateLook =
   | { readonly kind: 'loader'; readonly word: string }

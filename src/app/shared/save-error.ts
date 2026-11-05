@@ -1,8 +1,8 @@
 import type { AbstractControl } from '@angular/forms';
 import { TuiValidationError } from '@taiga-ui/cdk';
 import type { TuiNotificationService } from '@taiga-ui/core';
-import type { IpcErrorCode } from '../../core/ipc/config.models';
-import { IpcError } from '../../core/ipc/ipc-error';
+import type { IpcErrorCode } from '../core/ipc/config.models';
+import { IpcError } from '../core/ipc/ipc-error';
 
 /** What the user can do next, by error code; the backend message says what happened. */
 const NEXT_STEP: Readonly<Record<IpcErrorCode, string>> = {
@@ -12,7 +12,7 @@ const NEXT_STEP: Readonly<Record<IpcErrorCode, string>> = {
   already_exists: 'Choose another name.',
   io: 'Check that the disk is available and not full, then try again.',
   corrupt_config:
-    'Move config.json out of the app folder to start fresh, or restore it from a backup.',
+    'Move data.json or settings.toml out of the data folder to start fresh, or restore it from a backup.',
   host_key_rejected: 'Connect again and accept the key if you trust this host.',
   auth_failed: 'Check the username and the key or password of the host.',
   unsupported: 'The server does not support this operation.',

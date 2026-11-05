@@ -1,10 +1,15 @@
-import { inject, Service, signal } from '@angular/core';
+import { inject, Service, signal, type WritableSignal } from '@angular/core';
+import { TuiNotificationService } from '@taiga-ui/core';
+import { notifyError } from '../../shared/save-error';
+import { type AppPreferences, type AppPreferencesPatch, AppSettings } from '../ipc/app-settings';
 import type { KeyType } from '../ipc/keys';
-import { type ThemeMode, ThemeService } from '../theme/theme';
+import { isThemeMode, readCachedTheme, type ThemeMode, ThemeService } from '../theme/theme';
 
 export const KEY_TYPE_STORAGE = 'carapace.keyType';
 export const FONT_SIZE_STORAGE = 'carapace.terminalFontSize';
 export const KEY_FOLDER_STORAGE = 'carapace.keyFolder';
+/** Set once the webview-stored preferences reached the backend (the theme key stays as a cache). */
+export const IMPORTED_STORAGE = 'carapace.settingsImported';
 export const KEY_FOLDER_MAX = 4096;
 
 export const DEFAULT_KEY_TYPE: KeyType = 'ed25519';
@@ -36,81 +41,229 @@ export function isKeyFolder(value: unknown): value is string {
   );
 }
 
-function read<T>(
-  key: string,
-  parse: (raw: string) => unknown,
-  valid: (v: unknown) => v is T,
-  fallback: T,
-): T {
+type Field = keyof AppPreferences;
+
+const VALID: { readonly [K in Field]: (value: unknown) => value is AppPreferences[K] } = {
+  theme: isThemeMode,
+  defaultKeyType: isKeyType,
+  terminalFontSize: isFontSize,
+  keyFolder: (value): value is string | null => value === null || isKeyFolder(value),
+};
+
+function storage(): Storage | null {
   try {
-    const raw = localStorage.getItem(key);
-    const value = raw === null ? null : parse(raw);
-    return valid(value) ? value : fallback;
+    return localStorage;
   } catch {
-    return fallback;
+    return null;
   }
 }
 
-function write(key: string, value: string): void {
+function getItem(key: string): string | null {
   try {
-    localStorage.setItem(key, value);
+    return storage()?.getItem(key) ?? null;
   } catch {
-    // Storage can be unavailable; the preference then lasts for the session only.
+    return null;
   }
 }
 
-/** UI preferences kept in localStorage. The theme is stored by `ThemeService`. */
+/** Valid preferences still kept in webview storage from before the backend file; empty once imported. */
+export function readLegacy(): AppPreferencesPatch {
+  if (getItem(IMPORTED_STORAGE) !== null) {
+    return {};
+  }
+  const values: { -readonly [K in Field]?: AppPreferences[K] } = {};
+  const theme = readCachedTheme();
+  if (theme !== null) {
+    values.theme = theme;
+  }
+  const keyType = getItem(KEY_TYPE_STORAGE);
+  if (isKeyType(keyType)) {
+    values.defaultKeyType = keyType;
+  }
+  const fontSize = getItem(FONT_SIZE_STORAGE);
+  if (fontSize !== null && isFontSize(Number(fontSize))) {
+    values.terminalFontSize = Number(fontSize);
+  }
+  const keyFolder = getItem(KEY_FOLDER_STORAGE);
+  if (isKeyFolder(keyFolder)) {
+    values.keyFolder = keyFolder;
+  }
+  return values;
+}
+
+function markImported(): void {
+  try {
+    const store = storage();
+    store?.removeItem(KEY_TYPE_STORAGE);
+    store?.removeItem(FONT_SIZE_STORAGE);
+    store?.removeItem(KEY_FOLDER_STORAGE);
+    store?.setItem(IMPORTED_STORAGE, '1');
+  } catch {
+    // The backend ignores an import of fields already set, so a retry next launch is harmless.
+  }
+}
+
+/**
+ * App preferences, persisted by the backend in `settings.toml`. Setters update the signal at once
+ * and save in the background; a failed save restores the last saved value and shows a toast.
+ */
 @Service()
 export class Settings {
   private readonly themeService = inject(ThemeService);
+  private readonly ipc = inject(AppSettings);
+  private readonly alerts = inject(TuiNotificationService);
+  private readonly legacy = readLegacy();
 
   readonly theme = this.themeService.mode;
-  readonly defaultKeyType = signal<KeyType>(
-    read(KEY_TYPE_STORAGE, (raw) => raw, isKeyType, DEFAULT_KEY_TYPE),
-  );
-  readonly terminalFontSize = signal<number>(
-    read(FONT_SIZE_STORAGE, (raw) => Number(raw), isFontSize, DEFAULT_FONT_SIZE),
-  );
-
+  readonly defaultKeyType = signal<KeyType>(this.legacy.defaultKeyType ?? DEFAULT_KEY_TYPE);
+  readonly terminalFontSize = signal<number>(this.legacy.terminalFontSize ?? DEFAULT_FONT_SIZE);
   /** Custom folder of the last successful generation; null is the managed keys folder. */
-  readonly keyFolder = signal<string | null>(
-    read<string | null>(KEY_FOLDER_STORAGE, (raw) => raw, isKeyFolder, null),
-  );
+  readonly keyFolder = signal<string | null>(this.legacy.keyFolder ?? null);
+
+  private readonly fields: { readonly [K in Field]: WritableSignal<AppPreferences[K]> } = {
+    theme: this.themeService.mode,
+    defaultKeyType: this.defaultKeyType,
+    terminalFontSize: this.terminalFontSize,
+    keyFolder: this.keyFolder,
+  };
+  /** Last values the backend confirmed (until it answers, what the app started with). */
+  private confirmed: AppPreferences = this.snapshot();
+  /** Fields the user changed this session: a late startup read must not overwrite them. */
+  private readonly touched = new Set<Field>();
+  private queued: AppPreferencesPatch = {};
+  private writing = false;
+  private started = false;
+
+  /** Reads the backend once, importing the webview-stored values first. Never throws. */
+  async start(): Promise<void> {
+    if (this.started) {
+      return;
+    }
+    this.started = true;
+    const legacy = this.legacy;
+    let loaded: AppPreferences | null = null;
+    // Fields kept from storage this session when the import fails; it is retried next launch.
+    let keep: readonly Field[] = [];
+    if (Object.keys(legacy).length > 0) {
+      try {
+        loaded = (await this.ipc.importLegacy(legacy)) ?? null;
+        markImported();
+      } catch {
+        keep = Object.keys(legacy) as Field[];
+      }
+    } else if (getItem(IMPORTED_STORAGE) === null) {
+      markImported();
+    }
+    if (loaded === null) {
+      try {
+        loaded = (await this.ipc.read()) ?? null;
+      } catch {
+        return;
+      }
+    }
+    if (loaded === null) {
+      return;
+    }
+    for (const field of Object.keys(this.fields) as Field[]) {
+      if (this.touched.has(field) || !VALID[field](loaded[field])) {
+        continue;
+      }
+      this.confirm(field, loaded[field]);
+      if (!keep.includes(field)) {
+        this.show(field, loaded[field]);
+      }
+    }
+  }
 
   setTheme(mode: ThemeMode): void {
-    this.themeService.setMode(mode);
+    if (isThemeMode(mode)) {
+      this.write('theme', mode);
+    }
   }
 
   setDefaultKeyType(type: KeyType): void {
-    if (!isKeyType(type)) {
-      return;
+    if (isKeyType(type)) {
+      this.write('defaultKeyType', type);
     }
-    this.defaultKeyType.set(type);
-    write(KEY_TYPE_STORAGE, type);
   }
 
   /** Out-of-range values are ignored, so a half-typed number never reaches the terminals. */
   setTerminalFontSize(size: number | null): void {
-    if (!isFontSize(size)) {
-      return;
+    if (isFontSize(size)) {
+      this.write('terminalFontSize', size);
     }
-    this.terminalFontSize.set(size);
-    write(FONT_SIZE_STORAGE, String(size));
   }
 
   setKeyFolder(dir: string | null): void {
-    if (dir !== null && !isKeyFolder(dir)) {
+    if (dir === null || isKeyFolder(dir)) {
+      this.write('keyFolder', dir);
+    }
+  }
+
+  private write<K extends Field>(field: K, value: AppPreferences[K]): void {
+    // A slider emits the same value on input and change; it is already shown or being saved.
+    if (this.fields[field]() === value) {
       return;
     }
-    this.keyFolder.set(dir);
-    if (dir === null) {
-      try {
-        localStorage.removeItem(KEY_FOLDER_STORAGE);
-      } catch {
-        // See `write`.
-      }
-    } else {
-      write(KEY_FOLDER_STORAGE, dir);
+    this.touched.add(field);
+    this.show(field, value);
+    this.queued = { ...this.queued, [field]: value };
+    if (!this.writing) {
+      void this.flush();
     }
+  }
+
+  /** One save at a time; changes made meanwhile (a dragged slider) are merged into the next one. */
+  private async flush(): Promise<void> {
+    this.writing = true;
+    while (Object.keys(this.queued).length > 0) {
+      const sent = this.queued;
+      this.queued = {};
+      let failed = false;
+      let failure: unknown;
+      try {
+        const saved: AppPreferencesPatch = (await this.ipc.update(sent)) ?? {};
+        this.confirmed = { ...this.confirmed, ...sent };
+        for (const field of Object.keys(this.fields) as Field[]) {
+          if (VALID[field](saved[field])) {
+            this.confirm(field, saved[field]);
+          }
+        }
+      } catch (err) {
+        failed = true;
+        failure = err;
+      }
+      for (const field of Object.keys(sent) as Field[]) {
+        // A newer change of this field is queued: it wins over this result.
+        if (!(field in this.queued)) {
+          this.show(field, this.confirmed[field]);
+        }
+      }
+      if (failed) {
+        notifyError(this.alerts, failure, 'Setting not saved');
+      }
+    }
+    this.writing = false;
+  }
+
+  private confirm<K extends Field>(field: K, value: AppPreferences[K]): void {
+    this.confirmed = { ...this.confirmed, [field]: value };
+  }
+
+  private show<K extends Field>(field: K, value: AppPreferences[K]): void {
+    if (field === 'theme') {
+      this.themeService.apply(value as ThemeMode);
+    } else {
+      this.fields[field].set(value);
+    }
+  }
+
+  private snapshot(): AppPreferences {
+    return {
+      theme: this.themeService.mode(),
+      defaultKeyType: this.defaultKeyType(),
+      terminalFontSize: this.terminalFontSize(),
+      keyFolder: this.keyFolder(),
+    };
   }
 }

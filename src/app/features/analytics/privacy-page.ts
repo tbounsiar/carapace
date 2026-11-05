@@ -6,7 +6,7 @@ import {
   type AnalyticsChoices,
   type AnalyticsState,
 } from '../../core/ipc/analytics';
-import { notifyError } from '../project-tree/save-error';
+import { notifyError } from '../../shared/save-error';
 
 export interface CategoryCopy {
   readonly id: AnalyticsCategory;

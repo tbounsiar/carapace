@@ -13,7 +13,7 @@ import {
 import { TuiSegmented, TuiSwitch } from '@taiga-ui/kit';
 import { type ExternalEditorSetting, ExternalEditsIpc } from '../../../core/ipc/external-edits';
 import { IpcError } from '../../../core/ipc/ipc-error';
-import { notifyError } from '../../project-tree/save-error';
+import { notifyError } from '../../../shared/save-error';
 
 type Mode = ExternalEditorSetting['mode'];
 

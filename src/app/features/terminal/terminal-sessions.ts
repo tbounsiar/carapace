@@ -7,7 +7,7 @@ import {
   type TerminalClosedReason,
   type TerminalEvent,
 } from '../../core/ipc/terminal';
-import { notifyError } from '../project-tree/save-error';
+import { notifyError } from '../../shared/save-error';
 import { isTerminalReserved } from '../workspace/workspace-keys';
 import { DEFAULT_FONT_SIZE } from '../../core/settings/settings';
 import { type XtermAppearance, XtermFactory, type XtermView } from './xterm-factory';

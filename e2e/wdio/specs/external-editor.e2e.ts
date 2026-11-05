@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { editSettings, readSettings, type Toml } from '../helpers/app-files';
 import { appPids, waitAppExited } from '../helpers/app-process';
 import { HOST, NOOP_EDITOR, PROJECT } from '../helpers/fixture';
 import { screenshot, screenshotThemes, setThemeMode, shotWithMenu } from '../helpers/screenshot';
@@ -215,19 +216,13 @@ async function killAndRestart(whileStopped?: () => void): Promise<void> {
   await browser.reloadSession();
 }
 
+const storedEditor = () => readSettings()?.['external_editor'] as Toml | undefined;
+
 /** Rewrites the manifest next to an edited file's local copy (the app must be stopped). */
 function editManifest(name: string, change: Record<string, string>): void {
   const file = join(localCopy(name), '..', '.carapace-edit.json');
   const manifest = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
   writeFileSync(file, JSON.stringify({ ...manifest, ...change }));
-}
-
-/** Rewrites the app config (the app must be stopped). */
-function editConfig(change: (config: Record<string, unknown>) => void): void {
-  const file = join(process.env['E2E_CARAPACE_HOME'] ?? '', 'config.json');
-  const config = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
-  change(config);
-  writeFileSync(file, JSON.stringify(config, null, 2));
 }
 
 describe('external editor', () => {
@@ -272,6 +267,10 @@ describe('external editor', () => {
     await clickId('ext-notice-dont-show');
     await clickId('ext-notice-continue');
     await waitGone('ext-notice-continue');
+    await browser.waitUntil(async () => storedEditor()?.['notice_seen'] === true, {
+      timeout: 10000,
+      timeoutMsg: 'notice_seen was not saved in settings.toml',
+    });
     await remote('entry-external-marker-nginx.conf').waitForExist({ timeout: 20000 });
     expect(hasLocalCopy('nginx.conf')).toBe(true);
     await expect(byId('aside-edited-count')).toHaveText('1');
@@ -520,6 +519,12 @@ describe('external editor', () => {
     await byId('settings-ext-system').waitForExist({ timeout: 10000 });
     await byId('settings-ext-system').click();
     await byId('settings-ext-path').waitForExist({ timeout: 10000, reverse: true });
+    await browser.waitUntil(async () => storedEditor()?.['mode'] === 'system', {
+      timeout: 10000,
+      timeoutMsg: 'the System default mode was not saved in settings.toml',
+    });
+    // The custom app is kept for a switch back.
+    expect(storedEditor()?.['app_path']).toBe(NOOP_EDITOR);
     await clickId(`tab-${HOST.name}-files`);
     await openExternal('deploy.bat');
     await waitToast('deploy.bat would be run, not opened, by your system.');
@@ -564,13 +569,13 @@ describe('external editor', () => {
     saveInEditor('id_deploy', 'offline\n');
     await waitState(HOST.name, 'id_deploy', 'waiting');
     // Seeded while the app is stopped, without touching the shared sshd: id_deploy remembers
-    // another host key, the long file a host id the config does not have, and the custom app
+    // another host key, the long file a host id the data file does not have, and the custom app
     // becomes a program the backend refuses as an editor.
     await killAndRestart(() => {
       editManifest('id_deploy', { hostKey: `SHA256:${'A'.repeat(43)}` });
       editManifest(LONG_NAME, { hostId: '00000000-0000-4000-8000-000000000000' });
-      editConfig((config) => {
-        config['externalEditor'] = { mode: 'custom', appPath: POWERSHELL, noticeSeen: true };
+      editSettings((settings) => {
+        settings['external_editor'] = { mode: 'custom', app_path: POWERSHELL, notice_seen: true };
       });
     });
     await waitForApp();

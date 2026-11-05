@@ -68,12 +68,13 @@ In the data folder: `~/.carapace` by default, `%USERPROFILE%\.carapace` on Windo
 
 | Path | Content |
 | - | - |
-| `config.json` | Projects, collections, hosts, variables (secret ones without value), registered key paths, external editor setting, usage data answer |
+| `data.json` | Projects, collections, hosts, variables (secret ones without value), registered key paths |
+| `settings.toml` | App settings: theme, default key type, terminal font size, last key folder, external editor, usage data choices |
 | `known_hosts` | Host keys you accepted in Carapace |
 | `keys/` | Keys generated in the default folder |
 | `edit/` | Copies of files open in an external editor |
 
-Theme, default key type and terminal font size are stored by the app itself, not in this folder. Passwords and passphrases are in the system keychain.
+Passwords and passphrases are in the system keychain, not in this folder.
 
 ### Using another data folder (`$CARAPACE_HOME`)
 
@@ -103,9 +104,13 @@ On Windows, sign out and in again (or restart Explorer) so apps started from the
 
 Copy the data folder. Secret variable values and saved passwords are in the keychain and do not move with it: set them again on the new computer. Keys imported from elsewhere stay at their original path, so copy them too and fix their path if needed.
 
-### "config.json" cannot be read
+### "data.json" cannot be read
 
-If `config.json` is damaged or was edited by hand into an invalid state, Carapace does not overwrite it and reports an error on every action. Move `config.json` out of the data folder to start fresh, or restore it from a backup. When Carapace upgrades the file format it keeps the previous file next to it (for example `config.json.v2.bak`).
+If `data.json` is damaged or was edited by hand into an invalid state, Carapace does not overwrite it and reports an error on every action. Move `data.json` out of the data folder to start fresh, or restore it from a backup. When Carapace upgrades the file format it keeps the previous file next to it (for example `config.json.v4.bak`, the single file used before data and settings were split).
+
+### "settings.toml" cannot be read
+
+`settings.toml` can be edited by hand while Carapace is closed. If it is not valid TOML, Carapace starts with default settings and usage data stays off; your file is kept. The first time you change a setting, Carapace saves a copy as `settings.toml.bak` before writing a new file. A value it does not understand falls back to its default. When Carapace saves a setting it only changes that value: your comments and the rest of the file are kept.
 
 ### Leftover `.carapace-part` files
 

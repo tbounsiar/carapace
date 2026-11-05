@@ -1,3 +1,5 @@
+import { readSettings, type TomlValue } from '../helpers/app-files';
+import { restartApp } from '../helpers/app-process';
 import { HOST, PROJECT } from '../helpers/fixture';
 import { screenshotThemes, setThemeMode } from '../helpers/screenshot';
 import {
@@ -24,6 +26,15 @@ const stored = (key: string) =>
       return null;
     }
   }, key);
+
+const OLD_KEYS = ['carapace.keyType', 'carapace.terminalFontSize', 'carapace.keyFolder'];
+
+async function waitSaved(key: string, value: TomlValue): Promise<void> {
+  await browser.waitUntil(async () => readSettings()?.[key] === value, {
+    timeout: 5000,
+    timeoutMsg: `settings.toml never held ${key} = ${value}: ${JSON.stringify(readSettings())}`,
+  });
+}
 
 const radioChecked = (id: string) =>
   browser.execute(
@@ -71,18 +82,9 @@ async function acceptHostKeyIfAsked(outcome: () => Promise<boolean>): Promise<vo
 describe('settings', () => {
   before(waitForApp);
 
-  after(async () => {
-    // The webview keeps localStorage across spec files; leave the defaults for the next one.
-    await browser.execute(() => {
-      try {
-        localStorage.removeItem('carapace.keyType');
-        localStorage.removeItem('carapace.terminalFontSize');
-      } catch {
-        // Nothing to restore.
-      }
-    });
-    await setThemeMode('system');
-  });
+  // The preferences live in the app home, emptied between spec files; the theme cache in the
+  // webview storage outlives it, so the next spec starts from System again.
+  after(() => setThemeMode('system'));
 
   it('opens from the sidebar and changes the theme in sync with the header', async () => {
     await openSettings();
@@ -90,6 +92,8 @@ describe('settings', () => {
     await clickId('settings-theme-dark');
     await browser.waitUntil(async () => (await effectiveTheme()) === 'dark', { timeout: 5000 });
     await expect(byId('theme-toggle')).toHaveAttribute('aria-label', 'Theme: Dark');
+    await waitSaved('theme', 'dark');
+    // First-paint cache only.
     expect(await stored('carapace.theme')).toBe('dark');
 
     await setThemeMode('light');
@@ -101,9 +105,8 @@ describe('settings', () => {
 
   it('uses the default key type in the generate dialog', async () => {
     await clickId('settings-key-type-rsa4096');
-    await browser.waitUntil(async () => (await stored('carapace.keyType')) === 'rsa4096', {
-      timeout: 5000,
-    });
+    await waitSaved('default_key_type', 'rsa4096');
+    expect(await stored('carapace.keyType')).toBeNull();
     await clickId('ssh-keys');
     await byId('keys-title').waitForDisplayed({ timeout: 10000 });
     await clickId('keys-generate');
@@ -120,9 +123,8 @@ describe('settings', () => {
     await setFontSize(['End']);
     await browser.waitUntil(async () => (await fontSizeValue()) === '24', { timeout: 5000 });
     await setFontSize(['ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft']);
-    await browser.waitUntil(async () => (await stored('carapace.terminalFontSize')) === '20', {
-      timeout: 5000,
-    });
+    await waitSaved('terminal_font_size', 20);
+    expect(await stored('carapace.terminalFontSize')).toBeNull();
     await expect(byId('settings-font-size-value')).toHaveText('20 px');
     await shot('settings-03-font-size');
 
@@ -154,5 +156,28 @@ describe('settings', () => {
       timeoutMsg: 'the open terminal did not switch to 10 px',
     });
     await shot('settings-05-terminal-10px');
+  });
+
+  it('keeps the preferences after an app restart', async () => {
+    await waitSaved('terminal_font_size', 10);
+    await waitSaved('theme', 'light');
+    await restartApp();
+    await waitForApp();
+    await openSettings();
+    await browser.waitUntil(async () => (await fontSizeValue()) === '10', {
+      timeout: 10000,
+      timeoutMsg: 'the font size was not restored',
+    });
+    await browser.waitUntil(() => radioChecked('settings-key-type-rsa4096'), { timeout: 10000 });
+    await browser.waitUntil(() => radioChecked('settings-theme-light'), { timeout: 10000 });
+    expect(await effectiveTheme()).toBe('light');
+    for (const key of OLD_KEYS) expect(await stored(key)).toBeNull();
+    expect(readSettings()).toEqual(
+      expect.objectContaining({
+        theme: 'light',
+        default_key_type: 'rsa4096',
+        terminal_font_size: 10,
+      }),
+    );
   });
 });

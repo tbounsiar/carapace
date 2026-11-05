@@ -40,11 +40,13 @@ sys-locale = "0.3.2"
 open = { version = "5.4.5", features = ["shellexecute-on-windows"] }
 sha2 = "0.11.1"
 notify = "8.2.1"
+toml_edit = "0.25.18"
 
 [dev-dependencies]
 rand = "0.10"
 tempfile = "3.27.0"
 tokio = { version = "1.54.1", features = ["test-util"] }
+toml = "1.2.0"
 
 [profile.release]
 overflow-checks = true

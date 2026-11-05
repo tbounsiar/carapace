@@ -9,19 +9,18 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use super::migrate::{self, Dropped, LegacyProject, MigrationPlan};
-use super::model::{
-    AnalyticsSettings, Category, CategoryChoice, ConfigFile, ExternalEditor, Host, KeyEntry,
-    KeyOrigin, Node, Project, Variable, VariableScope,
-};
+use super::model::{ConfigFile, Host, KeyEntry, KeyOrigin, Node, Project, Variable, VariableScope};
 use super::validate::{self, same_name};
 
 mod nodes;
+mod settings;
 pub use nodes::Moved;
 
-const FILE_NAME: &str = "config.json";
-const TMP_NAME: &str = "config.json.tmp";
-const V1_BACKUP: &str = "config.json.v1.bak";
-const V2_BACKUP: &str = "config.json.v2.bak";
+const FILE_NAME: &str = "data.json";
+const TMP_NAME: &str = "data.json.tmp";
+/// The single file of earlier releases, split into `data.json` and `settings.toml` on load.
+const LEGACY_NAME: &str = "config.json";
+const SETTINGS_NAME: &str = "settings.toml";
 const MAX_BACKUPS: usize = 1000;
 /// Far above 5000 nodes and 200 variables per scope; a larger file is not ours.
 pub(super) const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
@@ -75,8 +74,9 @@ impl std::fmt::Debug for Migration {
     }
 }
 
-/// Each operation reloads the file, so a corrupt file is reported on every call and is never
-/// overwritten. Reads take the lock too: loading may move a version 1 file aside.
+/// Owns `data.json` and `settings.toml` under one lock. Each operation reloads its file, so a
+/// corrupt file is reported on every call and is never overwritten. Reads take the lock too:
+/// loading may split a `config.json` or move a version 1 file aside.
 #[derive(Debug)]
 pub struct ConfigStore {
     dir: PathBuf,
@@ -132,6 +132,16 @@ fn legacy_hosts(raw: &[u8]) -> Vec<LegacyHost> {
         }
     }
     out
+}
+
+/// The backup of a version 3 `config.json` taken when it was split; a version 2 file keeps the
+/// `config.json.v2` name it had when version 2 was migrated in place.
+const SPLIT_BACKUP: &str = "config.json.v4";
+
+/// `<stem>.bak`, else `<stem>.N.bak`.
+fn backup_names(stem: &str) -> impl Iterator<Item = String> + '_ {
+    std::iter::once(format!("{stem}.bak"))
+        .chain((2..=MAX_BACKUPS).map(move |n| format!("{stem}.{n}.bak")))
 }
 
 fn new_id() -> String {
@@ -278,12 +288,11 @@ impl ConfigStore {
         }
     }
 
-    /// Must be called with the lock held.
-    fn load(&self) -> Result<ConfigFile, ConfigError> {
-        let path = self.dir.join(FILE_NAME);
-        let file = match fs::File::open(&path) {
+    /// At most `MAX_FILE_BYTES`; `None` when the file does not exist.
+    fn read_capped(&self, name: &str) -> Result<Option<Vec<u8>>, ConfigError> {
+        let file = match fs::File::open(self.dir.join(name)) {
             Ok(f) => f,
-            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(ConfigFile::default()),
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
             Err(_) => return Err(ConfigError::Io),
         };
         let mut raw = Vec::new();
@@ -293,47 +302,104 @@ impl ConfigStore {
         if raw.len() as u64 > MAX_FILE_BYTES {
             return Err(ConfigError::Corrupt);
         }
-        let probe: Probe = serde_json::from_slice(&raw).map_err(|_| ConfigError::Corrupt)?;
-        match probe.version {
+        Ok(Some(raw))
+    }
+
+    fn exists(&self, name: &str) -> Result<bool, ConfigError> {
+        match fs::symlink_metadata(self.dir.join(name)) {
+            Ok(_) => Ok(true),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(false),
+            Err(_) => Err(ConfigError::Io),
+        }
+    }
+
+    /// A `config.json` is split only while `data.json` does not exist; once it does, the old
+    /// file is never read again.
+    fn split_pending(&self) -> Result<bool, ConfigError> {
+        Ok(!self.exists(FILE_NAME)? && self.exists(LEGACY_NAME)?)
+    }
+
+    /// Must be called with the lock held.
+    fn load(&self) -> Result<ConfigFile, ConfigError> {
+        if let Some(raw) = self.read_capped(FILE_NAME)? {
+            return self.load_data(&raw);
+        }
+        match self.read_capped(LEGACY_NAME)? {
+            Some(raw) => self.split_legacy(&raw),
+            None => Ok(ConfigFile::default()),
+        }
+    }
+
+    fn load_data(&self, raw: &[u8]) -> Result<ConfigFile, ConfigError> {
+        let probe: Probe = serde_json::from_slice(raw).map_err(|_| ConfigError::Corrupt)?;
+        if probe.version != VERSION {
+            return Err(ConfigError::Corrupt);
+        }
+        let mut cfg: ConfigFile = serde_json::from_slice(raw).map_err(|_| ConfigError::Corrupt)?;
+        validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
+        self.fix_origins(&mut cfg, &probe);
+        if probe.has_environments() {
+            let Dropped { plan, legacy } = migrate::drop_environments(&mut cfg, raw, false)
+                .map_err(|()| ConfigError::Corrupt)?;
+            self.before_save(&plan)?;
+            self.save(&cfg)?;
+            self.drain_environments(legacy);
+            log::info!("environments removed from the data file");
+        }
+        Ok(cfg)
+    }
+
+    /// Converts a `config.json` (version 2 or 3) in memory, then writes `settings.toml` (unless
+    /// one exists: it came from this same file in an interrupted split, and may have been
+    /// changed since), then `data.json`, and only then moves the old file aside. A crash at any
+    /// point leaves either the old file to split again or both new files. Nothing is written
+    /// when the conversion or the keychain work fails.
+    fn split_legacy(&self, raw: &[u8]) -> Result<ConfigFile, ConfigError> {
+        let probe: Probe = serde_json::from_slice(raw).map_err(|_| ConfigError::Corrupt)?;
+        let mut cfg = match probe.version {
             VERSION => {
-                let mut cfg: ConfigFile =
-                    serde_json::from_slice(&raw).map_err(|_| ConfigError::Corrupt)?;
-                validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
-                self.fix_origins(&mut cfg, &probe);
-                if probe.has_environments() {
-                    let Dropped { plan, legacy } =
-                        migrate::drop_environments(&mut cfg, &raw, false)
-                            .map_err(|()| ConfigError::Corrupt)?;
-                    self.before_save(&plan)?;
-                    self.save(&cfg)?;
-                    self.drain_environments(legacy);
-                    log::info!("environments removed from the configuration");
-                }
-                Ok(cfg)
+                serde_json::from_slice::<ConfigFile>(raw).map_err(|_| ConfigError::Corrupt)?
             }
-            2 => {
-                let mut cfg = migrate::from_v2(&raw, VERSION).map_err(|_| ConfigError::Corrupt)?;
-                validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
-                self.fix_origins(&mut cfg, &probe);
-                let Dropped { plan, legacy } = migrate::drop_environments(&mut cfg, &raw, true)
-                    .map_err(|()| ConfigError::Corrupt)?;
-                self.before_save(&plan)?;
-                self.back_up_v2(&raw)?;
-                self.save(&cfg)?;
-                self.drain_environments(legacy);
-                log::info!("configuration migrated from version 2 to version 3");
-                Ok(cfg)
-            }
+            2 => migrate::from_v2(raw, VERSION).map_err(|_| ConfigError::Corrupt)?,
             1 => {
-                let hosts = legacy_hosts(&raw);
+                let hosts = legacy_hosts(raw);
                 self.back_up_v1()?;
                 if let Ok(mut l) = self.legacy.lock() {
                     l.extend(hosts);
                 }
-                Ok(ConfigFile::default())
+                return Ok(ConfigFile::default());
             }
-            _ => Err(ConfigError::Corrupt),
+            _ => return Err(ConfigError::Corrupt),
+        };
+        validate::structure(&cfg).map_err(|_| ConfigError::Corrupt)?;
+        self.fix_origins(&mut cfg, &probe);
+        let Dropped { plan, legacy } = if probe.version == VERSION && !probe.has_environments() {
+            Dropped::default()
+        } else {
+            migrate::drop_environments(&mut cfg, raw, probe.version == 2)
+                .map_err(|()| ConfigError::Corrupt)?
+        };
+        self.before_save(&plan)?;
+        if !self.exists(SETTINGS_NAME)? {
+            self.save_settings(&migrate::legacy_preferences(raw))?;
         }
+        self.save(&cfg)?;
+        let stem = if probe.version == 2 {
+            "config.json.v2"
+        } else {
+            SPLIT_BACKUP
+        };
+        if self.move_aside(LEGACY_NAME, stem).is_err() {
+            log::warn!(
+                "config.json could not be moved aside after the split; it is not read again"
+            );
+        }
+        self.drain_environments(legacy);
+        log::info!(
+            "configuration version {} split into data.json and settings.toml",
+            probe.version
+        );
+        Ok(cfg)
     }
 
     /// Entries written before `origin` existed: files directly in the app's keys directory
@@ -370,60 +436,72 @@ impl ConfigStore {
     /// Version 1 is not migrated: the file is moved aside (never overwritten) and the app
     /// starts empty.
     fn back_up_v1(&self) -> Result<(), ConfigError> {
-        let target = std::iter::once(V1_BACKUP.to_string())
-            .chain((2..=MAX_BACKUPS).map(|n| format!("config.json.v1.{n}.bak")))
-            .map(|name| self.dir.join(name))
-            .find(|p| !p.exists())
-            .ok_or(ConfigError::Io)?;
-        fs::rename(self.dir.join(FILE_NAME), target).map_err(|_| ConfigError::Io)?;
+        self.move_aside(LEGACY_NAME, "config.json.v1")?;
         log::info!("configuration version 1 moved aside; starting with an empty configuration");
         Ok(())
     }
 
-    /// A byte-identical copy, created with `create_new` so an earlier backup is never replaced.
-    fn back_up_v2(&self, raw: &[u8]) -> Result<(), ConfigError> {
-        let names = std::iter::once(V2_BACKUP.to_string())
-            .chain((2..=MAX_BACKUPS).map(|n| format!("config.json.v2.{n}.bak")));
-        for name in names {
-            let path = self.dir.join(name);
-            let mut options = fs::OpenOptions::new();
-            options.write(true).create_new(true);
-            #[cfg(unix)]
-            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-            match options.open(&path) {
-                Ok(mut f) => {
-                    if f.write_all(raw).and_then(|()| f.sync_all()).is_err() {
-                        drop(f);
-                        let _ = fs::remove_file(&path);
-                        return Err(ConfigError::Io);
-                    }
-                    return Ok(());
-                }
-                Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
-                Err(_) => return Err(ConfigError::Io),
-            }
-        }
-        Err(ConfigError::Io)
+    /// Renames `name` to the first free backup name; an earlier backup is never replaced.
+    fn move_aside(&self, name: &str, stem: &str) -> Result<(), ConfigError> {
+        let target = backup_names(stem)
+            .map(|n| self.dir.join(n))
+            .find(|p| !p.exists())
+            .ok_or(ConfigError::Io)?;
+        fs::rename(self.dir.join(name), target).map_err(|_| ConfigError::Io)?;
+        self.sync_dir()
     }
 
-    fn save(&self, cfg: &ConfigFile) -> Result<(), ConfigError> {
-        let json = serde_json::to_vec_pretty(cfg).map_err(|_| ConfigError::Io)?;
+    /// Makes the renames in the directory durable. On Unix a rename lives in the directory
+    /// entry, not the file: without this, power loss after the split could keep the move of
+    /// `config.json` aside but lose `data.json`. Windows has no directory fsync (NTFS journals
+    /// the metadata).
+    fn sync_dir(&self) -> Result<(), ConfigError> {
+        #[cfg(unix)]
+        fs::File::open(&self.dir)
+            .and_then(|d| d.sync_all())
+            .map_err(|_| ConfigError::Io)?;
+        Ok(())
+    }
+
+    /// Temp file (0600 on Unix), fsync, then rename over `name` in the same directory.
+    fn write_atomic(&self, name: &str, tmp: &str, bytes: &[u8]) -> Result<(), ConfigError> {
+        self.write_atomic_then(name, tmp, bytes, || Ok(()))
+    }
+
+    /// As `write_atomic`, running `before_rename` once the temp file is complete; its error
+    /// leaves `name` as it was.
+    fn write_atomic_then(
+        &self,
+        name: &str,
+        tmp: &str,
+        bytes: &[u8],
+        before_rename: impl FnOnce() -> Result<(), ConfigError>,
+    ) -> Result<(), ConfigError> {
         fs::create_dir_all(&self.dir).map_err(|_| ConfigError::Io)?;
-        let tmp = self.dir.join(TMP_NAME);
+        let tmp = self.dir.join(tmp);
         let write = || -> std::io::Result<()> {
             let mut options = fs::OpenOptions::new();
             options.write(true).create(true).truncate(true);
             #[cfg(unix)]
             std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
             let mut f = options.open(&tmp)?;
-            f.write_all(&json)?;
-            f.sync_all()?;
-            fs::rename(&tmp, self.dir.join(FILE_NAME))
+            f.write_all(bytes)?;
+            f.sync_all()
         };
-        write().map_err(|_| {
+        let done = write()
+            .map_err(|_| ConfigError::Io)
+            .and_then(|()| before_rename())
+            .and_then(|()| fs::rename(&tmp, self.dir.join(name)).map_err(|_| ConfigError::Io));
+        if done.is_err() {
             let _ = fs::remove_file(&tmp);
-            ConfigError::Io
-        })
+        }
+        done?;
+        self.sync_dir()
+    }
+
+    fn save(&self, cfg: &ConfigFile) -> Result<(), ConfigError> {
+        let json = serde_json::to_vec_pretty(cfg).map_err(|_| ConfigError::Io)?;
+        self.write_atomic(FILE_NAME, TMP_NAME, &json)
     }
 
     fn mutate<T>(
@@ -527,38 +605,6 @@ impl ConfigStore {
             };
             let old = std::mem::replace(slot, new.clone());
             Ok((old, new))
-        })
-    }
-
-    /// `entry.name` is validated and trimmed; names and paths must be unique.
-    /// Rewrites the file only when the value changes.
-    /// Applies these categories on top of what the file holds, under the store lock, and
-    /// returns the result; other categories keep their stored answer. A file that cannot be
-    /// read is an error and nothing is written.
-    pub fn update_analytics(
-        &self,
-        changes: &[(Category, CategoryChoice)],
-    ) -> Result<AnalyticsSettings, ConfigError> {
-        self.transact(|cfg| {
-            let old = cfg.analytics.unwrap_or_default();
-            let mut value = old;
-            for &(category, choice) in changes {
-                value.categories.set(category, choice);
-            }
-            let changed = value != old;
-            if changed {
-                cfg.analytics = Some(value);
-            }
-            Ok((value, changed))
-        })
-    }
-
-    /// Rewrites the file only when the value changes.
-    pub fn set_external_editor(&self, value: ExternalEditor) -> Result<(), ConfigError> {
-        self.transact(|cfg| {
-            let changed = cfg.external_editor.as_ref() != Some(&value);
-            cfg.external_editor = Some(value);
-            Ok(((), changed))
         })
     }
 

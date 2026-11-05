@@ -9,7 +9,7 @@ import { connectedCounts } from '../../../shared/connection-status';
 import { statsText } from '../../dashboard/board';
 import { countNodes } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
-import { errorText } from '../../project-tree/save-error';
+import { errorText } from '../../../shared/save-error';
 
 /** `/projects/:projectId`: the project dashboard, its header and the Hosts / Variables tabs. */
 @Component({

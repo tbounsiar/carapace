@@ -45,7 +45,7 @@ pub(crate) fn set_choices(
     choices: AnalyticsChoices,
 ) -> Res<AnalyticsState> {
     if analytics.is_unread() {
-        let stored = store.snapshot()?.analytics;
+        let stored = store.analytics()?;
         analytics.reload(|| Ok::<_, ()>(stored));
         return Err(CommandError::new(
             "conflict",
@@ -75,7 +75,7 @@ pub(crate) fn set_category(
 
 /// While the startup read of the choices has not succeeded, each call tries again.
 pub(crate) fn state_of(store: &ConfigStore, analytics: &Analytics) -> AnalyticsState {
-    analytics.reload(|| store.snapshot().map(|c| c.analytics));
+    analytics.reload(|| store.analytics());
     analytics.status()
 }
 
@@ -149,11 +149,13 @@ mod tests {
     }
 
     fn stored(store: &ConfigStore) -> Option<AnalyticsSettings> {
-        store.snapshot().unwrap().analytics
+        store.analytics().unwrap()
     }
 
+    /// `settings.toml` as JSON.
     fn raw(dir: &std::path::Path) -> serde_json::Value {
-        serde_json::from_slice(&std::fs::read(dir.join("config.json")).unwrap()).unwrap()
+        let text = std::fs::read_to_string(dir.join("settings.toml")).unwrap();
+        serde_json::to_value(text.parse::<toml::Table>().unwrap()).unwrap()
     }
 
     fn all(consent: Consent, version: u32) -> Option<AnalyticsSettings> {
@@ -255,9 +257,10 @@ mod tests {
             r#"{"categories":{"launch":{"consent":"granted"}}}"#,
             r#"{"categories":{}}"#,
         ] {
+            // No category set: nothing is written to settings.toml, which reads as `None`.
             assert_eq!(
-                read(odd).map(|s| s.categories),
-                Some(CategoryChoices::default()),
+                read(odd).unwrap_or_default().categories,
+                CategoryChoices::default(),
                 "{odd}"
             );
         }
@@ -297,13 +300,12 @@ mod tests {
         let file = raw(dir.path());
         assert_eq!(
             file["analytics"],
-            serde_json::json!({"categories": {
+            serde_json::json!({
                 "launch": {"consent": "granted", "version": 2},
                 "features": {"consent": "granted", "version": 2},
                 "connections": {"consent": "denied", "version": 2},
-            }})
+            })
         );
-        assert_eq!(file["version"], 3);
         let events = analytics.recorded();
         assert_eq!(events[0], ("session_started", serde_json::json!({})));
         assert_eq!(
@@ -316,7 +318,7 @@ mod tests {
 
         set_category(&store, &analytics, Category::Launch, false).unwrap();
         assert_eq!(
-            raw(dir.path())["analytics"]["categories"]["launch"],
+            raw(dir.path())["analytics"]["launch"],
             serde_json::json!({"consent": "denied", "version": 2})
         );
         assert_eq!(
@@ -343,15 +345,15 @@ mod tests {
         assert_eq!(s.pending, [Category::Launch, Category::Features]);
         assert_eq!(
             raw(dir.path())["analytics"],
-            serde_json::json!({"categories": {
+            serde_json::json!({
                 "launch": {"consent": "granted", "version": 1},
                 "connections": {"consent": "granted", "version": 2},
-            }})
+            })
         );
     }
 
     #[test]
-    fn a_first_release_file_is_rewritten_in_the_new_shape_with_the_next_change() {
+    fn a_first_release_file_is_split_in_the_new_shape() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join("config.json"),
@@ -359,23 +361,58 @@ mod tests {
         )
         .unwrap();
         let store = ConfigStore::new(dir.path().to_path_buf());
-        store.create_project("p").unwrap();
+        store.snapshot().unwrap();
         let file = raw(dir.path());
         assert_eq!(
-            file["analytics"]["categories"]["features"],
+            file["analytics"]["features"],
             serde_json::json!({"consent": "granted", "version": 2})
         );
         assert!(file["analytics"].get("consent").is_none());
-        assert!(file["analytics"].get("catalogueVersion").is_none());
+        let data = std::fs::read_to_string(dir.path().join("data.json")).unwrap();
+        assert!(!data.contains("analytics"));
     }
 
     #[test]
     fn a_config_without_the_field_is_written_without_it() {
         let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("config.json"), r#"{"version":3}"#).unwrap();
         let store = ConfigStore::new(dir.path().to_path_buf());
         store.create_project("p").unwrap();
-        let raw = std::fs::read_to_string(dir.path().join("config.json")).unwrap();
+        let raw = std::fs::read_to_string(dir.path().join("settings.toml")).unwrap();
         assert!(!raw.contains("analytics"));
+        let raw = std::fs::read_to_string(dir.path().join("data.json")).unwrap();
+        assert!(!raw.contains("analytics"));
+    }
+
+    #[test]
+    fn an_unreadable_settings_file_closes_every_gate_and_is_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("settings.toml"), "analytics = [").unwrap();
+        let store = ConfigStore::new(dir.path().to_path_buf());
+        let analytics = Analytics::for_app(store.analytics(), "0");
+        assert!(analytics.is_unread());
+        let s = state_of(&store, &analytics);
+        assert!(!s.ask_needed && s.pending.is_empty());
+        assert_eq!(s.categories, AnalyticsChoices::default());
+        let e = set_category(&store, &analytics, Category::Launch, true).unwrap_err();
+        assert_eq!(e.code, "corrupt_config");
+        assert!(analytics.recorded().is_empty());
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("settings.toml")).unwrap(),
+            "analytics = ["
+        );
+        assert!(!dir.path().join("settings.toml.bak").exists());
+        // A fixed file is read on the next try.
+        std::fs::write(
+            dir.path().join("settings.toml"),
+            "[analytics.launch]
+consent = \"denied\"
+version = 2
+",
+        )
+        .unwrap();
+        state_of(&store, &analytics);
+        assert!(!analytics.is_unread());
     }
 
     #[test]
@@ -473,6 +510,7 @@ mod tests {
         )
         .unwrap();
         let store = ConfigStore::new(dir.to_path_buf());
+        store.snapshot().unwrap();
         (store, Analytics::new(None, system(), None, false).unread())
     }
 
@@ -508,17 +546,14 @@ mod tests {
         set_category(&store, &analytics, Category::Features, true).unwrap();
         let file = raw(dir.path());
         assert_eq!(
-            file["analytics"]["categories"]["launch"],
+            file["analytics"]["launch"],
             serde_json::json!({"consent": "denied", "version": 2})
         );
         assert_eq!(
-            file["analytics"]["categories"]["connections"],
+            file["analytics"]["connections"],
             serde_json::json!({"consent": "denied", "version": 2})
         );
-        assert_eq!(
-            file["analytics"]["categories"]["features"]["consent"],
-            "granted"
-        );
+        assert_eq!(file["analytics"]["features"]["consent"], "granted");
         assert!(analytics.recorded().is_empty());
     }
 
@@ -534,7 +569,7 @@ mod tests {
         set_category(&store, &analytics, Category::Features, true).unwrap();
         let file = raw(dir.path());
         assert_eq!(
-            file["analytics"]["categories"]["launch"],
+            file["analytics"]["launch"],
             serde_json::json!({"consent": "denied", "version": 2})
         );
         assert!(!analytics.status().categories.launch);
@@ -569,7 +604,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("config.json"), "{").unwrap();
         let store = ConfigStore::new(dir.path().to_path_buf());
-        let analytics = Analytics::for_app(store.snapshot().map(|c| c.analytics), "0");
+        let analytics = Analytics::for_app(store.analytics(), "0");
         assert!(analytics.is_unread());
         assert!(!state_of(&store, &analytics).ask_needed);
         std::fs::write(
@@ -604,7 +639,6 @@ mod tests {
             store.update_analytics(&[]).unwrap(),
             AnalyticsSettings::default()
         );
-        let raw = std::fs::read_to_string(dir.path().join("config.json")).unwrap();
-        assert!(!raw.contains("analytics"));
+        assert!(!dir.path().join("settings.toml").exists());
     }
 }

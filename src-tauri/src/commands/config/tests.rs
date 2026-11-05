@@ -60,7 +60,7 @@ fn host_input(name: &str) -> HostInput {
 }
 
 fn raw_config(w: &World) -> String {
-    std::fs::read_to_string(w.dir.path().join("config.json")).unwrap()
+    std::fs::read_to_string(w.dir.path().join("data.json")).unwrap()
 }
 
 fn value(w: &World, account: &str) -> Option<String> {

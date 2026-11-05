@@ -1,5 +1,12 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import {
+  homeFile,
+  readSettings,
+  removeHomeFiles,
+  writeConfigJson,
+  writeSettings,
+  type Toml,
+} from '../helpers/app-files';
 import { restartApp } from '../helpers/app-process';
 import { HOST, PROJECT } from '../helpers/fixture';
 import { screenshotThemes } from '../helpers/screenshot';
@@ -17,30 +24,43 @@ import {
 } from '../helpers/ui';
 
 // The e2e build has no Aptabase key: events reach the in-memory log, nothing leaves the machine.
-// `beforeSession` seeds no config for this spec, so the first launch has no consent decision.
-const home = () => process.env['E2E_CARAPACE_HOME'] ?? '';
+// `beforeSession` seeds no file for this spec, so the first launch has no consent decision.
 const shot = async (name: string) => console.log('screenshots', await screenshotThemes(name));
 
 const CATEGORIES = ['launch', 'features', 'connections'] as const;
 type Category = (typeof CATEGORIES)[number];
 type Stored = Partial<Record<Category, 'granted' | 'denied'>>;
 
-/** Rewrites the config with only this analytics field (or none), then restarts the app. */
-async function restartWith(analytics?: object) {
-  const config = analytics ? { version: 3, analytics } : { version: 3 };
-  writeFileSync(join(home(), 'config.json'), JSON.stringify(config, null, 2));
-  await restartApp();
+/** Restarts with these `[analytics.*]` categories in `settings.toml`, or no settings file. */
+async function restartWith(categories?: Toml) {
+  await restartApp(() => {
+    if (categories) writeSettings({ analytics: categories });
+    else removeHomeFiles('settings.toml');
+  });
   await waitForApp();
 }
 
-/** The consent of each category as written in `config.json`; an unset one is not written. */
+/**
+ * Restarts from a pre-split `config.json` holding only this analytics field, in a shape of the
+ * first release; the app splits it into `data.json` and `settings.toml`.
+ */
+async function restartWithConfigJson(analytics: object) {
+  await restartApp(() => {
+    removeHomeFiles('data.json', 'settings.toml', 'config.json.v4.bak');
+    writeConfigJson({ version: 3, analytics });
+  });
+  await waitForApp();
+  expect(existsSync(homeFile('config.json'))).toBe(false);
+  expect(existsSync(homeFile('config.json.v4.bak'))).toBe(true);
+  expect(existsSync(homeFile('data.json'))).toBe(true);
+}
+
+/** The consent of each category as written in `settings.toml`; an unset one is not written. */
 function storedConsent(): Stored {
-  const file = join(home(), 'config.json');
-  if (!existsSync(file)) return {};
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  const categories = config.analytics?.categories ?? {};
+  const analytics = (readSettings()?.['analytics'] ?? {}) as Toml;
+  // Display order, whatever the file order: the comparison below is on the serialized form.
   return Object.fromEntries(
-    Object.entries(categories).map(([c, v]) => [c, (v as { consent: string }).consent]),
+    CATEGORIES.filter((c) => c in analytics).map((c) => [c, (analytics[c] as Toml)['consent']]),
   ) as Stored;
 }
 
@@ -49,7 +69,7 @@ async function waitStored(expected: Stored): Promise<void> {
     async () => JSON.stringify(storedConsent()) === JSON.stringify(expected),
     {
       timeout: 5000,
-      timeoutMsg: `config.json never held ${JSON.stringify(expected)}: ${JSON.stringify(storedConsent())}`,
+      timeoutMsg: `settings.toml never held ${JSON.stringify(expected)}: ${JSON.stringify(storedConsent())}`,
     },
   );
 }
@@ -281,7 +301,7 @@ describe('usage analytics consent', () => {
   });
 
   it('a first-release grant migrates to all three granted, with no dialog', async () => {
-    await restartWith({ consent: 'granted', catalogueVersion: 1 });
+    await restartWithConfigJson({ consent: 'granted', catalogueVersion: 1 });
     await noDialogFor(3000);
     await openSettings();
     await settingsShow(ALL_ON);
@@ -290,7 +310,7 @@ describe('usage analytics consent', () => {
   });
 
   it('a first-release refusal migrates to all three denied, with no dialog', async () => {
-    await restartWith({ consent: 'denied', catalogueVersion: 1 });
+    await restartWithConfigJson({ consent: 'denied', catalogueVersion: 1 });
     await noDialogFor(3000);
     await openSettings();
     await settingsShow(ALL_OFF);
@@ -299,7 +319,7 @@ describe('usage analytics consent', () => {
   });
 
   it('asks again when a first-release grant covers an older catalogue', async () => {
-    await restartWith({ consent: 'granted', catalogueVersion: 0 });
+    await restartWithConfigJson({ consent: 'granted', catalogueVersion: 0 });
     await waitDialog();
     await dialogShows(ALL_ON);
     await clickId('consent-save');
@@ -309,11 +329,9 @@ describe('usage analytics consent', () => {
 
   it('re-asks only an outdated category, keeping the others as stored', async () => {
     await restartWith({
-      categories: {
-        launch: { consent: 'granted', version: 1 },
-        features: { consent: 'granted', version: 2 },
-        connections: { consent: 'denied', version: 2 },
-      },
+      launch: { consent: 'granted', version: 1 },
+      features: { consent: 'granted', version: 2 },
+      connections: { consent: 'denied', version: 2 },
     });
     await waitDialog();
     await byId('consent-reask').waitForDisplayed({ timeout: 5000 });
@@ -322,7 +340,6 @@ describe('usage analytics consent', () => {
     await browser.keys('Escape');
     await waitGone('consent-dialog');
     await waitStored({ launch: 'granted', features: 'granted', connections: 'denied' });
-    const config = JSON.parse(readFileSync(join(home(), 'config.json'), 'utf8'));
-    expect(config.analytics.categories.launch.version).toBe(2);
+    expect(((readSettings()?.['analytics'] as Toml)['launch'] as Toml)['version']).toBe(2);
   });
 });

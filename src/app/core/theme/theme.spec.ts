@@ -29,6 +29,7 @@ describe('ThemeService', () => {
 
   afterEach(() => {
     window.matchMedia = original;
+    vi.restoreAllMocks();
   });
 
   const create = () => TestBed.inject(ThemeService);
@@ -49,17 +50,19 @@ describe('ThemeService', () => {
 
   it('ignores system changes in manual mode', () => {
     const service = create();
-    service.setMode('light');
+    service.apply('light');
     media.emit(true);
     expect(service.effective()).toBe('light');
   });
 
-  it('persists the choice', () => {
-    create().setMode('dark');
+  it('caches the applied mode', () => {
+    const service = create();
+    service.apply('dark');
+    expect(service.mode()).toBe('dark');
     expect(localStorage.getItem('carapace.theme')).toBe('dark');
   });
 
-  it('restores a stored choice', () => {
+  it('starts from the cached mode, before any backend answer', () => {
     localStorage.setItem('carapace.theme', 'dark');
     const service = create();
     expect(service.mode()).toBe('dark');
@@ -69,5 +72,18 @@ describe('ThemeService', () => {
   it('falls back to system on an invalid stored value', () => {
     localStorage.setItem('carapace.theme', 'purple');
     expect(create().mode()).toBe('system');
+  });
+
+  it('works without storage', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    const service = create();
+    expect(service.mode()).toBe('system');
+    service.apply('dark');
+    expect(service.effective()).toBe('dark');
   });
 });

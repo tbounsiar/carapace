@@ -4,7 +4,7 @@ Carapace is an SSH client: it handles your servers, credentials and files. It ke
 
 ## Your data stays local
 
-- Hosts, projects, collections, variables and key paths are stored in `config.json` under `~/.carapace` (or `$CARAPACE_HOME`).
+- Hosts, projects, collections, variables and key paths are stored in `data.json`, and app settings (including your usage data choices) in `settings.toml`, under `~/.carapace` (or `$CARAPACE_HOME`).
 - Passwords and passphrases are stored in your operating system's keychain.
 - Accepted host keys are stored in `~/.carapace/known_hosts`.
 - Carapace has no account and no server of its own. Your SSH connections go directly from your machine to your servers.

@@ -48,10 +48,14 @@ export async function waitAppExited(pids: number[] = appPids(), timeout = 30000)
   }
 }
 
-/** Restarts the app: a new session, started once the previous app process has exited. */
-export async function restartApp(): Promise<void> {
+/**
+ * Restarts the app: a new session, started once the previous app process has exited.
+ * `whileStopped` runs in between, for files the running app could otherwise overwrite.
+ */
+export async function restartApp(whileStopped?: () => void): Promise<void> {
   const pids = appPids();
   await browser.deleteSession();
   await waitAppExited(pids);
+  whileStopped?.();
   await browser.reloadSession();
 }

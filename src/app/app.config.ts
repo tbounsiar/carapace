@@ -10,6 +10,7 @@ import { provideRouter, withComponentInputBinding, withRouterConfig } from '@ang
 import { routes } from './app.routes';
 import { ConnectionEvents } from './core/ipc/connection-events';
 import { EditedFiles } from './core/ipc/edited-files';
+import { Settings } from './core/settings/settings';
 import { provideOpenDialogs } from './shared/open-dialogs';
 
 export const appConfig: ApplicationConfig = {
@@ -27,6 +28,8 @@ export const appConfig: ApplicationConfig = {
     // transfers, so the queue stays out of the initial bundle.
     provideAppInitializer(() => {
       const injector = inject(Injector);
+      // The theme is already shown from its cache; the backend value replaces it when it arrives.
+      void inject(Settings).start();
       void inject(ConnectionEvents).start();
       void inject(EditedFiles).start();
       // The alerts subscribe to the store's snapshot, so a late start still sees it.

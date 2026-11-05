@@ -14,7 +14,7 @@ import { TuiAvatar, TuiBadge } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiHeader } from '@taiga-ui/layout';
 import { KeyStore } from '../../../core/ipc/key-store';
 import { keyTypeLabel, type KeyView } from '../../../core/ipc/keys';
-import { errorText, notifyError } from '../../project-tree/save-error';
+import { errorText, notifyError } from '../../../shared/save-error';
 import { KeyActions } from '../key-actions';
 
 @Component({

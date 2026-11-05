@@ -3,6 +3,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiNotificationService } from '@taiga-ui/core';
 import { of } from 'rxjs';
 import { type ConnectionTarget, connectionTarget } from '../../../core/ipc/connection';
+import { AppSettings } from '../../../core/ipc/app-settings';
 import { SshService } from '../../../core/ipc/ssh';
 import type { ConnectionState, EndReason } from '../../../core/ipc/ssh.models';
 import { Settings } from '../../../core/settings/settings';
@@ -74,6 +75,7 @@ describe('TerminalPanel', () => {
         { provide: SshService, useValue: ssh },
         { provide: HostConnector, useValue: connector },
         { provide: TerminalIpc, useValue: ipc },
+        { provide: AppSettings, useValue: { update: (patch: object) => Promise.resolve(patch) } },
         { provide: XtermFactory, useValue: factory },
         { provide: TuiNotificationService, useValue: { open: vi.fn(() => of(undefined)) } },
       ],

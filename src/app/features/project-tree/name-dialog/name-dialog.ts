@@ -13,7 +13,7 @@ import { TuiButtonLoading } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
 import type { IpcErrorCode } from '../../../core/ipc/config.models';
-import { handleSaveError } from '../save-error';
+import { handleSaveError } from '../../../shared/save-error';
 import { nameValidator } from '../validators';
 import { ErrorLink } from '../../../shared/error-link';
 

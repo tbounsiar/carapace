@@ -269,10 +269,40 @@ export async function deleteNode(kind: string, name: string): Promise<void> {
 }
 
 /** Starts a test from the host dialog footer. */
+/**
+ * Starts a test. The click returns before the region re-renders, so a result left by the previous
+ * test would pass for this one: wait for a change of `data-result` seen after the click.
+ */
 export async function testHost(): Promise<void> {
+  await browser.execute((sel: string) => {
+    const w = window as unknown as { e2eTestStarted?: boolean; e2eTestObserver?: MutationObserver };
+    w.e2eTestObserver?.disconnect();
+    w.e2eTestStarted = false;
+    const touches = (node: Node) =>
+      node instanceof Element && (node.matches(sel) || node.querySelector(sel) !== null);
+    w.e2eTestObserver = new MutationObserver((records) => {
+      if (
+        records.some((r) =>
+          r.type === 'attributes' ? touches(r.target) : [...r.addedNodes].some(touches),
+        )
+      ) {
+        w.e2eTestStarted = true;
+        w.e2eTestObserver?.disconnect();
+      }
+    });
+    w.e2eTestObserver.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-result'],
+    });
+  }, tid('host-test-result'));
   await clickId('host-test');
   await browser.waitUntil(
-    async () => (await byId('host-test-result').getAttribute('data-result')) !== null,
+    async () =>
+      (await browser.execute(
+        () => (window as unknown as { e2eTestStarted?: boolean }).e2eTestStarted === true,
+      )) && (await byId('host-test-result').getAttribute('data-result')) !== null,
     { timeout: 10000, timeoutMsg: 'the test did not start' },
   );
 }

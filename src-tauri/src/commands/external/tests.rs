@@ -124,42 +124,89 @@ fn the_app_path_is_a_plain_local_program() {
 }
 
 #[test]
-fn the_setting_is_saved_in_the_config_file() {
+fn the_setting_is_saved_in_the_settings_file() {
     let dir = tempfile::tempdir().unwrap();
     let store = ConfigStore::new(dir.path().to_owned());
     assert_eq!(
-        store
-            .snapshot()
-            .unwrap()
-            .external_editor
-            .unwrap_or_default(),
+        store.external_editor().unwrap().unwrap_or_default(),
         ExternalEditor::default()
     );
     let saved = set_editor_in(&store, EditorMode::Custom, None, true).unwrap();
-    assert_eq!(store.snapshot().unwrap().external_editor, Some(saved));
-    let raw: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(dir.path().join("config.json")).unwrap()).unwrap();
+    assert_eq!(store.external_editor().unwrap(), Some(saved));
+    let text = std::fs::read_to_string(dir.path().join("settings.toml")).unwrap();
+    let raw: toml::Table = text.parse().unwrap();
     assert_eq!(
-        raw["externalEditor"],
-        serde_json::json!({"mode": "custom", "appPath": null, "noticeSeen": true})
+        raw["external_editor"],
+        toml::Value::Table(
+            r#"mode = "custom"
+notice_seen = true"#
+                .parse()
+                .unwrap()
+        )
     );
     let err = set_editor_in(&store, EditorMode::Custom, Some("nope".into()), true).unwrap_err();
     assert_eq!(err.code, "invalid_input");
     assert_eq!(
-        store.snapshot().unwrap().external_editor.unwrap().mode,
+        store.external_editor().unwrap().unwrap().mode,
         EditorMode::Custom
     );
+    assert!(!dir.path().join("data.json").exists());
 }
 
 #[test]
 fn a_malformed_setting_reads_as_the_default() {
-    let cfg: ConfigFile =
-        serde_json::from_str(r#"{"version":3,"externalEditor":{"mode":"shell"}}"#).unwrap();
-    assert_eq!(cfg.external_editor, None);
-    let cfg: ConfigFile =
-        serde_json::from_str(r#"{"version":3,"externalEditor":{"mode":"custom","appPath":"/x"}}"#)
-            .unwrap();
-    assert!(!cfg.external_editor.unwrap().notice_seen);
+    let read = |text: &str| {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("settings.toml"), text).unwrap();
+        ConfigStore::new(dir.path().to_owned())
+            .external_editor()
+            .unwrap()
+    };
+    assert_eq!(
+        read(
+            "[external_editor]
+mode = \"shell\""
+        ),
+        None
+    );
+    assert_eq!(read("external_editor = \"custom\""), None);
+    assert_eq!(
+        read(
+            "[external_editor]
+mode = \"custom\"
+app_path = 7"
+        ),
+        None
+    );
+    let e = read(
+        "[external_editor]
+mode = \"custom\"
+app_path = \"/x\"",
+    )
+    .unwrap();
+    assert!(!e.notice_seen);
+    assert_eq!(e.app_path.as_deref(), Some("/x"));
+}
+
+#[test]
+fn a_legacy_setting_is_moved_to_the_settings_file() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("config.json"),
+        r#"{"version":3,"externalEditor":{"mode":"custom","appPath":"/usr/bin/vi","noticeSeen":true}}"#,
+    )
+    .unwrap();
+    let store = ConfigStore::new(dir.path().to_owned());
+    assert_eq!(
+        store.external_editor().unwrap(),
+        Some(ExternalEditor {
+            mode: EditorMode::Custom,
+            app_path: Some("/usr/bin/vi".into()),
+            notice_seen: true,
+        })
+    );
+    assert!(dir.path().join("data.json").exists());
+    assert!(!dir.path().join("config.json").exists());
 }
 
 fn host(id: &str, project: Option<&str>, parent: Option<&str>) -> Node {

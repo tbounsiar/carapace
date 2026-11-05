@@ -22,7 +22,7 @@ import { AUTH_LABELS } from '../../../shared/auth-method';
 import { connectionStatus } from '../../../shared/connection-status';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../../project-tree/project-actions';
-import { notifyError } from '../../project-tree/save-error';
+import { notifyError } from '../../../shared/save-error';
 import { Workspace } from '../../workspace/workspace';
 import { HostTabs } from '../host-tabs/host-tabs';
 

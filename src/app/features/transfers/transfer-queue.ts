@@ -11,7 +11,7 @@ import {
   type TransferEvent,
   type TransferView,
 } from '../../core/ipc/transfers';
-import { errorText, notifyError } from '../project-tree/save-error';
+import { errorText, notifyError } from '../../shared/save-error';
 import { ConflictPrompter } from './conflict-prompter';
 
 /** Failures arriving within this window are reported together. */

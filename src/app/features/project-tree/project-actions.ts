@@ -28,7 +28,7 @@ import {
   descendants,
   type Container,
 } from './node-tree';
-import { notifyError } from './save-error';
+import { notifyError } from '../../shared/save-error';
 
 /** `sidebarFocus: false` when the action comes from outside the sidebar, which keeps its own focus. */
 export interface HostActionOptions {

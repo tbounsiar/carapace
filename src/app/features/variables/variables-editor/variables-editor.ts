@@ -26,7 +26,7 @@ import type {
   VariableScope,
   VariableView,
 } from '../../../core/ipc/config.models';
-import { notifyError } from '../../project-tree/save-error';
+import { notifyError } from '../../../shared/save-error';
 import {
   MAX_VARIABLES,
   variableNameValidator,

@@ -11,7 +11,7 @@ import type { MoveDialogData } from './move-dialog/move-dialog';
 import type { MoveUndoData } from './move-undo/move-undo';
 import { crossScopeWarning, moveDestination } from './move-rules';
 import { ancestors, canMoveInto, sameContainer, type Container } from './node-tree';
-import { errorText, notifyError } from './save-error';
+import { errorText, notifyError } from '../../shared/save-error';
 
 const UNDO_DELAY = 5000;
 

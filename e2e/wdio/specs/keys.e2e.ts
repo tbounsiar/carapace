@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { readSettings } from '../helpers/app-files';
 import { HOST, PROJECT } from '../helpers/fixture';
 import { screenshot, screenshotThemes, setThemeMode } from '../helpers/screenshot';
 import {
@@ -231,10 +232,9 @@ describe('keys', () => {
 
     before(() => mkdirSync(customDir(), { recursive: true }));
 
-    after(async () => {
-      rmSync(customDir(), { recursive: true, force: true });
-      await browser.execute(() => localStorage.removeItem('carapace.keyFolder'));
-    });
+    after(() => rmSync(customDir(), { recursive: true, force: true }));
+
+    const storedFolder = () => readSettings()?.['key_folder'];
 
     it('generates into a typed custom folder', async () => {
       await clickId('ssh-keys');
@@ -259,6 +259,10 @@ describe('keys', () => {
       if (process.platform !== 'win32') {
         expect(statSync(customKey()).mode & 0o077).toBe(0);
       }
+      await browser.waitUntil(async () => storedFolder() === customDir(), {
+        timeout: 10000,
+        timeoutMsg: `settings.toml key_folder is ${storedFolder()}`,
+      });
     });
 
     it('remembers the folder and reports folder problems before Generate', async () => {
@@ -282,6 +286,10 @@ describe('keys', () => {
       await clickId('keygen-folder-reset');
       await waitGone('keygen-folder-reset');
       await expect(byId('keygen-folder')).not.toHaveValue(customDir());
+      await browser.waitUntil(async () => storedFolder() === undefined, {
+        timeout: 10000,
+        timeoutMsg: 'Reset did not clear key_folder in settings.toml',
+      });
       await cancelDialog();
       await openGenerate();
       await expect(byId('keygen-folder-reset')).not.toExist();

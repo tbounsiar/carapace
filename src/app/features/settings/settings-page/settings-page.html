@@ -8,16 +8,11 @@
 <section tuiForm="m" class="form" aria-labelledby="settings-title">
   <fieldset class="group">
     <legend class="legend">Theme</legend>
-    <tui-segmented size="s">
+    <!-- Taiga's pill follows clicks only: the index is bound for reverted and backend values. -->
+    <tui-segmented size="s" [(activeItemIndex)]="themeIndex">
       @for (option of themeOptions; track option.value) {
         <label [attr.data-testid]="'settings-theme-' + option.value">
-          <input
-            type="radio"
-            name="theme"
-            [value]="option.value"
-            [ngModel]="theme()"
-            (ngModelChange)="setTheme($event)"
-          />
+          <input type="radio" name="theme" [value]="option.value" [formControl]="themeControl" />
           <tui-icon [icon]="option.icon" />
           {{ option.label }}
         </label>
@@ -28,15 +23,14 @@
 
   <fieldset class="group">
     <legend class="legend">Default key type</legend>
-    <tui-segmented size="s">
+    <tui-segmented size="s" [(activeItemIndex)]="keyTypeIndex">
       @for (option of keyTypeOptions; track option.value) {
         <label [attr.data-testid]="'settings-key-type-' + option.value">
           <input
             type="radio"
             name="keyType"
             [value]="option.value"
-            [ngModel]="keyType()"
-            (ngModelChange)="setKeyType($event)"
+            [formControl]="keyTypeControl"
           />
           {{ option.label }}
         </label>
@@ -60,8 +54,7 @@
         [max]="fontSizeMax"
         [step]="1"
         [attr.aria-valuetext]="fontSize() + ' pixels'"
-        [ngModel]="fontSize()"
-        (ngModelChange)="setFontSize($event)"
+        [formControl]="fontSizeControl"
       />
       <output class="value" data-testid="settings-font-size-value">{{ fontSize() }} px</output>
     </div>

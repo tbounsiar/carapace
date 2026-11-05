@@ -10,7 +10,7 @@ import type { DeployResult, KeyView } from '../../core/ipc/keys';
 import { SshService } from '../../core/ipc/ssh';
 import { HostConnector } from '../host-connection/host-connector';
 import { NameDialog, type NameDialogData } from '../project-tree/name-dialog/name-dialog';
-import { notifyError } from '../project-tree/save-error';
+import { notifyError } from '../../shared/save-error';
 import {
   KeyDeleteDialog,
   type KeyDeleteDecision,

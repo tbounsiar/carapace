@@ -1,10 +1,11 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { application, waitAppExited } from './helpers/app-process';
+import { writeConfigJson, writeData, writeSettings } from './helpers/app-files';
 import { DNT_ANALYTICS, NOOP_EDITOR } from './helpers/fixture';
 
 const root = resolve(__dirname, '..', '..');
@@ -41,11 +42,9 @@ function emptyHome(): void {
 }
 
 /** Every analytics category refused for the current catalogue (2): no consent dialog. */
-const DECLINED_ANALYTICS = {
-  categories: Object.fromEntries(
-    ['launch', 'features', 'connections'].map((c) => [c, { consent: 'denied', version: 2 }]),
-  ),
-};
+const DECLINED_ANALYTICS = Object.fromEntries(
+  ['launch', 'features', 'connections'].map((c) => [c, { consent: 'denied', version: 2 }]),
+);
 
 /**
  * The DO_NOT_TRACK spec runs on its own tauri-driver, started with that variable set, and its
@@ -86,38 +85,33 @@ async function assertDriverPortsFree(): Promise<void> {
 
 /**
  * Specs that do not test analytics start with every category denied, so the first-launch
- * consent dialog never covers them. Every other field defaults when missing.
+ * consent dialog never covers them. Every other preference defaults when missing.
  */
-function seedDeclinedConfig(): void {
-  const home = homeDir();
-  if (!home) return;
-  const config = { version: 3, analytics: DECLINED_ANALYTICS };
-  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
+function seedDeclined(): void {
+  if (!homeDir()) return;
+  writeData();
+  writeSettings({ analytics: DECLINED_ANALYTICS });
 }
 
-function seedDoNotTrackConfig(): void {
-  const home = homeDir();
-  if (!home) return;
-  const config = { version: 3, analytics: DNT_ANALYTICS };
-  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
+function seedDoNotTrack(): void {
+  if (!homeDir()) return;
+  writeData();
+  writeSettings({ analytics: DNT_ANALYTICS });
 }
 
 /** Consent denied, and the external editor set to the no-op program; the notice still shows. */
-function seedExternalEditorConfig(): void {
-  const home = homeDir();
-  if (!home) return;
-  const config = {
-    version: 3,
+function seedExternalEditor(): void {
+  if (!homeDir()) return;
+  writeData();
+  writeSettings({
     analytics: DECLINED_ANALYTICS,
-    externalEditor: { mode: 'custom', appPath: NOOP_EDITOR, noticeSeen: false },
-  };
-  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
+    external_editor: { mode: 'custom', app_path: NOOP_EDITOR, notice_seen: false },
+  });
 }
 
 /** A v2 config (the backend fixture) plus a host reaching the e2e sshd, for the migration spec. */
 function seedV2Config(): void {
-  const home = homeDir();
-  if (!home) return;
+  if (!homeDir()) return;
   const fixture = resolve(root, 'src-tauri', 'tests', 'fixtures', 'config-v2.json');
   const config = JSON.parse(readFileSync(fixture, 'utf8'));
   const website = config.projects.find((p: { name: string }) => p.name === 'Website');
@@ -129,16 +123,16 @@ function seedV2Config(): void {
     username: 'carapace',
     auth: { kind: 'key', keyPath: resolve(root, 'e2e', '.work', 'id_ed25519'), passphrase: null },
   });
-  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
+  writeConfigJson(config);
 }
 
 /**
  * A v3 config written while projects still had environments: the leftover fields must be
- * dropped on load. No environment is active, so the project variables stay as they are.
+ * dropped when it is split. No environment is active, so the project variables stay as they are.
+ * Its external editor choice must move to `settings.toml`; it has no analytics decision.
  */
 function seedV3ConfigWithEnvironments(): void {
-  const home = homeDir();
-  if (!home) return;
+  if (!homeDir()) return;
   const projectId = 'c3a1f0d2-5b7e-4f61-9a0c-2d4e6f8a1b3c';
   const collectionId = 'e5b2c4d6-7f81-4a93-8b05-1c3e5a7b9d2f';
   const config = {
@@ -178,8 +172,9 @@ function seedV3ConfigWithEnvironments(): void {
       },
     ],
     keys: [],
+    externalEditor: { mode: 'custom', appPath: NOOP_EDITOR, noticeSeen: true },
   };
-  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
+  writeConfigJson(config);
 }
 
 export const config: WebdriverIO.Config = {
@@ -262,11 +257,11 @@ export const config: WebdriverIO.Config = {
     if (isDntSpec(specs)) process.env['E2E_CARAPACE_HOME'] = process.env['E2E_DNT_HOME'];
     await waitAppExited();
     emptyHome();
-    if (isDntSpec(specs)) seedDoNotTrackConfig();
+    if (isDntSpec(specs)) seedDoNotTrack();
     else if (specs.some((spec) => spec.includes('migration-v3'))) seedV3ConfigWithEnvironments();
     else if (specs.some((spec) => spec.includes('migration'))) seedV2Config();
-    else if (specs.some((spec) => spec.includes('external-editor'))) seedExternalEditorConfig();
-    else if (!specs.some((spec) => spec.includes('analytics'))) seedDeclinedConfig();
+    else if (specs.some((spec) => spec.includes('external-editor'))) seedExternalEditor();
+    else if (!specs.some((spec) => spec.includes('analytics'))) seedDeclined();
   },
   afterSession: emptyHome,
 

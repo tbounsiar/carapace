@@ -65,7 +65,7 @@ describe('App', () => {
   it('re-themes the header and aside with the app theme and sets the chrome colour', async () => {
     const color = TestBed.inject(TuiThemeColorService);
     const fixture = await setup();
-    TestBed.inject(ThemeService).setMode('light');
+    TestBed.inject(ThemeService).apply('light');
     await fixture.whenStable();
     expect(el().querySelector('header[tuiNavigationHeader]')?.getAttribute('tuiTheme')).toBe(
       'light',

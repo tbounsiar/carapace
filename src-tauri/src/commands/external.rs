@@ -183,7 +183,7 @@ pub async fn edited_affected(
 
 #[tauri::command]
 pub async fn get_external_editor(store: State<'_, ConfigStore>) -> Res<ExternalEditor> {
-    Ok(store.snapshot()?.external_editor.unwrap_or_default())
+    Ok(store.external_editor()?.unwrap_or_default())
 }
 
 /// A plain local path to an existing program (no template, no arguments).

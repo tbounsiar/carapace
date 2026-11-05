@@ -42,7 +42,7 @@ import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import { KeyStore } from '../../../core/ipc/key-store';
 import type { KeyLocation, KeyType, KeyView } from '../../../core/ipc/keys';
 import { Settings } from '../../../core/settings/settings';
-import { notifyError, sentence } from '../../project-tree/save-error';
+import { notifyError, sentence } from '../../../shared/save-error';
 import {
   commentValidator,
   DEFAULT_KEY_NAMES,

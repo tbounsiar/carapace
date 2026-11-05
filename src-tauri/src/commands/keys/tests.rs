@@ -62,7 +62,7 @@ fn external_key(w: &World, name: &str, passphrase: Option<&SecretString>) -> Str
 }
 
 fn config_text(w: &World) -> String {
-    fs::read_to_string(w.store.dir().join("config.json")).unwrap()
+    fs::read_to_string(w.store.dir().join("data.json")).unwrap()
 }
 
 #[tokio::test]
@@ -647,7 +647,7 @@ async fn old_entries_get_an_origin_from_their_folder() {
     for k in cfg["keys"].as_array_mut().unwrap() {
         k.as_object_mut().unwrap().remove("origin");
     }
-    fs::write(w.store.dir().join("config.json"), cfg.to_string()).unwrap();
+    fs::write(w.store.dir().join("data.json"), cfg.to_string()).unwrap();
     let listed = list(&w.store, &w.secrets).unwrap();
     assert_eq!(listed[0].key.id, managed.key.id);
     assert_eq!(listed[0].key.origin, KeyOrigin::Generated);

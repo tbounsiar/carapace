@@ -39,7 +39,7 @@ import { HostLauncher } from '../../host-connection/host-launcher';
 import { MoveLauncher } from '../../project-tree/move-launcher';
 import { ancestors, plural, type Container, type TreeItem } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
-import { errorText, notifyError } from '../../project-tree/save-error';
+import { errorText, notifyError } from '../../../shared/save-error';
 import { isTreeKey, treeKeyAction, type VisibleRow } from '../../project-tree/tree-keys';
 import { SIDEBAR_DRAG_PLACEHOLDER, SIDEBAR_DRAG_TYPE, SidebarDrag } from '../sidebar-drag';
 import { SidebarFilter } from '../sidebar-filter';

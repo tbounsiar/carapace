@@ -325,12 +325,12 @@ mod tests {
             "activeEnvironmentId":active}],
             "nodes":[host(H, Some(P)), host(HOME, None)]})
             .to_string();
-        std::fs::write(dir.join("config.json"), &raw).unwrap();
+        std::fs::write(dir.join("data.json"), &raw).unwrap();
         (raw, config_store(dir.to_path_buf(), secrets))
     }
 
     fn raw_file(dir: &std::path::Path) -> String {
-        std::fs::read_to_string(dir.join("config.json")).unwrap()
+        std::fs::read_to_string(dir.join("data.json")).unwrap()
     }
 
     #[test]
@@ -513,7 +513,7 @@ mod tests {
             mem.raw(&format!("var/project/{P}/pw")).as_deref(),
             Some("prod password")
         );
-        std::fs::write(dir.path().join("config.json"), raw).unwrap();
+        std::fs::write(dir.path().join("data.json"), raw).unwrap();
         store.snapshot().unwrap();
         assert!(
             mem.accounts().is_empty(),

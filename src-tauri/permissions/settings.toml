@@ -1,0 +1,14 @@
+[[permission]]
+identifier = "allow-app-settings"
+description = "Allows the app_settings command."
+commands.allow = ["app_settings"]
+
+[[permission]]
+identifier = "allow-update-app-settings"
+description = "Allows the update_app_settings command."
+commands.allow = ["update_app_settings"]
+
+[[permission]]
+identifier = "allow-import-legacy-settings"
+description = "Allows the import_legacy_settings command."
+commands.allow = ["import_legacy_settings"]

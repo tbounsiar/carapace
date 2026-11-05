@@ -9,7 +9,7 @@ import { SshService } from '../../core/ipc/ssh';
 import { confirmDestructive } from '../../shared/destructive-confirm/confirm-destructive';
 import { formatSize } from '../files/file-list';
 import { HostConnector } from '../host-connection/host-connector';
-import { errorText, notifyError } from '../project-tree/save-error';
+import { errorText, notifyError } from '../../shared/save-error';
 import { editorTabStatus, type EditorPhase } from '../workspace/tab-status';
 import { tabKey, Workspace } from '../workspace/workspace';
 import { askEditorChoice } from './editor-choice';

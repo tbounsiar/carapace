@@ -22,7 +22,7 @@ import { HostsToolbar } from '../../dashboard/hosts-toolbar/hosts-toolbar';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { byName, countNodes, HOME, plural, scopeTree } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
-import { errorText } from '../../project-tree/save-error';
+import { errorText } from '../../../shared/save-error';
 
 const HOME_ROOT = { projectId: null, parentId: null };
 

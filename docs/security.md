@@ -18,7 +18,7 @@ Three kinds of entries are stored:
 - **Saved connection secrets**: a password or passphrase you typed when connecting with **Remember in the system keychain** ticked. It is saved only after the server accepted it, and it is tied to the host's resolved `user@hostname:port` (password) or key path (passphrase). If those change, the entry is not used and is deleted.
 - **Remembered key passphrases**, set on the SSH keys page. One is used only for a key file whose fingerprint matches the registered key, so a different file placed at the same path never receives it.
 
-A secret is never written to `config.json`, to logs or to error messages, and is never sent to the app's interface: the interface only learns whether a value is set. Error messages may name a variable, never its value.
+A secret is never written to `data.json` or `settings.toml`, to logs or to error messages, and is never sent to the app's interface: the interface only learns whether a value is set. Error messages may name a variable, never its value.
 
 Secrets are removed from the keychain when you delete the host, project, variable or key they belong to, when you use **Forget saved password** / **Forget passphrase**, and when a host moves to another scope. A saved secret the server refuses is deleted. A password typed for **Test connection** is never stored.
 

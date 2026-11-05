@@ -35,6 +35,7 @@ describe('SettingsPage', () => {
   let saveFails: boolean;
   let onSave: ((category: AnalyticsCategory, granted: boolean) => unknown) | null;
   let calls: { cmd: string; args: unknown }[];
+  let prefsFail: boolean;
 
   beforeAll(
     () => import('../../analytics/analytics-events-dialog/analytics-events-dialog'),
@@ -48,6 +49,7 @@ describe('SettingsPage', () => {
       askNeeded: true,
     });
     saveFails = false;
+    prefsFail = false;
     onSave = null;
     calls = [];
     mockIPC((cmd, args) => {
@@ -69,6 +71,18 @@ describe('SettingsPage', () => {
         const current = state === 'fail' ? stateOf(OFF) : state;
         state = stateOf({ ...current.categories, [category]: granted });
         return state;
+      }
+      if (cmd === 'update_app_settings') {
+        if (prefsFail) {
+          throw { code: 'io', message: 'disk full' };
+        }
+        return {
+          theme: 'system',
+          defaultKeyType: 'ed25519',
+          terminalFontSize: 13,
+          keyFolder: null,
+          ...(args as { patch: object }).patch,
+        };
       }
       if (cmd === 'get_external_editor') {
         return { mode: 'system', appPath: null, noticeSeen: false };
@@ -314,27 +328,40 @@ describe('SettingsPage', () => {
     expect(radio('settings-ext-system').checked).toBe(true);
   });
 
-  it('changes the theme through the theme service', async () => {
+  const prefSaves = () => calls.filter((c) => c.cmd === 'update_app_settings').map((c) => c.args);
+
+  it('changes and saves the theme', async () => {
     const { fixture, radio } = await setup();
     radio('settings-theme-light').click();
-    await fixture.whenStable();
+    await settle(fixture);
     expect(TestBed.inject(ThemeService).mode()).toBe('light');
     expect(localStorage.getItem('carapace.theme')).toBe('light');
+    expect(prefSaves()).toEqual([{ patch: { theme: 'light' } }]);
   });
 
   it('follows a theme changed from the header toggle', async () => {
-    const { fixture, radio } = await setup();
-    TestBed.inject(ThemeService).setMode('dark');
+    const { fixture, radio, settings } = await setup();
+    settings.setTheme('dark');
     await fixture.whenStable();
     expect(radio('settings-theme-dark').checked).toBe(true);
   });
 
-  it('changes the default key type', async () => {
+  it('changes and saves the default key type', async () => {
     const { fixture, radio, settings } = await setup();
     radio('settings-key-type-rsa4096').click();
-    await fixture.whenStable();
+    await settle(fixture);
     expect(settings.defaultKeyType()).toBe('rsa4096');
-    expect(localStorage.getItem('carapace.keyType')).toBe('rsa4096');
+    expect(prefSaves()).toEqual([{ patch: { defaultKeyType: 'rsa4096' } }]);
+  });
+
+  it('shows the previous key type again and a toast when the save fails', async () => {
+    prefsFail = true;
+    const { fixture, radio, settings } = await setup();
+    radio('settings-key-type-rsa4096').click();
+    await settle(fixture);
+    expect(settings.defaultKeyType()).toBe('ed25519');
+    expect(radio('settings-key-type-ed25519').checked).toBe(true);
+    expect(document.body.textContent).toContain('Setting not saved');
   });
 
   it('changes the terminal font size within the range', async () => {
@@ -345,7 +372,8 @@ describe('SettingsPage', () => {
     fontSize.dispatchEvent(new Event('change'));
     await fixture.whenStable();
     expect(settings.terminalFontSize()).toBe(18);
-    expect(localStorage.getItem('carapace.terminalFontSize')).toBe('18');
+    await settle(fixture);
+    expect(prefSaves()).toEqual([{ patch: { terminalFontSize: 18 } }]);
     expect(
       (fixture.nativeElement as HTMLElement).querySelector(
         '[data-testid="settings-font-size-value"]',

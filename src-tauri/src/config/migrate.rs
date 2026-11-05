@@ -4,8 +4,9 @@ use serde::Deserialize;
 
 use super::model::{
     AnalyticsSettings, AuthMethod, Category, CategoryChoice, CategoryChoices, ConfigFile, Consent,
-    Host, KeyEntry, Node, Project, Template, Variable, VariableKind,
+    ExternalEditor, Host, KeyEntry, Node, Project, Template, Variable, VariableKind,
 };
+use super::settings::Settings;
 use super::validate::{self, MAX_VARIABLES, is_canonical_id, same_name};
 use crate::vars;
 
@@ -21,7 +22,22 @@ struct V1Analytics {
     catalogue_version: u32,
 }
 
-/// `analytics` as stored. With `categories`, each category is read on its own and anything that
+/// The preferences a `config.json` held, read as leniently as that file did: a malformed
+/// `analytics` or `externalEditor` is left out.
+pub(super) fn legacy_preferences(raw: &[u8]) -> Settings {
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(raw) else {
+        return Settings::default();
+    };
+    Settings {
+        analytics: value.get("analytics").and_then(analytics),
+        external_editor: value
+            .get("externalEditor")
+            .and_then(|v| ExternalEditor::deserialize(v).ok()),
+        ..Settings::default()
+    }
+}
+
+/// `analytics` as stored in `config.json`. With `categories`, each category is read on its own and anything that
 /// does not parse is unset; without it, the first release's single consent is mapped onto all
 /// three. Any other shape is unset, so a hand edit can never turn a category on.
 pub(super) fn analytics(value: &serde_json::Value) -> Option<AnalyticsSettings> {
@@ -128,8 +144,6 @@ pub(super) fn from_v2(raw: &[u8], version: u32) -> Result<ConfigFile, serde_json
         projects,
         nodes,
         keys: v2.keys,
-        analytics: None,
-        external_editor: None,
     })
 }
 

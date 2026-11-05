@@ -7,6 +7,7 @@ pub mod keys;
 pub mod localfs;
 mod resolve;
 pub mod secrets;
+pub mod settings;
 pub mod sftp;
 pub mod ssh;
 pub mod terminal;

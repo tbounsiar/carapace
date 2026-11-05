@@ -9,7 +9,7 @@ import type { Credential, HostKeyChanged } from '../../core/ipc/ssh.models';
 import type { CredentialDialogData } from '../credential-dialog/credential-dialog';
 import { CredentialPrompter } from '../credential-dialog/credential-prompter';
 import { HostKeyPrompter } from '../host-key-dialog/host-key-prompter';
-import { notifyError } from '../project-tree/save-error';
+import { notifyError } from '../../shared/save-error';
 
 interface Subjects {
   readonly address: string;

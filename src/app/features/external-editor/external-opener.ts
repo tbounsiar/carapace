@@ -11,7 +11,7 @@ import { IpcError } from '../../core/ipc/ipc-error';
 import { AlertAction, type AlertActionData } from '../../shared/alert-action/alert-action';
 import { confirmDestructive } from '../../shared/destructive-confirm/confirm-destructive';
 import { formatSize } from '../files/file-list';
-import { errorText, notifyError } from '../project-tree/save-error';
+import { errorText, notifyError } from '../../shared/save-error';
 import { tabKey, Workspace } from '../workspace/workspace';
 import { blockedTypeText } from './edited-view';
 import type { ExternalNoticeAnswer } from './external-notice-dialog/external-notice-dialog';
