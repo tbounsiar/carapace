@@ -9,7 +9,7 @@ pub use crate::config::Category;
 
 /// Stamped on every answer. Bump it with the `changed_in` of each category that gains a new
 /// kind of data; dropping data bumps nothing.
-pub const CATALOGUE_VERSION: u32 = 2;
+pub const CATALOGUE_VERSION: u32 = 3;
 
 /// A `granted` answer older than this is asked again, for that category only.
 pub fn changed_in(category: Category) -> u32 {
@@ -17,13 +17,17 @@ pub fn changed_in(category: Category) -> u32 {
         Category::Launch => 2,
         Category::Features => 1,
         Category::Connections => 1,
+        Category::Crashes => 3,
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Prop {
     Str(&'static str),
     Bool(bool),
+    /// Crash rows only: a source line or a crash session id, both checked in `crash`. Events
+    /// never use it.
+    Text(String),
 }
 
 impl Serialize for Prop {
@@ -31,6 +35,7 @@ impl Serialize for Prop {
         match self {
             Prop::Str(v) => s.serialize_str(v),
             Prop::Bool(v) => s.serialize_bool(*v),
+            Prop::Text(v) => s.serialize_str(v),
         }
     }
 }

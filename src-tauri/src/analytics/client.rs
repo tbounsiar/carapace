@@ -1,9 +1,10 @@
 //! Minimal Aptabase ingestion client: batches of events POSTed as JSON with the `App-Key`
-//! header. Memory only; a batch that keeps failing is dropped.
+//! header, and crash reports one per request on the error endpoint. Memory only; a batch that
+//! keeps failing is dropped.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, TryLockError};
+use std::sync::{Arc, Mutex, TryLockError};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -18,6 +19,7 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const EU: &str = "https://eu.aptabase.com";
 const US: &str = "https://us.aptabase.com";
 const PATH: &str = "/api/v0/events";
+const ERROR_PATH: &str = "/api/v0/error";
 pub const SDK_VERSION: &str = concat!("carapace@", env!("CARGO_PKG_VERSION"));
 const LOCK_POLL: Duration = Duration::from_millis(20);
 
@@ -30,8 +32,51 @@ pub enum Posted {
     Rejected,
 }
 
+thread_local! {
+    static SENDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether this thread is inside a request: a panic there must not use the transport again.
+pub fn sending() -> bool {
+    SENDING.try_with(|s| s.get()).unwrap_or(true)
+}
+
+/// Runs a request with `sending()` true on this thread, reset even if it unwinds.
+pub fn while_sending<T>(f: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            let _ = SENDING.try_with(|s| s.set(self.0));
+        }
+    }
+    let _reset = Reset(SENDING.try_with(|s| s.replace(true)).unwrap_or(false));
+    f()
+}
+
 pub trait Transport: Send + Sync {
+    /// A batch of events.
     fn post(&self, body: &[u8], timeout: Duration) -> Posted;
+    /// One crash report.
+    fn post_error(&self, body: &[u8], timeout: Duration) -> Posted;
+}
+
+/// The events endpoint: any 4xx is final.
+pub fn event_outcome(status: Option<u16>) -> Posted {
+    match status {
+        Some(200..=299) => Posted::Sent,
+        Some(400..=499) => Posted::Rejected,
+        _ => Posted::Retry,
+    }
+}
+
+/// The error endpoint: a timeout or rate limit is retried; 403 (quota exhausted) and any other
+/// 4xx are final, as is anything else that is not a server error.
+pub fn error_outcome(status: Option<u16>) -> Posted {
+    match status {
+        None | Some(408 | 429 | 500..=599) => Posted::Retry,
+        Some(200..=299) => Posted::Sent,
+        Some(_) => Posted::Rejected,
+    }
 }
 
 /// What Aptabase receives for one event. `sdkVersion` is the only system property its API
@@ -88,6 +133,7 @@ pub fn base_url(key: &str) -> Option<&'static str> {
 pub struct Aptabase {
     agent: ureq::Agent,
     url: String,
+    error_url: String,
     key: String,
 }
 
@@ -109,27 +155,33 @@ impl Aptabase {
         Self {
             agent: config.build().into(),
             url: format!("{base}{PATH}"),
+            error_url: format!("{base}{ERROR_PATH}"),
             key: key.to_owned(),
         }
     }
-}
 
-impl Transport for Aptabase {
-    fn post(&self, body: &[u8], timeout: Duration) -> Posted {
-        let sent = self
-            .agent
-            .post(&self.url)
+    /// The status, or `None` for a network error or timeout.
+    fn send(&self, url: &str, body: &[u8], timeout: Duration) -> Option<u16> {
+        self.agent
+            .post(url)
             .header("App-Key", &self.key)
             .content_type("application/json")
             .config()
             .timeout_global(Some(timeout.min(REQUEST_TIMEOUT)))
             .build()
-            .send(body);
-        match sent {
-            Ok(r) if r.status().is_success() => Posted::Sent,
-            Ok(r) if r.status().is_client_error() => Posted::Rejected,
-            _ => Posted::Retry,
-        }
+            .send(body)
+            .ok()
+            .map(|r| r.status().as_u16())
+    }
+}
+
+impl Transport for Aptabase {
+    fn post(&self, body: &[u8], timeout: Duration) -> Posted {
+        event_outcome(self.send(&self.url, body, timeout))
+    }
+
+    fn post_error(&self, body: &[u8], timeout: Duration) -> Posted {
+        error_outcome(self.send(&self.error_url, body, timeout))
     }
 }
 
@@ -146,7 +198,7 @@ struct Queue {
     events: VecDeque<Queued>,
     /// Per category, bumped by `discard`, so an event in flight when its category is turned off
     /// is never posted nor put back.
-    generation: [u64; 3],
+    generation: [u64; Category::COUNT],
 }
 
 impl Queue {
@@ -156,7 +208,7 @@ impl Queue {
 }
 
 pub struct Outbox {
-    transport: Box<dyn Transport>,
+    transport: Arc<dyn Transport>,
     queue: Mutex<Queue>,
     // One flush at a time, so the periodic and the exit flush never send a batch twice.
     flushing: Mutex<()>,
@@ -170,7 +222,7 @@ pub struct Outbox {
 }
 
 impl Outbox {
-    pub fn new(transport: Box<dyn Transport>) -> Self {
+    pub fn new(transport: Arc<dyn Transport>) -> Self {
         Self {
             transport,
             queue: Mutex::new(Queue::default()),
@@ -230,10 +282,10 @@ impl Outbox {
         self.send(deadline);
     }
 
-    /// The exit flush: a periodic flush still running stops after its current request.
-    pub fn stop_and_flush(&self, deadline: Instant) {
+    /// Asked before the exit flush: a periodic flush still running stops after its current
+    /// request.
+    pub fn stop(&self) {
         self.stopping.store(true, Ordering::SeqCst);
-        self.flush(deadline);
     }
 
     /// Drops the events of categories turned off since they were queued and serializes the
@@ -285,7 +337,7 @@ impl Outbox {
             let Some(body) = self.body_of_current(&mut batch) else {
                 continue;
             };
-            match self.transport.post(&body, left) {
+            match while_sending(|| self.transport.post(&body, left)) {
                 Posted::Sent | Posted::Rejected => {}
                 Posted::Retry => {
                     retry.extend(

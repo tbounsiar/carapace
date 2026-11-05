@@ -20,6 +20,7 @@ fn system() -> SystemProps {
 #[derive(Clone)]
 struct Sink {
     bodies: Arc<Mutex<Vec<serde_json::Value>>>,
+    errors: Arc<Mutex<Vec<serde_json::Value>>>,
     script: Arc<Mutex<VecDeque<Posted>>>,
     fallback: Posted,
 }
@@ -28,6 +29,7 @@ impl Sink {
     fn new(fallback: Posted) -> Self {
         Self {
             bodies: Arc::default(),
+            errors: Arc::default(),
             script: Arc::default(),
             fallback,
         }
@@ -35,6 +37,19 @@ impl Sink {
 
     fn sent(&self) -> Vec<serde_json::Value> {
         self.bodies.lock().unwrap().clone()
+    }
+
+    /// Crash report bodies, one per request.
+    fn reports(&self) -> Vec<serde_json::Value> {
+        self.errors.lock().unwrap().clone()
+    }
+
+    fn answer(&self) -> Posted {
+        self.script
+            .lock()
+            .unwrap()
+            .pop_front()
+            .unwrap_or(self.fallback)
     }
 
     fn names(&self) -> Vec<String> {
@@ -52,11 +67,15 @@ impl Transport for Sink {
             .lock()
             .unwrap()
             .push(serde_json::from_slice(body).unwrap());
-        self.script
+        self.answer()
+    }
+
+    fn post_error(&self, body: &[u8], _timeout: Duration) -> Posted {
+        self.errors
             .lock()
             .unwrap()
-            .pop_front()
-            .unwrap_or(self.fallback)
+            .push(serde_json::from_slice(body).unwrap());
+        self.answer()
     }
 }
 
@@ -77,25 +96,37 @@ const UNSET: CategoryChoice = CategoryChoice {
     version: 0,
 };
 
+/// The three usage categories; crash reports denied (see `stored4`).
 fn stored(
     launch: CategoryChoice,
     features: CategoryChoice,
     connections: CategoryChoice,
+) -> Option<AnalyticsSettings> {
+    stored4(launch, features, connections, DENIED)
+}
+
+fn stored4(
+    launch: CategoryChoice,
+    features: CategoryChoice,
+    connections: CategoryChoice,
+    crashes: CategoryChoice,
 ) -> Option<AnalyticsSettings> {
     Some(AnalyticsSettings {
         categories: CategoryChoices {
             launch,
             features,
             connections,
+            crashes,
         },
     })
 }
 
+/// All four granted.
 fn granted() -> Option<AnalyticsSettings> {
-    stored(GRANTED, GRANTED, GRANTED)
+    stored4(GRANTED, GRANTED, GRANTED, GRANTED)
 }
 
-/// That category granted, the two others denied.
+/// That category granted, the others denied.
 fn only(category: Category) -> Option<AnalyticsSettings> {
     let mut s = CategoryChoices::all(DENIED);
     s.set(category, GRANTED);
@@ -159,11 +190,17 @@ impl Disk {
     }
 }
 
+/// Crash reports off.
 fn choices(launch: bool, features: bool, connections: bool) -> AnalyticsChoices {
+    choices4(launch, features, connections, false)
+}
+
+fn choices4(launch: bool, features: bool, connections: bool, crashes: bool) -> AnalyticsChoices {
     AnalyticsChoices {
         launch,
         features,
         connections,
+        crashes,
     }
 }
 
@@ -226,7 +263,7 @@ fn do_not_track_closes_every_gate_and_keeps_the_choices() {
     assert_eq!(a.queued(), 0);
     let s = a.status();
     assert!(s.do_not_track);
-    assert_eq!(s.categories, choices(true, true, true));
+    assert_eq!(s.categories, choices4(true, true, true, true));
     assert!(!s.ask_needed);
     let mut saved = Vec::new();
     a.set_category(
@@ -299,17 +336,17 @@ fn every_event_belongs_to_its_spec_category() {
     let json = serde_json::to_value(Category::ALL).unwrap();
     assert_eq!(
         json,
-        serde_json::json!(["launch", "features", "connections"])
+        serde_json::json!(["launch", "features", "connections", "crashes"])
     );
 }
 
 #[test]
 fn versions_are_per_category() {
-    assert_eq!(CATALOGUE_VERSION, 2);
+    assert_eq!(CATALOGUE_VERSION, 3);
     assert_eq!(
         Category::ALL.map(changed_in),
-        [2, 1, 1],
-        "launch, features, connections"
+        [2, 1, 1, 3],
+        "launch, features, connections, crashes"
     );
     assert!(
         Category::ALL
@@ -330,9 +367,19 @@ fn pending_and_ask_needed() {
     let view = |stored| Analytics::new(stored, system(), None, false).status();
     let old = choice(Consent::Granted, 0);
     let cases = [
+        (None, Category::ALL.to_vec()),
+        // The three usage categories answered before crash reports existed.
         (
-            None,
-            vec![Category::Launch, Category::Features, Category::Connections],
+            stored4(GRANTED, GRANTED, GRANTED, UNSET),
+            vec![Category::Crashes],
+        ),
+        (
+            stored4(DENIED, DENIED, DENIED, UNSET),
+            vec![Category::Crashes],
+        ),
+        (
+            stored4(GRANTED, GRANTED, GRANTED, choice(Consent::Granted, 2)),
+            vec![Category::Crashes],
         ),
         (stored(GRANTED, UNSET, DENIED), vec![Category::Features]),
         (stored(old, DENIED, GRANTED), vec![Category::Launch]),
@@ -353,7 +400,7 @@ fn pending_and_ask_needed() {
     assert_eq!(
         json,
         serde_json::json!({
-            "categories": {"launch": true, "features": false, "connections": false},
+            "categories": {"launch": true, "features": false, "connections": false, "crashes": false},
             "pending": ["features"],
             "doNotTrack": false,
             "askNeeded": true,
@@ -397,7 +444,7 @@ fn session_started_follows_a_grant_and_never_repeats() {
 }
 
 #[test]
-fn the_dialog_saves_all_three_in_one_write() {
+fn the_dialog_saves_all_four_in_one_write() {
     let (a, _) = with_sink(None);
     a.launched();
     a.app_started(Theme::System, || COUNTS);
@@ -470,7 +517,7 @@ fn a_failed_save_of_a_grant_changes_nothing() {
     a.launched();
     a.app_started(Theme::Dark, || COUNTS);
     assert_eq!(
-        a.set_choices(choices(true, true, true), |_| Err("io"), || COUNTS),
+        a.set_choices(choices4(true, true, true, true), |_| Err("io"), || COUNTS),
         Err("io")
     );
     assert_eq!(
@@ -479,7 +526,7 @@ fn a_failed_save_of_a_grant_changes_nothing() {
     );
     let s = a.status();
     assert_eq!(s.categories, choices(false, false, false));
-    assert_eq!(s.pending.len(), 3);
+    assert_eq!(s.pending.len(), 4);
     assert!(s.persisted);
     assert!(a.recent().events.is_empty());
     a.flush(Duration::from_secs(1));
@@ -506,7 +553,7 @@ fn turning_a_category_off_drops_only_its_log_queue_and_attempts() {
             panic!("counts on deny")
         })
         .unwrap();
-    assert_eq!(s.categories, choices(true, true, false));
+    assert_eq!(s.categories, choices4(true, true, false, true));
     assert_eq!(a.attempts(), 0);
     assert_eq!(a.queued(), 3);
     assert_eq!(
@@ -780,6 +827,10 @@ fn failed_batches_are_retried_a_bounded_number_of_times() {
 fn a_deny_during_a_failing_flush_keeps_nothing() {
     struct DenyWhilePosting(Mutex<Option<Analytics>>);
     impl Transport for DenyWhilePosting {
+        fn post_error(&self, body: &[u8], timeout: Duration) -> Posted {
+            self.post(body, timeout)
+        }
+
         fn post(&self, _: &[u8], _: Duration) -> Posted {
             if let Some(a) = self.0.lock().unwrap().take() {
                 a.set_choices(choices(false, false, false), mirror(&a), || COUNTS)
@@ -791,6 +842,10 @@ fn a_deny_during_a_failing_flush_keeps_nothing() {
     let t = Arc::new(DenyWhilePosting(Mutex::new(None)));
     struct Shared(Arc<DenyWhilePosting>);
     impl Transport for Shared {
+        fn post_error(&self, body: &[u8], timeout: Duration) -> Posted {
+            self.post(body, timeout)
+        }
+
         fn post(&self, b: &[u8], d: Duration) -> Posted {
             self.0.post(b, d)
         }
@@ -1384,6 +1439,10 @@ fn a_batch_taken_before_a_category_is_turned_off_posts_only_the_others() {
 fn a_failed_batch_is_not_requeued_for_a_category_turned_off() {
     struct DenyWhilePosting(Mutex<Option<Analytics>>);
     impl Transport for DenyWhilePosting {
+        fn post_error(&self, body: &[u8], timeout: Duration) -> Posted {
+            self.post(body, timeout)
+        }
+
         fn post(&self, _: &[u8], _: Duration) -> Posted {
             if let Some(a) = self.0.lock().unwrap().take() {
                 a.set_category(Category::Features, false, mirror(&a), || COUNTS)
@@ -1395,6 +1454,10 @@ fn a_failed_batch_is_not_requeued_for_a_category_turned_off() {
     let t = Arc::new(DenyWhilePosting(Mutex::new(None)));
     struct Shared(Arc<DenyWhilePosting>);
     impl Transport for Shared {
+        fn post_error(&self, body: &[u8], timeout: Duration) -> Posted {
+            self.post(body, timeout)
+        }
+
         fn post(&self, b: &[u8], d: Duration) -> Posted {
             self.0.post(b, d)
         }
@@ -1431,6 +1494,10 @@ fn a_batch_taken_before_a_revoke_is_not_posted() {
 fn exit_flush_stays_bounded_while_a_periodic_flush_runs() {
     struct Slow;
     impl Transport for Slow {
+        fn post_error(&self, body: &[u8], timeout: Duration) -> Posted {
+            self.post(body, timeout)
+        }
+
         fn post(&self, _: &[u8], timeout: Duration) -> Posted {
             thread::sleep(timeout.min(Duration::from_secs(2)));
             Posted::Sent
@@ -1457,6 +1524,10 @@ fn exit_flush_stays_bounded_while_a_periodic_flush_runs() {
 fn a_periodic_flush_has_a_deadline() {
     struct Hang;
     impl Transport for Hang {
+        fn post_error(&self, body: &[u8], timeout: Duration) -> Posted {
+            self.post(body, timeout)
+        }
+
         fn post(&self, _: &[u8], timeout: Duration) -> Posted {
             thread::sleep(timeout);
             Posted::Retry
@@ -1642,4 +1713,300 @@ fn a_category_turned_off_after_its_batch_is_serialized_is_not_posted() {
     assert_eq!(sink.names(), ["host_test_run"]);
     assert_eq!(sink.sent().len(), 1);
     assert_eq!(a.queued(), 0);
+}
+
+mod crashes {
+    use super::*;
+    use crate::analytics::crash::{PENDING_FILE, Site};
+
+    const UNWRAP_NONE: &str = "called `Option::unwrap()` on a `None` value";
+
+    fn crash(a: &Analytics, file: &str, thread: &str) {
+        a.crashes().capture(&Site {
+            file: Some(file),
+            line: 7,
+            message: Some(UNWRAP_NONE),
+            thread: Some(thread),
+        });
+    }
+
+    fn only_crashes() -> Option<AnalyticsSettings> {
+        only(Category::Crashes)
+    }
+
+    #[test]
+    fn the_hook_gate_follows_the_crash_category() {
+        let gate = |a: &Analytics| a.crashes().armed();
+        assert!(gate(&with_sink(granted()).0));
+        assert!(gate(&with_sink(only_crashes()).0));
+        assert!(!gate(&with_sink(stored(GRANTED, GRANTED, GRANTED)).0));
+        assert!(!gate(&with_sink(None).0));
+        let outdated = stored4(GRANTED, GRANTED, GRANTED, choice(Consent::Granted, 2));
+        assert!(!gate(&with_sink(outdated).0));
+        let dnt = Analytics::new(granted(), system(), None, true);
+        assert!(!gate(&dnt));
+        let unread = Analytics::new(granted(), system(), None, false).unread();
+        assert!(!gate(&unread));
+        unread.reload(|| Ok::<_, ()>(granted()));
+        assert!(gate(&unread));
+
+        let (a, _) = with_sink(None);
+        a.set_category(Category::Crashes, true, mirror(&a), || COUNTS)
+            .unwrap();
+        assert!(gate(&a));
+        a.set_choices(choices(true, true, true), mirror(&a), || COUNTS)
+            .unwrap();
+        assert!(!gate(&a));
+        a.set_choices(choices4(false, false, false, true), mirror(&a), || COUNTS)
+            .unwrap();
+        assert!(gate(&a));
+        // A refusal that cannot be saved still closes the gate.
+        let _ = a.set_category(Category::Crashes, false, |_| Err("io"), || COUNTS);
+        assert!(!gate(&a));
+    }
+
+    #[test]
+    fn crash_reports_are_logged_and_sent_on_their_own_endpoint() {
+        let (a, sink) = with_sink(granted());
+        a.launched();
+        crash(&a, "src/ssh/session.rs", "tokio-runtime-worker");
+        let recent = a.recent();
+        assert_eq!(names(&a), ["crash", "session_started"]);
+        let row = serde_json::to_value(&recent.events[0]).unwrap();
+        assert_eq!(row["props"]["type"], "panic:ssh");
+        assert_eq!(row["props"]["line"], "src/ssh/session.rs:7");
+        assert!(row.get("previousLaunch").is_none());
+        let crash_session = row["props"]["session"].as_str().unwrap().to_owned();
+        assert_ne!(crash_session, recent.system.session_id);
+        a.flush(Duration::from_secs(1));
+        assert_eq!(sink.names(), ["session_started"]);
+        let reports = sink.reports();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0]["errorMessage"], "panic:ssh:unwrap_none");
+        assert_eq!(reports[0]["sessionId"], crash_session.as_str());
+        assert!(reports[0].get("locale").is_none());
+    }
+
+    #[test]
+    fn nothing_is_captured_without_the_crash_category() {
+        for stored in [
+            None,
+            stored(GRANTED, GRANTED, GRANTED),
+            stored4(GRANTED, GRANTED, GRANTED, UNSET),
+            stored4(DENIED, DENIED, DENIED, choice(Consent::Granted, 2)),
+        ] {
+            let (a, sink) = with_sink(stored);
+            crash(&a, "src/ssh/a.rs", "w");
+            assert!(!names(&a).contains(&"crash"), "{stored:?}");
+            a.flush(Duration::from_secs(1));
+            assert!(sink.reports().is_empty());
+        }
+        let sink = Sink::new(Posted::Sent);
+        let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())), true);
+        crash(&a, "src/ssh/a.rs", "w");
+        a.flush(Duration::from_secs(1));
+        assert!(a.recent().events.is_empty() && sink.reports().is_empty());
+    }
+
+    #[test]
+    fn turning_crash_reports_off_leaves_nothing_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::new(Posted::Retry);
+        let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())), false);
+        a.set_crash_dir(dir.path().to_path_buf());
+        a.record(Event::TerminalOpened);
+        crash(&a, "src/ssh/a.rs", "w");
+        crash(&a, "src/sftp/a.rs", "main");
+        let pending = dir.path().join(PENDING_FILE);
+        assert!(pending.exists());
+        assert_eq!(names(&a), ["crash", "crash", "terminal_opened"]);
+        let s = a
+            .set_category(Category::Crashes, false, mirror(&a), || COUNTS)
+            .unwrap();
+        assert!(!s.categories.crashes);
+        assert!(!pending.exists());
+        assert_eq!(names(&a), ["terminal_opened"]);
+        let before = sink.reports().len();
+        a.flush(Duration::from_secs(1));
+        assert_eq!(sink.reports().len(), before);
+        assert_eq!(a.queued(), 1, "the events of other categories stay");
+        // Turning it on again shows nothing from before.
+        a.set_category(Category::Crashes, true, mirror(&a), || COUNTS)
+            .unwrap();
+        assert_eq!(names(&a), ["terminal_opened"]);
+    }
+
+    #[test]
+    fn a_crash_category_closed_by_the_file_is_discarded_too() {
+        let disk = Disk::holding(granted());
+        let a = Analytics::new(granted(), system(), None, false);
+        crash(&a, "src/ssh/a.rs", "w");
+        disk.save(&[(Category::Crashes, DENIED)]).unwrap();
+        a.set_category(Category::Launch, true, |w| disk.save(w), || COUNTS)
+            .unwrap();
+        assert!(!a.crashes().armed());
+        assert!(!names(&a).contains(&"crash"));
+    }
+
+    #[test]
+    fn recent_merges_crash_rows_newest_first() {
+        let (a, _) = with_sink(granted());
+        a.record(Event::TerminalOpened);
+        thread::sleep(Duration::from_millis(5));
+        crash(&a, "src/ssh/a.rs", "w");
+        thread::sleep(Duration::from_millis(5));
+        a.record(Event::FilesOpened);
+        assert_eq!(names(&a), ["files_opened", "crash", "terminal_opened"]);
+        for i in 0..MAX_RECENT {
+            a.record(Event::VariablesSaved {
+                scope: Scope::Global,
+                count: Count::of(i),
+            });
+        }
+        assert_eq!(a.recent().events.len(), MAX_RECENT);
+        // A keyless build lists what it would send.
+        let a = Analytics::new(only_crashes(), system(), None, false);
+        crash(&a, "src/ssh/a.rs", "w");
+        assert_eq!(names(&a), ["crash"]);
+    }
+
+    fn leave_pending(dir: &std::path::Path) {
+        let sink = Sink::new(Posted::Retry);
+        let a = Analytics::new(granted(), system(), Some(Box::new(sink)), false);
+        a.set_crash_dir(dir.to_path_buf());
+        crash(&a, "src/commands/app.rs", "main");
+        assert!(dir.join(PENDING_FILE).exists());
+    }
+
+    #[test]
+    fn the_previous_launch_report_is_sent_if_crash_reports_are_still_on() {
+        let dir = tempfile::tempdir().unwrap();
+        leave_pending(dir.path());
+        let (a, sink) = with_sink(granted());
+        a.set_crash_dir(dir.path().to_path_buf());
+        a.resume_crash_report();
+        let json = serde_json::to_value(a.recent()).unwrap();
+        assert_eq!(json["events"][0]["name"], "crash");
+        assert_eq!(json["events"][0]["previousLaunch"], true);
+        a.flush(Duration::from_secs(1));
+        assert_eq!(sink.reports().len(), 1);
+        assert_eq!(sink.reports()[0]["severity"], "fatal");
+        assert!(!dir.path().join(PENDING_FILE).exists());
+    }
+
+    #[test]
+    fn the_previous_launch_report_is_deleted_when_not_granted_or_under_do_not_track() {
+        let outdated = stored4(GRANTED, GRANTED, GRANTED, choice(Consent::Granted, 2));
+        for (stored, dnt) in [
+            (granted(), true),
+            (stored(GRANTED, GRANTED, GRANTED), false),
+            (stored4(GRANTED, GRANTED, GRANTED, UNSET), false),
+            (outdated, false),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            leave_pending(dir.path());
+            let sink = Sink::new(Posted::Sent);
+            let a = Analytics::new(stored, system(), Some(Box::new(sink.clone())), dnt);
+            a.set_crash_dir(dir.path().to_path_buf());
+            a.resume_crash_report();
+            assert!(!dir.path().join(PENDING_FILE).exists(), "{stored:?} {dnt}");
+            a.flush(Duration::from_secs(1));
+            assert!(sink.reports().is_empty());
+        }
+    }
+
+    #[test]
+    fn an_unread_config_keeps_the_previous_report_until_a_read() {
+        let dir = tempfile::tempdir().unwrap();
+        leave_pending(dir.path());
+        let sink = Sink::new(Posted::Sent);
+        let a = Analytics::new(None, system(), Some(Box::new(sink.clone())), false).unread();
+        a.set_crash_dir(dir.path().to_path_buf());
+        a.resume_crash_report();
+        assert!(dir.path().join(PENDING_FILE).exists());
+        a.reload(|| Ok::<_, ()>(granted()));
+        a.resume_crash_report();
+        a.flush(Duration::from_secs(1));
+        assert_eq!(sink.reports().len(), 1);
+        assert!(!dir.path().join(PENDING_FILE).exists());
+    }
+
+    #[test]
+    fn the_dialog_answers_crash_reports_too() {
+        let (a, _) = with_sink(stored4(GRANTED, GRANTED, GRANTED, UNSET));
+        let s = a.status();
+        assert_eq!(
+            (s.pending.clone(), s.ask_needed),
+            (vec![Category::Crashes], true)
+        );
+        let mut saved = Vec::new();
+        let s = a
+            .set_choices(
+                choices4(true, true, true, true),
+                |w| {
+                    saved.extend_from_slice(w);
+                    Ok::<_, ()>(mirrored(&a, w))
+                },
+                || COUNTS,
+            )
+            .unwrap();
+        assert!(saved.contains(&(Category::Crashes, choice(Consent::Granted, 3))));
+        assert!(s.categories.crashes && s.pending.is_empty() && !s.ask_needed);
+        let json = serde_json::to_value(&s).unwrap();
+        assert_eq!(
+            json["categories"],
+            serde_json::json!({"launch": true, "features": true, "connections": true, "crashes": true})
+        );
+    }
+
+    #[test]
+    fn statuses_map_per_endpoint() {
+        use super::super::client::{error_outcome, event_outcome};
+        for (status, event, error) in [
+            (None, Posted::Retry, Posted::Retry),
+            (Some(200), Posted::Sent, Posted::Sent),
+            (Some(202), Posted::Sent, Posted::Sent),
+            (Some(302), Posted::Retry, Posted::Rejected),
+            (Some(400), Posted::Rejected, Posted::Rejected),
+            (Some(401), Posted::Rejected, Posted::Rejected),
+            (Some(403), Posted::Rejected, Posted::Rejected),
+            (Some(408), Posted::Rejected, Posted::Retry),
+            (Some(413), Posted::Rejected, Posted::Rejected),
+            (Some(429), Posted::Rejected, Posted::Retry),
+            (Some(500), Posted::Retry, Posted::Retry),
+            (Some(503), Posted::Retry, Posted::Retry),
+        ] {
+            assert_eq!(event_outcome(status), event, "{status:?}");
+            assert_eq!(error_outcome(status), error, "{status:?}");
+        }
+    }
+
+    #[test]
+    fn http_client_posts_one_report_to_the_error_endpoint() {
+        let (base, rx) = mock_server(vec![202, 403, 429, 408, 500, 400], Duration::ZERO);
+        let c = http(&base);
+        let t = Duration::from_secs(5);
+        let body = br#"{"errorType":"panic:ssh"}"#;
+        let expected = [
+            Posted::Sent,
+            Posted::Rejected,
+            Posted::Retry,
+            Posted::Retry,
+            Posted::Retry,
+            Posted::Rejected,
+        ];
+        for want in expected {
+            assert_eq!(c.post_error(body, t), want);
+        }
+        let first = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(
+            first.head.starts_with("POST /api/v0/error HTTP/1.1"),
+            "{}",
+            first.head
+        );
+        let head = first.head.to_ascii_lowercase();
+        assert!(head.contains("app-key: a-eu-1234567890"));
+        assert!(head.contains("content-type: application/json"));
+        assert_eq!(first.body, body);
+    }
 }
