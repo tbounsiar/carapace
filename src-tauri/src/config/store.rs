@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use super::migrate::{self, Dropped, LegacyProject, MigrationPlan};
 use super::model::{
-    AnalyticsConsent, ConfigFile, ExternalEditor, Host, KeyEntry, KeyOrigin, Node, Project,
-    Variable, VariableScope,
+    AnalyticsSettings, Category, CategoryChoice, ConfigFile, ExternalEditor, Host, KeyEntry,
+    KeyOrigin, Node, Project, Variable, VariableScope,
 };
 use super::validate::{self, same_name};
 
@@ -532,11 +532,24 @@ impl ConfigStore {
 
     /// `entry.name` is validated and trimmed; names and paths must be unique.
     /// Rewrites the file only when the value changes.
-    pub fn set_analytics(&self, value: AnalyticsConsent) -> Result<(), ConfigError> {
+    /// Applies these categories on top of what the file holds, under the store lock, and
+    /// returns the result; other categories keep their stored answer. A file that cannot be
+    /// read is an error and nothing is written.
+    pub fn update_analytics(
+        &self,
+        changes: &[(Category, CategoryChoice)],
+    ) -> Result<AnalyticsSettings, ConfigError> {
         self.transact(|cfg| {
-            let changed = cfg.analytics != Some(value);
-            cfg.analytics = Some(value);
-            Ok(((), changed))
+            let old = cfg.analytics.unwrap_or_default();
+            let mut value = old;
+            for &(category, choice) in changes {
+                value.categories.set(category, choice);
+            }
+            let changed = value != old;
+            if changed {
+                cfg.analytics = Some(value);
+            }
+            Ok((value, changed))
         })
     }
 

@@ -2,15 +2,29 @@ import { Service, signal } from '@angular/core';
 import type { ThemeMode } from '../theme/theme';
 import { invokeCommand } from './ipc-error';
 
-export type AnalyticsConsent = 'unset' | 'granted' | 'denied';
+export type AnalyticsCategory = 'launch' | 'features' | 'connections';
+
+/** Display order everywhere: launch count first, then the two opt-in categories. */
+export const ANALYTICS_CATEGORIES: readonly AnalyticsCategory[] = [
+  'launch',
+  'features',
+  'connections',
+];
+
+export type AnalyticsChoices = Record<AnalyticsCategory, boolean>;
 
 export interface AnalyticsState {
-  readonly consent: AnalyticsConsent;
+  /** Granted and current, as stored; ignores `doNotTrack`. */
+  readonly categories: Readonly<AnalyticsChoices>;
+  /** Unset or granted for an older catalogue: the dialog asks these. */
+  readonly pending: readonly AnalyticsCategory[];
+  /** DO_NOT_TRACK is set: every category is off this launch, whatever is stored. */
+  readonly doNotTrack: boolean;
   /** The consent dialog should be shown this launch. */
   readonly askNeeded: boolean;
   /** False in builds without an Aptabase key: nothing leaves the machine. */
   readonly available: boolean;
-  /** False when the consent applies in memory but could not be written to the config file. */
+  /** False while a refusal applies in memory but could not be written to the config file. */
   readonly persisted: boolean;
 }
 
@@ -30,6 +44,7 @@ export interface AnalyticsEvent {
   /** ISO 8601, UTC. */
   readonly time: string;
   readonly name: string;
+  /** Empty object for events without properties. */
   readonly props: Readonly<Record<string, AnalyticsPropValue>>;
 }
 
@@ -40,8 +55,8 @@ export interface AnalyticsRecent {
 }
 
 /**
- * Consent and the local event log. Events are built in Rust only; there is deliberately no
- * command to report an event from here.
+ * Per-category choices and the local event log. Events are built in Rust only; there is
+ * deliberately no command to report an event from here.
  */
 @Service()
 export class Analytics {
@@ -55,26 +70,21 @@ export class Analytics {
     return state;
   }
 
-  /**
-   * On failure the state is read again before rethrowing, so `current` shows what the backend
-   * applies (it gates on the in-memory value before writing the file), not the value before.
-   */
-  async setConsent(granted: boolean): Promise<AnalyticsState> {
-    try {
-      const state = await invokeCommand<AnalyticsState>('set_analytics_consent', { granted });
-      this._current.set(state);
-      return state;
-    } catch (err) {
-      await this.state().catch(() => undefined);
-      throw err;
-    }
+  /** The first-launch dialog: all three categories in one write. */
+  setChoices(choices: AnalyticsChoices): Promise<AnalyticsState> {
+    return this.save('set_analytics_choices', { choices });
+  }
+
+  /** Settings: touches this category only, so a pending one is not stamped as answered. */
+  setCategory(category: AnalyticsCategory, granted: boolean): Promise<AnalyticsState> {
+    return this.save('set_analytics_category', { category, granted });
   }
 
   recent(): Promise<AnalyticsRecent> {
     return invokeCommand<AnalyticsRecent>('analytics_recent');
   }
 
-  /** The backend ignores it without consent and sends it once per session. */
+  /** The backend ignores it unless feature usage is on, and sends it once per session. */
   appStarted(theme: ThemeMode): Promise<void> {
     return invokeCommand<void>('analytics_app_started', { theme });
   }
@@ -82,5 +92,20 @@ export class Analytics {
   /** Opens the privacy policy in the system browser, never in the webview. */
   openPrivacyPage(): Promise<void> {
     return invokeCommand<void>('open_privacy_page');
+  }
+
+  /**
+   * On failure the state is read again before rethrowing, so `current` shows what the backend
+   * applies (a refusal takes effect in memory before the file is written), not the value before.
+   */
+  private async save(command: string, args: Record<string, unknown>): Promise<AnalyticsState> {
+    try {
+      const state = await invokeCommand<AnalyticsState>(command, args);
+      this._current.set(state);
+      return state;
+    } catch (err) {
+      await this.state().catch(() => undefined);
+      throw err;
+    }
   }
 }

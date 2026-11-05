@@ -16,7 +16,7 @@ First public release, for Windows (x64, ARM64), macOS (Apple Silicon, Intel) and
 - SSH key generation (Ed25519, RSA 4096) in a folder of your choice, import, and deployment to `authorized_keys`, with owner-only private key files.
 - Dark and light themes following the system, with a manual toggle.
 - Settings: theme, default key type, terminal font size, external editor, privacy.
-- Optional anonymous usage data: Carapace asks once at first launch and sends nothing unless you agree. See PRIVACY.md.
+- Anonymous usage data in three categories (launch count, feature usage, connection results), shown at first launch before anything is sent and switchable per category, in that question and in Settings > Privacy. `DO_NOT_TRACK` turns it all off. See PRIVACY.md.
 - Installers with fixed file names, so the README download links always point to the latest version, and user documentation in `docs/`.
 
 ### Known limitations

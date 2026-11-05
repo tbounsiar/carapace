@@ -414,7 +414,12 @@ describe('external editor', () => {
 
   it('lists the edited files in the host delete confirm', async () => {
     await openMenu('host', LAB.name, 'menu-delete');
-    const text = await $('tui-dialog').getText();
+    // The dialog element exists before its content renders: getText is empty for a moment.
+    let text = '';
+    await browser.waitUntil(async () => !!(text = await $('tui-dialog').getText()), {
+      timeout: 10000,
+      timeoutMsg: 'the delete confirm stayed empty',
+    });
     expect(text).toContain('1 file open in an external editor will stop syncing.');
     expect(text).toContain('Changes not uploaded in lab.conf will be lost.');
     await shot('ext-25-delete-host-confirm');

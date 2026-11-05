@@ -170,7 +170,7 @@ pub struct ConfigFile {
         skip_serializing_if = "Option::is_none",
         deserialize_with = "lenient_analytics"
     )]
-    pub analytics: Option<AnalyticsConsent>,
+    pub analytics: Option<AnalyticsSettings>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -207,13 +207,79 @@ fn lenient_external_editor<'de, D: Deserializer<'de>>(
     Ok(serde_json::from_value(value).ok())
 }
 
-/// Usage analytics consent. Missing, or written by a hand edit in a shape we do not know,
-/// means unset: a bad value must never turn analytics on, nor make the whole file corrupt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Usage analytics choices, one per category. Missing, or written by a hand edit in a shape we
+/// do not know, means unset: a bad value must never turn a category on, nor make the whole file
+/// corrupt. The single consent of the first release is read through `migrate::analytics`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AnalyticsConsent {
+pub struct AnalyticsSettings {
+    pub categories: CategoryChoices,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Category {
+    Launch,
+    Features,
+    Connections,
+}
+
+impl Category {
+    pub const ALL: [Category; 3] = [Category::Launch, Category::Features, Category::Connections];
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
+}
+
+/// An unset category is not written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+pub struct CategoryChoices {
+    #[serde(skip_serializing_if = "CategoryChoice::is_unset")]
+    pub launch: CategoryChoice,
+    #[serde(skip_serializing_if = "CategoryChoice::is_unset")]
+    pub features: CategoryChoice,
+    #[serde(skip_serializing_if = "CategoryChoice::is_unset")]
+    pub connections: CategoryChoice,
+}
+
+impl CategoryChoices {
+    pub fn get(&self, category: Category) -> CategoryChoice {
+        match category {
+            Category::Launch => self.launch,
+            Category::Features => self.features,
+            Category::Connections => self.connections,
+        }
+    }
+
+    pub fn set(&mut self, category: Category, choice: CategoryChoice) {
+        match category {
+            Category::Launch => self.launch = choice,
+            Category::Features => self.features = choice,
+            Category::Connections => self.connections = choice,
+        }
+    }
+
+    pub fn all(choice: CategoryChoice) -> Self {
+        Self {
+            launch: choice,
+            features: choice,
+            connections: choice,
+        }
+    }
+}
+
+/// `version` is the catalogue version the answer was given for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct CategoryChoice {
     pub consent: Consent,
-    pub catalogue_version: u32,
+    pub version: u32,
+}
+
+impl CategoryChoice {
+    pub fn is_unset(&self) -> bool {
+        self.consent == Consent::Unset
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -227,9 +293,9 @@ pub enum Consent {
 
 fn lenient_analytics<'de, D: Deserializer<'de>>(
     d: D,
-) -> Result<Option<AnalyticsConsent>, D::Error> {
+) -> Result<Option<AnalyticsSettings>, D::Error> {
     let value = serde_json::Value::deserialize(d)?;
-    Ok(serde_json::from_value(value).ok())
+    Ok(super::migrate::analytics(&value))
 }
 
 impl ConfigFile {

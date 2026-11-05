@@ -5,9 +5,20 @@ use std::time::Duration;
 
 use serde::ser::{Serialize, SerializeMap, Serializer};
 
-/// Bump when a new kind of data is added; a `granted` consent for an older version is asked
-/// again.
-pub const CATALOGUE_VERSION: u32 = 1;
+pub use crate::config::Category;
+
+/// Stamped on every answer. Bump it with the `changed_in` of each category that gains a new
+/// kind of data; dropping data bumps nothing.
+pub const CATALOGUE_VERSION: u32 = 2;
+
+/// A `granted` answer older than this is asked again, for that category only.
+pub fn changed_in(category: Category) -> u32 {
+    match category {
+        Category::Launch => 2,
+        Category::Features => 1,
+        Category::Connections => 1,
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Prop {
@@ -168,7 +179,7 @@ pub enum Event {
         projects: Count,
         keys: Count,
     },
-    ConsentGranted,
+    SessionStarted,
     HostCreated {
         auth: Auth,
     },
@@ -226,10 +237,27 @@ impl Event {
         Self::HostTestRun { result, code: None }
     }
 
+    pub fn category(&self) -> Category {
+        match self {
+            Self::SessionStarted => Category::Launch,
+            Self::AppStarted { .. }
+            | Self::HostCreated { .. }
+            | Self::TerminalOpened
+            | Self::FilesOpened
+            | Self::TransferFinished { .. }
+            | Self::KeyGenerated { .. }
+            | Self::KeyImported { .. }
+            | Self::VariablesSaved { .. } => Category::Features,
+            Self::ConnectSucceeded { .. }
+            | Self::ConnectFailed { .. }
+            | Self::HostTestRun { .. } => Category::Connections,
+        }
+    }
+
     pub fn name(&self) -> &'static str {
         match self {
             Self::AppStarted { .. } => "app_started",
-            Self::ConsentGranted => "consent_granted",
+            Self::SessionStarted => "session_started",
             Self::HostCreated { .. } => "host_created",
             Self::ConnectSucceeded { .. } => "connect_succeeded",
             Self::ConnectFailed { .. } => "connect_failed",
@@ -257,7 +285,7 @@ impl Event {
                 ("projects", s(projects.as_str())),
                 ("keys", s(keys.as_str())),
             ],
-            Self::ConsentGranted | Self::TerminalOpened | Self::FilesOpened => Vec::new(),
+            Self::SessionStarted | Self::TerminalOpened | Self::FilesOpened => Vec::new(),
             Self::HostCreated { auth } => vec![("auth", s(auth.as_str()))],
             Self::ConnectSucceeded { auth, duration } => vec![
                 ("auth", s(auth.as_str())),

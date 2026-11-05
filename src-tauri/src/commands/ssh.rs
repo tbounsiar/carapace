@@ -7,7 +7,7 @@ use super::analytics::auth_of;
 use super::error::CommandError;
 use super::resolve::{self, required};
 use super::secrets::check_secret;
-use crate::analytics::{Analytics, Attempt, Auth, ErrorCode, Event, TestResult, Took};
+use crate::analytics::{Analytics, Attempt, Auth, Category, ErrorCode, Event, TestResult, Took};
 use crate::config::{ConfigStore, HostInput};
 use crate::external::ExternalEdits;
 use crate::ssh::{
@@ -61,7 +61,7 @@ pub(super) async fn connect_in(
     emit: Emit,
 ) -> Res<ConnectionInfo> {
     let observed = analytics
-        .collecting()
+        .collecting(Category::Connections)
         .then(|| store.snapshot().ok())
         .flatten()
         .and_then(|cfg| cfg.host(host_id).map(|h| auth_of(&h.auth)));
@@ -199,7 +199,7 @@ pub(super) async fn test_observed(
     emit: Emit,
     credential: Option<Credential>,
 ) -> Res<HostTestResult> {
-    let collecting = analytics.collecting();
+    let collecting = analytics.collecting(Category::Connections);
     // Held only under an id that names a saved host: the webview cannot grow the map with
     // made-up keys.
     let attempt = collecting.then(|| test_attempt(store, host_id)).flatten();

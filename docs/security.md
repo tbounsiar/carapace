@@ -56,4 +56,4 @@ Copies of files opened in an [external editor](external-editor.md) are stored in
 - Private keys outside the file you chose or generated; keys are not copied on import.
 - Your servers, credentials or files to any third party. Carapace has no account and no server; connections go directly from your computer to your hosts.
 
-Optional usage data, sent only if you agree, is described in [PRIVACY.md](../PRIVACY.md).
+Anonymous usage data, on by default and shown before anything is sent at first launch, can be turned off category by category; it is described in [PRIVACY.md](../PRIVACY.md).

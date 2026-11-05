@@ -62,11 +62,14 @@ export async function waitForApp(): Promise<void> {
   });
 }
 
-/** Answers the first-launch consent dialog with "Don't share"; it must be the only one open. */
-export async function declineConsent(): Promise<void> {
+/**
+ * Answers the first-launch consent dialog with "Save choices" and its defaults (every category on;
+ * the e2e build has no key, so nothing leaves the machine). It must be the only one open.
+ */
+export async function saveConsentDefaults(): Promise<void> {
   await byId('consent-dialog').waitForDisplayed({ timeout: 20000 });
   expect(await $$(tid('consent-dialog')).length).toBe(1);
-  await clickId('consent-decline');
+  await clickId('consent-save');
   await waitGone('consent-dialog');
 }
 

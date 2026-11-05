@@ -1,8 +1,9 @@
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
-import { provideTaiga, TuiDialogService, TuiRoot } from '@taiga-ui/core';
-import type { AnalyticsState } from '../../core/ipc/analytics';
+import { provideTaiga, TUI_DIALOGS_CLOSE, TuiDialogService, TuiRoot } from '@taiga-ui/core';
+import { Subject } from 'rxjs';
+import type { AnalyticsChoices, AnalyticsState } from '../../core/ipc/analytics';
 import { ConfigService } from '../../core/ipc/config';
 import { provideOpenDialogs } from '../../shared/open-dialogs';
 import { ConsentPrompter } from './consent-prompter';
@@ -10,8 +11,12 @@ import { ConsentPrompter } from './consent-prompter';
 @Component({ imports: [TuiRoot], template: '<tui-root />' })
 class Shell {}
 
+const OFF: AnalyticsChoices = { launch: false, features: false, connections: false };
+
 const UNSET: AnalyticsState = {
-  consent: 'unset',
+  categories: OFF,
+  pending: ['launch', 'features', 'connections'],
+  doNotTrack: false,
   askNeeded: true,
   available: false,
   persisted: true,
@@ -24,6 +29,7 @@ describe('ConsentPrompter', () => {
   let calls: { cmd: string; args: unknown }[];
   let state: AnalyticsState;
   let saveFails: boolean;
+  let closeAll: Subject<void>;
 
   const settle = async (): Promise<void> => {
     for (let i = 0; i < 3; i++) {
@@ -33,9 +39,9 @@ describe('ConsentPrompter', () => {
   };
   const dialog = (): HTMLElement | null =>
     document.body.querySelector<HTMLElement>('[data-testid="consent-dialog"]');
-  const byId = (id: string): HTMLButtonElement =>
-    document.body.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!;
-  const saved = () => calls.filter((c) => c.cmd === 'set_analytics_consent').map((c) => c.args);
+  const byId = <T extends HTMLElement = HTMLButtonElement>(id: string): T =>
+    document.body.querySelector<T>(`[data-testid="${id}"]`)!;
+  const saved = () => calls.filter((c) => c.cmd === 'set_analytics_choices').map((c) => c.args);
 
   beforeAll(() => import('./consent-dialog/consent-dialog'), 60_000);
 
@@ -48,27 +54,24 @@ describe('ConsentPrompter', () => {
       if (cmd === 'analytics_state') {
         return state;
       }
-      if (cmd === 'set_analytics_consent') {
+      if (cmd === 'set_analytics_choices') {
         if (saveFails) {
           throw { code: 'io', message: 'disk full' };
         }
-        const granted = (args as { granted: boolean }).granted;
-        return {
-          consent: granted ? 'granted' : 'denied',
-          askNeeded: false,
-          available: false,
-          persisted: true,
-        };
+        const { choices } = args as { choices: AnalyticsChoices };
+        return { ...UNSET, categories: choices, pending: [], askNeeded: false };
       }
       return null;
     });
     loaded = signal(false);
+    closeAll = new Subject<void>();
     await TestBed.configureTestingModule({
       imports: [Shell],
       providers: [
         provideTaiga(),
         provideOpenDialogs(),
         { provide: ConfigService, useValue: { loaded } },
+        { provide: TUI_DIALOGS_CLOSE, useFactory: () => closeAll },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(Shell);
@@ -87,13 +90,17 @@ describe('ConsentPrompter', () => {
     loaded.set(true);
     await settle();
     expect(dialog()).not.toBeNull();
-    expect(document.activeElement).toBe(byId('consent-decline'));
+    expect(document.activeElement).toBe(byId('consent-launch'));
+    expect(byId<HTMLInputElement>('consent-launch').checked).toBe(true);
+    expect(byId<HTMLInputElement>('consent-features').checked).toBe(true);
+    expect(byId<HTMLInputElement>('consent-connections').checked).toBe(true);
     expect(document.body.querySelector('tui-dialog')?.textContent).toContain(
-      'Share anonymous usage data?',
+      'Anonymous usage data',
     );
-    byId('consent-share').click();
+    expect(document.body.querySelector('tui-dialog')?.getAttribute('data-size')).toBe('m');
+    byId('consent-save').click();
     await done;
-    expect(saved()).toEqual([{ granted: true }]);
+    expect(saved()).toEqual([{ choices: { launch: true, features: true, connections: true } }]);
   });
 
   it('waits until no other dialog is open', async () => {
@@ -106,18 +113,64 @@ describe('ConsentPrompter', () => {
     other.unsubscribe();
     await settle();
     expect(dialog()).not.toBeNull();
-    byId('consent-decline').click();
+    byId('consent-save').click();
     await done;
-    expect(saved()).toEqual([{ granted: false }]);
+    expect(saved()).toEqual([{ choices: { launch: true, features: true, connections: true } }]);
   });
 
-  it('declines on Escape', async () => {
+  it('saves the switches as shown on Escape, in one call', async () => {
     loaded.set(true);
     const done = prompter.start();
     await settle();
+    byId('consent-launch').click();
+    byId('consent-features').click();
+    await settle();
     dialog()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await done;
-    expect(saved()).toEqual([{ granted: false }]);
+    expect(saved()).toEqual([{ choices: { launch: false, features: false, connections: true } }]);
+  });
+
+  it('saves the switches as shown on a backdrop click', async () => {
+    loaded.set(true);
+    const done = prompter.start();
+    await settle();
+    byId('consent-connections').click();
+    await settle();
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1 }));
+    document.body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 1 }));
+    await done;
+    expect(saved()).toEqual([{ choices: { launch: true, features: true, connections: false } }]);
+  });
+
+  it('saves nothing when the dialog is closed without a user action', async () => {
+    loaded.set(true);
+    const done = prompter.start();
+    await settle();
+    expect(dialog()).not.toBeNull();
+    // What Taiga does on a router navigation (ActivationStart).
+    closeAll.next();
+    await done;
+    await settle();
+    expect(dialog()).toBeNull();
+    expect(saved()).toEqual([]);
+    expect(document.body.textContent).not.toContain('Setting not saved');
+  });
+
+  it('starts a re-ask with pending categories on and the others as stored', async () => {
+    state = {
+      ...UNSET,
+      categories: { launch: false, features: false, connections: false },
+      pending: ['features', 'connections'],
+    };
+    loaded.set(true);
+    const done = prompter.start();
+    await settle();
+    expect(byId<HTMLInputElement>('consent-launch').checked).toBe(false);
+    expect(byId<HTMLInputElement>('consent-features').checked).toBe(true);
+    expect(byId<HTMLInputElement>('consent-connections').checked).toBe(true);
+    expect(byId('consent-reask')).not.toBeNull();
+    byId('consent-save').click();
+    await done;
   });
 
   it('has no close button', async () => {
@@ -125,11 +178,11 @@ describe('ConsentPrompter', () => {
     void prompter.start();
     await settle();
     expect(document.body.querySelector('tui-dialog [tuiIconButton]')).toBeNull();
-    expect(dialog()!.querySelectorAll('footer button').length).toBe(2);
+    expect(dialog()!.querySelectorAll('footer button').length).toBe(1);
   });
 
-  it('does not ask when the decision is made, and asks only once', async () => {
-    state = { consent: 'denied', askNeeded: false, available: false, persisted: true };
+  it('does not ask when everything is answered, and asks only once', async () => {
+    state = { ...UNSET, pending: [], askNeeded: false };
     loaded.set(true);
     await prompter.start();
     await prompter.start();
@@ -138,13 +191,22 @@ describe('ConsentPrompter', () => {
     expect(calls.filter((c) => c.cmd === 'analytics_state').length).toBe(1);
   });
 
+  it('does not ask under DO_NOT_TRACK', async () => {
+    state = { ...UNSET, doNotTrack: true, askNeeded: false };
+    loaded.set(true);
+    await prompter.start();
+    await settle();
+    expect(dialog()).toBeNull();
+    expect(saved()).toEqual([]);
+  });
+
   it('reads the state again and says when a refusal is kept in memory only', async () => {
     saveFails = true;
     loaded.set(true);
     const done = prompter.start();
     await settle();
-    state = { consent: 'denied', askNeeded: false, available: false, persisted: false };
-    byId('consent-decline').click();
+    state = { ...UNSET, pending: [], askNeeded: false, persisted: false };
+    byId('consent-save').click();
     await done;
     await settle();
     expect(calls.filter((c) => c.cmd === 'analytics_state').length).toBe(2);
@@ -154,12 +216,12 @@ describe('ConsentPrompter', () => {
     expect(document.body.textContent).not.toContain('Disk full');
   });
 
-  it('shows a toast when the decision is not saved', async () => {
+  it('shows a toast when the choices are not saved', async () => {
     saveFails = true;
     loaded.set(true);
     const done = prompter.start();
     await settle();
-    byId('consent-share').click();
+    byId('consent-save').click();
     await done;
     await settle();
     expect(document.body.textContent).toContain('Setting not saved');

@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
-import type { AnalyticsState } from '../../../core/ipc/analytics';
+import type { AnalyticsCategory, AnalyticsState } from '../../../core/ipc/analytics';
 import { Settings } from '../../../core/settings/settings';
 import { ThemeService } from '../../../core/theme/theme';
 import { SettingsPage } from './settings-page';
@@ -13,10 +13,27 @@ import { SettingsPage } from './settings-page';
 })
 class Host {}
 
+const OFF = { launch: false, features: false, connections: false };
+
+function stateOf(
+  categories: AnalyticsState['categories'],
+  extra: Partial<AnalyticsState> = {},
+): AnalyticsState {
+  return {
+    categories,
+    pending: [],
+    doNotTrack: false,
+    askNeeded: false,
+    available: true,
+    persisted: true,
+    ...extra,
+  };
+}
+
 describe('SettingsPage', () => {
   let state: AnalyticsState | 'fail';
   let saveFails: boolean;
-  let onSave: ((granted: boolean) => unknown) | null;
+  let onSave: ((category: AnalyticsCategory, granted: boolean) => unknown) | null;
   let calls: { cmd: string; args: unknown }[];
 
   beforeAll(
@@ -26,7 +43,10 @@ describe('SettingsPage', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    state = { consent: 'unset', askNeeded: true, available: true, persisted: true };
+    state = stateOf(OFF, {
+      pending: ['launch', 'features', 'connections'],
+      askNeeded: true,
+    });
     saveFails = false;
     onSave = null;
     calls = [];
@@ -38,20 +58,17 @@ describe('SettingsPage', () => {
         }
         return state;
       }
-      if (cmd === 'set_analytics_consent') {
+      if (cmd === 'set_analytics_category') {
         if (saveFails) {
           throw { code: 'io', message: 'disk full' };
         }
-        const granted = (args as { granted: boolean }).granted;
+        const { category, granted } = args as { category: AnalyticsCategory; granted: boolean };
         if (onSave) {
-          return onSave(granted);
+          return onSave(category, granted);
         }
-        return {
-          consent: granted ? 'granted' : 'denied',
-          askNeeded: false,
-          available: true,
-          persisted: true,
-        };
+        const current = state === 'fail' ? stateOf(OFF) : state;
+        state = stateOf({ ...current.categories, [category]: granted });
+        return state;
       }
       if (cmd === 'get_external_editor') {
         return { mode: 'system', appPath: null, noticeSeen: false };
@@ -99,110 +116,171 @@ describe('SettingsPage', () => {
   }
 
   describe('privacy', () => {
-    it('shows the consent: unset and denied are off, granted is on', async () => {
+    const saves = () => calls.filter((c) => c.cmd === 'set_analytics_category').map((c) => c.args);
+
+    it('shows the three categories: granted is on, unset and denied are off', async () => {
       const first = await setup();
-      const sw = first.byId<HTMLInputElement>('settings-analytics')!;
-      expect(sw.checked).toBe(false);
-      expect(sw.disabled).toBe(false);
-      expect(sw.getAttribute('aria-describedby')).toBe('settings-analytics-note');
-      expect(first.byId('settings-analytics-note')?.textContent).toContain('No install ID');
+      for (const id of ['launch', 'features', 'connections']) {
+        const sw = first.byId<HTMLInputElement>(`settings-analytics-${id}`)!;
+        expect(sw.checked).toBe(false);
+        expect(sw.disabled).toBe(false);
+        expect(sw.getAttribute('aria-describedby')).toBe(
+          `settings-analytics-${id}-note settings-analytics-common`,
+        );
+      }
+      expect(first.byId('settings-analytics-launch-note')?.textContent?.trim()).toBe(
+        'One event when Carapace starts.',
+      );
+      expect(first.byId('settings-analytics-common')?.textContent).toContain(
+        'Sent with every event:',
+      );
+      expect(first.byId('settings-analytics-never')?.textContent).toContain('Never sent:');
       expect(first.byId('settings-analytics-unavailable')).toBeNull();
+      expect(first.byId('settings-analytics-dnt')).toBeNull();
       TestBed.resetTestingModule();
 
-      state = { consent: 'granted', askNeeded: false, available: true, persisted: true };
+      state = stateOf({ launch: true, features: false, connections: true });
       const second = await setup();
-      expect(second.byId<HTMLInputElement>('settings-analytics')!.checked).toBe(true);
+      expect(second.byId<HTMLInputElement>('settings-analytics-launch')!.checked).toBe(true);
+      expect(second.byId<HTMLInputElement>('settings-analytics-features')!.checked).toBe(false);
+      expect(second.byId<HTMLInputElement>('settings-analytics-connections')!.checked).toBe(true);
     });
 
-    it('saves the switch at once', async () => {
+    it('saves each switch at once, for its own category only', async () => {
       const { fixture, byId } = await setup();
-      byId<HTMLInputElement>('settings-analytics')!.click();
+      byId<HTMLInputElement>('settings-analytics-features')!.click();
       await settle(fixture);
-      expect(calls.filter((c) => c.cmd === 'set_analytics_consent')).toEqual([
-        { cmd: 'set_analytics_consent', args: { granted: true } },
+      byId<HTMLInputElement>('settings-analytics-launch')!.click();
+      await settle(fixture);
+      expect(saves()).toEqual([
+        { category: 'features', granted: true },
+        { category: 'launch', granted: true },
       ]);
-      expect(byId<HTMLInputElement>('settings-analytics')!.checked).toBe(true);
+      expect(byId<HTMLInputElement>('settings-analytics-features')!.checked).toBe(true);
+      expect(byId<HTMLInputElement>('settings-analytics-launch')!.checked).toBe(true);
+      expect(byId<HTMLInputElement>('settings-analytics-connections')!.checked).toBe(false);
     });
 
-    it('shows the state the backend applies when saving fails', async () => {
+    it('reverts a grant that could not be saved', async () => {
       saveFails = true;
       const { fixture, byId } = await setup();
-      state = { consent: 'unset', askNeeded: true, available: true, persisted: true };
-      byId<HTMLInputElement>('settings-analytics')!.click();
+      byId<HTMLInputElement>('settings-analytics-connections')!.click();
       await settle(fixture);
       expect(calls.filter((c) => c.cmd === 'analytics_state').length).toBe(2);
-      expect(byId<HTMLInputElement>('settings-analytics')!.checked).toBe(false);
+      expect(byId<HTMLInputElement>('settings-analytics-connections')!.checked).toBe(false);
       expect(document.body.textContent).toContain('Setting not saved');
       expect(byId('settings-analytics-unsaved')).toBeNull();
     });
 
     it('shows a refusal kept in memory only, without the generic toast', async () => {
-      state = { consent: 'granted', askNeeded: false, available: true, persisted: true };
+      state = stateOf({ launch: true, features: true, connections: false });
       saveFails = true;
       const { fixture, byId } = await setup();
-      state = { consent: 'denied', askNeeded: false, available: true, persisted: false };
-      byId<HTMLInputElement>('settings-analytics')!.click();
+      state = stateOf({ launch: true, features: false, connections: false }, { persisted: false });
+      byId<HTMLInputElement>('settings-analytics-features')!.click();
       await settle(fixture);
-      expect(byId<HTMLInputElement>('settings-analytics')!.checked).toBe(false);
+      expect(byId<HTMLInputElement>('settings-analytics-features')!.checked).toBe(false);
+      expect(byId<HTMLInputElement>('settings-analytics-launch')!.checked).toBe(true);
       expect(byId('settings-analytics-unsaved')?.textContent).toContain(
         'Off for this session. The setting could not be saved; Carapace will try again.',
       );
       expect(document.body.textContent).not.toContain('Disk full');
     });
 
-    it('saves one change at a time and keeps the last choice', async () => {
+    it('saves one change at a time and keeps the last choice per category', async () => {
       const pending: (() => void)[] = [];
-      onSave = (granted) =>
+      let saved: AnalyticsState['categories'] = OFF;
+      onSave = (category, granted) =>
         new Promise((resolve) =>
-          pending.push(() =>
-            resolve({
-              consent: granted ? 'granted' : 'denied',
-              askNeeded: false,
-              available: true,
-              persisted: true,
-            }),
-          ),
+          pending.push(() => {
+            saved = { ...saved, [category]: granted };
+            resolve(stateOf(saved));
+          }),
         );
       const { fixture, byId } = await setup();
-      const sw = () => byId<HTMLInputElement>('settings-analytics')!;
-      const saves = () => calls.filter((c) => c.cmd === 'set_analytics_consent').map((c) => c.args);
-      sw().click();
+      const sw = (id: string) => byId<HTMLInputElement>(`settings-analytics-${id}`)!;
+      sw('launch').click();
       await settle(fixture);
-      sw().click();
+      sw('launch').click();
       await settle(fixture);
-      expect(saves()).toEqual([{ granted: true }]);
-      expect(sw().checked).toBe(false);
+      sw('features').click();
+      await settle(fixture);
+      expect(saves()).toEqual([{ category: 'launch', granted: true }]);
+      expect(sw('launch').checked).toBe(false);
 
       pending.shift()!();
       await settle(fixture);
-      expect(saves()).toEqual([{ granted: true }, { granted: false }]);
-      expect(sw().checked).toBe(false);
+      expect(saves()).toEqual([
+        { category: 'launch', granted: true },
+        { category: 'launch', granted: false },
+      ]);
+      expect(sw('launch').checked).toBe(false);
+      expect(sw('features').checked).toBe(true);
 
       pending.shift()!();
       await settle(fixture);
-      expect(sw().checked).toBe(false);
-      expect(saves().length).toBe(2);
+      pending.shift()!();
+      await settle(fixture);
+      expect(saves().length).toBe(3);
+      expect(saves()[2]).toEqual({ category: 'features', granted: true });
+      expect(sw('launch').checked).toBe(false);
+      expect(sw('features').checked).toBe(true);
+    });
+
+    it('turns every switch off and disables it under DO_NOT_TRACK', async () => {
+      state = stateOf(
+        { launch: true, features: true, connections: true },
+        { doNotTrack: true, available: false },
+      );
+      const { el, byId } = await setup();
+      for (const id of ['launch', 'features', 'connections']) {
+        const sw = byId<HTMLInputElement>(`settings-analytics-${id}`)!;
+        expect(sw.checked).toBe(false);
+        expect(sw.disabled).toBe(true);
+        expect(sw.getAttribute('aria-describedby')).toBe(
+          `settings-analytics-${id}-note settings-analytics-common settings-analytics-dnt`,
+        );
+      }
+      expect(byId('settings-analytics-dnt')?.textContent).toContain(
+        'Off because DO_NOT_TRACK is set on this computer. Nothing is sent.',
+      );
+      const notes = Array.from(el.querySelectorAll('[tuiNotification]')).map(
+        (n) => (n as HTMLElement).dataset['testid'],
+      );
+      expect(notes).toEqual(['settings-analytics-dnt', 'settings-analytics-unavailable']);
+      // The cause is read before the disabled switches.
+      const legend = byId('settings-analytics-dnt')!.closest('fieldset')!.querySelector('legend')!;
+      expect(legend.textContent).toBe('Privacy');
+      expect(legend.nextElementSibling).toBe(byId('settings-analytics-dnt'));
+      expect(
+        byId('settings-analytics-dnt')!.compareDocumentPosition(
+          byId('settings-analytics-launch')!,
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     });
 
     it('says when the build does not send usage data', async () => {
-      state = { consent: 'denied', askNeeded: false, available: false, persisted: true };
+      state = stateOf(OFF, { available: false });
       const { byId } = await setup();
       expect(byId('settings-analytics-unavailable')?.textContent).toContain(
         'This build does not send usage data. Changes are still saved.',
       );
-      expect(byId<HTMLInputElement>('settings-analytics')!.disabled).toBe(false);
+      expect(byId<HTMLInputElement>('settings-analytics-launch')!.disabled).toBe(false);
     });
 
-    it('disables the switch when the setting cannot be read', async () => {
+    it('disables the switches when the setting cannot be read', async () => {
       state = 'fail';
       const { byId } = await setup();
-      const sw = byId<HTMLInputElement>('settings-analytics')!;
-      expect(sw.disabled).toBe(true);
-      expect(byId('settings-analytics-note')).toBeNull();
+      for (const id of ['launch', 'features', 'connections']) {
+        const sw = byId<HTMLInputElement>(`settings-analytics-${id}`)!;
+        expect(sw.disabled).toBe(true);
+        expect(sw.getAttribute('aria-describedby')).toBe('settings-analytics-error');
+        expect(byId(`settings-analytics-${id}-note`)).toBeNull();
+      }
+      expect(byId('settings-analytics-common')).toBeNull();
       expect(byId('settings-analytics-error')?.textContent).toContain(
         'Could not read this setting. Restart the app.',
       );
-      expect(sw.getAttribute('aria-describedby')).toBe('settings-analytics-error');
     });
 
     it('opens the privacy page through the backend', async () => {

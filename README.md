@@ -90,7 +90,7 @@ The builds are not code-signed, so each operating system warns on first launch. 
 - **External editor.** Open a remote file in a local editor; each save is uploaded back, with conflict detection when the server copy changed. The **Edited files** page tracks every file being edited.
 - **SSH keys.** Generate Ed25519 (default) or RSA 4096 keys with an optional passphrase, import existing OpenSSH keys, and deploy a public key to a host's `authorized_keys`.
 - **Themes.** Light and dark, following the system by default.
-- **Optional usage data**, off until you agree. See [Privacy](#privacy).
+- **Anonymous usage data**, shown before anything is sent and switchable per category. See [Privacy](#privacy).
 
 ## Documentation
 
@@ -115,7 +115,7 @@ Details in [docs/security.md](docs/security.md). Report vulnerabilities as descr
 
 ## Privacy
 
-Your hosts, credentials and files stay on your machine. Carapace can send anonymous usage data only if you agree when it asks on first launch; see [PRIVACY.md](PRIVACY.md) for exactly what is and is never sent.
+Your hosts, credentials and files stay on your machine. Carapace sends anonymous usage data, which it shows you on first launch before anything is sent and which you can turn off category by category; see [PRIVACY.md](PRIVACY.md) for exactly what is and is never sent.
 
 ## Where data lives
 

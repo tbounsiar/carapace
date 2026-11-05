@@ -28,6 +28,9 @@
         <span class="note session-note">Random, new at each launch, not linked to you.</span>
       </dd>
     </dl>
+    <p class="text note" data-testid="analytics-country-note">
+      The country and region are not sent: the analytics service derives them from the connection.
+    </p>
   </section>
 
   <section class="group" aria-labelledby="analytics-session-title">
@@ -37,7 +40,9 @@
     @if (rows().length === 0) {
       <tui-block-status size="m" data-testid="analytics-events-empty">
         <h4>Nothing sent in this session.</h4>
-        @if (state.consent !== 'granted') {
+        @if (state.doNotTrack) {
+          <span>DO_NOT_TRACK is set on this computer.</span>
+        } @else if (allOff) {
           <span>Usage data is off.</span>
         }
       </tui-block-status>
@@ -61,6 +66,8 @@
                 <td tuiTd>
                   @for (prop of row.props; track $index) {
                     <div class="mono">{{ prop }}</div>
+                  } @empty {
+                    <span class="note">None</span>
                   }
                 </td>
               </tr>

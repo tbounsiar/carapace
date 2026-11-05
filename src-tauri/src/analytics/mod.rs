@@ -1,5 +1,6 @@
-//! Opt-in usage analytics. Consent is enforced here: unless it is granted for the current
-//! catalogue version, no event is built, logged, queued or sent.
+//! Usage analytics in three categories. Choices are enforced here: unless an event's category
+//! is granted for its current catalogue version and DO_NOT_TRACK is not set, the event is not
+//! built, logged, queued or sent.
 
 mod client;
 mod event;
@@ -9,16 +10,16 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant, SystemTime};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub use client::{Aptabase, Outbox, SDK_VERSION, Transport};
 pub use event::{
-    Auth, CATALOGUE_VERSION, Count, Counts, ErrorCode, Event, Files, GeneratedType, ImportedType,
-    Outcome, Props, Scope, TestResult, Theme, Took, TransferDirection,
+    Auth, CATALOGUE_VERSION, Category, Count, Counts, ErrorCode, Event, Files, GeneratedType,
+    ImportedType, Outcome, Props, Scope, TestResult, Theme, Took, TransferDirection, changed_in,
 };
 pub use system::SystemProps;
 
-use crate::config::{AnalyticsConsent, Consent};
+use crate::config::{AnalyticsSettings, CategoryChoice, CategoryChoices, Consent};
 use client::{Envelope, WireSystem};
 
 pub const MAX_RECENT: usize = 50;
@@ -44,13 +45,53 @@ pub fn app_key() -> Option<&'static str> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// Any value except empty, `0` or `false` (trimmed, any case) asks for no tracking.
+pub fn do_not_track(value: Option<&std::ffi::OsStr>) -> bool {
+    let Some(value) = value else {
+        return false;
+    };
+    let value = value.to_string_lossy();
+    let value = value.trim();
+    !(value.is_empty() || value == "0" || value.eq_ignore_ascii_case("false"))
+}
+
+/// One switch per category.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct AnalyticsChoices {
+    pub launch: bool,
+    pub features: bool,
+    pub connections: bool,
+}
+
+impl AnalyticsChoices {
+    pub fn get(&self, category: Category) -> bool {
+        match category {
+            Category::Launch => self.launch,
+            Category::Features => self.features,
+            Category::Connections => self.connections,
+        }
+    }
+
+    fn set(&mut self, category: Category, on: bool) {
+        match category {
+            Category::Launch => self.launch = on,
+            Category::Features => self.features = on,
+            Category::Connections => self.connections = on,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyticsState {
-    pub consent: Consent,
+    /// Granted for the current catalogue, as stored; DO_NOT_TRACK is not applied here.
+    pub categories: AnalyticsChoices,
+    /// Unset, or granted for an older catalogue: what the dialog asks.
+    pub pending: Vec<Category>,
+    pub do_not_track: bool,
     pub ask_needed: bool,
     pub available: bool,
-    /// False while the effective consent (a deny) could not be written to the config yet.
+    /// False while a refusal could not be written to the config yet.
     pub persisted: bool,
 }
 
@@ -89,49 +130,80 @@ struct Pending {
     since: Instant,
 }
 
+fn answer(granted: bool) -> CategoryChoice {
+    CategoryChoice {
+        consent: if granted {
+            Consent::Granted
+        } else {
+            Consent::Denied
+        },
+        version: CATALOGUE_VERSION,
+    }
+}
+
+fn unsaved_writes(st: &State) -> Vec<(Category, CategoryChoice)> {
+    Category::ALL
+        .into_iter()
+        .filter(|c| st.unsaved[c.index()])
+        .map(|c| (c, answer(false)))
+        .collect()
+}
+
+fn current(category: Category, choice: CategoryChoice) -> bool {
+    choice.consent == Consent::Granted && choice.version >= changed_in(category)
+}
+
 #[derive(Default)]
 struct State {
-    stored: Option<AnalyticsConsent>,
-    recent: VecDeque<RecentEvent>,
+    stored: CategoryChoices,
+    recent: VecDeque<(Category, RecentEvent)>,
+    session_started: bool,
     started: bool,
     theme: Option<Theme>,
     attempts: HashMap<Attempt, Pending>,
     listed: HashSet<String>,
-    /// The in-memory consent still has to be written (a deny whose save failed).
-    unsaved: bool,
+    /// Refusals in effect in memory whose save failed; written by the next save.
+    unsaved: [bool; 3],
+    /// The stored choices could not be read: nothing is known, so every gate stays closed and
+    /// nothing is asked until a read succeeds.
+    unread: bool,
 }
 
 impl State {
-    fn collecting(&self) -> bool {
-        matches!(
-            self.stored,
-            Some(AnalyticsConsent { consent: Consent::Granted, catalogue_version }) if catalogue_version >= CATALOGUE_VERSION
-        )
+    fn granted(&self, category: Category) -> bool {
+        !self.unread && current(category, self.stored.get(category))
     }
 
-    fn view(&self, available: bool) -> AnalyticsState {
-        let consent = self.stored.map(|s| s.consent).unwrap_or_default();
-        AnalyticsState {
-            consent,
-            ask_needed: consent == Consent::Unset
-                || (consent == Consent::Granted && !self.collecting()),
-            available,
-            persisted: !self.unsaved,
+    fn pending(&self) -> Vec<Category> {
+        if self.unread {
+            return Vec::new();
         }
+        Category::ALL
+            .into_iter()
+            .filter(|&c| {
+                let choice = self.stored.get(c);
+                choice.consent == Consent::Unset
+                    || (choice.consent == Consent::Granted && !current(c, choice))
+            })
+            .collect()
     }
 
-    fn forget(&mut self) {
-        self.recent.clear();
-        self.attempts.clear();
-        self.listed.clear();
+    /// Everything kept in memory for one category, so turning it off leaves nothing behind.
+    fn forget(&mut self, category: Category) {
+        self.recent.retain(|(c, _)| *c != category);
+        self.attempts.retain(|_, p| p.event.category() != category);
+        if category == Category::Features {
+            self.listed.clear();
+        }
     }
 }
 
 struct Inner {
-    // Held across a whole consent change, the save included, so the last change wins both in
-    // memory and on disk. Taken before `state`, never the other way.
+    // Held across a whole change of choices, the save included, so the last change wins both
+    // in memory and on disk. Taken before `state`, never the other way.
     consent: Mutex<()>,
     state: Mutex<State>,
+    do_not_track: bool,
     system: SystemProps,
     session_id: String,
     outbox: Option<Outbox>,
@@ -143,20 +215,22 @@ pub struct Analytics {
 }
 
 impl Analytics {
-    /// `transport: None` is an unavailable build: the gate and the recent log work, nothing
-    /// is ever sent.
+    /// `transport: None` is an unavailable build: the gates and the recent log work, nothing
+    /// is ever sent. `do_not_track` closes every gate for the life of this instance.
     pub fn new(
-        stored: Option<AnalyticsConsent>,
+        stored: Option<AnalyticsSettings>,
         system: SystemProps,
         transport: Option<Box<dyn Transport>>,
+        do_not_track: bool,
     ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 consent: Mutex::new(()),
                 state: Mutex::new(State {
-                    stored,
+                    stored: stored.unwrap_or_default().categories,
                     ..State::default()
                 }),
+                do_not_track,
                 system,
                 // Not numeric: Aptabase reads numeric session ids as timestamps.
                 session_id: uuid::Uuid::new_v4().to_string(),
@@ -165,8 +239,15 @@ impl Analytics {
         }
     }
 
-    /// The app's instance: the key compiled in, if any.
-    pub fn for_app(stored: Option<AnalyticsConsent>, app_version: &str) -> Self {
+    /// The stored choices could not be read: see `State::unread`.
+    pub fn unread(self) -> Self {
+        self.state().unread = true;
+        self
+    }
+
+    /// The app's instance: the key compiled in, if any, and DO_NOT_TRACK read once. An error
+    /// is a config that could not be read, which is not the same as no answer.
+    pub fn for_app<E>(stored: Result<Option<AnalyticsSettings>, E>, app_version: &str) -> Self {
         let key = app_key();
         let transport = key
             .and_then(Aptabase::from_key)
@@ -174,7 +255,23 @@ impl Analytics {
         if key.is_some() && transport.is_none() {
             log::warn!("the analytics key is not a supported Aptabase key; nothing will be sent");
         }
-        Self::new(stored, SystemProps::detect(app_version), transport)
+        let dnt = do_not_track(std::env::var_os("DO_NOT_TRACK").as_deref());
+        if dnt {
+            log::info!("DO_NOT_TRACK is set; usage analytics are off for this launch");
+        }
+        let unread = stored.is_err();
+        let analytics = Self::new(
+            stored.unwrap_or_default(),
+            SystemProps::detect(app_version),
+            transport,
+            dnt,
+        );
+        if unread {
+            log::warn!("analytics choices could not be read; analytics stay off until they are");
+            analytics.unread()
+        } else {
+            analytics
+        }
     }
 
     fn state(&self) -> MutexGuard<'_, State> {
@@ -185,35 +282,63 @@ impl Analytics {
         self.inner.outbox.is_some()
     }
 
-    pub fn status(&self) -> AnalyticsState {
-        self.state().view(self.available())
+    fn open(&self, st: &State, category: Category) -> bool {
+        !self.inner.do_not_track && st.granted(category)
     }
 
-    pub fn collecting(&self) -> bool {
-        self.state().collecting()
+    fn view(&self, st: &State) -> AnalyticsState {
+        let mut categories = AnalyticsChoices::default();
+        for c in Category::ALL {
+            categories.set(c, st.granted(c));
+        }
+        let pending = st.pending();
+        AnalyticsState {
+            categories,
+            ask_needed: !pending.is_empty() && !self.inner.do_not_track,
+            pending,
+            do_not_track: self.inner.do_not_track,
+            available: self.available(),
+            persisted: !st.unsaved.contains(&true),
+        }
+    }
+
+    pub fn status(&self) -> AnalyticsState {
+        self.view(&self.state())
+    }
+
+    /// Whether events of this category are built right now.
+    pub fn collecting(&self, category: Category) -> bool {
+        self.open(&self.state(), category)
     }
 
     fn record_in(&self, st: &mut State, event: Event) {
-        if !st.collecting() {
+        let category = event.category();
+        if !self.open(st, category) {
             return;
         }
         let now = SystemTime::now();
         let time = system::iso_utc(now);
         let props = event.props();
-        st.recent.push_front(RecentEvent {
-            time: time.clone(),
-            name: event.name(),
-            props: props.clone(),
-        });
+        st.recent.push_front((
+            category,
+            RecentEvent {
+                time: time.clone(),
+                name: event.name(),
+                props: props.clone(),
+            },
+        ));
         st.recent.truncate(MAX_RECENT);
         if let Some(outbox) = &self.inner.outbox {
-            outbox.push(Envelope {
-                timestamp: time,
-                session_id: self.inner.session_id.clone(),
-                event_name: event.name(),
-                system_props: WireSystem::from(&self.inner.system),
-                props,
-            });
+            outbox.push(
+                Envelope {
+                    timestamp: time,
+                    session_id: self.inner.session_id.clone(),
+                    event_name: event.name(),
+                    system_props: WireSystem::from(&self.inner.system),
+                    props,
+                },
+                category,
+            );
         }
     }
 
@@ -222,77 +347,147 @@ impl Analytics {
         self.record_in(&mut st, event);
     }
 
-    /// Granting persists first and changes nothing if that fails. Denying takes effect in
-    /// memory first (queue discarded, log cleared) and stays in effect for this session even if
-    /// it cannot be saved; `retry_save` writes it later. Calls are serialized, save included.
-    pub fn set_consent<E>(
+    /// `session_started` once per launch, as soon as the launch category is open.
+    fn session_in(&self, st: &mut State) {
+        if !st.session_started && self.open(st, Category::Launch) {
+            st.session_started = true;
+            self.record_in(st, Event::SessionStarted);
+        }
+    }
+
+    /// Called once at startup, after the stored choices are known.
+    pub fn launched(&self) {
+        let mut st = self.state();
+        self.session_in(&mut st);
+    }
+
+    /// Takes what was read from disk as the stored choices. A category that closes because of
+    /// it leaves nothing behind, as if it had been turned off; launch opening starts the
+    /// session.
+    fn adopt(&self, st: &mut State, stored: AnalyticsSettings) {
+        let was = Category::ALL.map(|c| self.open(st, c));
+        st.stored = stored.categories;
+        st.unread = false;
+        for (c, was) in Category::ALL.into_iter().zip(was) {
+            if was && !self.open(st, c) {
+                st.forget(c);
+                if let Some(outbox) = &self.inner.outbox {
+                    outbox.discard(c);
+                }
+            }
+        }
+        if !was[Category::Launch.index()] {
+            self.session_in(st);
+        }
+    }
+
+    pub fn is_unread(&self) -> bool {
+        self.state().unread
+    }
+
+    /// Reads the stored choices again if the startup read failed; nothing otherwise.
+    pub fn reload<E>(&self, load: impl FnOnce() -> Result<Option<AnalyticsSettings>, E>) {
+        let _one = self.inner.consent.lock().unwrap_or_else(|e| e.into_inner());
+        if !self.state().unread {
+            return;
+        }
+        if let Ok(stored) = load() {
+            let mut st = self.state();
+            self.adopt(&mut st, stored.unwrap_or_default());
+        }
+    }
+
+    /// The dialog: all three answered in one write, each stamped with the current version.
+    pub fn set_choices<E>(
         &self,
+        choices: AnalyticsChoices,
+        persist: impl FnOnce(&[(Category, CategoryChoice)]) -> Result<AnalyticsSettings, E>,
+        counts: impl FnOnce() -> Counts,
+    ) -> Result<AnalyticsState, E> {
+        let changes = Category::ALL.map(|c| (c, choices.get(c)));
+        self.change(&changes, persist, counts)
+    }
+
+    /// Settings: one category only, so the others keep their answer and its version.
+    pub fn set_category<E>(
+        &self,
+        category: Category,
         granted: bool,
-        persist: impl FnOnce(AnalyticsConsent) -> Result<(), E>,
+        persist: impl FnOnce(&[(Category, CategoryChoice)]) -> Result<AnalyticsSettings, E>,
+        counts: impl FnOnce() -> Counts,
+    ) -> Result<AnalyticsState, E> {
+        self.change(&[(category, granted)], persist, counts)
+    }
+
+    /// Refusals take effect in memory first (log entries, held attempts and unsent events of
+    /// that category dropped) and stay in effect for this launch even if they cannot be saved;
+    /// `retry_save` writes them later. Grants are saved first and change nothing if that
+    /// fails. `persist` applies only the categories it is given on top of what the file holds
+    /// and returns the result, which becomes the in-memory value: a category not asked about
+    /// is never overwritten with what memory believed. Calls are serialized, save included.
+    fn change<E>(
+        &self,
+        changes: &[(Category, bool)],
+        persist: impl FnOnce(&[(Category, CategoryChoice)]) -> Result<AnalyticsSettings, E>,
         counts: impl FnOnce() -> Counts,
     ) -> Result<AnalyticsState, E> {
         let _one = self.inner.consent.lock().unwrap_or_else(|e| e.into_inner());
-        let value = AnalyticsConsent {
-            consent: if granted {
-                Consent::Granted
-            } else {
-                Consent::Denied
-            },
-            catalogue_version: CATALOGUE_VERSION,
-        };
-        if !granted {
-            {
-                let mut st = self.state();
-                st.stored = Some(value);
-                st.unsaved = true;
-                st.forget();
-                if let Some(outbox) = &self.inner.outbox {
-                    outbox.discard();
+        let writes = {
+            let mut st = self.state();
+            for &(category, granted) in changes {
+                if !granted {
+                    st.stored.set(category, answer(false));
+                    st.unsaved[category.index()] = true;
+                    st.forget(category);
+                    if let Some(outbox) = &self.inner.outbox {
+                        outbox.discard(category);
+                    }
                 }
             }
-            persist(value)?;
-            let mut st = self.state();
-            st.unsaved = false;
-            return Ok(st.view(self.available()));
-        }
-        let counts = (!self.state().started).then(counts);
-        persist(value)?;
+            let mut writes = unsaved_writes(&st);
+            writes.retain(|(c, _)| !changes.iter().any(|(asked, _)| asked == c));
+            writes.extend(changes.iter().map(|&(c, granted)| (c, answer(granted))));
+            writes
+        };
+        let grants = |category| changes.iter().any(|&(c, g)| g && c == category);
+        let counts = (grants(Category::Features) && !self.state().started).then(counts);
+        let saved = persist(&writes)?;
         let mut st = self.state();
-        let was = st.collecting();
-        st.stored = Some(value);
-        st.unsaved = false;
-        if !was {
-            self.record_in(&mut st, Event::ConsentGranted);
-        }
-        if let (false, Some(theme), Some(counts)) = (st.started, st.theme, counts) {
+        st.unsaved = [false; 3];
+        self.adopt(&mut st, saved);
+        if let (false, Some(theme), Some(counts)) = (st.started, st.theme, counts)
+            && self.open(&st, Category::Features)
+        {
             st.started = true;
             self.record_in(&mut st, Event::app_started(theme, counts));
         }
-        Ok(st.view(self.available()))
+        Ok(self.view(&st))
     }
 
-    /// Writes a consent whose save failed earlier; called on the flush tick and at exit.
-    pub fn retry_save<E>(&self, persist: impl FnOnce(AnalyticsConsent) -> Result<(), E>) {
+    /// Writes refusals whose save failed earlier; called on the flush tick and at exit.
+    pub fn retry_save<E>(
+        &self,
+        persist: impl FnOnce(&[(Category, CategoryChoice)]) -> Result<AnalyticsSettings, E>,
+    ) {
         let _one = self.inner.consent.lock().unwrap_or_else(|e| e.into_inner());
-        let value = {
-            let st = self.state();
-            match (st.unsaved, st.stored) {
-                (true, Some(v)) => v,
-                _ => return,
-            }
-        };
-        if persist(value).is_ok() {
-            self.state().unsaved = false;
+        let writes = unsaved_writes(&self.state());
+        if writes.is_empty() {
+            return;
+        }
+        if let Ok(saved) = persist(&writes) {
+            let mut st = self.state();
+            st.unsaved = [false; 3];
+            self.adopt(&mut st, saved);
         }
     }
 
-    /// Emits `app_started` once per session. Without consent only the theme is kept, so the
-    /// event can follow a later grant.
+    /// Emits `app_started` once per launch. While feature usage is off only the theme is kept,
+    /// so the event can follow a later grant.
     pub fn app_started(&self, theme: Theme, counts: impl FnOnce() -> Counts) {
         let needed = {
             let mut st = self.state();
             st.theme = Some(theme);
-            !st.started && st.collecting()
+            !st.started && self.open(&st, Category::Features)
         };
         if !needed {
             return;
@@ -300,7 +495,7 @@ impl Analytics {
         // Read outside the lock: it loads the config file.
         let counts = counts();
         let mut st = self.state();
-        if st.started || !st.collecting() {
+        if st.started || !self.open(&st, Category::Features) {
             return;
         }
         st.started = true;
@@ -309,11 +504,12 @@ impl Analytics {
 
     pub fn recent(&self) -> Recent {
         let st = self.state();
-        let events = if st.collecting() {
-            st.recent.iter().cloned().collect()
-        } else {
-            Vec::new()
-        };
+        let events = st
+            .recent
+            .iter()
+            .filter(|(c, _)| self.open(&st, *c))
+            .map(|(_, e)| e.clone())
+            .collect();
         Recent {
             system: RecentSystem {
                 props: self.inner.system.clone(),
@@ -338,7 +534,7 @@ impl Analytics {
     /// The attempt failed in a way the user may retry; `abandoned` is sent if no retry ends it.
     pub fn attempt_pending(&self, key: Attempt, abandoned: Event) {
         let mut st = self.state();
-        if !st.collecting() {
+        if !self.open(&st, abandoned.category()) {
             return;
         }
         if !st.attempts.contains_key(&key) && st.attempts.len() >= MAX_ATTEMPTS {
@@ -377,7 +573,7 @@ impl Analytics {
 
     pub fn files_listed(&self, connection_id: &str) {
         let mut st = self.state();
-        if st.collecting() && st.listed.insert(connection_id.to_owned()) {
+        if self.open(&st, Category::Features) && st.listed.insert(connection_id.to_owned()) {
             self.record_in(&mut st, Event::FilesOpened);
         }
     }
@@ -417,12 +613,14 @@ impl Analytics {
         }
     }
 
-    /// Granted, keyless: what was recorded is read back with `recorded`.
+    /// Every category granted, keyless: what was recorded is read back with `recorded`.
     #[cfg(test)]
     pub fn granted_for_tests() -> Self {
-        let stored = AnalyticsConsent {
-            consent: Consent::Granted,
-            catalogue_version: CATALOGUE_VERSION,
+        let stored = AnalyticsSettings {
+            categories: CategoryChoices::all(CategoryChoice {
+                consent: Consent::Granted,
+                version: CATALOGUE_VERSION,
+            }),
         };
         let system = SystemProps {
             app_version: "0".into(),
@@ -430,7 +628,7 @@ impl Analytics {
             os_version: "0".into(),
             locale: String::new(),
         };
-        Self::new(Some(stored), system, None)
+        Self::new(Some(stored), system, None, false)
     }
 
     /// Oldest first, each with its properties as JSON.
@@ -449,6 +647,11 @@ impl Analytics {
     #[cfg(test)]
     fn outbox(&self) -> &Outbox {
         self.inner.outbox.as_ref().unwrap()
+    }
+
+    #[cfg(test)]
+    fn stored_for_tests(&self) -> CategoryChoices {
+        self.state().stored
     }
 
     #[cfg(test)]

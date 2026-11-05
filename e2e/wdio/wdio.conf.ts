@@ -1,10 +1,11 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { application, waitAppExited } from './helpers/app-process';
-import { NOOP_EDITOR } from './helpers/fixture';
+import { DNT_ANALYTICS, NOOP_EDITOR } from './helpers/fixture';
 
 const root = resolve(__dirname, '..', '..');
 const driverBin = join(
@@ -16,7 +17,21 @@ const driverBin = join(
 const nativeDriver = resolve(root, 'e2e', '.work', 'driver', 'msedgedriver.exe');
 
 let driver: ChildProcess | undefined;
+let dntDriver: ChildProcess | undefined;
 const homeDir = () => process.env['E2E_CARAPACE_HOME'] ?? '';
+
+/**
+ * Killing tauri-driver alone leaves its msedgedriver running on the native port, and the next
+ * run's driver then fails to bind it (every session fails). Ends the tree of this run's drivers.
+ */
+function stopDriver(child: ChildProcess | undefined): void {
+  if (!child?.pid) return;
+  try {
+    execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  } catch {
+    child.kill();
+  }
+}
 
 function emptyHome(): void {
   const home = homeDir();
@@ -25,14 +40,65 @@ function emptyHome(): void {
     rmSync(join(home, entry), { recursive: true, force: true });
 }
 
+/** Every analytics category refused for the current catalogue (2): no consent dialog. */
+const DECLINED_ANALYTICS = {
+  categories: Object.fromEntries(
+    ['launch', 'features', 'connections'].map((c) => [c, { consent: 'denied', version: 2 }]),
+  ),
+};
+
 /**
- * Specs that do not test analytics start with consent denied, so the first-launch consent dialog
- * never covers them. Every other field defaults when missing.
+ * The DO_NOT_TRACK spec runs on its own tauri-driver, started with that variable set, and its
+ * own app home, so no file of another spec can reach it.
+ */
+const DNT_SPEC = resolve(__dirname, 'specs', 'analytics-dnt.e2e.ts');
+const DNT_PORT = 4446;
+const isDntSpec = (specs: string[]) => specs.some((spec) => spec.includes('analytics-dnt'));
+
+/** Both drivers and their msedgedriver (native) ports. */
+const DRIVER_PORTS = [4444, 4445, DNT_PORT, DNT_PORT + 1];
+
+function portFree(port: number): Promise<boolean> {
+  return new Promise((done) => {
+    const server = createServer()
+      .once('error', () => done(false))
+      .once('listening', () => server.close(() => done(true)))
+      .listen(port, '127.0.0.1');
+  });
+}
+
+/**
+ * A driver already on these ports (another e2e run, or one left by a killed run) would serve
+ * this run's sessions with its own app home, and its teardown would kill this run's apps; the
+ * new driver only logs its bind error. Refuse to start instead. Exits: wdio logs an error thrown
+ * by `onPrepare` and goes on (its SevereServiceError check is an `instanceof` across two module
+ * copies of webdriverio), and nothing has started yet.
+ */
+async function assertDriverPortsFree(): Promise<void> {
+  for (const port of DRIVER_PORTS)
+    if (!(await portFree(port))) {
+      console.error(
+        `Port ${port} is in use: another e2e run or a leftover tauri-driver/msedgedriver is running`,
+      );
+      process.exit(1);
+    }
+}
+
+/**
+ * Specs that do not test analytics start with every category denied, so the first-launch
+ * consent dialog never covers them. Every other field defaults when missing.
  */
 function seedDeclinedConfig(): void {
   const home = homeDir();
   if (!home) return;
-  const config = { version: 3, analytics: { consent: 'denied', catalogueVersion: 1 } };
+  const config = { version: 3, analytics: DECLINED_ANALYTICS };
+  writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
+}
+
+function seedDoNotTrackConfig(): void {
+  const home = homeDir();
+  if (!home) return;
+  const config = { version: 3, analytics: DNT_ANALYTICS };
   writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
 }
 
@@ -42,7 +108,7 @@ function seedExternalEditorConfig(): void {
   if (!home) return;
   const config = {
     version: 3,
-    analytics: { consent: 'denied', catalogueVersion: 1 },
+    analytics: DECLINED_ANALYTICS,
     externalEditor: { mode: 'custom', appPath: NOOP_EDITOR, noticeSeen: false },
   };
   writeFileSync(join(home, 'config.json'), JSON.stringify(config, null, 2));
@@ -119,13 +185,27 @@ function seedV3ConfigWithEnvironments(): void {
 export const config: WebdriverIO.Config = {
   runner: 'local',
   specs: [resolve(__dirname, 'specs', '**', '*.e2e.ts')],
+  // One app at a time across both capabilities: every instance of the e2e binary shares one
+  // WebView2 profile, and `beforeSession` waits for any running instance.
   maxInstances: 1,
+  maxInstancesPerCapability: 1,
   hostname: '127.0.0.1',
   port: 4444,
   capabilities: [
     {
       browserName: 'wry',
       'tauri:options': { application },
+      'wdio:exclude': [DNT_SPEC],
+    } as WebdriverIO.Capabilities,
+    {
+      browserName: 'wry',
+      'tauri:options': { application },
+      'wdio:specs': [DNT_SPEC],
+      // `wdio:specs` does not filter a `--spec` given on the command line; `wdio:exclude` does.
+      'wdio:exclude': readdirSync(resolve(__dirname, 'specs'))
+        .map((name) => resolve(__dirname, 'specs', name))
+        .filter((spec) => spec !== DNT_SPEC),
+      port: DNT_PORT,
     } as WebdriverIO.Capabilities,
   ],
   framework: 'mocha',
@@ -138,13 +218,35 @@ export const config: WebdriverIO.Config = {
       throw new Error(`Missing ${application}; run "npm run e2e:build"`);
     if (!existsSync(nativeDriver))
       throw new Error(`Missing ${nativeDriver}; run "npm run e2e:driver"`);
+    await assertDriverPortsFree();
     const home = mkdtempSync(join(tmpdir(), 'carapace-e2e-'));
+    const dntHome = mkdtempSync(join(tmpdir(), 'carapace-e2e-dnt-'));
     process.env['E2E_CARAPACE_HOME'] = home;
+    process.env['E2E_DNT_HOME'] = dntHome;
     const bin = existsSync(driverBin) ? driverBin : 'tauri-driver';
+    // The app inherits the driver's environment, fixed at spawn: a DO_NOT_TRACK of the user's
+    // shell must not switch analytics off in every spec.
+    const env: NodeJS.ProcessEnv = { ...process.env, CARAPACE_HOME: home };
+    delete env['DO_NOT_TRACK'];
     driver = spawn(bin, ['--native-driver', nativeDriver], {
       stdio: [null, process.stdout, process.stderr],
-      env: { ...process.env, CARAPACE_HOME: home },
+      env,
     });
+    dntDriver = spawn(
+      bin,
+      [
+        '--port',
+        String(DNT_PORT),
+        '--native-port',
+        String(DNT_PORT + 1),
+        '--native-driver',
+        nativeDriver,
+      ],
+      {
+        stdio: [null, process.stdout, process.stderr],
+        env: { ...env, CARAPACE_HOME: dntHome, DO_NOT_TRACK: '1' },
+      },
+    );
     await new Promise((r) => setTimeout(r, 1500));
   },
 
@@ -156,9 +258,12 @@ export const config: WebdriverIO.Config = {
   },
 
   beforeSession: async (_config, _capabilities, specs) => {
+    // Worker-local: the hooks and the spec of this worker then use the DNT driver's app home.
+    if (isDntSpec(specs)) process.env['E2E_CARAPACE_HOME'] = process.env['E2E_DNT_HOME'];
     await waitAppExited();
     emptyHome();
-    if (specs.some((spec) => spec.includes('migration-v3'))) seedV3ConfigWithEnvironments();
+    if (isDntSpec(specs)) seedDoNotTrackConfig();
+    else if (specs.some((spec) => spec.includes('migration-v3'))) seedV3ConfigWithEnvironments();
     else if (specs.some((spec) => spec.includes('migration'))) seedV2Config();
     else if (specs.some((spec) => spec.includes('external-editor'))) seedExternalEditorConfig();
     else if (!specs.some((spec) => spec.includes('analytics'))) seedDeclinedConfig();
@@ -166,8 +271,8 @@ export const config: WebdriverIO.Config = {
   afterSession: emptyHome,
 
   onComplete: () => {
-    driver?.kill();
-    const home = homeDir();
-    if (home) rmSync(home, { recursive: true, force: true });
+    for (const child of [driver, dntDriver]) stopDriver(child);
+    for (const home of [process.env['E2E_CARAPACE_HOME'], process.env['E2E_DNT_HOME']])
+      if (home) rmSync(home, { recursive: true, force: true });
   },
 };

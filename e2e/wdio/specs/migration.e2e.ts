@@ -5,7 +5,7 @@ import {
   byId,
   clickId,
   connect,
-  declineConsent,
+  saveConsentDefaults,
   enterProject,
   goHome,
   openGlobalVariables,
@@ -39,7 +39,7 @@ describe('migration from a v2 config', () => {
   // An upgraded config has no analytics decision yet: the consent dialog is shown once.
   before(async () => {
     await waitForApp();
-    await declineConsent();
+    await saveConsentDefaults();
   });
 
   it('rewrites the file as v3 without environments and keeps the v2 backup', () => {

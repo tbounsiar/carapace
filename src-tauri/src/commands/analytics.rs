@@ -1,7 +1,9 @@
 use tauri::State;
 
 use super::error::CommandError;
-use crate::analytics::{Analytics, AnalyticsState, Auth, Counts, Recent, Theme};
+use crate::analytics::{
+    Analytics, AnalyticsChoices, AnalyticsState, Auth, Category, Counts, Recent, Theme,
+};
 use crate::config::model::AuthMethod;
 use crate::config::{ConfigFile, ConfigStore};
 
@@ -34,28 +36,76 @@ pub fn counts(store: &ConfigStore) -> Counts {
     })
 }
 
-pub(crate) fn set_consent(
+/// The dialog answers for all three categories, so it is refused while the stored choices are
+/// unknown: it could only have been built without them, and saving it would overwrite answers
+/// the user never saw. The file is read again instead.
+pub(crate) fn set_choices(
     store: &ConfigStore,
     analytics: &Analytics,
-    granted: bool,
+    choices: AnalyticsChoices,
 ) -> Res<AnalyticsState> {
+    if analytics.is_unread() {
+        let stored = store.snapshot()?.analytics;
+        analytics.reload(|| Ok::<_, ()>(stored));
+        return Err(CommandError::new(
+            "conflict",
+            "the analytics choices were not known; check them again",
+        ));
+    }
     analytics
-        .set_consent(granted, |v| store.set_analytics(v), || counts(store))
+        .set_choices(choices, |w| store.update_analytics(w), || counts(store))
         .map_err(CommandError::from)
 }
 
-#[tauri::command]
-pub fn analytics_state(analytics: State<'_, Analytics>) -> AnalyticsState {
+pub(crate) fn set_category(
+    store: &ConfigStore,
+    analytics: &Analytics,
+    category: Category,
+    granted: bool,
+) -> Res<AnalyticsState> {
+    analytics
+        .set_category(
+            category,
+            granted,
+            |w| store.update_analytics(w),
+            || counts(store),
+        )
+        .map_err(CommandError::from)
+}
+
+/// While the startup read of the choices has not succeeded, each call tries again.
+pub(crate) fn state_of(store: &ConfigStore, analytics: &Analytics) -> AnalyticsState {
+    analytics.reload(|| store.snapshot().map(|c| c.analytics));
     analytics.status()
 }
 
 #[tauri::command]
-pub async fn set_analytics_consent(
+pub async fn analytics_state(
     store: State<'_, ConfigStore>,
     analytics: State<'_, Analytics>,
+) -> Res<AnalyticsState> {
+    Ok(state_of(&store, &analytics))
+}
+
+/// The first-launch dialog: all three categories in one write.
+#[tauri::command]
+pub async fn set_analytics_choices(
+    store: State<'_, ConfigStore>,
+    analytics: State<'_, Analytics>,
+    choices: AnalyticsChoices,
+) -> Res<AnalyticsState> {
+    set_choices(&store, &analytics, choices)
+}
+
+/// Settings: that category only, so a pending one is not stamped as answered.
+#[tauri::command]
+pub async fn set_analytics_category(
+    store: State<'_, ConfigStore>,
+    analytics: State<'_, Analytics>,
+    category: Category,
     granted: bool,
 ) -> Res<AnalyticsState> {
-    set_consent(&store, &analytics, granted)
+    set_category(&store, &analytics, category, granted)
 }
 
 #[tauri::command]
@@ -86,8 +136,8 @@ pub async fn open_privacy_page() -> Res<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analytics::{CATALOGUE_VERSION, SystemProps};
-    use crate::config::{AnalyticsConsent, Consent};
+    use crate::analytics::SystemProps;
+    use crate::config::{AnalyticsSettings, CategoryChoice, CategoryChoices, Consent};
 
     fn system() -> SystemProps {
         SystemProps {
@@ -98,75 +148,225 @@ mod tests {
         }
     }
 
-    fn stored(store: &ConfigStore) -> Option<AnalyticsConsent> {
+    fn stored(store: &ConfigStore) -> Option<AnalyticsSettings> {
         store.snapshot().unwrap().analytics
     }
 
-    #[test]
-    fn missing_or_unknown_consent_is_unset() {
+    fn raw(dir: &std::path::Path) -> serde_json::Value {
+        serde_json::from_slice(&std::fs::read(dir.join("config.json")).unwrap()).unwrap()
+    }
+
+    fn all(consent: Consent, version: u32) -> Option<AnalyticsSettings> {
+        Some(AnalyticsSettings {
+            categories: CategoryChoices::all(CategoryChoice { consent, version }),
+        })
+    }
+
+    fn read(analytics: &str) -> Option<AnalyticsSettings> {
         let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("config.json");
-        let store = ConfigStore::new(dir.path().to_path_buf());
-        std::fs::write(&file, r#"{"version":3}"#).unwrap();
-        assert_eq!(stored(&store), None);
-        for odd in [
-            r#""granted""#,
-            r#"{"consent":"yes","catalogueVersion":1}"#,
-            r#"{"consent":"granted"}"#,
-            r#"{"consent":"granted","catalogueVersion":-1}"#,
-            "null",
-        ] {
-            std::fs::write(&file, format!(r#"{{"version":3,"analytics":{odd}}}"#)).unwrap();
-            assert_eq!(stored(&store), None, "{odd}");
-        }
         std::fs::write(
-            &file,
-            r#"{"version":3,"analytics":{"consent":"denied","catalogueVersion":1}}"#,
+            dir.path().join("config.json"),
+            format!(r#"{{"version":3,"analytics":{analytics}}}"#),
         )
         .unwrap();
+        stored(&ConfigStore::new(dir.path().to_path_buf()))
+    }
+
+    #[test]
+    fn the_first_release_consent_is_migrated() {
+        let cases = [
+            (
+                r#"{"consent":"granted","catalogueVersion":1}"#,
+                all(Consent::Granted, 2),
+            ),
+            (
+                r#"{"consent":"granted","catalogueVersion":7}"#,
+                all(Consent::Granted, 2),
+            ),
+            (
+                r#"{"consent":"denied","catalogueVersion":1}"#,
+                all(Consent::Denied, 2),
+            ),
+            (
+                r#"{"consent":"denied","catalogueVersion":0}"#,
+                all(Consent::Denied, 2),
+            ),
+            (r#"{"consent":"unset","catalogueVersion":1}"#, None),
+            // Asked again by the first release, so never in effect.
+            (r#"{"consent":"granted","catalogueVersion":0}"#, None),
+            (r#"{"consent":"granted"}"#, None),
+            (r#"{"consent":"yes","catalogueVersion":1}"#, None),
+            (r#"{"consent":"granted","catalogueVersion":-1}"#, None),
+            (r#""granted""#, None),
+            ("null", None),
+            ("[]", None),
+        ];
+        for (v1, expected) in cases {
+            assert_eq!(read(v1), expected, "{v1}");
+        }
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("config.json"), r#"{"version":3}"#).unwrap();
+        assert_eq!(stored(&ConfigStore::new(dir.path().to_path_buf())), None);
+    }
+
+    #[test]
+    fn a_migrated_grant_needs_no_dialog_and_starts_the_session() {
+        let a = Analytics::new(
+            read(r#"{"consent":"granted","catalogueVersion":1}"#),
+            system(),
+            None,
+            false,
+        );
+        a.launched();
+        let s = a.status();
+        assert!(!s.ask_needed && s.pending.is_empty());
+        assert_eq!(a.recorded(), [("session_started", serde_json::json!({}))]);
+        let a = Analytics::new(
+            read(r#"{"consent":"denied","catalogueVersion":1}"#),
+            system(),
+            None,
+            false,
+        );
+        a.launched();
+        assert!(!a.status().ask_needed);
+        assert!(a.recorded().is_empty());
+    }
+
+    #[test]
+    fn categories_are_read_one_by_one_and_unknown_shapes_are_unset() {
+        let granted = CategoryChoice {
+            consent: Consent::Granted,
+            version: 2,
+        };
+        let s = read(
+            r#"{"categories":{
+                "launch":{"consent":"granted","version":2},
+                "features":{"consent":"granted","version":-1},
+                "connections":{"consent":"maybe","version":2},
+                "extra":{"consent":"granted","version":2}
+            }}"#,
+        )
+        .unwrap()
+        .categories;
+        assert_eq!(s.launch, granted);
+        assert!(s.features.is_unset() && s.connections.is_unset());
+        for odd in [
+            r#"{"categories":{"launch":true,"features":"granted","connections":[]}}"#,
+            r#"{"categories":{"launch":{"consent":"granted"}}}"#,
+            r#"{"categories":{}}"#,
+        ] {
+            assert_eq!(
+                read(odd).map(|s| s.categories),
+                Some(CategoryChoices::default()),
+                "{odd}"
+            );
+        }
+        for odd in [
+            r#"{"categories":true}"#,
+            r#"{"categories":null,"consent":"granted","catalogueVersion":1}"#,
+        ] {
+            assert_eq!(read(odd), None, "{odd}");
+        }
+        let both = read(
+            r#"{"consent":"granted","catalogueVersion":1,"categories":{"launch":{"consent":"denied","version":2}}}"#,
+        )
+        .unwrap()
+        .categories;
+        assert_eq!(both.launch.consent, Consent::Denied);
+        assert!(both.features.is_unset() && both.connections.is_unset());
+    }
+
+    #[test]
+    fn choices_are_saved_in_the_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ConfigStore::new(dir.path().to_path_buf());
+        store.create_project("p").unwrap();
+        let analytics = Analytics::new(None, system(), None, false);
+        analytics.app_started(Theme::Dark, || counts(&store));
+        let s = set_choices(
+            &store,
+            &analytics,
+            AnalyticsChoices {
+                launch: true,
+                features: true,
+                connections: false,
+            },
+        )
+        .unwrap();
+        assert!(!s.ask_needed && !s.available && s.persisted);
+        let file = raw(dir.path());
         assert_eq!(
-            stored(&store),
-            Some(AnalyticsConsent {
-                consent: Consent::Denied,
-                catalogue_version: 1
-            })
+            file["analytics"],
+            serde_json::json!({"categories": {
+                "launch": {"consent": "granted", "version": 2},
+                "features": {"consent": "granted", "version": 2},
+                "connections": {"consent": "denied", "version": 2},
+            }})
+        );
+        assert_eq!(file["version"], 3);
+        let events = analytics.recorded();
+        assert_eq!(events[0], ("session_started", serde_json::json!({})));
+        assert_eq!(
+            events[1],
+            (
+                "app_started",
+                serde_json::json!({"theme": "dark", "hosts": "0", "projects": "1", "keys": "0"})
+            )
+        );
+
+        set_category(&store, &analytics, Category::Launch, false).unwrap();
+        assert_eq!(
+            raw(dir.path())["analytics"]["categories"]["launch"],
+            serde_json::json!({"consent": "denied", "version": 2})
+        );
+        assert_eq!(
+            analytics.recorded().iter().map(|e| e.0).collect::<Vec<_>>(),
+            ["app_started"]
+        );
+        let reloaded = Analytics::new(stored(&store), system(), None, false);
+        let s = reloaded.status();
+        assert!(!s.categories.launch && s.categories.features && !s.categories.connections);
+        assert!(!s.ask_needed);
+    }
+
+    #[test]
+    fn a_category_change_keeps_a_pending_category_pending() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("config.json"),
+            r#"{"version":3,"analytics":{"categories":{"launch":{"consent":"granted","version":1}}}}"#,
+        )
+        .unwrap();
+        let store = ConfigStore::new(dir.path().to_path_buf());
+        let analytics = Analytics::new(stored(&store), system(), None, false);
+        let s = set_category(&store, &analytics, Category::Connections, true).unwrap();
+        assert_eq!(s.pending, [Category::Launch, Category::Features]);
+        assert_eq!(
+            raw(dir.path())["analytics"],
+            serde_json::json!({"categories": {
+                "launch": {"consent": "granted", "version": 1},
+                "connections": {"consent": "granted", "version": 2},
+            }})
         );
     }
 
     #[test]
-    fn consent_is_saved_in_the_config_file() {
+    fn a_first_release_file_is_rewritten_in_the_new_shape_with_the_next_change() {
         let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("config.json"),
+            r#"{"version":3,"analytics":{"consent":"granted","catalogueVersion":1}}"#,
+        )
+        .unwrap();
         let store = ConfigStore::new(dir.path().to_path_buf());
         store.create_project("p").unwrap();
-        let analytics = Analytics::new(None, system(), None);
-        let s = set_consent(&store, &analytics, true).unwrap();
+        let file = raw(dir.path());
         assert_eq!(
-            (s.consent, s.ask_needed, s.available),
-            (Consent::Granted, false, false)
+            file["analytics"]["categories"]["features"],
+            serde_json::json!({"consent": "granted", "version": 2})
         );
-        let raw: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(dir.path().join("config.json")).unwrap())
-                .unwrap();
-        assert_eq!(
-            raw["analytics"],
-            serde_json::json!({"consent": "granted", "catalogueVersion": CATALOGUE_VERSION})
-        );
-        assert_eq!(raw["version"], 3);
-        let names: Vec<_> = analytics.recent().events.iter().map(|e| e.name).collect();
-        assert_eq!(names, ["consent_granted"]);
-        analytics.app_started(Theme::Dark, || counts(&store));
-        let props = serde_json::to_value(&analytics.recent().events[0].props).unwrap();
-        assert_eq!(
-            props,
-            serde_json::json!({"theme": "dark", "hosts": "0", "projects": "1", "keys": "0"})
-        );
-
-        set_consent(&store, &analytics, false).unwrap();
-        assert_eq!(stored(&store).unwrap().consent, Consent::Denied);
-        assert!(analytics.recent().events.is_empty());
-        let reloaded = Analytics::new(stored(&store), system(), None);
-        assert_eq!(reloaded.status().consent, Consent::Denied);
-        assert!(!reloaded.status().ask_needed);
+        assert!(file["analytics"].get("consent").is_none());
+        assert!(file["analytics"].get("catalogueVersion").is_none());
     }
 
     #[test]
@@ -183,11 +383,50 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("config.json"), "{").unwrap();
         let store = ConfigStore::new(dir.path().to_path_buf());
-        let analytics = Analytics::new(None, system(), None);
-        let e = set_consent(&store, &analytics, true).unwrap_err();
+        let analytics = Analytics::new(None, system(), None, false);
+        let e = set_category(&store, &analytics, Category::Launch, true).unwrap_err();
         assert_eq!(e.code, "corrupt_config");
-        assert_eq!(analytics.status().consent, Consent::Unset);
-        assert!(analytics.recent().events.is_empty());
+        let e = set_choices(
+            &store,
+            &analytics,
+            AnalyticsChoices {
+                launch: true,
+                features: true,
+                connections: true,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(e.code, "corrupt_config");
+        assert_eq!(analytics.status().pending.len(), 3);
+        assert!(analytics.recorded().is_empty());
+    }
+
+    #[test]
+    fn arguments_deserialize_from_the_frontend_shapes() {
+        let c: AnalyticsChoices =
+            serde_json::from_str(r#"{"launch":true,"features":false,"connections":true}"#).unwrap();
+        assert_eq!(
+            c,
+            AnalyticsChoices {
+                launch: true,
+                features: false,
+                connections: true
+            }
+        );
+        assert!(serde_json::from_str::<AnalyticsChoices>(r#"{"launch":true}"#).is_err());
+        for (raw, cat) in [
+            ("launch", Category::Launch),
+            ("features", Category::Features),
+            ("connections", Category::Connections),
+        ] {
+            assert_eq!(serde_json::from_value::<Category>(raw.into()).unwrap(), cat);
+        }
+        for odd in ["Launch", "all", ""] {
+            assert!(
+                serde_json::from_value::<Category>(odd.into()).is_err(),
+                "{odd}"
+            );
+        }
     }
 
     #[test]
@@ -225,5 +464,147 @@ mod tests {
     #[test]
     fn privacy_url_is_fixed_https() {
         assert!(PRIVACY_URL.starts_with("https://github.com/tbounsiar/carapace/"));
+    }
+
+    fn unread_with(dir: &std::path::Path, analytics: &str) -> (ConfigStore, Analytics) {
+        std::fs::write(
+            dir.join("config.json"),
+            format!(r#"{{"version":3,"analytics":{analytics}}}"#),
+        )
+        .unwrap();
+        let store = ConfigStore::new(dir.to_path_buf());
+        (store, Analytics::new(None, system(), None, false).unread())
+    }
+
+    const ALL_DENIED: &str = r#"{"categories":{"launch":{"consent":"denied","version":2},"features":{"consent":"denied","version":2},"connections":{"consent":"denied","version":2}}}"#;
+
+    #[test]
+    fn an_unread_startup_never_overwrites_a_stored_refusal() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, analytics) = unread_with(dir.path(), ALL_DENIED);
+        let before = raw(dir.path());
+        let s = analytics.status();
+        assert!(!s.ask_needed && s.pending.is_empty());
+        let e = set_choices(
+            &store,
+            &analytics,
+            AnalyticsChoices {
+                launch: true,
+                features: false,
+                connections: false,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(e.code, "conflict");
+        assert_eq!(raw(dir.path()), before);
+        assert!(analytics.recorded().is_empty());
+        let s = analytics.status();
+        assert_eq!(
+            (s.categories, s.ask_needed),
+            (AnalyticsChoices::default(), false)
+        );
+        assert!(s.pending.is_empty());
+
+        set_category(&store, &analytics, Category::Features, true).unwrap();
+        let file = raw(dir.path());
+        assert_eq!(
+            file["analytics"]["categories"]["launch"],
+            serde_json::json!({"consent": "denied", "version": 2})
+        );
+        assert_eq!(
+            file["analytics"]["categories"]["connections"],
+            serde_json::json!({"consent": "denied", "version": 2})
+        );
+        assert_eq!(
+            file["analytics"]["categories"]["features"]["consent"],
+            "granted"
+        );
+        assert!(analytics.recorded().is_empty());
+    }
+
+    #[test]
+    fn a_category_change_from_settings_keeps_what_another_category_has_on_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, _) = unread_with(
+            dir.path(),
+            r#"{"categories":{"launch":{"consent":"denied","version":2}}}"#,
+        );
+        // Started without the file's answers, as after a failed read that was not detected.
+        let analytics = Analytics::new(None, system(), None, false);
+        set_category(&store, &analytics, Category::Features, true).unwrap();
+        let file = raw(dir.path());
+        assert_eq!(
+            file["analytics"]["categories"]["launch"],
+            serde_json::json!({"consent": "denied", "version": 2})
+        );
+        assert!(!analytics.status().categories.launch);
+    }
+
+    #[test]
+    fn a_failed_read_refuses_every_change() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("config.json"), "{").unwrap();
+        let store = ConfigStore::new(dir.path().to_path_buf());
+        let analytics = Analytics::new(None, system(), None, false).unread();
+        let e = set_category(&store, &analytics, Category::Launch, true).unwrap_err();
+        assert_eq!(e.code, "corrupt_config");
+        let e = set_choices(
+            &store,
+            &analytics,
+            AnalyticsChoices {
+                launch: true,
+                features: true,
+                connections: true,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(e.code, "corrupt_config");
+        assert_eq!(std::fs::read(dir.path().join("config.json")).unwrap(), b"{");
+        assert!(analytics.is_unread());
+        assert!(!analytics.status().ask_needed);
+    }
+
+    #[test]
+    fn the_state_command_reads_again_until_it_succeeds() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("config.json"), "{").unwrap();
+        let store = ConfigStore::new(dir.path().to_path_buf());
+        let analytics = Analytics::for_app(store.snapshot().map(|c| c.analytics), "0");
+        assert!(analytics.is_unread());
+        assert!(!state_of(&store, &analytics).ask_needed);
+        std::fs::write(
+            dir.path().join("config.json"),
+            r#"{"version":3,"analytics":{"consent":"granted","catalogueVersion":1}}"#,
+        )
+        .unwrap();
+        let s = state_of(&store, &analytics);
+        assert!(!analytics.is_unread());
+        if !s.do_not_track {
+            assert_eq!(
+                s.categories,
+                AnalyticsChoices {
+                    launch: true,
+                    features: true,
+                    connections: true
+                }
+            );
+            assert_eq!(
+                analytics.recorded(),
+                [("session_started", serde_json::json!({}))]
+            );
+        }
+    }
+
+    #[test]
+    fn an_empty_update_writes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ConfigStore::new(dir.path().to_path_buf());
+        store.create_project("p").unwrap();
+        assert_eq!(
+            store.update_analytics(&[]).unwrap(),
+            AnalyticsSettings::default()
+        );
+        let raw = std::fs::read_to_string(dir.path().join("config.json")).unwrap();
+        assert!(!raw.contains("analytics"));
     }
 }

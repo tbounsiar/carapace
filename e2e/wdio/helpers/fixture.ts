@@ -28,3 +28,14 @@ export function rotateHostKey(): void {
     stdio: 'inherit',
   });
 }
+
+/**
+ * Seeded for the DO_NOT_TRACK spec: launch and feature usage granted, connections never
+ * answered, so without the variable the app would send events and ask for connections.
+ */
+export const DNT_ANALYTICS = {
+  categories: {
+    launch: { consent: 'granted', version: 2 },
+    features: { consent: 'granted', version: 2 },
+  },
+};

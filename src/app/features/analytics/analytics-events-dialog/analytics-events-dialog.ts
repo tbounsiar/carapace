@@ -52,6 +52,7 @@ export class AnalyticsEventsDialog {
   private readonly analytics = inject(Analytics);
   protected readonly context = injectContext<TuiDialogContext<void, AnalyticsState>>();
   protected readonly state = this.context.data;
+  protected readonly allOff = !Object.values(this.state.categories).some(Boolean);
 
   /** A snapshot taken when the dialog opens; reopen it to refresh. */
   protected readonly recent = resource({ loader: () => this.analytics.recent() });

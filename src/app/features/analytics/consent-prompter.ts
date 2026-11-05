@@ -1,16 +1,16 @@
-import { computed, inject, Injector, Service } from '@angular/core';
+import { computed, inject, Injector, Service, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
-import { filter, firstValueFrom } from 'rxjs';
-import { Analytics } from '../../core/ipc/analytics';
+import { defer, filter, firstValueFrom, of } from 'rxjs';
+import { Analytics, type AnalyticsChoices, type AnalyticsState } from '../../core/ipc/analytics';
 import { ConfigService } from '../../core/ipc/config';
 import { ThemeService } from '../../core/theme/theme';
 import { OpenDialogs } from '../../shared/open-dialogs';
 import { notifyError } from '../project-tree/save-error';
-import { UNSAVED_DENIAL, unsavedDenial } from './privacy-page';
+import { initialChoices, UNSAVED_DENIAL, unsavedDenial } from './privacy-page';
 
-/** Asks for analytics consent once per launch while it is undecided. */
+/** Asks for the analytics choices once per launch while a category is undecided. */
 @Service()
 export class ConsentPrompter {
   private readonly analytics = inject(Analytics);
@@ -30,12 +30,13 @@ export class ConsentPrompter {
     this.started = true;
     this.analytics.appStarted(this.theme.mode()).catch(() => undefined);
 
+    let state: AnalyticsState;
     try {
-      const state = await this.analytics.state();
-      if (!state.askNeeded) {
-        return;
-      }
+      state = await this.analytics.state();
     } catch {
+      return;
+    }
+    if (!state.askNeeded) {
       return;
     }
 
@@ -47,17 +48,32 @@ export class ConsentPrompter {
         toObservable(this.ready, { injector: this.injector }).pipe(filter(Boolean)),
       );
     }
-    const choice = await firstValueFrom(
-      this.dialogs.open<boolean>(new PolymorpheusComponent(ConsentDialog), {
-        label: 'Share anonymous usage data?',
-        size: 's',
+    const choices = signal<AnalyticsChoices>(initialChoices(state));
+    let dismissed = false;
+    // Taiga completes without a value both for a user dismissal (Escape, backdrop, close request)
+    // and for programmatic closes (TUI_DIALOGS_CLOSE fires on every router ActivationStart).
+    // Only the first kind goes through `dismissible`, so that is where the user action is
+    // recorded; any other close saves nothing and the categories stay pending.
+    const dismiss = defer(() => {
+      dismissed = true;
+      return of(true);
+    });
+    const chosen = await firstValueFrom(
+      this.dialogs.open<AnalyticsChoices>(new PolymorpheusComponent(ConsentDialog), {
+        label: 'Anonymous usage data',
+        size: 'm',
         closable: false,
-        dismissible: true,
+        dismissible: dismiss,
+        data: { choices, pending: state.pending },
       }),
-      { defaultValue: false },
+      { defaultValue: undefined },
     );
+    const saving = chosen ?? (dismissed ? choices() : null);
+    if (!saving) {
+      return;
+    }
     try {
-      await this.analytics.setConsent(choice === true);
+      await this.analytics.setChoices(saving);
     } catch (err) {
       if (!unsavedDenial(this.analytics.current())) {
         notifyError(this.alerts, err, 'Setting not saved');

@@ -3,17 +3,32 @@ import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import { Analytics, type AnalyticsRecent, type AnalyticsState } from './analytics';
 import { IpcError } from './ipc-error';
 
+const OFF = { launch: false, features: false, connections: false };
+
 describe('Analytics', () => {
   let service: Analytics;
   let calls: { cmd: string; args: unknown }[];
   let onCall: (cmd: string, args: unknown) => unknown;
 
   const unset: AnalyticsState = {
-    consent: 'unset',
+    categories: OFF,
+    pending: ['launch', 'features', 'connections'],
+    doNotTrack: false,
     askNeeded: true,
     available: false,
     persisted: true,
   };
+  const answered = (
+    categories: AnalyticsState['categories'],
+    persisted = true,
+  ): AnalyticsState => ({
+    categories,
+    pending: [],
+    doNotTrack: false,
+    askNeeded: false,
+    available: true,
+    persisted,
+  });
 
   beforeEach(() => {
     calls = [];
@@ -35,34 +50,40 @@ describe('Analytics', () => {
     expect(calls).toEqual([{ cmd: 'analytics_state', args: {} }]);
   });
 
-  it('saves the consent and keeps the returned state', async () => {
-    const granted: AnalyticsState = {
-      consent: 'granted',
-      askNeeded: false,
-      available: true,
-      persisted: true,
-    };
-    onCall = () => granted;
-    expect(await service.setConsent(true)).toEqual(granted);
-    expect(service.current()).toEqual(granted);
-    expect(calls).toEqual([{ cmd: 'set_analytics_consent', args: { granted: true } }]);
+  it('saves the three choices at once and keeps the returned state', async () => {
+    const choices = { launch: true, features: false, connections: true };
+    const saved = answered(choices);
+    onCall = () => saved;
+    expect(await service.setChoices(choices)).toEqual(saved);
+    expect(service.current()).toEqual(saved);
+    expect(calls).toEqual([{ cmd: 'set_analytics_choices', args: { choices } }]);
+  });
+
+  it('saves one category and keeps the returned state', async () => {
+    const saved = answered({ launch: true, features: true, connections: false });
+    onCall = () => saved;
+    expect(await service.setCategory('features', true)).toEqual(saved);
+    expect(service.current()).toEqual(saved);
+    expect(calls).toEqual([
+      { cmd: 'set_analytics_category', args: { category: 'features', granted: true } },
+    ]);
   });
 
   it('reads the state again when saving fails, then rethrows', async () => {
     let applied: AnalyticsState = unset;
     onCall = (cmd) => {
-      if (cmd === 'set_analytics_consent') {
-        applied = { consent: 'denied', askNeeded: false, available: false, persisted: false };
+      if (cmd === 'set_analytics_category') {
+        applied = answered(OFF, false);
         throw { code: 'io', message: 'disk full' };
       }
       return applied;
     };
     await service.state();
-    await expect(service.setConsent(false)).rejects.toBeInstanceOf(IpcError);
+    await expect(service.setCategory('launch', false)).rejects.toBeInstanceOf(IpcError);
     expect(service.current()).toEqual(applied);
     expect(calls.map((c) => c.cmd)).toEqual([
       'analytics_state',
-      'set_analytics_consent',
+      'set_analytics_category',
       'analytics_state',
     ]);
   });
@@ -73,7 +94,9 @@ describe('Analytics', () => {
     onCall = () => {
       throw { code: 'io', message: 'broken' };
     };
-    await expect(service.setConsent(true)).rejects.toBeInstanceOf(IpcError);
+    await expect(
+      service.setChoices({ launch: true, features: true, connections: true }),
+    ).rejects.toBeInstanceOf(IpcError);
     expect(service.current()).toEqual(unset);
   });
 
@@ -84,10 +107,13 @@ describe('Analytics', () => {
         os: 'Windows',
         osVersion: '11',
         locale: 'fr-FR',
-        sdkVersion: 'aptabase-tauri@1.0.0',
-        sessionId: '17303125790123456',
+        sdkVersion: 'carapace@0.4.0',
+        sessionId: '0b0e7c2e-5d0f-4f3c-9a51-2a7f0c6f1d11',
       },
-      events: [{ time: '2026-11-03T10:00:00Z', name: 'app_started', props: { theme: 'dark' } }],
+      events: [
+        { time: '2026-11-03T10:00:01Z', name: 'app_started', props: { theme: 'dark' } },
+        { time: '2026-11-03T10:00:00Z', name: 'session_started', props: {} },
+      ],
     };
     onCall = () => recent;
     expect(await service.recent()).toEqual(recent);

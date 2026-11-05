@@ -255,6 +255,8 @@ describe('collections', () => {
     await byId('vars-add').waitForDisplayed({ timeout: 10000 });
     await expect(byId('project-tab-variables')).toHaveElementClass('_active');
     await goHome();
+    // goHome picked Home in this menu; it stays in the DOM while it closes.
+    await waitGone('project-option-new');
     await clickId('project-select');
     await byId('project-option-new').waitForDisplayed({ timeout: 10000 });
     await expect(byId('project-option-variables')).not.toExist();

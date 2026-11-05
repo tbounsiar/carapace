@@ -3,10 +3,61 @@ use std::collections::{HashMap, HashSet};
 use serde::Deserialize;
 
 use super::model::{
-    AuthMethod, ConfigFile, Host, KeyEntry, Node, Project, Template, Variable, VariableKind,
+    AnalyticsSettings, AuthMethod, Category, CategoryChoice, CategoryChoices, ConfigFile, Consent,
+    Host, KeyEntry, Node, Project, Template, Variable, VariableKind,
 };
 use super::validate::{self, MAX_VARIABLES, is_canonical_id, same_name};
 use crate::vars;
+
+/// The catalogue version the single consent of the first release is mapped to. Fixed, not the
+/// current version: a category changed after it must still be asked again.
+pub(super) const V1_ANALYTICS_VERSION: u32 = 2;
+
+/// The first release's `analytics: { consent, catalogueVersion }`, read only to migrate it.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct V1Analytics {
+    consent: Consent,
+    catalogue_version: u32,
+}
+
+/// `analytics` as stored. With `categories`, each category is read on its own and anything that
+/// does not parse is unset; without it, the first release's single consent is mapped onto all
+/// three. Any other shape is unset, so a hand edit can never turn a category on.
+pub(super) fn analytics(value: &serde_json::Value) -> Option<AnalyticsSettings> {
+    let obj = value.as_object()?;
+    if let Some(categories) = obj.get("categories") {
+        let categories = categories.as_object()?;
+        let mut out = CategoryChoices::default();
+        for category in Category::ALL {
+            let key = match category {
+                Category::Launch => "launch",
+                Category::Features => "features",
+                Category::Connections => "connections",
+            };
+            if let Some(choice) = categories
+                .get(key)
+                .and_then(|v| CategoryChoice::deserialize(v).ok())
+            {
+                out.set(category, choice);
+            }
+        }
+        return Some(AnalyticsSettings { categories: out });
+    }
+    let v1 = V1Analytics::deserialize(value).ok()?;
+    let consent = match v1.consent {
+        // The first release asked again below catalogue 1, so such a grant was never in effect.
+        Consent::Granted if v1.catalogue_version >= 1 => Consent::Granted,
+        Consent::Denied => Consent::Denied,
+        _ => return None,
+    };
+    Some(AnalyticsSettings {
+        categories: CategoryChoices::all(CategoryChoice {
+            consent,
+            version: V1_ANALYTICS_VERSION,
+        }),
+    })
+}
 
 /// The version 2 shape, read only to migrate it: hosts lived inside their project. Environments
 /// are handled by `drop_environments`.

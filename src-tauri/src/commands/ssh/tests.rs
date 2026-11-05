@@ -687,7 +687,12 @@ mod analytics_events {
         let ssh = manager_for(&server, "unused");
         let w = world(pw_ref());
         on_port(&w, server.port);
-        let a = Analytics::new(None, crate::analytics::SystemProps::detect("0"), None);
+        let a = Analytics::new(
+            None,
+            crate::analytics::SystemProps::detect("0"),
+            None,
+            false,
+        );
         connect_in(
             &w.store,
             &ssh.manager,

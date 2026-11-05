@@ -15,11 +15,24 @@ import {
 import { TuiSegmented, TuiSwitch } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
-import { Analytics } from '../../../core/ipc/analytics';
+import {
+  ANALYTICS_CATEGORIES,
+  Analytics,
+  type AnalyticsCategory,
+} from '../../../core/ipc/analytics';
 import type { KeyType } from '../../../core/ipc/keys';
 import { FONT_SIZE_MAX, FONT_SIZE_MIN, Settings } from '../../../core/settings/settings';
 import type { ThemeMode } from '../../../core/theme/theme';
-import { openPrivacyPage, UNSAVED_DENIAL, unsavedDenial } from '../../analytics/privacy-page';
+import {
+  CATEGORY_COPY,
+  COMMON_LEAD,
+  COMMON_TEXT,
+  NEVER_LEAD,
+  NEVER_TEXT,
+  openPrivacyPage,
+  UNSAVED_DENIAL,
+  unsavedDenial,
+} from '../../analytics/privacy-page';
 import { notifyError } from '../../project-tree/save-error';
 import { ExternalEditorSettings } from '../external-editor-settings/external-editor-settings';
 
@@ -73,17 +86,38 @@ export class SettingsPage {
   protected readonly analyticsState = this.analytics.current;
   protected readonly analyticsError = signal(false);
   protected readonly readError = 'Could not read this setting. Restart the app.';
-  /** Checked = granted; unset and denied both read as off. */
-  protected readonly sharing = new FormControl(
-    { value: false, disabled: true },
-    { nonNullable: true },
-  );
+  protected readonly categories = CATEGORY_COPY;
+  protected readonly commonLead = COMMON_LEAD;
+  protected readonly commonText = COMMON_TEXT;
+  protected readonly neverLead = NEVER_LEAD;
+  protected readonly neverText = NEVER_TEXT;
+  /** Checked = granted and current; unset, outdated and denied all read as off. */
+  protected readonly controls = Object.fromEntries(
+    ANALYTICS_CATEGORIES.map((category) => [
+      category,
+      new FormControl({ value: false, disabled: true }, { nonNullable: true }),
+    ]),
+  ) as Record<AnalyticsCategory, FormControl<boolean>>;
   protected readonly analyticsAvailable = computed(() => this.analyticsState()?.available ?? true);
+  protected readonly doNotTrack = computed(() => this.analyticsState()?.doNotTrack ?? false);
   protected readonly unsaved = computed(() => unsavedDenial(this.analyticsState()));
   protected readonly unsavedText = UNSAVED_DENIAL;
-  /** One save at a time; the switch is not re-synced from the state until the queue drains. */
+  protected readonly describedBy = computed(() => {
+    const error = this.analyticsError();
+    const dnt = this.doNotTrack();
+    const ids = {} as Record<AnalyticsCategory, string>;
+    for (const category of ANALYTICS_CATEGORIES) {
+      ids[category] = error
+        ? 'settings-analytics-error'
+        : [`settings-analytics-${category}-note`, 'settings-analytics-common']
+            .concat(dnt ? ['settings-analytics-dnt'] : [])
+            .join(' ');
+    }
+    return ids;
+  });
+  /** One save at a time; the switches are not re-synced from the state until the queue drains. */
   private readonly saving = signal(false);
-  private wanted: boolean | null = null;
+  private readonly wanted = new Map<AnalyticsCategory, boolean>();
 
   constructor() {
     this.analytics.state().catch(() => this.analyticsError.set(true));
@@ -92,16 +126,26 @@ export class SettingsPage {
       if (this.saving()) {
         return;
       }
-      if (this.analyticsError() || !state) {
-        this.sharing.disable({ emitEvent: false });
-        return;
+      const usable = !this.analyticsError() && state !== null && !state.doNotTrack;
+      for (const category of ANALYTICS_CATEGORIES) {
+        const control = this.controls[category];
+        if (usable) {
+          control.enable({ emitEvent: false });
+          control.setValue(state.categories[category], { emitEvent: false });
+        } else {
+          // Under DO_NOT_TRACK the switches show what happens (off), not what is stored.
+          control.disable({ emitEvent: false });
+          if (state?.doNotTrack) {
+            control.setValue(false, { emitEvent: false });
+          }
+        }
       }
-      this.sharing.enable({ emitEvent: false });
-      this.sharing.setValue(state.consent === 'granted', { emitEvent: false });
     });
-    this.sharing.valueChanges
-      .pipe(takeUntilDestroyed())
-      .subscribe((granted) => void this.setSharing(granted));
+    for (const category of ANALYTICS_CATEGORIES) {
+      this.controls[category].valueChanges
+        .pipe(takeUntilDestroyed())
+        .subscribe((granted) => void this.setCategory(category, granted));
+    }
   }
 
   protected setTheme(mode: ThemeMode): void {
@@ -116,18 +160,17 @@ export class SettingsPage {
     this.settings.setTerminalFontSize(size);
   }
 
-  /** Toggles made while a save is in flight are coalesced: the last choice is saved next. */
-  private async setSharing(granted: boolean): Promise<void> {
-    this.wanted = granted;
+  /** Toggles made during a save are coalesced: the last choice per category is saved next. */
+  private async setCategory(category: AnalyticsCategory, granted: boolean): Promise<void> {
+    this.wanted.delete(category);
+    this.wanted.set(category, granted);
     if (this.saving()) {
       return;
     }
     this.saving.set(true);
-    while (this.wanted !== null) {
-      const next = this.wanted;
-      this.wanted = null;
+    for (const [next, value] of this.drain()) {
       try {
-        await this.analytics.setConsent(next);
+        await this.analytics.setCategory(next, value);
       } catch (err) {
         if (!unsavedDenial(this.analyticsState())) {
           notifyError(this.alerts, err, 'Setting not saved');
@@ -135,6 +178,15 @@ export class SettingsPage {
       }
     }
     this.saving.set(false);
+  }
+
+  /** Oldest wanted change first; entries added while a save runs are picked up by the same loop. */
+  private *drain(): Generator<[AnalyticsCategory, boolean]> {
+    for (let entry = this.wanted.entries().next(); !entry.done;) {
+      this.wanted.delete(entry.value[0]);
+      yield entry.value;
+      entry = this.wanted.entries().next();
+    }
   }
 
   protected openPolicy(): void {

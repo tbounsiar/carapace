@@ -1,30 +1,51 @@
-<p class="text">Carapace can send anonymous usage events to help decide what to improve.</p>
+<p class="text" data-testid="consent-intro">
+  Carapace sends anonymous usage data to help decide what to improve. Nothing is sent before you
+  save. Turn off anything you don't want to share, here or any time in Settings.
+</p>
 
-<section class="group" aria-labelledby="consent-sent">
-  <header tuiHeader="body-l">
-    <h3 tuiTitle id="consent-sent">Sent</h3>
-  </header>
-  <ul tuiList="m">
-    <li>Which features you use, like opening a terminal or a transfer finishing</li>
-    <li>App version, operating system and language</li>
-    <li>Error codes when a connection fails</li>
-  </ul>
-</section>
+@if (reAsk()) {
+  <p class="text" data-testid="consent-reask">
+    Something changed in what Carapace can send. Check the categories marked New.
+  </p>
+}
 
-<section class="group" aria-labelledby="consent-never">
-  <header tuiHeader="body-l">
-    <h3 tuiTitle id="consent-never">Never sent</h3>
-  </header>
-  <ul tuiList="m">
-    <li>Host names, addresses, ports or usernames</li>
-    <li>File names, paths, keys or passwords</li>
-    <li>Names of your projects, hosts or variables</li>
-    <li>Error messages or anything you type</li>
-  </ul>
-</section>
+<div tuiGroup orientation="vertical" [collapsed]="true">
+  @for (category of categories; track category.id) {
+    <label tuiBlock="m">
+      <span tuiTitle>
+        <span>
+          {{ category.title }}
+          @if (isNew(category.id)) {
+            <span tuiBadge appearance="info" size="s">New</span>
+          }
+        </span>
+        <span
+          tuiSubtitle
+          [id]="'consent-' + category.id + '-note'"
+          [attr.data-testid]="'consent-' + category.id + '-note'"
+        >
+          {{ category.note }}
+        </span>
+      </span>
+      <input
+        tuiSwitch
+        type="checkbox"
+        [tuiAutoFocus]="$first"
+        [name]="category.id"
+        [attr.aria-describedby]="'consent-' + category.id + '-note'"
+        [attr.data-testid]="'consent-' + category.id"
+        [ngModel]="choices()[category.id]"
+        (ngModelChange)="set(category.id, $event)"
+      />
+    </label>
+  }
+</div>
 
-<p class="text">
-  There is no account and no tracking ID. You can change this any time in Settings.
+<p class="text" data-testid="consent-common">
+  <strong>{{ commonLead }}</strong> {{ commonText }}
+</p>
+<p class="text" data-testid="consent-never">
+  <strong>{{ neverLead }}</strong> {{ neverText }}
 </p>
 <p class="text">
   <button
@@ -40,23 +61,12 @@
 <footer>
   <button
     tuiButton
-    tuiAutoFocus
     appearance="secondary"
     size="m"
     type="button"
-    data-testid="consent-decline"
-    (click)="context.completeWith(false)"
+    data-testid="consent-save"
+    (click)="save()"
   >
-    Don't share
-  </button>
-  <button
-    tuiButton
-    appearance="secondary"
-    size="m"
-    type="button"
-    data-testid="consent-share"
-    (click)="context.completeWith(true)"
-  >
-    Share usage data
+    Save choices
   </button>
 </footer>

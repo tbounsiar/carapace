@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
-use super::event::Props;
+use super::event::{Category, Props};
 use super::system::SystemProps;
 
 pub const BATCH: usize = 25;
@@ -135,14 +135,24 @@ impl Transport for Aptabase {
 
 struct Queued {
     event: Envelope,
+    category: Category,
+    /// The category's generation when queued; an older one means it was turned off since.
+    generation: u64,
     tries: u8,
 }
 
 #[derive(Default)]
 struct Queue {
     events: VecDeque<Queued>,
-    /// Bumped by `discard`, so a batch in flight when consent is revoked is never put back.
-    generation: u64,
+    /// Per category, bumped by `discard`, so an event in flight when its category is turned off
+    /// is never posted nor put back.
+    generation: [u64; 3],
+}
+
+impl Queue {
+    fn current(&self, item: &Queued) -> bool {
+        self.generation[item.category.index()] == item.generation
+    }
 }
 
 pub struct Outbox {
@@ -154,6 +164,9 @@ pub struct Outbox {
     /// Runs between taking a batch and posting it.
     #[cfg(test)]
     pub after_drain: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+    /// Runs after a batch is serialized, right before the last check.
+    #[cfg(test)]
+    pub before_post: Mutex<Option<Box<dyn FnOnce() + Send>>>,
 }
 
 impl Outbox {
@@ -165,6 +178,8 @@ impl Outbox {
             stopping: AtomicBool::new(false),
             #[cfg(test)]
             after_drain: Mutex::new(None),
+            #[cfg(test)]
+            before_post: Mutex::new(None),
         }
     }
 
@@ -172,18 +187,25 @@ impl Outbox {
         self.queue.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    pub fn push(&self, event: Envelope) {
+    pub fn push(&self, event: Envelope, category: Category) {
         let mut q = self.queue();
         if q.events.len() >= MAX_QUEUED {
             q.events.pop_front();
         }
-        q.events.push_back(Queued { event, tries: 0 });
+        let generation = q.generation[category.index()];
+        q.events.push_back(Queued {
+            event,
+            category,
+            generation,
+            tries: 0,
+        });
     }
 
-    pub fn discard(&self) {
+    /// Drops the unsent events of one category; the others stay queued.
+    pub fn discard(&self, category: Category) {
         let mut q = self.queue();
-        q.events.clear();
-        q.generation += 1;
+        q.events.retain(|e| e.category != category);
+        q.generation[category.index()] += 1;
     }
 
     #[cfg(test)]
@@ -214,40 +236,55 @@ impl Outbox {
         self.flush(deadline);
     }
 
+    /// Drops the events of categories turned off since they were queued and serializes the
+    /// rest. The check is repeated after serializing, so the body posted holds only events that
+    /// were current right before the request; one already in flight cannot be recalled.
+    fn body_of_current(&self, batch: &mut Vec<Queued>) -> Option<Vec<u8>> {
+        loop {
+            {
+                let q = self.queue();
+                batch.retain(|e| q.current(e));
+            }
+            if batch.is_empty() {
+                return None;
+            }
+            let events: Vec<&Envelope> = batch.iter().map(|q| &q.event).collect();
+            let body = serde_json::to_vec(&events).ok()?;
+            #[cfg(test)]
+            if let Some(hook) = self.before_post.lock().unwrap().take() {
+                hook();
+            }
+            let q = self.queue();
+            if batch.iter().all(|e| q.current(e)) {
+                return Some(body);
+            }
+        }
+    }
+
     fn send(&self, deadline: Instant) {
         let stopping = self.stopping.load(Ordering::SeqCst);
         let mut retry: Vec<Queued> = Vec::new();
-        let mut generation = None;
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
             // A periodic flush yields to the exit flush between batches.
             if left.is_zero() || (!stopping && self.stopping.load(Ordering::SeqCst)) {
                 break;
             }
-            let (batch, g) = {
+            let mut batch = {
                 let mut q = self.queue();
                 let n = q.events.len().min(BATCH);
-                (q.events.drain(..n).collect::<Vec<_>>(), q.generation)
+                q.events.drain(..n).collect::<Vec<_>>()
             };
             if batch.is_empty() {
                 break;
             }
-            if generation.is_some_and(|old| old != g) {
-                retry.clear();
-            }
-            generation = Some(g);
-            let events: Vec<&Envelope> = batch.iter().map(|q| &q.event).collect();
-            let Ok(body) = serde_json::to_vec(&events) else {
-                continue;
-            };
             #[cfg(test)]
             if let Some(hook) = self.after_drain.lock().unwrap().take() {
                 hook();
             }
-            // Consent revoked since the batch was taken: drop it unsent.
-            if self.queue().generation != g {
+            let Some(body) = self.body_of_current(&mut batch) else {
                 continue;
-            }
+            };
             match self.transport.post(&body, left) {
                 Posted::Sent | Posted::Rejected => {}
                 Posted::Retry => {
@@ -269,9 +306,7 @@ impl Outbox {
             return;
         }
         let mut q = self.queue();
-        if generation != Some(q.generation) {
-            return;
-        }
+        retry.retain(|e| q.current(e));
         for item in retry.into_iter().rev() {
             if q.events.len() >= MAX_QUEUED {
                 break;

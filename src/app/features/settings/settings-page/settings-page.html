@@ -75,19 +75,42 @@
 
   <fieldset class="group">
     <legend class="legend">Privacy</legend>
-    <label tuiLabel>
-      <input
-        tuiSwitch
-        type="checkbox"
-        name="analytics"
-        data-testid="settings-analytics"
-        [attr.aria-describedby]="
-          analyticsError() ? 'settings-analytics-error' : 'settings-analytics-note'
-        "
-        [formControl]="sharing"
-      />
-      Share anonymous usage data
-    </label>
+    @if (doNotTrack()) {
+      <div
+        tuiNotification
+        appearance="info"
+        size="s"
+        role="status"
+        id="settings-analytics-dnt"
+        data-testid="settings-analytics-dnt"
+      >
+        Off because DO_NOT_TRACK is set on this computer. Nothing is sent.
+      </div>
+    }
+    @for (category of categories; track category.id) {
+      <label tuiLabel>
+        <input
+          tuiSwitch
+          type="checkbox"
+          [name]="'analytics-' + category.id"
+          [attr.data-testid]="'settings-analytics-' + category.id"
+          [attr.aria-describedby]="describedBy()[category.id]"
+          [formControl]="controls[category.id]"
+        />
+        <span tuiTitle>
+          {{ category.title }}
+          @if (!analyticsError()) {
+            <span
+              tuiSubtitle
+              [id]="'settings-analytics-' + category.id + '-note'"
+              [attr.data-testid]="'settings-analytics-' + category.id + '-note'"
+            >
+              {{ category.note }}
+            </span>
+          }
+        </span>
+      </label>
+    }
     @if (analyticsError()) {
       <tui-error
         id="settings-analytics-error"
@@ -95,10 +118,11 @@
         [error]="readError"
       />
     } @else {
-      <p class="note" id="settings-analytics-note" data-testid="settings-analytics-note">
-        Feature usage, app version, OS, language and connection error codes. Never host names,
-        addresses, usernames, paths, file names or anything you type. No install ID: a random
-        session ID is kept in memory only.
+      <p class="note" id="settings-analytics-common" data-testid="settings-analytics-common">
+        <strong>{{ commonLead }}</strong> {{ commonText }}
+      </p>
+      <p class="note" data-testid="settings-analytics-never">
+        <strong>{{ neverLead }}</strong> {{ neverText }}
       </p>
     }
     <div class="links">
@@ -119,17 +143,6 @@
         (click)="showEvents()"
       ></button>
     </div>
-    @if (unsaved()) {
-      <div
-        tuiNotification
-        appearance="warning"
-        size="s"
-        role="status"
-        data-testid="settings-analytics-unsaved"
-      >
-        {{ unsavedText }}
-      </div>
-    }
     @if (!analyticsAvailable()) {
       <div
         tuiNotification
@@ -139,6 +152,17 @@
         data-testid="settings-analytics-unavailable"
       >
         This build does not send usage data. Changes are still saved.
+      </div>
+    }
+    @if (unsaved()) {
+      <div
+        tuiNotification
+        appearance="warning"
+        size="s"
+        role="status"
+        data-testid="settings-analytics-unsaved"
+      >
+        {{ unsavedText }}
       </div>
     }
   </fieldset>

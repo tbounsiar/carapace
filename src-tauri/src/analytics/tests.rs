@@ -60,21 +60,52 @@ impl Transport for Sink {
     }
 }
 
-fn consent(consent: Consent, catalogue_version: u32) -> Option<AnalyticsConsent> {
-    Some(AnalyticsConsent {
-        consent,
-        catalogue_version,
+fn choice(consent: Consent, version: u32) -> CategoryChoice {
+    CategoryChoice { consent, version }
+}
+
+const GRANTED: CategoryChoice = CategoryChoice {
+    consent: Consent::Granted,
+    version: CATALOGUE_VERSION,
+};
+const DENIED: CategoryChoice = CategoryChoice {
+    consent: Consent::Denied,
+    version: CATALOGUE_VERSION,
+};
+const UNSET: CategoryChoice = CategoryChoice {
+    consent: Consent::Unset,
+    version: 0,
+};
+
+fn stored(
+    launch: CategoryChoice,
+    features: CategoryChoice,
+    connections: CategoryChoice,
+) -> Option<AnalyticsSettings> {
+    Some(AnalyticsSettings {
+        categories: CategoryChoices {
+            launch,
+            features,
+            connections,
+        },
     })
 }
 
-fn granted() -> Option<AnalyticsConsent> {
-    consent(Consent::Granted, CATALOGUE_VERSION)
+fn granted() -> Option<AnalyticsSettings> {
+    stored(GRANTED, GRANTED, GRANTED)
 }
 
-fn with_sink(stored: Option<AnalyticsConsent>) -> (Analytics, Sink) {
+/// That category granted, the two others denied.
+fn only(category: Category) -> Option<AnalyticsSettings> {
+    let mut s = CategoryChoices::all(DENIED);
+    s.set(category, GRANTED);
+    Some(AnalyticsSettings { categories: s })
+}
+
+fn with_sink(stored: Option<AnalyticsSettings>) -> (Analytics, Sink) {
     let sink = Sink::new(Posted::Sent);
     (
-        Analytics::new(stored, system(), Some(Box::new(sink.clone()))),
+        Analytics::new(stored, system(), Some(Box::new(sink.clone())), false),
         sink,
     )
 }
@@ -89,139 +120,435 @@ const COUNTS: Counts = Counts {
     keys: 0,
 };
 
-fn ok(_: AnalyticsConsent) -> Result<(), ()> {
-    Ok(())
+type Writes<'a> = &'a [(Category, CategoryChoice)];
+
+fn apply(mut base: CategoryChoices, writes: Writes) -> AnalyticsSettings {
+    for &(c, choice) in writes {
+        base.set(c, choice);
+    }
+    AnalyticsSettings { categories: base }
+}
+
+/// What the file would hold if it matched memory before this save.
+fn mirrored(a: &Analytics, writes: Writes) -> AnalyticsSettings {
+    apply(a.stored_for_tests(), writes)
+}
+
+fn mirror(a: &Analytics) -> impl FnOnce(Writes) -> Result<AnalyticsSettings, ()> + '_ {
+    move |w| Ok(mirrored(a, w))
+}
+
+/// A config file in memory, updated like `ConfigStore::update_analytics`.
+#[derive(Clone, Default)]
+struct Disk(Arc<Mutex<Option<AnalyticsSettings>>>);
+
+impl Disk {
+    fn holding(stored: Option<AnalyticsSettings>) -> Self {
+        Self(Arc::new(Mutex::new(stored)))
+    }
+
+    fn save(&self, writes: Writes) -> Result<AnalyticsSettings, ()> {
+        let mut v = self.0.lock().unwrap();
+        let next = apply(v.unwrap_or_default().categories, writes);
+        *v = Some(next);
+        Ok(next)
+    }
+
+    fn value(&self) -> CategoryChoices {
+        self.0.lock().unwrap().unwrap_or_default().categories
+    }
+}
+
+fn choices(launch: bool, features: bool, connections: bool) -> AnalyticsChoices {
+    AnalyticsChoices {
+        launch,
+        features,
+        connections,
+    }
+}
+
+fn one_of_each() -> [Event; 3] {
+    [
+        Event::SessionStarted,
+        Event::TerminalOpened,
+        Event::ConnectFailed {
+            auth: Auth::Key,
+            code: ErrorCode::Timeout,
+        },
+    ]
+}
+
+fn exercise(a: &Analytics) {
+    a.launched();
+    for e in one_of_each() {
+        a.record(e);
+    }
+    a.app_started(Theme::Dark, || panic!("counts read without consent"));
+    a.files_listed("c");
+    a.attempt_pending(
+        Attempt::Connect("h".into()),
+        Event::ConnectFailed {
+            auth: Auth::Key,
+            code: ErrorCode::Timeout,
+        },
+    );
+    a.expire_attempts(Duration::ZERO);
 }
 
 #[test]
 fn nothing_is_recorded_without_consent() {
+    let outdated = choice(Consent::Granted, 0);
     for stored in [
         None,
-        consent(Consent::Unset, CATALOGUE_VERSION),
-        consent(Consent::Denied, CATALOGUE_VERSION),
-        consent(Consent::Granted, CATALOGUE_VERSION - 1),
+        stored(UNSET, UNSET, UNSET),
+        stored(DENIED, DENIED, DENIED),
+        stored(outdated, outdated, outdated),
+        stored(choice(Consent::Granted, 1), UNSET, DENIED),
     ] {
         let (a, sink) = with_sink(stored);
-        a.record(Event::TerminalOpened);
-        a.app_started(Theme::Dark, || panic!("counts read without consent"));
-        a.files_listed("c");
-        a.attempt_pending(
-            Attempt::Connect("h".into()),
-            Event::ConnectFailed {
-                auth: Auth::Key,
-                code: ErrorCode::Timeout,
-            },
-        );
-        a.expire_attempts(Duration::ZERO);
+        exercise(&a);
         assert!(a.recent().events.is_empty());
         assert_eq!(a.queued(), 0);
         a.flush(Duration::from_secs(1));
         assert!(sink.sent().is_empty());
-        assert!(!a.collecting());
+        for c in Category::ALL {
+            assert!(!a.collecting(c));
+        }
     }
 }
 
 #[test]
-fn state_asks_when_unset_or_granted_for_an_older_catalogue() {
-    let view = |stored| Analytics::new(stored, system(), None).status();
-    let s = view(None);
-    assert_eq!(
-        (s.consent, s.ask_needed, s.available),
-        (Consent::Unset, true, false)
-    );
-    let s = view(consent(Consent::Granted, 0));
-    assert_eq!((s.consent, s.ask_needed), (Consent::Granted, true));
-    let s = view(granted());
-    assert_eq!((s.consent, s.ask_needed), (Consent::Granted, false));
-    let s = view(consent(Consent::Denied, 0));
-    assert_eq!((s.consent, s.ask_needed), (Consent::Denied, false));
-    assert!(with_sink(None).0.status().available);
-    let json = serde_json::to_value(view(None)).unwrap();
+fn do_not_track_closes_every_gate_and_keeps_the_choices() {
+    let sink = Sink::new(Posted::Sent);
+    let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())), true);
+    exercise(&a);
+    assert!(a.recent().events.is_empty());
+    assert_eq!(a.queued(), 0);
+    let s = a.status();
+    assert!(s.do_not_track);
+    assert_eq!(s.categories, choices(true, true, true));
+    assert!(!s.ask_needed);
+    let mut saved = Vec::new();
+    a.set_category(
+        Category::Features,
+        true,
+        |w| {
+            let v = mirrored(&a, w);
+            saved.push(v);
+            Ok::<_, ()>(v)
+        },
+        || COUNTS,
+    )
+    .unwrap();
+    assert!(a.recent().events.is_empty());
+    assert_eq!(saved, vec![granted().unwrap()]);
+
+    let a = Analytics::new(None, system(), None, true);
+    let s = a.status();
+    assert_eq!(s.pending, Category::ALL);
+    assert!(!s.ask_needed);
+}
+
+#[test]
+fn do_not_track_parsing() {
+    use std::ffi::OsStr;
+    assert!(!do_not_track(None));
+    for off in ["", "0", "false", "FALSE", "False", " 0 ", " false\t", "  "] {
+        assert!(!do_not_track(Some(OsStr::new(off))), "{off:?}");
+    }
+    for on in ["1", "yes", "true", "TRUE", "no", "00", "2", " 1 "] {
+        assert!(do_not_track(Some(OsStr::new(on))), "{on:?}");
+    }
+}
+
+#[test]
+fn each_category_gates_its_own_events() {
+    for category in Category::ALL {
+        let (a, sink) = with_sink(only(category));
+        for e in one_of_each() {
+            a.record(e);
+        }
+        let expected: Vec<&str> = one_of_each()
+            .iter()
+            .filter(|e| e.category() == category)
+            .map(Event::name)
+            .collect();
+        assert_eq!(names(&a), expected, "{category:?}");
+        a.flush(Duration::from_secs(1));
+        assert_eq!(sink.names(), expected, "{category:?}");
+        for c in Category::ALL {
+            assert_eq!(a.collecting(c), c == category);
+        }
+    }
+}
+
+#[test]
+fn every_event_belongs_to_its_spec_category() {
+    let spec = |name: &str| match name {
+        "session_started" => Category::Launch,
+        "app_started" | "host_created" | "terminal_opened" | "files_opened"
+        | "transfer_finished" | "key_generated" | "key_imported" | "variables_saved" => {
+            Category::Features
+        }
+        "connect_succeeded" | "connect_failed" | "host_test_run" => Category::Connections,
+        other => panic!("{other} is not in the catalogue"),
+    };
+    for event in catalogue::every_event() {
+        assert_eq!(event.category(), spec(event.name()), "{}", event.name());
+    }
+    let json = serde_json::to_value(Category::ALL).unwrap();
     assert_eq!(
         json,
-        serde_json::json!({"consent": "unset", "askNeeded": true, "available": false, "persisted": true})
+        serde_json::json!(["launch", "features", "connections"])
     );
 }
 
 #[test]
-fn granting_emits_consent_then_app_started_once() {
+fn versions_are_per_category() {
+    assert_eq!(CATALOGUE_VERSION, 2);
+    assert_eq!(
+        Category::ALL.map(changed_in),
+        [2, 1, 1],
+        "launch, features, connections"
+    );
+    assert!(
+        Category::ALL
+            .iter()
+            .all(|&c| changed_in(c) <= CATALOGUE_VERSION)
+    );
+    // A launch grant from version 1 is outdated; feature and connection grants from 1 are not.
+    let v1 = choice(Consent::Granted, 1);
+    let a = Analytics::new(stored(v1, v1, v1), system(), None, false);
+    let s = a.status();
+    assert_eq!(s.categories, choices(false, true, true));
+    assert_eq!(s.pending, [Category::Launch]);
+    assert!(s.ask_needed);
+}
+
+#[test]
+fn pending_and_ask_needed() {
+    let view = |stored| Analytics::new(stored, system(), None, false).status();
+    let old = choice(Consent::Granted, 0);
+    let cases = [
+        (
+            None,
+            vec![Category::Launch, Category::Features, Category::Connections],
+        ),
+        (stored(GRANTED, UNSET, DENIED), vec![Category::Features]),
+        (stored(old, DENIED, GRANTED), vec![Category::Launch]),
+        (stored(DENIED, DENIED, DENIED), vec![]),
+        (granted(), vec![]),
+        (
+            stored(choice(Consent::Denied, 0), old, UNSET),
+            vec![Category::Features, Category::Connections],
+        ),
+    ];
+    for (stored, pending) in cases {
+        let s = view(stored);
+        assert_eq!(s.ask_needed, !pending.is_empty(), "{stored:?}");
+        assert_eq!(s.pending, pending, "{stored:?}");
+    }
+    assert!(with_sink(None).0.status().available);
+    let json = serde_json::to_value(view(stored(GRANTED, UNSET, DENIED))).unwrap();
+    assert_eq!(
+        json,
+        serde_json::json!({
+            "categories": {"launch": true, "features": false, "connections": false},
+            "pending": ["features"],
+            "doNotTrack": false,
+            "askNeeded": true,
+            "available": false,
+            "persisted": true,
+        })
+    );
+}
+
+#[test]
+fn session_started_once_at_launch() {
+    let (a, sink) = with_sink(only(Category::Launch));
+    a.launched();
+    a.launched();
+    assert_eq!(names(&a), ["session_started"]);
+    a.set_category(Category::Launch, true, mirror(&a), || COUNTS)
+        .unwrap();
+    a.set_choices(choices(true, true, true), mirror(&a), || COUNTS)
+        .unwrap();
+    assert_eq!(names(&a), ["session_started"]);
+    a.flush(Duration::from_secs(1));
+    assert_eq!(sink.names(), ["session_started"]);
+    let props = &sink.sent()[0][0]["props"];
+    assert_eq!(props, &serde_json::json!({}));
+}
+
+#[test]
+fn session_started_follows_a_grant_and_never_repeats() {
     let (a, _) = with_sink(None);
-    a.app_started(Theme::System, || COUNTS);
+    a.launched();
     assert!(a.recent().events.is_empty());
+    a.set_category(Category::Launch, true, mirror(&a), || COUNTS)
+        .unwrap();
+    assert_eq!(names(&a), ["session_started"]);
+    a.set_category(Category::Launch, false, mirror(&a), || COUNTS)
+        .unwrap();
+    assert!(a.recent().events.is_empty());
+    a.set_category(Category::Launch, true, mirror(&a), || COUNTS)
+        .unwrap();
+    assert!(a.recent().events.is_empty());
+}
+
+#[test]
+fn the_dialog_saves_all_three_in_one_write() {
+    let (a, _) = with_sink(None);
+    a.launched();
+    a.app_started(Theme::System, || COUNTS);
     let mut saved = Vec::new();
     let s = a
-        .set_consent(
-            true,
-            |v| {
+        .set_choices(
+            choices(true, true, false),
+            |w| {
+                let v = mirrored(&a, w);
                 saved.push(v);
-                Ok::<_, ()>(())
+                Ok::<_, ()>(v)
             },
             || COUNTS,
         )
         .unwrap();
-    assert_eq!(saved, vec![granted().unwrap()]);
-    assert_eq!((s.consent, s.ask_needed), (Consent::Granted, false));
-    assert_eq!(names(&a), ["app_started", "consent_granted"]);
-    let started = &a.recent().events[0];
+    assert_eq!(saved, vec![stored(GRANTED, GRANTED, DENIED).unwrap()]);
+    assert_eq!(s.categories, choices(true, true, false));
+    assert!(s.pending.is_empty() && !s.ask_needed && s.persisted);
+    assert_eq!(names(&a), ["app_started", "session_started"]);
     assert_eq!(
-        serde_json::to_value(&started.props).unwrap(),
+        serde_json::to_value(&a.recent().events[0].props).unwrap(),
         serde_json::json!({"theme": "system", "hosts": "6-20", "projects": "1", "keys": "0"})
     );
-    a.app_started(Theme::Dark, || COUNTS);
-    a.set_consent(true, ok, || COUNTS).unwrap();
-    assert_eq!(names(&a), ["app_started", "consent_granted"]);
 }
 
 #[test]
-fn app_started_follows_a_grant_made_before_the_theme_is_known() {
+fn a_category_change_touches_that_category_only() {
+    let old = choice(Consent::Granted, 1);
+    let (a, _) = with_sink(stored(old, UNSET, DENIED));
+    let mut saved = Vec::new();
+    a.set_category(
+        Category::Connections,
+        true,
+        |w| {
+            let v = mirrored(&a, w);
+            saved.push(v);
+            Ok::<_, ()>(v)
+        },
+        || panic!("counts read without a feature grant"),
+    )
+    .unwrap();
+    assert_eq!(saved, vec![stored(old, UNSET, GRANTED).unwrap()]);
+    let s = a.status();
+    assert_eq!(s.categories, choices(false, false, true));
+    assert_eq!(s.pending, [Category::Launch, Category::Features]);
+}
+
+#[test]
+fn app_started_once_per_launch_whenever_features_open() {
     let (a, _) = with_sink(None);
-    a.set_consent(true, ok, || COUNTS).unwrap();
-    assert_eq!(names(&a), ["consent_granted"]);
+    a.set_category(Category::Features, true, mirror(&a), || COUNTS)
+        .unwrap();
+    assert!(a.recent().events.is_empty());
     a.app_started(Theme::Light, || COUNTS);
     a.app_started(Theme::Light, || COUNTS);
-    assert_eq!(names(&a), ["app_started", "consent_granted"]);
-}
-
-#[test]
-fn regranting_an_older_catalogue_emits_consent_again() {
-    let (a, _) = with_sink(consent(Consent::Granted, 0));
-    a.set_consent(true, ok, || COUNTS).unwrap();
-    assert_eq!(names(&a), ["consent_granted"]);
+    assert_eq!(names(&a), ["app_started"]);
+    a.set_category(Category::Features, false, mirror(&a), || COUNTS)
+        .unwrap();
+    a.set_category(Category::Features, true, mirror(&a), || {
+        panic!("app_started twice")
+    })
+    .unwrap();
+    a.app_started(Theme::Light, || panic!("app_started twice"));
+    assert!(a.recent().events.is_empty());
 }
 
 #[test]
 fn a_failed_save_of_a_grant_changes_nothing() {
     let (a, sink) = with_sink(None);
+    a.launched();
     a.app_started(Theme::Dark, || COUNTS);
-    assert_eq!(a.set_consent(true, |_| Err("io"), || COUNTS), Err("io"));
-    assert_eq!(a.status().consent, Consent::Unset);
+    assert_eq!(
+        a.set_choices(choices(true, true, true), |_| Err("io"), || COUNTS),
+        Err("io")
+    );
+    assert_eq!(
+        a.set_category(Category::Launch, true, |_| Err("io"), || COUNTS),
+        Err("io")
+    );
+    let s = a.status();
+    assert_eq!(s.categories, choices(false, false, false));
+    assert_eq!(s.pending.len(), 3);
+    assert!(s.persisted);
     assert!(a.recent().events.is_empty());
     a.flush(Duration::from_secs(1));
     assert!(sink.sent().is_empty());
 }
 
 #[test]
-fn denying_discards_the_queue_and_the_log_and_sends_nothing_about_it() {
+fn turning_a_category_off_drops_only_its_log_queue_and_attempts() {
     let (a, sink) = with_sink(granted());
+    a.launched();
     a.record(Event::TerminalOpened);
     a.files_listed("c");
-    assert_eq!(a.queued(), 2);
+    a.record(Event::ConnectSucceeded {
+        auth: Auth::Agent,
+        duration: Took::UnderOne,
+    });
+    a.attempt_pending(
+        Attempt::Test(String::new()),
+        Event::test_ended(TestResult::Cancelled),
+    );
+    assert_eq!(a.queued(), 4);
+    let s = a
+        .set_category(Category::Connections, false, mirror(&a), || {
+            panic!("counts on deny")
+        })
+        .unwrap();
+    assert_eq!(s.categories, choices(true, true, false));
+    assert_eq!(a.attempts(), 0);
+    assert_eq!(a.queued(), 3);
+    assert_eq!(
+        names(&a),
+        ["files_opened", "terminal_opened", "session_started"]
+    );
+    a.set_category(Category::Features, false, mirror(&a), || COUNTS)
+        .unwrap();
+    assert_eq!(names(&a), ["session_started"]);
+    assert_eq!(a.queued(), 1);
+    a.record(Event::TerminalOpened);
+    a.files_listed("d");
+    a.expire_attempts(Duration::ZERO);
+    a.flush(Duration::from_secs(1));
+    assert_eq!(sink.names(), ["session_started"]);
+
+    a.set_category(Category::Features, true, mirror(&a), || COUNTS)
+        .unwrap();
+    a.files_listed("c");
+    assert_eq!(names(&a), ["files_opened", "session_started"]);
+}
+
+#[test]
+fn denying_everything_sends_nothing_about_it() {
+    let (a, sink) = with_sink(granted());
+    a.launched();
+    a.record(Event::TerminalOpened);
     let mut saved = Vec::new();
     let s = a
-        .set_consent(
-            false,
-            |v| {
+        .set_choices(
+            choices(false, false, false),
+            |w| {
+                let v = mirrored(&a, w);
                 saved.push(v);
-                Ok::<_, ()>(())
+                Ok::<_, ()>(v)
             },
             || panic!("counts read on deny"),
         )
         .unwrap();
-    assert_eq!(
-        saved,
-        vec![consent(Consent::Denied, CATALOGUE_VERSION).unwrap()]
-    );
-    assert_eq!((s.consent, s.ask_needed), (Consent::Denied, false));
+    assert_eq!(saved, vec![stored(DENIED, DENIED, DENIED).unwrap()]);
+    assert_eq!(s.categories, choices(false, false, false));
+    assert!(!s.ask_needed);
     assert_eq!(a.queued(), 0);
     assert!(a.recent().events.is_empty());
     a.record(Event::TerminalOpened);
@@ -233,26 +560,52 @@ fn denying_discards_the_queue_and_the_log_and_sends_nothing_about_it() {
 fn a_deny_stays_in_effect_when_it_cannot_be_saved() {
     let (a, _) = with_sink(granted());
     a.record(Event::TerminalOpened);
-    assert_eq!(a.set_consent(false, |_| Err("io"), || COUNTS), Err("io"));
-    assert!(!a.collecting());
-    assert_eq!(a.queued(), 0);
+    a.record(Event::test_ended(TestResult::Success));
+    assert_eq!(
+        a.set_choices(choices(true, false, true), |_| Err("io"), || COUNTS),
+        Err("io")
+    );
+    assert!(!a.collecting(Category::Features));
+    assert!(a.collecting(Category::Connections));
+    assert_eq!(a.queued(), 1);
     let s = a.status();
-    assert_eq!((s.consent, s.persisted), (Consent::Denied, false));
-    a.retry_save(|_| Err::<(), _>("io"));
+    assert_eq!(
+        (s.categories, s.persisted),
+        (choices(true, false, true), false)
+    );
+    a.retry_save(|_| Err::<AnalyticsSettings, _>("io"));
     assert!(!a.status().persisted);
     let mut saved = Vec::new();
-    a.retry_save(|v| {
+    a.retry_save(|w| {
+        let v = mirrored(&a, w);
         saved.push(v);
-        Ok::<_, ()>(())
+        Ok::<_, ()>(v)
     });
-    assert_eq!(
-        saved,
-        vec![consent(Consent::Denied, CATALOGUE_VERSION).unwrap()]
-    );
+    assert_eq!(saved, vec![stored(GRANTED, DENIED, GRANTED).unwrap()]);
     assert!(a.status().persisted);
-    a.retry_save(|_| -> Result<(), ()> { panic!("saved twice") });
+    a.retry_save(|_| -> Result<AnalyticsSettings, ()> { panic!("saved twice") });
     a.record(Event::TerminalOpened);
-    assert!(a.recent().events.is_empty());
+    assert_eq!(names(&a), ["host_test_run"]);
+}
+
+#[test]
+fn a_failed_mixed_save_applies_the_deny_but_not_the_grant() {
+    let (a, _) = with_sink(stored(UNSET, GRANTED, UNSET));
+    assert_eq!(
+        a.set_choices(choices(true, false, false), |_| Err("io"), || COUNTS),
+        Err("io")
+    );
+    let s = a.status();
+    assert_eq!(s.categories, choices(false, false, false));
+    assert_eq!(s.pending, [Category::Launch]);
+    assert!(!s.persisted);
+    let mut saved = Vec::new();
+    a.retry_save(|w| {
+        let v = mirrored(&a, w);
+        saved.push(v);
+        Ok::<_, ()>(v)
+    });
+    assert_eq!(saved, vec![stored(UNSET, DENIED, DENIED).unwrap()]);
 }
 
 #[test]
@@ -300,7 +653,7 @@ fn recent_log_keeps_the_last_fifty_newest_first() {
 
 #[test]
 fn an_unavailable_build_logs_but_never_sends() {
-    let a = Analytics::new(granted(), system(), None);
+    let a = Analytics::new(granted(), system(), None, false);
     assert!(!a.available());
     a.record(Event::TerminalOpened);
     assert_eq!(names(&a), ["terminal_opened"]);
@@ -395,7 +748,7 @@ fn flush_sends_batches_with_the_session_and_system_props() {
 #[test]
 fn failed_batches_are_retried_a_bounded_number_of_times() {
     let sink = Sink::new(Posted::Retry);
-    let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())));
+    let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())), false);
     a.record(Event::TerminalOpened);
     for _ in 0..MAX_TRIES + 2 {
         a.flush(Duration::from_secs(1));
@@ -404,7 +757,7 @@ fn failed_batches_are_retried_a_bounded_number_of_times() {
     assert_eq!(a.queued(), 0);
 
     let sink = Sink::new(Posted::Rejected);
-    let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())));
+    let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())), false);
     a.record(Event::TerminalOpened);
     a.flush(Duration::from_secs(1));
     a.flush(Duration::from_secs(1));
@@ -412,7 +765,7 @@ fn failed_batches_are_retried_a_bounded_number_of_times() {
 
     let sink = Sink::new(Posted::Sent);
     sink.script.lock().unwrap().push_back(Posted::Retry);
-    let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())));
+    let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())), false);
     a.record(Event::TerminalOpened);
     a.flush(Duration::from_secs(1));
     a.record(Event::FilesOpened);
@@ -429,7 +782,8 @@ fn a_deny_during_a_failing_flush_keeps_nothing() {
     impl Transport for DenyWhilePosting {
         fn post(&self, _: &[u8], _: Duration) -> Posted {
             if let Some(a) = self.0.lock().unwrap().take() {
-                a.set_consent(false, ok, || COUNTS).unwrap();
+                a.set_choices(choices(false, false, false), mirror(&a), || COUNTS)
+                    .unwrap();
             }
             Posted::Retry
         }
@@ -441,7 +795,12 @@ fn a_deny_during_a_failing_flush_keeps_nothing() {
             self.0.post(b, d)
         }
     }
-    let a = Analytics::new(granted(), system(), Some(Box::new(Shared(t.clone()))));
+    let a = Analytics::new(
+        granted(),
+        system(),
+        Some(Box::new(Shared(t.clone()))),
+        false,
+    );
     *t.0.lock().unwrap() = Some(a.clone());
     a.record(Event::TerminalOpened);
     a.flush(Duration::from_secs(1));
@@ -544,7 +903,7 @@ fn http(base: &str) -> Aptabase {
 #[test]
 fn http_client_posts_json_with_the_app_key() {
     let (base, rx) = mock_server(vec![200, 200], Duration::ZERO);
-    let a = Analytics::new(granted(), system(), Some(Box::new(http(&base))));
+    let a = Analytics::new(granted(), system(), Some(Box::new(http(&base))), false);
     for _ in 0..BATCH + 1 {
         a.record(Event::TerminalOpened);
     }
@@ -597,7 +956,7 @@ fn http_client_times_out() {
 #[test]
 fn exit_flush_is_bounded_and_reports_pending_attempts() {
     let (base, rx) = mock_server(vec![200], Duration::from_secs(10));
-    let a = Analytics::new(granted(), system(), Some(Box::new(http(&base))));
+    let a = Analytics::new(granted(), system(), Some(Box::new(http(&base))), false);
     a.attempt_pending(
         Attempt::Test(String::new()),
         Event::test_ended(TestResult::Cancelled),
@@ -617,6 +976,7 @@ fn exit_flush_without_a_server_returns() {
         granted(),
         system(),
         Some(Box::new(http("http://127.0.0.1:1"))),
+        false,
     );
     a.record(Event::TerminalOpened);
     let started = Instant::now();
@@ -642,7 +1002,7 @@ mod catalogue {
                     ("keys", count.clone()),
                 ]),
             ),
-            ("consent_granted", HashMap::new()),
+            ("session_started", HashMap::new()),
             ("host_created", HashMap::from([("auth", auth.clone())])),
             (
                 "connect_succeeded",
@@ -717,9 +1077,9 @@ mod catalogue {
         "cancelled",
     ];
 
-    fn every_event() -> Vec<Event> {
+    pub(super) fn every_event() -> Vec<Event> {
         let mut all = vec![
-            Event::ConsentGranted,
+            Event::SessionStarted,
             Event::TerminalOpened,
             Event::FilesOpened,
         ];
@@ -891,29 +1251,61 @@ mod catalogue {
 #[test]
 fn a_grant_after_an_unsaved_deny_is_what_gets_saved() {
     let (a, _) = with_sink(granted());
-    let _ = a.set_consent(false, |_| Err("io"), || COUNTS);
-    a.set_consent(true, ok, || COUNTS).unwrap();
+    let _ = a.set_category(Category::Features, false, |_| Err("io"), || COUNTS);
+    let mut saved = Vec::new();
+    a.set_category(
+        Category::Features,
+        true,
+        |w| {
+            let v = mirrored(&a, w);
+            saved.push(v);
+            Ok::<_, ()>(v)
+        },
+        || COUNTS,
+    )
+    .unwrap();
+    assert_eq!(saved, vec![granted().unwrap()]);
     assert!(a.status().persisted);
-    assert!(a.collecting());
-    a.retry_save(|_| -> Result<(), ()> { panic!("nothing to retry") });
+    assert!(a.collecting(Category::Features));
+    a.retry_save(|_| -> Result<AnalyticsSettings, ()> { panic!("nothing to retry") });
+}
+
+#[test]
+fn an_unsaved_deny_is_written_with_the_next_grant_of_another_category() {
+    let (a, _) = with_sink(stored(UNSET, GRANTED, UNSET));
+    let _ = a.set_category(Category::Features, false, |_| Err("io"), || COUNTS);
+    let mut saved = Vec::new();
+    a.set_category(
+        Category::Launch,
+        true,
+        |w| {
+            let v = mirrored(&a, w);
+            saved.push(v);
+            Ok::<_, ()>(v)
+        },
+        || COUNTS,
+    )
+    .unwrap();
+    assert_eq!(saved, vec![stored(GRANTED, DENIED, UNSET).unwrap()]);
+    assert!(a.status().persisted);
 }
 
 #[test]
 fn a_deny_waits_for_a_grant_being_saved_and_wins() {
     let (a, _) = with_sink(None);
-    let disk = Arc::new(Mutex::new(None));
+    let disk = Disk::default();
     let (in_save, saving) = mpsc::channel();
     let (release, go) = mpsc::channel::<()>();
     let grant = {
         let (a, disk) = (a.clone(), disk.clone());
         thread::spawn(move || {
-            a.set_consent(
+            a.set_category(
+                Category::Connections,
                 true,
-                |v| {
+                |w| {
                     in_save.send(()).unwrap();
                     go.recv().unwrap();
-                    *disk.lock().unwrap() = Some(v);
-                    Ok::<_, ()>(())
+                    disk.save(w)
                 },
                 || COUNTS,
             )
@@ -923,14 +1315,7 @@ fn a_deny_waits_for_a_grant_being_saved_and_wins() {
     let deny = {
         let (a, disk) = (a.clone(), disk.clone());
         thread::spawn(move || {
-            a.set_consent(
-                false,
-                |v| {
-                    *disk.lock().unwrap() = Some(v);
-                    Ok::<_, ()>(())
-                },
-                || COUNTS,
-            )
+            a.set_category(Category::Connections, false, |w| disk.save(w), || COUNTS)
         })
     };
     thread::sleep(Duration::from_millis(100));
@@ -938,31 +1323,31 @@ fn a_deny_waits_for_a_grant_being_saved_and_wins() {
     release.send(()).unwrap();
     grant.join().unwrap().unwrap();
     deny.join().unwrap().unwrap();
-    assert_eq!(disk.lock().unwrap().unwrap().consent, Consent::Denied);
-    assert_eq!(a.status().consent, Consent::Denied);
-    assert!(!a.collecting());
+    assert_eq!(disk.value().connections, DENIED);
+    assert!(!a.status().categories.connections);
+    assert!(!a.collecting(Category::Connections));
     assert!(a.recent().events.is_empty());
 }
 
 #[test]
-fn interleaved_grants_and_denies_leave_memory_and_disk_equal() {
+fn interleaved_changes_leave_memory_and_disk_equal() {
     let (a, _) = with_sink(None);
-    let disk = Arc::new(Mutex::new(None::<AnalyticsConsent>));
+    let disk = Disk::default();
     let threads: Vec<_> = (0..8)
         .map(|t| {
             let (a, disk) = (a.clone(), disk.clone());
             thread::spawn(move || {
-                for i in 0..40 {
+                for i in 0..40usize {
                     let granted = (t + i) % 3 != 0;
-                    a.set_consent(
-                        granted,
-                        |v| {
-                            thread::yield_now();
-                            *disk.lock().unwrap() = Some(v);
-                            Ok::<_, ()>(())
-                        },
-                        || COUNTS,
-                    )
+                    let save = |w: Writes| {
+                        thread::yield_now();
+                        disk.save(w)
+                    };
+                    if i % 4 == 0 {
+                        a.set_choices(choices(granted, !granted, granted), save, || COUNTS)
+                    } else {
+                        a.set_category(Category::ALL[(t + i) % 3], granted, save, || COUNTS)
+                    }
                     .unwrap();
                 }
             })
@@ -971,9 +1356,60 @@ fn interleaved_grants_and_denies_leave_memory_and_disk_equal() {
     for t in threads {
         t.join().unwrap();
     }
-    let on_disk = disk.lock().unwrap().unwrap().consent;
-    assert_eq!(a.status().consent, on_disk);
-    assert_eq!(a.collecting(), on_disk == Consent::Granted);
+    let on_disk = disk.value();
+    for c in Category::ALL {
+        let granted = on_disk.get(c).consent == Consent::Granted;
+        assert_eq!(a.status().categories.get(c), granted, "{c:?}");
+        assert_eq!(a.collecting(c), granted, "{c:?}");
+    }
+}
+
+#[test]
+fn a_batch_taken_before_a_category_is_turned_off_posts_only_the_others() {
+    let (a, sink) = with_sink(granted());
+    a.record(Event::TerminalOpened);
+    a.record(Event::test_ended(TestResult::Success));
+    let revoke = a.clone();
+    *a.outbox().after_drain.lock().unwrap() = Some(Box::new(move || {
+        revoke
+            .set_category(Category::Features, false, mirror(&revoke), || COUNTS)
+            .unwrap();
+    }));
+    a.flush(Duration::from_secs(1));
+    assert_eq!(sink.names(), ["host_test_run"]);
+    assert_eq!(a.queued(), 0);
+}
+
+#[test]
+fn a_failed_batch_is_not_requeued_for_a_category_turned_off() {
+    struct DenyWhilePosting(Mutex<Option<Analytics>>);
+    impl Transport for DenyWhilePosting {
+        fn post(&self, _: &[u8], _: Duration) -> Posted {
+            if let Some(a) = self.0.lock().unwrap().take() {
+                a.set_category(Category::Features, false, mirror(&a), || COUNTS)
+                    .unwrap();
+            }
+            Posted::Retry
+        }
+    }
+    let t = Arc::new(DenyWhilePosting(Mutex::new(None)));
+    struct Shared(Arc<DenyWhilePosting>);
+    impl Transport for Shared {
+        fn post(&self, b: &[u8], d: Duration) -> Posted {
+            self.0.post(b, d)
+        }
+    }
+    let a = Analytics::new(
+        granted(),
+        system(),
+        Some(Box::new(Shared(t.clone()))),
+        false,
+    );
+    *t.0.lock().unwrap() = Some(a.clone());
+    a.record(Event::TerminalOpened);
+    a.record(Event::test_ended(TestResult::Success));
+    a.flush(Duration::from_secs(1));
+    assert_eq!(a.queued(), 1);
 }
 
 #[test]
@@ -982,7 +1418,9 @@ fn a_batch_taken_before_a_revoke_is_not_posted() {
     a.record(Event::TerminalOpened);
     let revoke = a.clone();
     *a.outbox().after_drain.lock().unwrap() = Some(Box::new(move || {
-        revoke.set_consent(false, ok, || COUNTS).unwrap();
+        revoke
+            .set_category(Category::Features, false, mirror(&revoke), || COUNTS)
+            .unwrap();
     }));
     a.flush(Duration::from_secs(1));
     assert!(sink.sent().is_empty());
@@ -998,7 +1436,7 @@ fn exit_flush_stays_bounded_while_a_periodic_flush_runs() {
             Posted::Sent
         }
     }
-    let a = Analytics::new(granted(), system(), Some(Box::new(Slow)));
+    let a = Analytics::new(granted(), system(), Some(Box::new(Slow)), false);
     for _ in 0..BATCH * 8 {
         a.record(Event::TerminalOpened);
     }
@@ -1024,7 +1462,7 @@ fn a_periodic_flush_has_a_deadline() {
             Posted::Retry
         }
     }
-    let a = Analytics::new(granted(), system(), Some(Box::new(Hang)));
+    let a = Analytics::new(granted(), system(), Some(Box::new(Hang)), false);
     a.record(Event::TerminalOpened);
     let started = Instant::now();
     a.flush(Duration::from_millis(300));
@@ -1070,7 +1508,11 @@ fn held_attempts_are_capped_oldest_reported_first() {
 fn debug_builds_never_send() {
     if cfg!(debug_assertions) {
         assert_eq!(app_key(), None);
-        assert!(!Analytics::for_app(granted(), "0.1.0").available());
+        assert!(!Analytics::for_app(Ok::<_, ()>(granted()), "0.1.0").available());
+        assert_eq!(
+            Analytics::for_app(Ok::<_, ()>(granted()), "0.1.0").recorded(),
+            []
+        );
     }
 }
 
@@ -1082,4 +1524,122 @@ fn recent_shows_the_session_id_that_is_sent() {
     let recent = a.recent();
     assert_eq!(sink.sent()[0][0]["sessionId"], recent.system.session_id);
     assert_eq!(recent.system.sdk_version, SDK_VERSION);
+}
+
+#[test]
+fn an_unread_config_closes_every_gate_and_asks_nothing() {
+    let sink = Sink::new(Posted::Sent);
+    let a = Analytics::new(granted(), system(), Some(Box::new(sink.clone())), false).unread();
+    exercise(&a);
+    assert!(a.recent().events.is_empty());
+    assert_eq!(a.queued(), 0);
+    let s = a.status();
+    assert_eq!(s.categories, choices(false, false, false));
+    assert!(s.pending.is_empty());
+    assert!(!s.ask_needed);
+    assert!(a.is_unread());
+}
+
+#[test]
+fn reload_adopts_what_the_file_holds_and_starts_the_session() {
+    let a = Analytics::new(None, system(), None, false).unread();
+    a.reload(|| Err::<Option<AnalyticsSettings>, _>("io"));
+    assert!(a.is_unread());
+    assert!(!a.status().ask_needed);
+    a.reload(|| Ok::<_, ()>(only(Category::Launch)));
+    assert!(!a.is_unread());
+    assert_eq!(a.status().categories, choices(true, false, false));
+    assert_eq!(names(&a), ["session_started"]);
+    a.reload(|| -> Result<Option<AnalyticsSettings>, ()> { panic!("read twice") });
+    a.launched();
+    assert_eq!(names(&a), ["session_started"]);
+
+    let a = Analytics::new(None, system(), None, false).unread();
+    a.reload(|| Ok::<_, ()>(None));
+    let s = a.status();
+    assert_eq!(s.pending, Category::ALL);
+    assert!(s.ask_needed);
+}
+
+#[test]
+fn a_change_applies_only_its_categories_on_top_of_the_file() {
+    let disk = Disk::holding(stored(DENIED, DENIED, DENIED));
+    let a = Analytics::new(None, system(), None, false).unread();
+    let s = a
+        .set_category(Category::Features, true, |w| disk.save(w), || COUNTS)
+        .unwrap();
+    assert_eq!(
+        disk.value(),
+        stored(DENIED, GRANTED, DENIED).unwrap().categories
+    );
+    assert_eq!(s.categories, choices(false, true, false));
+    assert!(s.pending.is_empty() && !s.ask_needed);
+    assert!(!a.is_unread());
+    assert!(a.recent().events.is_empty());
+
+    // Memory believed launch was granted; the file says denied, and the file wins.
+    let disk = Disk::holding(stored(DENIED, UNSET, UNSET));
+    let (a, sink) = with_sink(granted());
+    a.launched();
+    a.record(Event::TerminalOpened);
+    let s = a
+        .set_category(Category::Connections, true, |w| disk.save(w), || COUNTS)
+        .unwrap();
+    assert_eq!(
+        disk.value(),
+        stored(DENIED, UNSET, GRANTED).unwrap().categories
+    );
+    assert_eq!(s.categories, choices(false, false, true));
+    assert_eq!(s.pending, [Category::Features]);
+    assert!(a.recent().events.is_empty());
+    a.flush(Duration::from_secs(1));
+    assert!(sink.sent().is_empty());
+}
+
+#[test]
+fn a_failed_read_turns_nothing_on() {
+    let a = Analytics::new(None, system(), None, false).unread();
+    assert_eq!(
+        a.set_category(Category::Launch, true, |_| Err("unreadable"), || COUNTS),
+        Err("unreadable")
+    );
+    assert!(a.is_unread());
+    assert!(!a.collecting(Category::Launch));
+    assert!(a.recent().events.is_empty());
+}
+
+#[test]
+fn a_retried_save_writes_only_the_refusals() {
+    let disk = Disk::holding(stored(DENIED, GRANTED, UNSET));
+    let (a, _) = with_sink(granted());
+    let _ = a.set_category(Category::Features, false, |_| Err("io"), || COUNTS);
+    a.retry_save(|w| {
+        assert_eq!(w, [(Category::Features, DENIED)]);
+        disk.save(w)
+    });
+    assert_eq!(
+        disk.value(),
+        stored(DENIED, DENIED, UNSET).unwrap().categories
+    );
+    let s = a.status();
+    assert!(s.persisted);
+    assert_eq!(s.categories, choices(false, false, false));
+    assert_eq!(s.pending, [Category::Connections]);
+}
+
+#[test]
+fn a_category_turned_off_after_its_batch_is_serialized_is_not_posted() {
+    let (a, sink) = with_sink(granted());
+    a.record(Event::TerminalOpened);
+    a.record(Event::test_ended(TestResult::Success));
+    let revoke = a.clone();
+    *a.outbox().before_post.lock().unwrap() = Some(Box::new(move || {
+        revoke
+            .set_category(Category::Features, false, mirror(&revoke), || COUNTS)
+            .unwrap();
+    }));
+    a.flush(Duration::from_secs(1));
+    assert_eq!(sink.names(), ["host_test_run"]);
+    assert_eq!(sink.sent().len(), 1);
+    assert_eq!(a.queued(), 0);
 }

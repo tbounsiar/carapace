@@ -39,6 +39,11 @@
   inline-size: 100%;
 }
 
+// Taiga's Table has no input for the cell alignment; multi-line property cells start at the top.
+.table td[tuiTd] {
+  vertical-align: top;
+}
+
 .col-time {
   inline-size: 6rem;
 }

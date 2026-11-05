@@ -5,7 +5,7 @@ import {
   byId,
   clickId,
   connect,
-  declineConsent,
+  saveConsentDefaults,
   enterProject,
   openGlobalVariables,
   openProjectVariables,
@@ -31,7 +31,7 @@ describe('v3 config with leftover environments', () => {
   // An upgraded config has no analytics decision yet: the consent dialog is shown once.
   before(async () => {
     await waitForApp();
-    await declineConsent();
+    await saveConsentDefaults();
   });
 
   it('rewrites the file without the environment fields', () => {

@@ -4,9 +4,14 @@ description = "Allows the analytics_state command."
 commands.allow = ["analytics_state"]
 
 [[permission]]
-identifier = "allow-set-analytics-consent"
-description = "Allows the set_analytics_consent command."
-commands.allow = ["set_analytics_consent"]
+identifier = "allow-set-analytics-choices"
+description = "Allows the set_analytics_choices command."
+commands.allow = ["set_analytics_choices"]
+
+[[permission]]
+identifier = "allow-set-analytics-category"
+description = "Allows the set_analytics_category command."
+commands.allow = ["set_analytics_category"]
 
 [[permission]]
 identifier = "allow-analytics-recent"

@@ -39,11 +39,13 @@ pub fn run() {
             let home_dir = home.clone();
             let store = commands::secrets::config_store(home, &secrets);
             // Loading moves a version 1 file aside or drops environments; their keychain entries go
-            // with them. Consent is read here, before the webview runs: an unreadable file is unset.
-            let consent = store.snapshot().ok().and_then(|c| c.analytics);
+            // with them. Analytics choices are read here, before the webview runs; a failed read
+            // keeps analytics off and silent until a later read succeeds.
+            let choices = store.snapshot().map(|c| c.analytics);
             commands::secrets::forget_legacy(&store, &secrets);
             let version = app.package_info().version.to_string();
-            let analytics = analytics::Analytics::for_app(consent, &version);
+            let analytics = analytics::Analytics::for_app(choices, &version);
+            analytics.launched();
             app.manage(transfer::TransferManager::with_observer(
                 Arc::new(commands::transfer::AppConnections(app.handle().clone())),
                 commands::transfer::observer(analytics.clone()),
@@ -75,7 +77,8 @@ pub fn run() {
                     let handle = handle.clone();
                     let _ = tauri::async_runtime::spawn_blocking(move || {
                         let store = handle.state::<config::ConfigStore>();
-                        sender.retry_save(|v| store.set_analytics(v));
+                        sender.reload(|| store.snapshot().map(|c| c.analytics));
+                        sender.retry_save(|w| store.update_analytics(w));
                         sender.flush(analytics::PERIODIC_FLUSH);
                     })
                     .await;
@@ -180,7 +183,8 @@ pub fn run() {
             commands::keys::forget_key_passphrase,
             commands::keys::deploy_public_key,
             commands::analytics::analytics_state,
-            commands::analytics::set_analytics_consent,
+            commands::analytics::set_analytics_choices,
+            commands::analytics::set_analytics_category,
             commands::analytics::analytics_recent,
             commands::analytics::analytics_app_started,
             commands::analytics::open_privacy_page,
@@ -224,7 +228,7 @@ pub fn run() {
                 && let Some(analytics) = app.try_state::<analytics::Analytics>()
             {
                 if let Some(store) = app.try_state::<config::ConfigStore>() {
-                    analytics.retry_save(|v| store.set_analytics(v));
+                    analytics.retry_save(|w| store.update_analytics(w));
                 }
                 analytics.shutdown();
             }
