@@ -32,6 +32,7 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "@jsverse/transloco": "^8.4.0",
+    "@jsverse/transloco-messageformat": "^8.4.0",
     "@lezer/highlight": "^1.2.5",
     "@taiga-ui/addon-mobile": "^5.30.0",
     "@taiga-ui/addon-table": "^5.30.0",

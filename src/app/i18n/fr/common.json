@@ -1,0 +1,20 @@
+{
+  "cancel": "Annuler",
+  "save": "Enregistrer",
+  "close": "Fermer",
+  "delete": "Supprimer",
+  "rename": "Renommer",
+  "create": "Créer",
+  "add": "Ajouter",
+  "edit": "Modifier",
+  "retry": "Réessayer",
+  "back": "Retour",
+  "copy": "Copier",
+  "copied": "Copié",
+  "loading": "Chargement…",
+  "required": "Obligatoire",
+  "undo": "Annuler l’action",
+  "show": "Afficher",
+  "hide": "Masquer",
+  "more": "Plus d’actions"
+}

@@ -8,6 +8,7 @@ import {
   isDevMode,
 } from '@angular/core';
 import { provideTransloco } from '@jsverse/transloco';
+import { provideTranslocoMessageformat } from '@jsverse/transloco-messageformat';
 import { tuiLanguageSwitcher } from '@taiga-ui/i18n';
 import { provideRouter, withComponentInputBinding, withRouterConfig } from '@angular/router';
 import { routes } from './app.routes';
@@ -44,6 +45,7 @@ export const appConfig: ApplicationConfig = {
       },
       loader: TranslocoBundleLoader,
     }),
+    provideTranslocoMessageformat(),
     provideOpenDialogs(),
     // Awaited, unlike the backend reads below: a local chunk, and the first frame must not show keys.
     provideAppInitializer(() => inject(LanguageService).ready()),

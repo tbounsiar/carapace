@@ -5,8 +5,7 @@ import type { Translation, TranslocoLoader } from '@jsverse/transloco';
 @Service()
 export class TranslocoBundleLoader implements TranslocoLoader {
   async getTranslation(lang: string): Promise<Translation> {
-    const module =
-      lang === 'fr' ? await import('../../i18n/fr.json') : await import('../../i18n/en.json');
+    const module = lang === 'fr' ? await import('../../i18n/fr') : await import('../../i18n/en');
     return module.default;
   }
 }

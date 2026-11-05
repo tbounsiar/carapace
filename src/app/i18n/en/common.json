@@ -1,0 +1,20 @@
+{
+  "cancel": "Cancel",
+  "save": "Save",
+  "close": "Close",
+  "delete": "Delete",
+  "rename": "Rename",
+  "create": "Create",
+  "add": "Add",
+  "edit": "Edit",
+  "retry": "Retry",
+  "back": "Back",
+  "copy": "Copy",
+  "copied": "Copied",
+  "loading": "Loading…",
+  "required": "Required",
+  "undo": "Undo",
+  "show": "Show",
+  "hide": "Hide",
+  "more": "More actions"
+}

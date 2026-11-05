@@ -1,5 +1,5 @@
-import en from './en.json';
-import fr from './fr.json';
+import en from './en';
+import fr from './fr';
 
 function keys(value: unknown, prefix = ''): string[] {
   if (typeof value !== 'object' || value === null) {
