@@ -48,6 +48,17 @@ export class AsideHeader {
         this.field().nativeElement.focus();
       }
     });
+    // Not a `[value]` binding: typing then clearing before a render (fast keys, then Enter) leaves
+    // the bound value unchanged at '', so Angular would never write it and the field keeps the text.
+    afterRenderEffect({
+      write: () => {
+        const query = this.filter.query();
+        const input = this.field().nativeElement;
+        if (input.value !== query) {
+          input.value = query;
+        }
+      },
+    });
   }
 
   protected onInput(event: Event): void {

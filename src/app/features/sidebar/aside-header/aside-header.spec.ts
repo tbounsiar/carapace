@@ -111,6 +111,16 @@ describe('AsideHeader', () => {
     expect(press('Escape').defaultPrevented).toBe(false);
   });
 
+  it('empties the field on Enter when the text was typed and cleared before a render', async () => {
+    field().value = 'pi';
+    field().dispatchEvent(new Event('input'));
+    press('Enter');
+    await settle();
+    expect(launcher.openTerminal).toHaveBeenCalledWith(expect.objectContaining({ id: 'h1' }));
+    expect(TestBed.inject(SidebarFilter).query()).toBe('');
+    expect(field().value).toBe('');
+  });
+
   it('opens, connects and opens a terminal on the first match with Enter', async () => {
     await type('PI');
     press('Enter');

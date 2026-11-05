@@ -14,7 +14,6 @@
     aria-controls="sidebar-tree"
     aria-keyshortcuts="Control+K"
     data-testid="sidebar-filter"
-    [value]="filter.query()"
     [disabled]="!filter.enabled()"
     (input)="onInput($event)"
     (keydown)="onKeydown($event)"
