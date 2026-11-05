@@ -32,6 +32,27 @@ pub enum Posted {
     Rejected,
 }
 
+thread_local! {
+    static SENDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether this thread is inside a request: a panic there must not use the transport again.
+pub fn sending() -> bool {
+    SENDING.try_with(|s| s.get()).unwrap_or(true)
+}
+
+/// Runs a request with `sending()` true on this thread, reset even if it unwinds.
+pub fn while_sending<T>(f: impl FnOnce() -> T) -> T {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            let _ = SENDING.try_with(|s| s.set(self.0));
+        }
+    }
+    let _reset = Reset(SENDING.try_with(|s| s.replace(true)).unwrap_or(false));
+    f()
+}
+
 pub trait Transport: Send + Sync {
     /// A batch of events.
     fn post(&self, body: &[u8], timeout: Duration) -> Posted;
@@ -316,7 +337,7 @@ impl Outbox {
             let Some(body) = self.body_of_current(&mut batch) else {
                 continue;
             };
-            match self.transport.post(&body, left) {
+            match while_sending(|| self.transport.post(&body, left)) {
                 Posted::Sent | Posted::Rejected => {}
                 Posted::Retry => {
                     retry.extend(

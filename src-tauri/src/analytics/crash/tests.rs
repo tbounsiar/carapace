@@ -509,7 +509,7 @@ fn an_unsent_fatal_crash_is_left_owner_only_for_the_next_launch() {
     drop(file);
     assert!(!dir.path().join(PENDING_TMP).exists());
     let raw = fs::read(&path).unwrap();
-    let saved = Report::from_file(&raw).unwrap();
+    let saved = Report::from_file(&raw, "Windows").unwrap();
     assert_eq!(saved.session_id, first.report(&Site::default()).session_id);
     let text = String::from_utf8(raw).unwrap();
     assert!(text.contains("\"type\":\"panic:commands\""), "{text}");
@@ -586,10 +586,25 @@ fn a_pending_file_holding_anything_else_is_deleted_unsent() {
             "osVersion": "10.0.26300",
         })
     };
-    assert!(Report::from_file(good().to_string().as_bytes()).is_some());
+    assert!(Report::from_file(good().to_string().as_bytes(), "Windows").is_some());
     let mut no_line = good();
     no_line.as_object_mut().unwrap().remove("line");
-    assert!(Report::from_file(no_line.to_string().as_bytes()).is_some());
+    assert!(Report::from_file(no_line.to_string().as_bytes(), "Windows").is_some());
+    for (key, value) in [
+        ("appVersion", "1.10.300-beta.1"),
+        ("osVersion", "rolling"),
+        ("osVersion", "unknown"),
+        ("osVersion", "14"),
+    ] {
+        let mut v = good();
+        v[key] = value.into();
+        assert!(
+            Report::from_file(v.to_string().as_bytes(), "Windows").is_some(),
+            "{key} = {value}"
+        );
+    }
+    // The OS name must be this machine's.
+    assert!(Report::from_file(good().to_string().as_bytes(), "Linux").is_none());
     let bad: &[(&str, serde_json::Value)] = &[
         ("type", "panic:jdoe".into()),
         ("type", "ssh".into()),
@@ -609,13 +624,23 @@ fn a_pending_file_holding_anything_else_is_deleted_unsent() {
         ("appVersion", "0.2.0 jdoe@srv01".into()),
         ("os", "Windows/jdoe".into()),
         ("osVersion", "22.04 LTS (Jammy)".into()),
+        ("osVersion", "1.2.3.4.5".into()),
+        ("osVersion", "Rolling".into()),
+        ("appVersion", "jdoe-workstation".into()),
+        ("appVersion", "0.2".into()),
+        ("appVersion", "0.2.0-".into()),
+        ("appVersion", "123456.0.0".into()),
+        ("appVersion", "0.2.0-jdoe@srv01".into()),
+        ("appVersion", "0.2.0-abcdefghijklmnopqrstu".into()),
+        ("os", "Linux".into()),
+        ("os", "Windows ".into()),
         ("extra", "x".into()),
     ];
     for (key, value) in bad {
         let mut v = good();
         v[*key] = value.clone();
         assert!(
-            Report::from_file(v.to_string().as_bytes()).is_none(),
+            Report::from_file(v.to_string().as_bytes(), "Windows").is_none(),
             "{key} = {value}"
         );
         let dir = tempfile::tempdir().unwrap();
@@ -694,7 +719,8 @@ fn the_hook_reports_a_main_thread_panic_as_fatal() {
     panic_on(&c, "main", false);
     assert_eq!(t.sent().len(), 1);
     assert_eq!(t.sent()[0]["kind"], "crash");
-    let saved = Report::from_file(&fs::read(dir.path().join(PENDING_FILE)).unwrap()).unwrap();
+    let saved =
+        Report::from_file(&fs::read(dir.path().join(PENDING_FILE)).unwrap(), "Windows").unwrap();
     assert_eq!(saved.area, "analytics");
     assert_eq!(c.queued(), 0);
 }
@@ -750,4 +776,129 @@ fn the_hook_reads_formatted_and_static_messages() {
             Prop::Text("panic:analytics:index".into()),
         ]
     );
+}
+
+#[test]
+fn a_revoke_during_a_fatal_report_stops_it_before_the_file_or_the_post() {
+    for at in ["write", "post"] {
+        let dir = tempfile::tempdir().unwrap();
+        let t = Errors::new(Posted::Retry);
+        let c = armed(Some(t.clone()));
+        c.set_dir(dir.path().to_path_buf());
+        let gate = c.clone();
+        *c.fatal_step.lock().unwrap() = Some(Box::new(move |step| {
+            if step == at {
+                gate.set_armed(false);
+            }
+        }));
+        c.capture(&site("src/ssh/a.rs", 1, UNWRAP_NONE, "main"));
+        assert!(t.sent().is_empty(), "{at}");
+        assert_eq!(dir.path().join(PENDING_FILE).exists(), at == "post");
+        // The revoke itself then deletes what was written.
+        c.discard();
+        assert!(!dir.path().join(PENDING_FILE).exists());
+    }
+}
+
+#[test]
+fn a_revoke_waits_for_a_fatal_report_in_progress() {
+    let dir = tempfile::tempdir().unwrap();
+    let t = Errors::new(Posted::Retry);
+    let c = armed(Some(t.clone()));
+    c.set_dir(dir.path().to_path_buf());
+    let (entered, wait) = std::sync::mpsc::channel();
+    let (go, release) = std::sync::mpsc::channel::<()>();
+    let release = Mutex::new(release);
+    *c.fatal_step.lock().unwrap() = Some(Box::new(move |step| {
+        if step == "post" {
+            entered.send(()).unwrap();
+            release.lock().unwrap().recv().unwrap();
+        }
+    }));
+    let hook = {
+        let c = c.clone();
+        thread::spawn(move || c.capture(&site("src/ssh/a.rs", 1, UNWRAP_NONE, "main")))
+    };
+    wait.recv().unwrap();
+    let revoke = {
+        let c = c.clone();
+        thread::spawn(move || {
+            c.set_armed(false);
+            c.discard();
+        })
+    };
+    thread::sleep(Duration::from_millis(100));
+    assert!(!revoke.is_finished(), "the revoke waits for the log lock");
+    go.send(()).unwrap();
+    hook.join().unwrap();
+    revoke.join().unwrap();
+    assert!(t.sent().is_empty());
+    assert!(!dir.path().join(PENDING_FILE).exists());
+}
+
+#[test]
+fn a_panic_inside_a_request_or_the_exit_flush_only_saves_the_report() {
+    for during_exit in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let t = Errors::new(Posted::Sent);
+        let c = armed(Some(t.clone()));
+        c.set_dir(dir.path().to_path_buf());
+        if during_exit {
+            c.stop();
+            c.capture(&site("src/ssh/a.rs", 1, UNWRAP_NONE, "main"));
+        } else {
+            while_sending(|| c.capture(&site("src/ssh/a.rs", 1, UNWRAP_NONE, "main")));
+        }
+        assert!(t.sent().is_empty(), "exit {during_exit}");
+        assert!(dir.path().join(PENDING_FILE).exists());
+    }
+    assert!(!sending(), "the flag is reset after the request");
+}
+
+#[test]
+fn the_sending_flag_is_reset_when_a_request_unwinds() {
+    let r = std::panic::catch_unwind(|| while_sending(|| panic!("in a request")));
+    assert!(r.is_err());
+    assert!(!sending());
+}
+
+#[test]
+fn a_fatal_report_skips_the_file_while_it_is_in_use() {
+    let dir = tempfile::tempdir().unwrap();
+    let t = Errors::new(Posted::Sent);
+    let c = armed(Some(t.clone()));
+    c.set_dir(dir.path().to_path_buf());
+    {
+        let _held = c.files();
+        c.capture(&site("src/ssh/a.rs", 1, UNWRAP_NONE, "main"));
+    }
+    assert!(!dir.path().join(PENDING_FILE).exists());
+    assert_eq!(t.sent().len(), 1, "still sent");
+}
+
+#[test]
+fn discard_and_resume_remove_a_leftover_temp_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let tmp = dir.path().join(PENDING_TMP);
+    fs::write(&tmp, b"partial").unwrap();
+    let c = armed(Some(Errors::new(Posted::Sent)));
+    c.set_dir(dir.path().to_path_buf());
+    c.set_armed(false);
+    c.discard();
+    assert!(!tmp.exists());
+
+    for leftover in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        if leftover {
+            fatal_report(dir.path(), Posted::Retry);
+        }
+        let tmp = dir.path().join(PENDING_TMP);
+        fs::write(&tmp, b"partial").unwrap();
+        let c = armed(Some(Errors::new(Posted::Sent)));
+        c.set_armed(false);
+        c.set_dir(dir.path().to_path_buf());
+        c.resume();
+        assert!(!tmp.exists(), "leftover {leftover}");
+        assert!(!dir.path().join(PENDING_FILE).exists());
+    }
 }

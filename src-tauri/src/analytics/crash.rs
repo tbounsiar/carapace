@@ -15,7 +15,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
-use super::client::{MAX_TRIES, Posted, SDK_VERSION, Transport};
+use super::client::{MAX_TRIES, Posted, SDK_VERSION, Transport, sending, while_sending};
 use super::event::{Prop, Props};
 use super::system::{self, SystemProps};
 use super::{RecentEvent, next_seq};
@@ -31,7 +31,12 @@ const PENDING_TMP: &str = "pending-crash.json.tmp";
 const MAX_PENDING_BYTES: u64 = 4096;
 const MAX_LINE_CHARS: usize = 120;
 const LOCK_POLL: Duration = Duration::from_millis(20);
+/// How long a fatal crash waits for another use of the pending file to finish.
+const FILE_WAIT: Duration = Duration::from_millis(200);
 const PLATFORM: &str = "Tauri";
+
+#[cfg(test)]
+type FatalStep = Box<dyn Fn(&str) + Send>;
 
 /// Top-level modules of this crate: `src/<name>.rs` or `src/<name>/`.
 pub const OWN_AREAS: &[&str] = &[
@@ -343,6 +348,37 @@ struct Saved {
     os_version: String,
 }
 
+/// `1.2.3` or `1.2.3-beta.1`: what the package version can be.
+fn valid_app_version(v: &str) -> bool {
+    let (core, pre) = match v.split_once('-') {
+        Some((core, pre)) => (core, Some(pre)),
+        None => (v, None),
+    };
+    let parts: Vec<&str> = core.split('.').collect();
+    let numbers = parts.len() == 3
+        && parts
+            .iter()
+            .all(|p| (1..=5).contains(&p.len()) && p.bytes().all(|c| c.is_ascii_digit()));
+    let pre = pre.is_none_or(|p| {
+        (1..=20).contains(&p.len()) && p.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'.')
+    });
+    numbers && pre
+}
+
+/// Dot-separated numbers (at most 4 parts of at most 10 digits), `rolling` or `unknown`: the
+/// only values `system::os_version` produces.
+fn valid_os_version(v: &str) -> bool {
+    if v == "rolling" || v == "unknown" {
+        return true;
+    }
+    let parts: Vec<&str> = v.split('.').collect();
+    v.len() <= 32
+        && parts.len() <= 4
+        && parts
+            .iter()
+            .all(|p| (1..=10).contains(&p.len()) && p.bytes().all(|c| c.is_ascii_digit()))
+}
+
 /// `YYYY-MM-DDTHH:MM:SS.mmmZ`, as `system::iso_utc` writes it.
 fn valid_time(t: &str) -> bool {
     let b = t.as_bytes();
@@ -426,9 +462,11 @@ impl Report {
         .unwrap_or_default()
     }
 
-    /// The file is outside the process: every field is checked against what a report can
-    /// hold, so a hand-written file cannot make the app send anything else.
-    pub fn from_file(raw: &[u8]) -> Option<Self> {
+    /// The file is outside the process: each field must come from a closed list (area, cause,
+    /// severity, kind, and the OS name, which must be `os`, this machine's) or match a strict
+    /// format (line, time, UUID, version numbers), so a hand-written file cannot make the app
+    /// send any text of its own.
+    pub fn from_file(raw: &[u8], os: &str) -> Option<Self> {
         let s: Saved = serde_json::from_slice(raw).ok()?;
         let area = areas().find(|a| s.error_type == format!("panic:{a}"))?;
         let what = WHATS
@@ -446,9 +484,9 @@ impl Report {
             .to_string();
         let ok = valid_time(&s.time)
             && session == s.session
-            && system::clean(&s.app_version, 50) == s.app_version
-            && system::clean(&s.os, 30) == s.os
-            && system::os_version(&s.os_version) == s.os_version;
+            && valid_app_version(&s.app_version)
+            && s.os == os
+            && valid_os_version(&s.os_version);
         ok.then_some(Self {
             area,
             what,
@@ -515,6 +553,11 @@ pub struct Crashes {
     flushing: Mutex<()>,
     stopping: AtomicBool,
     resumed: AtomicBool,
+    /// Every use of the pending files; the hook only polls it with `try_lock`, for `FILE_WAIT`.
+    files: Mutex<()>,
+    /// Runs at each step of a fatal report (`"write"`, `"post"`), before its gate check.
+    #[cfg(test)]
+    pub fatal_step: Mutex<Option<FatalStep>>,
 }
 
 impl Crashes {
@@ -529,7 +572,20 @@ impl Crashes {
             flushing: Mutex::new(()),
             stopping: AtomicBool::new(false),
             resumed: AtomicBool::new(false),
+            files: Mutex::new(()),
+            #[cfg(test)]
+            fatal_step: Mutex::new(None),
         }
+    }
+
+    fn files(&self) -> MutexGuard<'_, ()> {
+        self.files.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Removes the pending file and a temp file left by an interrupted write.
+    fn remove_files(&self, dir: &Path) {
+        let _ = fs::remove_file(dir.join(PENDING_FILE));
+        let _ = fs::remove_file(dir.join(PENDING_TMP));
     }
 
     fn log(&self) -> MutexGuard<'_, Log> {
@@ -581,30 +637,57 @@ impl Crashes {
             Err(TryLockError::Poisoned(e)) => Some(e.into_inner()),
             Err(TryLockError::WouldBlock) => None,
         };
-        let admitted = log.map(|mut log| {
-            // Checked again under the lock: turning crash reports off clears the gate before
-            // it empties the log.
-            self.armed() && log.admit(&report, !fatal && self.transport.is_some())
-        });
-        if fatal && admitted != Some(false) {
+        let Some(mut log) = log else {
+            return;
+        };
+        // Checked again under the lock: turning crash reports off clears the gate before it
+        // empties the log.
+        if self.armed() && log.admit(&report, !fatal && self.transport.is_some()) && fatal {
+            // The guard is held throughout, so a revoke waits for this report, then deletes
+            // its file. The hook never takes the analytics state lock.
             self.fatal(&report);
+        }
+        drop(log);
+    }
+
+    #[cfg(test)]
+    fn step(&self, name: &str) {
+        if let Some(f) = self.fatal_step.lock().unwrap().as_ref() {
+            f(name);
         }
     }
 
+    #[cfg(not(test))]
+    fn step(&self, _name: &str) {}
+
     /// The process ends right after the hook: the report is saved for the next launch, then
-    /// one send is tried within `FATAL_SEND`.
+    /// one send is tried within `FATAL_SEND`. A panic inside a request (or during the exit
+    /// flush) only saves it: the transport may be the thing that broke.
     fn fatal(&self, report: &Report) {
         let Some(transport) = &self.transport else {
             return;
         };
-        let saved = self
-            .dir
-            .get()
-            .is_some_and(|dir| write_pending(dir, &report.to_file()).is_ok());
-        let posted = transport.post_error(&report.body(), FATAL_SEND);
-        if saved && posted != Posted::Retry {
-            self.remove_pending_if(report);
+        let files = poll_lock(&self.files, Instant::now() + FILE_WAIT);
+        self.step("write");
+        if !self.armed() {
+            return;
         }
+        let saved = match (&files, self.dir.get()) {
+            (Some(_), Some(dir)) => write_pending(dir, &report.to_file()).is_ok(),
+            _ => false,
+        };
+        if sending() || self.stopping.load(Ordering::SeqCst) {
+            return;
+        }
+        self.step("post");
+        if !self.armed() {
+            return;
+        }
+        let posted = while_sending(|| transport.post_error(&report.body(), FATAL_SEND));
+        if saved && posted != Posted::Retry {
+            self.remove_pending_locked(report);
+        }
+        drop(files);
     }
 
     /// Crash reports turned off: nothing captured so far is kept, sent or left on disk. The
@@ -617,8 +700,9 @@ impl Crashes {
             log.queue.clear();
             log.generation += 1;
         }
-        if let Some(path) = self.pending_path() {
-            let _ = fs::remove_file(path);
+        if let Some(dir) = self.dir.get() {
+            let _files = self.files();
+            self.remove_files(dir);
         }
     }
 
@@ -631,12 +715,19 @@ impl Crashes {
         if self.resumed.swap(true, Ordering::SeqCst) {
             return;
         }
+        let files = self.files();
         let read = fsutil::read_regular_capped(&path, MAX_PENDING_BYTES, false);
         let report = match read {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                if let Some(dir) = self.dir.get() {
+                    let _ = fs::remove_file(dir.join(PENDING_TMP));
+                }
+                return;
+            }
             Err(_) => None,
-            Ok(raw) => Report::from_file(&raw),
+            Ok(raw) => Report::from_file(&raw, &self.system.os),
         };
+        drop(files);
         let mut log = self.log();
         match report {
             Some(report) if self.armed() && self.transport.is_some() => {
@@ -651,20 +742,29 @@ impl Crashes {
             }
             _ => {
                 drop(log);
-                let _ = fs::remove_file(&path);
+                if let Some(dir) = self.dir.get() {
+                    let _files = self.files();
+                    self.remove_files(dir);
+                }
             }
         }
     }
 
     /// Removes the pending file only if it still holds this report: a later fatal crash may
-    /// have replaced it.
+    /// have replaced it. The file lock keeps a fatal crash of this process from writing in
+    /// between.
     fn remove_pending_if(&self, report: &Report) {
+        let _files = self.files();
+        self.remove_pending_locked(report);
+    }
+
+    fn remove_pending_locked(&self, report: &Report) {
         let Some(path) = self.pending_path() else {
             return;
         };
         let held = fsutil::read_regular_capped(&path, MAX_PENDING_BYTES, false)
             .ok()
-            .and_then(|raw| Report::from_file(&raw));
+            .and_then(|raw| Report::from_file(&raw, &self.system.os));
         if held.as_ref() == Some(report) {
             let _ = fs::remove_file(&path);
         }
@@ -718,7 +818,7 @@ impl Crashes {
                 let body = item.report.body();
                 (item, body)
             };
-            match transport.post_error(&body, left) {
+            match while_sending(|| transport.post_error(&body, left)) {
                 Posted::Sent | Posted::Rejected => {
                     if item.from_file {
                         self.remove_pending_if(&item.report);
@@ -743,6 +843,20 @@ impl Crashes {
     #[cfg(test)]
     pub fn queued(&self) -> usize {
         self.log().queue.len()
+    }
+}
+
+/// The lock, polled until `deadline`; `None` if it stays taken (possibly by this very thread).
+fn poll_lock<T>(m: &Mutex<T>, deadline: Instant) -> Option<MutexGuard<'_, T>> {
+    loop {
+        match m.try_lock() {
+            Ok(g) => return Some(g),
+            Err(TryLockError::Poisoned(e)) => return Some(e.into_inner()),
+            Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
+                std::thread::sleep(LOCK_POLL);
+            }
+            Err(TryLockError::WouldBlock) => return None,
+        }
     }
 }
 
