@@ -19,6 +19,7 @@ const nativeDriver = resolve(root, 'e2e', '.work', 'driver', 'msedgedriver.exe')
 
 let driver: ChildProcess | undefined;
 let dntDriver: ChildProcess | undefined;
+let ioDriver: ChildProcess | undefined;
 const homeDir = () => process.env['E2E_CARAPACE_HOME'] ?? '';
 
 /**
@@ -54,8 +55,25 @@ const DNT_SPEC = resolve(__dirname, 'specs', 'analytics-dnt.e2e.ts');
 const DNT_PORT = 4446;
 const isDntSpec = (specs: string[]) => specs.some((spec) => spec.includes('analytics-dnt'));
 
-/** Both drivers and their msedgedriver (native) ports. */
-const DRIVER_PORTS = [4444, 4445, DNT_PORT, DNT_PORT + 1];
+/**
+ * The import/export spec runs on its own tauri-driver too: an `e2e-pickers` build reads the
+ * picked path from `CARAPACE_E2E_PICKED_FILE`, and the app inherits the driver's environment,
+ * fixed at spawn. The path is one fixed file in its own folder (outside the app home, where
+ * exports are refused); the spec rewrites that file between steps. The main driver has the
+ * variable removed, so every data picker there reads as cancelled.
+ */
+const IO_SPEC = resolve(__dirname, 'specs', 'import-export.e2e.ts');
+const IO_PORT = 4448;
+const isIoSpec = (specs: string[]) => specs.some((spec) => spec.endsWith('import-export.e2e.ts'));
+
+/** Every driver and its msedgedriver (native) port. */
+const DRIVER_PORTS = [4444, 4445, DNT_PORT, DNT_PORT + 1, IO_PORT, IO_PORT + 1];
+
+/** Specs that run on a capability of their own. */
+const ownDriverSpecs = (only: string) =>
+  readdirSync(resolve(__dirname, 'specs'))
+    .map((name) => resolve(__dirname, 'specs', name))
+    .filter((spec) => spec !== only);
 
 function portFree(port: number): Promise<boolean> {
   return new Promise((done) => {
@@ -190,16 +208,21 @@ export const config: WebdriverIO.Config = {
     {
       browserName: 'wry',
       'tauri:options': { application },
-      'wdio:exclude': [DNT_SPEC],
+      'wdio:exclude': [DNT_SPEC, IO_SPEC],
+    } as WebdriverIO.Capabilities,
+    {
+      browserName: 'wry',
+      'tauri:options': { application },
+      'wdio:specs': [IO_SPEC],
+      'wdio:exclude': ownDriverSpecs(IO_SPEC),
+      port: IO_PORT,
     } as WebdriverIO.Capabilities,
     {
       browserName: 'wry',
       'tauri:options': { application },
       'wdio:specs': [DNT_SPEC],
       // `wdio:specs` does not filter a `--spec` given on the command line; `wdio:exclude` does.
-      'wdio:exclude': readdirSync(resolve(__dirname, 'specs'))
-        .map((name) => resolve(__dirname, 'specs', name))
-        .filter((spec) => spec !== DNT_SPEC),
+      'wdio:exclude': ownDriverSpecs(DNT_SPEC),
       port: DNT_PORT,
     } as WebdriverIO.Capabilities,
   ],
@@ -216,13 +239,19 @@ export const config: WebdriverIO.Config = {
     await assertDriverPortsFree();
     const home = mkdtempSync(join(tmpdir(), 'carapace-e2e-'));
     const dntHome = mkdtempSync(join(tmpdir(), 'carapace-e2e-dnt-'));
+    const ioHome = mkdtempSync(join(tmpdir(), 'carapace-e2e-io-'));
+    const pickDir = mkdtempSync(join(tmpdir(), 'carapace-e2e-pick-'));
     process.env['E2E_CARAPACE_HOME'] = home;
     process.env['E2E_DNT_HOME'] = dntHome;
+    process.env['E2E_IO_HOME'] = ioHome;
+    process.env['E2E_PICK_DIR'] = pickDir;
+    process.env['E2E_PICKED_FILE'] = join(pickDir, 'picked.json');
     const bin = existsSync(driverBin) ? driverBin : 'tauri-driver';
     // The app inherits the driver's environment, fixed at spawn: a DO_NOT_TRACK of the user's
     // shell must not switch analytics off in every spec.
     const env: NodeJS.ProcessEnv = { ...process.env, CARAPACE_HOME: home };
     delete env['DO_NOT_TRACK'];
+    delete env['CARAPACE_E2E_PICKED_FILE'];
     driver = spawn(bin, ['--native-driver', nativeDriver], {
       stdio: [null, process.stdout, process.stderr],
       env,
@@ -242,6 +271,25 @@ export const config: WebdriverIO.Config = {
         env: { ...env, CARAPACE_HOME: dntHome, DO_NOT_TRACK: '1' },
       },
     );
+    ioDriver = spawn(
+      bin,
+      [
+        '--port',
+        String(IO_PORT),
+        '--native-port',
+        String(IO_PORT + 1),
+        '--native-driver',
+        nativeDriver,
+      ],
+      {
+        stdio: [null, process.stdout, process.stderr],
+        env: {
+          ...env,
+          CARAPACE_HOME: ioHome,
+          CARAPACE_E2E_PICKED_FILE: process.env['E2E_PICKED_FILE'],
+        },
+      },
+    );
     await new Promise((r) => setTimeout(r, 1500));
   },
 
@@ -255,6 +303,7 @@ export const config: WebdriverIO.Config = {
   beforeSession: async (_config, _capabilities, specs) => {
     // Worker-local: the hooks and the spec of this worker then use the DNT driver's app home.
     if (isDntSpec(specs)) process.env['E2E_CARAPACE_HOME'] = process.env['E2E_DNT_HOME'];
+    if (isIoSpec(specs)) process.env['E2E_CARAPACE_HOME'] = process.env['E2E_IO_HOME'];
     await waitAppExited();
     emptyHome();
     if (isDntSpec(specs)) seedDoNotTrack();
@@ -266,8 +315,13 @@ export const config: WebdriverIO.Config = {
   afterSession: emptyHome,
 
   onComplete: () => {
-    for (const child of [driver, dntDriver]) stopDriver(child);
-    for (const home of [process.env['E2E_CARAPACE_HOME'], process.env['E2E_DNT_HOME']])
+    for (const child of [driver, dntDriver, ioDriver]) stopDriver(child);
+    for (const home of [
+      process.env['E2E_CARAPACE_HOME'],
+      process.env['E2E_DNT_HOME'],
+      process.env['E2E_IO_HOME'],
+      process.env['E2E_PICK_DIR'],
+    ])
       if (home) rmSync(home, { recursive: true, force: true });
   },
 };

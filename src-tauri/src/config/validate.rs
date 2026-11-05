@@ -16,11 +16,11 @@ fn invalid(msg: impl Into<String>) -> ConfigError {
     ConfigError::InvalidInput(msg.into())
 }
 
-pub(super) fn same_name(a: &str, b: &str) -> bool {
+pub(crate) fn same_name(a: &str, b: &str) -> bool {
     a.to_lowercase() == b.to_lowercase()
 }
 
-pub(super) fn name(raw: &str) -> Result<String, ConfigError> {
+pub(crate) fn name(raw: &str) -> Result<String, ConfigError> {
     let trimmed = raw.trim();
     let len = trimmed.chars().count();
     if !(1..=100).contains(&len) {
@@ -169,7 +169,7 @@ pub(crate) fn host(input: &HostInput) -> Result<ValidHost, ConfigError> {
 }
 
 /// Normalizes a whole scope: plain values default to "", secrets never carry a value.
-pub(super) fn variables(list: &[Variable]) -> Result<Vec<Variable>, ConfigError> {
+pub(crate) fn variables(list: &[Variable]) -> Result<Vec<Variable>, ConfigError> {
     if list.len() > MAX_VARIABLES {
         return Err(invalid(format!(
             "a scope holds at most {MAX_VARIABLES} variables"
@@ -227,7 +227,7 @@ pub(crate) fn is_canonical_id(id: &str) -> bool {
 /// Collections from `id` up to the scope root, `id` included when it is a collection.
 /// `None` when a parent is missing, is not a collection, or the chain is longer than
 /// `MAX_DEPTH` (which also stops a loop).
-pub(super) fn collection_chain<'a>(
+pub(crate) fn collection_chain<'a>(
     by_id: &HashMap<&str, &'a Node>,
     id: Option<&str>,
 ) -> Option<Vec<&'a Node>> {
@@ -246,7 +246,7 @@ pub(super) fn collection_chain<'a>(
 
 /// Structural invariants of a version 3 file, limits included; name rules are checked by the
 /// mutations. Linear in the number of nodes (chains are at most `MAX_DEPTH` long).
-pub(super) fn structure(cfg: &ConfigFile) -> Result<(), String> {
+pub(crate) fn structure(cfg: &ConfigFile) -> Result<(), String> {
     if cfg.nodes.len() > MAX_NODES {
         return Err(format!("more than {MAX_NODES} nodes"));
     }

@@ -41,6 +41,11 @@ const NEXT_STEP: Readonly<Record<IpcErrorCode, string>> = {
   app_failed: 'Check the editor app chosen in Settings.',
   not_regular_file: 'Only regular files can be opened in an editor.',
   not_uploaded: 'Upload the changes first, or stop editing and delete them.',
+  import_format: 'Choose a file made with Export in Carapace.',
+  import_version: 'Update Carapace, then import it again.',
+  import_malformed: 'Export it again.',
+  import_invalid: 'Fix the file or export it again.',
+  import_secret_value: 'Remove the value from the file and set it in Variables instead.',
   unknown: 'Try again. Restart the app if it keeps happening.',
 };
 
@@ -91,4 +96,83 @@ export function handleSaveError(
     return;
   }
   notifyError(alerts, err, `${noun.charAt(0).toUpperCase()}${noun.slice(1)} not saved`);
+}
+
+const FILE_PREFIX = /^file “([^”]*)”:\s*/;
+
+export interface ImportFileError {
+  /** Base name of the picked file, when the backend named it. */
+  readonly fileName: string | null;
+  readonly title: string;
+  /** One sentence per line. */
+  readonly lines: readonly string[];
+}
+
+/** Title and body of an unreadable import file (spec S5), by error code. */
+export function importFileError(err: unknown): ImportFileError {
+  const code = err instanceof IpcError ? err.code : 'unknown';
+  const raw = err instanceof IpcError ? err.message : '';
+  const fileName = FILE_PREFIX.exec(raw)?.[1] ?? null;
+  const message = raw.replace(FILE_PREFIX, '').trim();
+  const of = (title: string, ...lines: string[]): ImportFileError => ({ fileName, title, lines });
+  switch (code) {
+    case 'import_format':
+      return of('This is not a Carapace data file', 'Choose a file made with Export in Carapace.');
+    case 'import_version': {
+      const version = /version (\d+)/i.exec(message)?.[1];
+      return of(
+        'This file needs a newer Carapace',
+        version
+          ? `It was exported in data format ${version}. Update Carapace, then import it again.`
+          : 'It was exported in a newer data format. Update Carapace, then import it again.',
+      );
+    }
+    case 'import_malformed': {
+      const at = /line (\d+)\D+?column (\d+)/i.exec(message);
+      const what = at
+        ? `It is not valid JSON (line ${at[1]}, column ${at[2]}).`
+        : /utf-?8/i.test(message)
+          ? 'It is not UTF-8 text.'
+          : 'It is not valid JSON.';
+      return of('This file is damaged', `${what} Export it again.`);
+    }
+    case 'import_invalid': {
+      const lines = message
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 5)
+        .map(sentence);
+      return of('This file has invalid data', ...(lines.length ? lines : ['Export it again.']));
+    }
+    case 'import_secret_value':
+      return of(
+        'This file contains a secret value',
+        ...(message ? [sentence(message)] : []),
+        'Remove it from the file and set it in Variables instead.',
+      );
+    case 'too_large':
+      return of('This file is too large', 'Carapace data files are at most 8 MB.');
+    case 'invalid_input':
+      return of(
+        'The file could not be read',
+        `${message ? `${sentence(message)} ` : ''}Choose a file on a drive of this computer.`,
+      );
+    default:
+      return of(
+        'The file could not be read',
+        errorText(err instanceof IpcError ? new IpcError(err.code, message) : err),
+      );
+  }
+}
+
+/** The apply error of an import preview: nothing was written. */
+export function importApplyError(err: unknown): string {
+  if (err instanceof IpcError && err.code === 'keychain_unavailable') {
+    // A partial failure says how many values were already removed: keep the backend's words.
+    return /already removed/i.test(err.message)
+      ? `${sentence(err.message)} ${NEXT_STEP.keychain_unavailable}`
+      : 'The system keychain is not available. Nothing was imported.';
+  }
+  return `Nothing was imported. ${errorText(err)}`;
 }

@@ -228,6 +228,22 @@ fn temp_name(name: &str, n: u32) -> String {
 /// created exclusively (owner-only when asked), written, synced, then renamed with no-replace
 /// onto `name` (`AlreadyExists` if taken). The temp is removed on failure.
 pub fn write_new(dir: &Path, name: &str, data: &[u8], owner_only: bool) -> io::Result<PathBuf> {
+    write_via_temp(dir, name, data, owner_only, localfs::rename_no_replace)
+}
+
+/// As `write_new` with an owner-only temp, but the rename replaces an existing `name`. A link
+/// at that path is replaced itself, never followed. For targets the user confirmed.
+pub fn write_replace(dir: &Path, name: &str, data: &[u8]) -> io::Result<PathBuf> {
+    write_via_temp(dir, name, data, true, |from, to| fs::rename(from, to))
+}
+
+fn write_via_temp(
+    dir: &Path,
+    name: &str,
+    data: &[u8],
+    owner_only: bool,
+    rename: impl FnOnce(&Path, &Path) -> io::Result<()>,
+) -> io::Result<PathBuf> {
     let target = dir.join(name);
     let (temp, mut file) = (0..MAX_TEMPS)
         .find_map(|n| {
@@ -251,7 +267,7 @@ pub fn write_new(dir: &Path, name: &str, data: &[u8], owner_only: bool) -> io::R
         .and_then(|()| file.sync_all())
         .and_then(|()| {
             drop(file);
-            localfs::rename_no_replace(&temp, &target)
+            rename(&temp, &target)
         });
     match written {
         Ok(()) => Ok(target),
@@ -279,6 +295,62 @@ pub fn is_local_path(path: &Path) -> bool {
     {
         path.is_absolute()
     }
+}
+
+/// Links followed at most while checking a path.
+const MAX_LINK_HOPS: u32 = 16;
+
+/// Whether `path` and every link met while resolving it (each component, then each target,
+/// at most `MAX_LINK_HOPS` links) stay on a local drive, so a later open or canonicalize never
+/// reaches another host (UNC targets, mapped network drives on Windows). A missing component
+/// ends the walk: nothing past it can be resolved.
+pub fn links_stay_local(path: &Path) -> bool {
+    let mut hops = 0;
+    walk_local(path, &mut hops)
+}
+
+fn walk_local(path: &Path, hops: &mut u32) -> bool {
+    use std::path::Component;
+    if !is_local_path(path) {
+        return false;
+    }
+    #[cfg(windows)]
+    if windows::is_remote_drive(path) {
+        return false;
+    }
+    let mut cur = PathBuf::new();
+    for c in path.components() {
+        cur.push(c);
+        if !matches!(c, Component::Normal(_)) {
+            continue;
+        }
+        let Ok(meta) = fs::symlink_metadata(&cur) else {
+            return true;
+        };
+        if !localfs::is_link(&meta) {
+            continue;
+        }
+        let target = match fs::read_link(&cur) {
+            Ok(t) => t,
+            // Windows reparse points that are not links (cloud placeholders, dedup) redirect
+            // nothing; a Unix link that cannot be read is refused.
+            Err(_) if cfg!(windows) && !meta.file_type().is_symlink() => continue,
+            Err(_) => return false,
+        };
+        *hops += 1;
+        if *hops > MAX_LINK_HOPS {
+            return false;
+        }
+        let target = strip_verbatim(target);
+        let target = match cur.parent() {
+            Some(parent) if !target.is_absolute() => parent.join(target),
+            _ => target,
+        };
+        if !walk_local(&target, hops) {
+            return false;
+        }
+    }
+    true
 }
 
 /// What may follow `~/`: only plain components. A root, drive or UNC prefix would make
@@ -370,6 +442,54 @@ mod tests {
         let err = create_owner_only(&path).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::AlreadyExists);
         assert_eq!(fs::read(&path).unwrap(), b"x");
+    }
+
+    fn file_link(target: &Path, link: &Path) -> bool {
+        #[cfg(unix)]
+        return std::os::unix::fs::symlink(target, link).is_ok();
+        #[cfg(windows)]
+        return std::os::windows::fs::symlink_file(target, link).is_ok();
+    }
+
+    #[test]
+    fn links_are_followed_only_while_they_stay_local() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real.json");
+        fs::write(&real, b"{}").unwrap();
+        assert!(links_stay_local(&real));
+        assert!(links_stay_local(&dir.path().join("missing").join("x")));
+        let local = dir.path().join("local-link");
+        if file_link(&real, &local) {
+            assert!(links_stay_local(&local));
+        }
+        let a = dir.path().join("a");
+        let b = dir.path().join("b");
+        if file_link(&b, &a) && file_link(&a, &b) {
+            assert!(!links_stay_local(&a), "a link loop is refused");
+        }
+        #[cfg(windows)]
+        {
+            let remote = dir.path().join("remote");
+            let unc = Path::new(r"\\host\share\x.json");
+            if file_link(unc, &remote) {
+                assert!(!links_stay_local(&remote));
+                assert!(!links_stay_local(&remote.join("child")));
+            }
+            assert!(!links_stay_local(unc));
+            assert!(!windows::is_remote_drive(Path::new(r"C:\x")));
+        }
+    }
+
+    #[test]
+    fn write_replace_is_owner_only_and_replaces_without_leftovers() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.json");
+        fs::write(&path, b"old").unwrap();
+        write_replace(dir.path(), "out.json", b"new").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new");
+        assert!(is_owner_only(&open(&path)));
+        let names: Vec<_> = fs::read_dir(dir.path()).unwrap().collect();
+        assert_eq!(names.len(), 1);
     }
 
     #[test]

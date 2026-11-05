@@ -14,6 +14,7 @@ import { IpcError } from '../../../core/ipc/ipc-error';
 import { SshService } from '../../../core/ipc/ssh';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { type LeaveGuarded, unsavedChangesGuard } from '../../variables/unsaved-changes-guard';
+import { DataTransferActions } from '../../data-transfer/data-transfer-actions';
 import { ProjectHome } from './project-home';
 
 @Component({
@@ -45,6 +46,7 @@ describe('ProjectHome', () => {
     renameProject: vi.fn(),
     deleteProject: vi.fn(),
   };
+  const transfer = { exportData: vi.fn() };
   const byId = (id: string): HTMLElement | null =>
     document.body.querySelector<HTMLElement>(`[data-testid="${id}"]`);
   const settle = async () => {
@@ -95,6 +97,7 @@ describe('ProjectHome', () => {
         { provide: ConfigService, useValue: config },
         { provide: SshService, useValue: { states } },
         { provide: ProjectActions, useValue: actions },
+        { provide: DataTransferActions, useValue: transfer },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(Shell);
@@ -128,6 +131,10 @@ describe('ProjectHome', () => {
     await open();
     byId('project-delete')!.click();
     expect(actions.deleteProject).toHaveBeenCalledWith(config.findProject('p1'));
+    await settle();
+    await open();
+    byId('project-export')!.click();
+    expect(transfer.exportData).toHaveBeenCalledWith({ kind: 'project', projectId: 'p1' });
   });
 
   it('switches tabs through the URL and keeps the header mounted', async () => {

@@ -7,6 +7,7 @@ import { collection, fakeConfig, host, project } from '../../../core/ipc/config.
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { SshService } from '../../../core/ipc/ssh';
 import type { ConnectionState } from '../../../core/ipc/ssh.models';
+import { DataTransferActions } from '../../data-transfer/data-transfer-actions';
 import { HostConnector } from '../../host-connection/host-connector';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { MoveLauncher } from '../../project-tree/move-launcher';
@@ -28,6 +29,7 @@ describe('Welcome (Home page)', () => {
   const states = signal<Record<string, ConnectionState>>({});
   const actions = { createProject: vi.fn(), addHost: vi.fn(), addCollection: vi.fn() };
   const launcher = { open: vi.fn(), openTerminal: vi.fn() };
+  const transfer = { importing: signal(false), exportData: vi.fn(), importData: vi.fn() };
   const byId = <T extends HTMLElement = HTMLElement>(id: string): T | null =>
     document.body.querySelector<T>(`[data-testid="${id}"]`);
   const settle = async () => {
@@ -53,6 +55,7 @@ describe('Welcome (Home page)', () => {
         { provide: HostConnector, useValue: { connect: vi.fn(), disconnect: vi.fn() } },
         { provide: HostLauncher, useValue: launcher },
         { provide: ProjectActions, useValue: actions },
+        { provide: DataTransferActions, useValue: transfer },
         { provide: MoveLauncher, useValue: { openDialog: vi.fn() } },
       ],
     }).compileComponents();
@@ -85,6 +88,8 @@ describe('Welcome (Home page)', () => {
     expect(actions.createProject).toHaveBeenCalledOnce();
     expect(actions.addHost).toHaveBeenCalledWith({ projectId: null, parentId: null });
     expect(actions.addCollection).toHaveBeenCalledWith({ projectId: null, parentId: null });
+    byId('welcome-import')!.click();
+    expect(transfer.importData).toHaveBeenCalledOnce();
     expect(byId('home-title')).toBeNull();
     expect(byId('hosts-search')).toBeNull();
   });
@@ -101,6 +106,21 @@ describe('Welcome (Home page)', () => {
     byId('home-new-collection')!.click();
     expect(actions.addHost).toHaveBeenCalledWith({ projectId: null, parentId: null });
     expect(actions.addCollection).toHaveBeenCalledWith({ projectId: null, parentId: null });
+  });
+
+  it('exports Home and imports from the Home menu', async () => {
+    await setup();
+    const open = async () => {
+      byId('home-menu')!.click();
+      await settle();
+    };
+    await open();
+    byId('home-export')!.click();
+    expect(transfer.exportData).toHaveBeenCalledWith({ kind: 'home' });
+    await settle();
+    await open();
+    byId('home-import')!.click();
+    expect(transfer.importData).toHaveBeenCalledOnce();
   });
 
   it('lists the projects first, ending with New project, then the Home hosts', async () => {

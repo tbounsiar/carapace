@@ -11,6 +11,7 @@ import type { MoveDialogData } from './move-dialog/move-dialog';
 import type { MoveUndoData } from './move-undo/move-undo';
 import { crossScopeWarning, moveDestination } from './move-rules';
 import { ancestors, canMoveInto, sameContainer, type Container } from './node-tree';
+import { escapeHtml } from '../../shared/path-breaks';
 import { errorText, notifyError } from '../../shared/save-error';
 
 const UNDO_DELAY = 5000;
@@ -70,7 +71,8 @@ export class MoveActions {
           label: warning.question,
           size: 's',
           data: {
-            content: [warning.body, warning.missing].filter(Boolean).join(' '),
+            // TUI_CONFIRM renders its content as HTML; names come from the user or a data file.
+            content: escapeHtml([warning.body, warning.missing].filter(Boolean).join(' ')),
             yes: 'Move',
             no: 'Cancel',
           },

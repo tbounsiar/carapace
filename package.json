@@ -9,7 +9,7 @@
     "test": "ng test",
     "tauri": "tauri",
     "lint": "ng lint",
-    "e2e:build": "tauri build --debug --no-bundle",
+    "e2e:build": "tauri build --debug --no-bundle --features e2e-pickers",
     "e2e:ui": "wdio run e2e/wdio/wdio.conf.ts",
     "e2e:driver": "pwsh -NoProfile -File e2e/wdio/fetch-driver.ps1"
   },

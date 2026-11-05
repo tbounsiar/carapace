@@ -36,6 +36,11 @@ const KNOWN_CODES: readonly string[] = [
   'host_changed',
   'not_regular_file',
   'not_uploaded',
+  'import_format',
+  'import_version',
+  'import_malformed',
+  'import_invalid',
+  'import_secret_value',
 ];
 
 export class IpcError extends Error {

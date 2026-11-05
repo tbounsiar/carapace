@@ -161,6 +161,13 @@ describe('KeyActions', () => {
     expect(lastToast()[1]).toEqual(expect.objectContaining({ label: 'Passphrase forgotten' }));
   });
 
+  it('escapes the key name in the delete dialog label, which Taiga renders as HTML', async () => {
+    dialogs.open.mockReturnValueOnce(of(undefined));
+    await actions.remove(key({ id: 'k9', name: '<img src=x>' }));
+    const options = (dialogs.open.mock.calls[0] as unknown[])[1] as { label: string };
+    expect(options.label).toBe('Delete key "&lt;img src=x&gt;"?');
+  });
+
   it('deletes after confirmation, files only for generated keys', async () => {
     dialogs.open.mockReturnValueOnce(of({ deleteFiles: true }));
     expect(await actions.remove(KEY)).toBe(true);

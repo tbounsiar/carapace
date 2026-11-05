@@ -28,7 +28,9 @@ impl From<ConfigError> for CommandError {
         let code = match e {
             ConfigError::NotFound(_) => "not_found",
             ConfigError::InvalidInput(_) => "invalid_input",
-            ConfigError::Conflict(_) | ConfigError::NameTaken(_) => "conflict",
+            ConfigError::Conflict(_) | ConfigError::NameTaken(_) | ConfigError::Changed => {
+                "conflict"
+            }
             ConfigError::Exists(_) => "already_exists",
             ConfigError::Io => "io",
             ConfigError::Corrupt => "corrupt_config",
@@ -89,6 +91,7 @@ mod tests {
             (ConfigError::InvalidInput("bad".into()), "invalid_input"),
             (ConfigError::Conflict("host"), "conflict"),
             (ConfigError::NameTaken("x".into()), "conflict"),
+            (ConfigError::Changed, "conflict"),
             (ConfigError::Exists("key"), "already_exists"),
             (ConfigError::Io, "io"),
             (ConfigError::Corrupt, "corrupt_config"),

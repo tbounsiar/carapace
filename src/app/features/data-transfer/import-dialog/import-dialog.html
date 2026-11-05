@@ -1,0 +1,401 @@
+@let current = view();
+<div class="dialog" data-testid="import-dialog">
+  @switch (current.kind) {
+    @case ('error') {
+      <div tuiForm="m">
+        @if (current.fileName) {
+          <header tuiHeader="body-l">
+            <hgroup tuiTitle class="titles">
+              <h2
+                tuiHintOverflow
+                class="file ellipsis"
+                data-testid="import-file"
+                [textContent]="current.fileName"
+              ></h2>
+            </hgroup>
+          </header>
+        }
+        <div tuiNotification appearance="negative" size="m" role="alert" data-testid="import-error">
+          <div tuiTitle>
+            {{ current.title }}
+            <div tuiSubtitle>
+              @for (line of current.lines; track $index) {
+                <span class="line">{{ line }}</span>
+              }
+            </div>
+          </div>
+        </div>
+        <footer>
+          <button
+            tuiButton
+            appearance="flat"
+            type="button"
+            data-testid="dialog-cancel"
+            (click)="cancel()"
+          >
+            Cancel
+          </button>
+          <button
+            tuiButton
+            type="button"
+            data-testid="import-choose-another"
+            [loading]="picking()"
+            (click)="chooseAnother()"
+          >
+            Choose another file
+          </button>
+        </footer>
+      </div>
+    }
+
+    @case ('preview') {
+      <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
+        <header tuiHeader="body-l">
+          <hgroup tuiTitle class="titles">
+            <h2
+              tuiHintOverflow
+              class="file ellipsis"
+              data-testid="import-file"
+              [textContent]="current.preview.fileName"
+            ></h2>
+            <p tuiSubtitle data-testid="import-file-meta">{{ meta() }}</p>
+          </hgroup>
+        </header>
+
+        <fieldset class="strategies">
+          <legend class="legend">If an item already exists here</legend>
+          <div tuiGroup orientation="vertical" class="group" [collapsed]="true">
+            @for (option of strategies; track option) {
+              <label tuiBlock="s" [attr.data-testid]="'import-strategy-' + option">
+                <input
+                  tuiRadio
+                  size="s"
+                  type="radio"
+                  formControlName="strategy"
+                  [value]="option"
+                  [tuiAutoFocus]="option === 'merge'"
+                />
+                <span tuiTitle>
+                  {{ labels[option] }}
+                  <span tuiSubtitle>
+                    @switch (option) {
+                      @case ('merge') {
+                        Add new items, update matching ones, keep the rest
+                      }
+                      @case ('replace') {
+                        {{ replaceNote() }}
+                      }
+                      @default {
+                        Import matching items as copies
+                      }
+                    }
+                  </span>
+                </span>
+              </label>
+            }
+          </div>
+        </fieldset>
+
+        @if (blocked()) {
+          <div
+            tuiNotification
+            appearance="negative"
+            size="s"
+            role="alert"
+            data-testid="import-blocking"
+          >
+            {{ blockingText() }}
+          </div>
+        }
+
+        @if (nothing()) {
+          <p class="nothing" data-testid="import-nothing">
+            Nothing to import: this computer already has everything in the file.
+          </p>
+        } @else if (table(); as t) {
+          <table tuiTable size="s" class="table" data-testid="import-table">
+            <caption class="caption">
+              What changes
+            </caption>
+            <thead tuiThead>
+              <tr>
+                <th tuiTh scope="col" aria-label="Item"></th>
+                @for (column of t.columns; track column) {
+                  <th tuiTh scope="col" class="number">{{ column }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody tuiTbody>
+              @for (row of t.rows; track row.kind) {
+                <tr [attr.data-testid]="'import-row-' + row.kind">
+                  <th tuiTd scope="row">{{ row.label }}</th>
+                  @for (cell of row.cells; track $index) {
+                    <td tuiTd class="number" [class.negative]="cell.negative">
+                      {{ cell.value || '—' }}
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+
+        @if (detailsCount()) {
+          <tui-accordion size="s" data-testid="import-details">
+            <button type="button" [tuiAccordion]="detailsOpen()">
+              Details ({{ detailsCount() }})
+            </button>
+            <tui-expand>
+              <ng-container *ngTemplateOutlet="items; context: { $implicit: details() }" />
+              @if (moreItems()) {
+                <p class="more">and {{ moreItems() }} more</p>
+              }
+            </tui-expand>
+          </tui-accordion>
+        }
+
+        @if (connections(); as warning) {
+          <div
+            tuiNotification
+            appearance="warning"
+            size="s"
+            data-testid="import-warning-connections"
+          >
+            <div tuiTitle>
+              {{ warning.title }}
+              <div tuiSubtitle>{{ warning.body }}</div>
+            </div>
+          </div>
+        }
+
+        @if (deletedSecrets(); as text) {
+          <div tuiNotification appearance="warning" size="s" data-testid="import-warning-secrets">
+            {{ text }}
+          </div>
+        }
+
+        @if (secretLines().length || undefinedText()) {
+          <div tuiNotification appearance="info" size="s" data-testid="import-needs-secret">
+            <div tuiTitle>
+              {{ secretLines().length ? 'Secrets to set after importing' : 'Variables to define' }}
+              <div tuiSubtitle>
+                @for (line of secretLines(); track line) {
+                  <span class="line">{{ line }}</span>
+                }
+                @if (secretLines().length) {
+                  <span class="line">
+                    You will be asked for them when connecting until you set them in Variables.
+                  </span>
+                }
+                @if (undefinedText(); as text) {
+                  <span class="line">{{ text }}</span>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (refreshed()) {
+          <div
+            tuiNotification
+            appearance="info"
+            size="s"
+            role="status"
+            data-testid="import-refreshed"
+          >
+            Your data changed since this preview. The preview was updated.
+          </div>
+        }
+
+        @if (applyError(); as message) {
+          <div
+            tuiNotification
+            appearance="negative"
+            size="s"
+            role="alert"
+            data-testid="import-apply-error"
+          >
+            {{ message }}
+          </div>
+        }
+
+        @if (secretsSent().length) {
+          <div tuiNotification appearance="warning" size="s" data-testid="import-secrets-warning">
+            <div tuiTitle>
+              <span [id]="secretsTitleId">Saved secrets will go to new servers</span>
+              <div tuiSubtitle>
+                @for (line of secretsSent(); track $index) {
+                  <span class="line">{{ line }}</span>
+                }
+              </div>
+              <label class="check">
+                <input
+                  tuiCheckbox
+                  size="s"
+                  type="checkbox"
+                  formControlName="secretsAck"
+                  data-testid="import-secrets-ack"
+                />
+                I trust these servers
+              </label>
+            </div>
+          </div>
+        }
+
+        <p class="note" data-testid="import-backup-note">
+          A backup of your current data is saved first.
+        </p>
+
+        <footer>
+          <button
+            tuiButton
+            appearance="flat"
+            type="button"
+            data-testid="dialog-cancel"
+            [disabled]="busy()"
+            (click)="cancel()"
+          >
+            Cancel
+          </button>
+          <button
+            tuiButton
+            type="submit"
+            data-testid="import-submit"
+            [attr.aria-describedby]="secretsSent().length ? secretsTitleId : null"
+            [disabled]="!canImport()"
+            [loading]="busy()"
+          >
+            {{ submitLabel() }}
+          </button>
+        </footer>
+      </form>
+    }
+
+    @case ('summary') {
+      @if (summary(); as s) {
+        <div tuiForm="m">
+          <header tuiHeader="body-l">
+            <tui-icon class="done-icon" [icon]="s.undone ? '@tui.undo-2' : '@tui.circle-check'" />
+            <hgroup tuiTitle>
+              @if (s.undone) {
+                <h2 #summaryHeading tabindex="-1" data-testid="import-undone">Import undone</h2>
+                <p tuiSubtitle>Your data is back as before the import.</p>
+              } @else {
+                <h2 #summaryHeading tabindex="-1" data-testid="import-summary">Import complete</h2>
+                <p tuiSubtitle>{{ s.sentence }}</p>
+              }
+            </hgroup>
+          </header>
+
+          @if (!s.undone) {
+            @if (s.details.length) {
+              <tui-accordion size="s" data-testid="import-details">
+                <button type="button" [tuiAccordion]="s.details.length <= 10">
+                  Details ({{ s.details.length }})
+                </button>
+                <tui-expand>
+                  <ng-container *ngTemplateOutlet="items; context: { $implicit: s.details }" />
+                </tui-expand>
+              </tui-accordion>
+            }
+
+            @if (s.disconnected) {
+              <div tuiNotification appearance="info" size="s" data-testid="import-disconnected">
+                <div tuiTitle>
+                  Disconnected
+                  <div tuiSubtitle>{{ s.disconnected }}</div>
+                </div>
+              </div>
+            }
+
+            @if (s.secrets.length) {
+              <div tuiNotification appearance="info" size="s" data-testid="import-needs-secret">
+                <div tuiTitle>
+                  Secrets to set
+                  <div tuiSubtitle>
+                    @for (group of s.secrets; track group.key) {
+                      @for (line of group.lines; track line) {
+                        <span class="line">{{ line }}</span>
+                      }
+                      <button
+                        tuiLink
+                        type="button"
+                        class="line"
+                        [attr.data-testid]="'import-open-variables-' + group.key"
+                        (click)="openVariables(group)"
+                      >
+                        {{ group.link }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+
+            @if (s.undoError; as message) {
+              <div tuiNotification appearance="negative" size="s" role="alert">
+                {{ message }}
+              </div>
+            }
+
+            <p class="note">
+              Backup:
+              <span
+                tuiHintOverflow
+                class="mono ellipsis"
+                data-testid="import-backup-name"
+                [textContent]="s.backupName"
+              ></span>
+            </p>
+          }
+
+          <footer>
+            @if (!s.undone) {
+              <button
+                tuiButton
+                appearance="flat"
+                type="button"
+                data-testid="import-undo"
+                [tuiHint]="s.lostSecrets ? lostHint : null"
+                [loading]="undoing()"
+                [disabled]="busy() && !undoing()"
+                (click)="undo()"
+              >
+                Undo import
+              </button>
+            }
+            <button
+              tuiButton
+              type="button"
+              data-testid="import-done"
+              [disabled]="busy()"
+              (click)="cancel()"
+            >
+              Done
+            </button>
+          </footer>
+        </div>
+      }
+    }
+  }
+</div>
+
+<ng-template #items let-list>
+  <div class="items">
+    @for (item of list; track item.testId) {
+      <div tuiCell="s" [attr.data-testid]="item.testId">
+        <tui-icon [icon]="item.icon" />
+        <div tuiTitle class="item-title">
+          <span tuiHintOverflow class="ellipsis" [textContent]="item.name"></span>
+          @if (item.location) {
+            <div tuiSubtitle class="path">{{ item.location }}</div>
+          }
+          @for (line of item.lines; track line) {
+            <div tuiSubtitle class="path">{{ line }}</div>
+          }
+        </div>
+        <span tuiBadge size="s" [appearance]="item.badge.appearance">{{ item.badge.label }}</span>
+      </div>
+    }
+  </div>
+</ng-template>

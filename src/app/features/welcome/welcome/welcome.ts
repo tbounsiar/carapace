@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { TuiButton, TuiIcon, TuiTitle } from '@taiga-ui/core';
-import { TuiSkeleton, TuiStatus } from '@taiga-ui/kit';
+import { TuiButton, TuiDataList, TuiDropdown, TuiIcon, TuiTitle } from '@taiga-ui/core';
+import { TuiButtonLoading, TuiSkeleton, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiCardLarge, TuiHeader } from '@taiga-ui/layout';
 import { ConfigService } from '../../../core/ipc/config';
 import { SshService } from '../../../core/ipc/ssh';
@@ -19,6 +19,7 @@ import {
 } from '../../dashboard/board';
 import { HostGroups } from '../../dashboard/host-groups/host-groups';
 import { HostsToolbar } from '../../dashboard/hosts-toolbar/hosts-toolbar';
+import { DataTransferActions } from '../../data-transfer/data-transfer-actions';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { byName, countNodes, HOME, plural, scopeTree } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
@@ -34,7 +35,10 @@ const HOME_ROOT = { projectId: null, parentId: null };
     RouterLink,
     TuiBlockStatus,
     TuiButton,
+    TuiButtonLoading,
     TuiCardLarge,
+    TuiDataList,
+    TuiDropdown,
     TuiHeader,
     TuiIcon,
     TuiSkeleton,
@@ -51,12 +55,15 @@ export class Welcome {
   private readonly actions = inject(ProjectActions);
   private readonly launcher = inject(HostLauncher);
   private readonly router = inject(Router);
+  private readonly transfer = inject(DataTransferActions);
 
   private readonly toolbar = viewChild(HostsToolbar);
   protected readonly placeholders = [1, 2, 3, 4, 5, 6];
 
   protected readonly query = signal('');
   protected readonly connectedOnly = signal(false);
+  protected readonly menuOpen = signal(false);
+  protected readonly importing = this.transfer.importing;
 
   protected readonly loaded = this.config.loaded;
   protected readonly loadError = computed(() => {
@@ -131,6 +138,16 @@ export class Welcome {
 
   protected addCollection(): void {
     this.actions.addCollection(HOME_ROOT);
+  }
+
+  protected exportHome(): void {
+    this.menuOpen.set(false);
+    void this.transfer.exportData({ kind: 'home' });
+  }
+
+  protected importData(): void {
+    this.menuOpen.set(false);
+    void this.transfer.importData();
   }
 
   protected retry(): void {

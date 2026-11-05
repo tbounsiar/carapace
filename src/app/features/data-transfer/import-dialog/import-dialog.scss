@@ -1,0 +1,96 @@
+.titles {
+  min-inline-size: 0;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file,
+.mono {
+  font-family: var(--app-font-mono);
+}
+
+.strategies {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-inline-size: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-block-end: 0.5rem;
+  font: var(--tui-typography-body-m);
+  font-weight: bold;
+}
+
+.group {
+  inline-size: 100%;
+}
+
+.table {
+  align-self: start;
+  inline-size: auto;
+  min-inline-size: 20rem;
+}
+
+.caption {
+  text-align: start;
+  font: var(--tui-typography-body-m);
+  font-weight: bold;
+  padding-block-end: 0.5rem;
+}
+
+.number {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.negative {
+  color: var(--tui-text-negative);
+}
+
+.nothing,
+.more {
+  margin: 0;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+}
+
+.item-title {
+  min-inline-size: 0;
+}
+
+.path {
+  overflow-wrap: anywhere;
+}
+
+.line {
+  display: block;
+}
+
+.note {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  min-inline-size: 0;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+}
+
+.done-icon {
+  color: var(--tui-status-positive);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: var(--tui-typography-body-s);
+}

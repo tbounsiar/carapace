@@ -274,14 +274,43 @@ async fn check_location(
     })
 }
 
-fn busy() -> CommandError {
+pub(super) fn busy() -> CommandError {
     CommandError::new("busy", "a file picker is already open")
 }
 
-/// Opens a native picker parented to the main window. The dialog is built on the main thread
-/// (macOS requires it) and awaited on its own thread, like the OS dialog itself; the command
-/// only waits on a channel. The webview has no dialog permission: only these commands open
-/// pickers.
+pub(super) type Picked =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Option<rfd::FileHandle>> + Send>>;
+
+/// Opens a native file dialog parented to the main window. The dialog is built on the main
+/// thread (macOS requires it) and awaited on its own thread, like the OS dialog itself; the
+/// command only waits on a channel. The webview has no dialog permission: only commands open
+/// dialogs. `cancelled` (window gone) ends the wait with `None`.
+pub(super) async fn native_dialog(
+    app: &AppHandle,
+    build: impl FnOnce(rfd::AsyncFileDialog) -> Picked + Send + 'static,
+    cancelled: tokio::sync::oneshot::Receiver<()>,
+) -> Res<Option<PathBuf>> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let handle = app.clone();
+    app.run_on_main_thread(move || {
+        let mut dialog = rfd::AsyncFileDialog::new();
+        if let Some(window) = handle.get_webview_window("main") {
+            dialog = dialog.set_parent(&window);
+        }
+        let picked = build(dialog);
+        std::thread::spawn(move || {
+            let chosen = tauri::async_runtime::block_on(picked);
+            let _ = tx.send(chosen.map(|h| h.path().to_path_buf()));
+        });
+    })
+    .map_err(|_| CommandError::new("io", "the file picker could not be opened"))?;
+    Ok(tokio::select! {
+        picked = rx => picked
+            .map_err(|_| CommandError::new("io", "the file picker could not be opened"))?,
+        _ = cancelled => None,
+    })
+}
+
 pub(super) async fn pick(
     app: &AppHandle,
     title: &'static str,
@@ -289,34 +318,18 @@ pub(super) async fn pick(
     folder: bool,
     cancelled: tokio::sync::oneshot::Receiver<()>,
 ) -> Res<Option<String>> {
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    let handle = app.clone();
-    app.run_on_main_thread(move || {
-        let mut dialog = rfd::AsyncFileDialog::new().set_title(title);
+    let build = move |dialog: rfd::AsyncFileDialog| -> Picked {
+        let mut dialog = dialog.set_title(title);
         if let Some(start) = start {
             dialog = dialog.set_directory(start);
         }
-        if let Some(window) = handle.get_webview_window("main") {
-            dialog = dialog.set_parent(&window);
-        }
-        type Picked =
-            std::pin::Pin<Box<dyn std::future::Future<Output = Option<rfd::FileHandle>> + Send>>;
-        let picked: Picked = if folder {
+        if folder {
             Box::pin(dialog.pick_folder())
         } else {
             Box::pin(dialog.pick_file())
-        };
-        std::thread::spawn(move || {
-            let chosen = tauri::async_runtime::block_on(picked);
-            let _ = tx.send(chosen.map(|h| h.path().to_path_buf()));
-        });
-    })
-    .map_err(|_| CommandError::new("io", "the file picker could not be opened"))?;
-    let picked = tokio::select! {
-        picked = rx => picked
-            .map_err(|_| CommandError::new("io", "the file picker could not be opened"))?,
-        _ = cancelled => None,
+        }
     };
+    let picked = native_dialog(app, build, cancelled).await?;
     Ok(picked.map(keys::picked_path).transpose()?)
 }
 

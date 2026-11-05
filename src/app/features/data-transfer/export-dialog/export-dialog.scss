@@ -1,0 +1,30 @@
+.scopes {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-inline-size: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-block-end: 0.5rem;
+  font: var(--tui-typography-body-m);
+  font-weight: bold;
+}
+
+.group {
+  inline-size: 100%;
+}
+
+.option {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font: var(--tui-typography-body-s);
+}

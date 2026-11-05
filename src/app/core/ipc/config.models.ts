@@ -121,7 +121,12 @@ export type CommandErrorCode =
   | 'app_failed'
   | 'host_changed'
   | 'not_regular_file'
-  | 'not_uploaded';
+  | 'not_uploaded'
+  | 'import_format'
+  | 'import_version'
+  | 'import_malformed'
+  | 'import_invalid'
+  | 'import_secret_value';
 
 export type IpcErrorCode = CommandErrorCode | 'unknown';
 

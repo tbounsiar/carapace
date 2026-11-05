@@ -69,6 +69,18 @@
       >
         New collection
       </button>
+      <button
+        tuiButton
+        appearance="flat"
+        size="s"
+        iconStart="@tui.upload"
+        type="button"
+        data-testid="welcome-import"
+        [loading]="importing()"
+        (click)="importData()"
+      >
+        Import from a file
+      </button>
     </tui-block-status>
   } @else {
     <header tuiHeader>
@@ -98,6 +110,23 @@
           (click)="addCollection()"
         >
           New collection
+        </button>
+        <button
+          tuiIconButton
+          appearance="secondary"
+          size="s"
+          iconStart="@tui.ellipsis"
+          type="button"
+          tuiDropdownAlign="end"
+          aria-label="Home actions"
+          data-testid="home-menu"
+          [attr.aria-expanded]="menuOpen()"
+          [loading]="importing()"
+          [tuiDropdown]="menu"
+          [tuiDropdownOpen]="menuOpen()"
+          (tuiDropdownOpenChange)="menuOpen.set($event)"
+        >
+          Home actions
         </button>
       </aside>
     </header>
@@ -197,3 +226,28 @@
     }
   }
 </section>
+
+<ng-template #menu>
+  <tui-data-list size="s" role="menu" aria-label="Home actions">
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.download"
+      data-testid="home-export"
+      (click)="exportHome()"
+    >
+      Export…
+    </button>
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.upload"
+      data-testid="home-import"
+      (click)="importData()"
+    >
+      Import…
+    </button>
+  </tui-data-list>
+</ng-template>

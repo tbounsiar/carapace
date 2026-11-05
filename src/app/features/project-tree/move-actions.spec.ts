@@ -73,6 +73,17 @@ describe('MoveActions', () => {
     expect(move).not.toHaveBeenCalled();
   });
 
+  it('escapes names in the cross-scope confirm, which Taiga renders as HTML', async () => {
+    confirm = false;
+    config.nodes.set([host('h9', '<b>x</b> & y', 'p1')]);
+    await moves.drop(config.findNode('h9')!, { projectId: null, parentId: null });
+    const options = (dialogs.open.mock.calls[0] as unknown[])[1] as { data: { content: string } };
+    expect(options.data.content).toContain(
+      '&lt;b&gt;x&lt;/b&gt; &amp; y will use global variables',
+    );
+    expect(options.data.content).not.toContain('<b>');
+  });
+
   it('toasts a cross-scope move without Undo', async () => {
     vi.spyOn(config, 'moveNode').mockResolvedValue({ nodes: [], scopeChanged: true });
     await moves.drop(config.findNode('h1')!, { projectId: null, parentId: null });

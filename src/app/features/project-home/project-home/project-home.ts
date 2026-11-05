@@ -7,6 +7,7 @@ import { ConfigService } from '../../../core/ipc/config';
 import { SshService } from '../../../core/ipc/ssh';
 import { connectedCounts } from '../../../shared/connection-status';
 import { statsText } from '../../dashboard/board';
+import { DataTransferActions } from '../../data-transfer/data-transfer-actions';
 import { countNodes } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { errorText } from '../../../shared/save-error';
@@ -35,6 +36,7 @@ export class ProjectHome {
   private readonly config = inject(ConfigService);
   private readonly ssh = inject(SshService);
   private readonly actions = inject(ProjectActions);
+  private readonly transfer = inject(DataTransferActions);
 
   readonly projectId = input.required<string>();
 
@@ -73,6 +75,11 @@ export class ProjectHome {
     if (project) {
       this.actions.renameProject(project);
     }
+  }
+
+  protected exportProject(): void {
+    this.menuOpen.set(false);
+    void this.transfer.exportData({ kind: 'project', projectId: this.projectId() });
   }
 
   protected remove(): void {

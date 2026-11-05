@@ -84,6 +84,12 @@
     "allow-edited-affected",
     "allow-get-external-editor",
     "allow-set-external-editor",
-    "allow-pick-external-editor"
+    "allow-pick-external-editor",
+    "allow-export-data",
+    "allow-preview-import",
+    "allow-refresh-import",
+    "allow-apply-import",
+    "allow-undo-import",
+    "allow-cancel-import"
   ]
 }

@@ -84,6 +84,9 @@ describe('SettingsPage', () => {
           ...(args as { patch: object }).patch,
         };
       }
+      if (cmd === 'list_keys') {
+        return [];
+      }
       if (cmd === 'get_external_editor') {
         return { mode: 'system', appPath: null, noticeSeen: false };
       }

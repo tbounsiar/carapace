@@ -36,6 +36,31 @@ describe('DestructiveConfirm', () => {
     expect(completeWith).toHaveBeenCalledWith(false);
   });
 
+  it('shows names from files as text, never as markup', async () => {
+    await TestBed.configureTestingModule({
+      imports: [DestructiveConfirm],
+      providers: [
+        provideTaiga(),
+        {
+          provide: POLYMORPHEUS_CONTEXT,
+          useValue: {
+            data: {
+              content: 'Unsaved changes in <b>a</b>.conf will be lost.',
+              yes: 'Replace',
+              no: 'Cancel',
+            },
+            completeWith: vi.fn(),
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(DestructiveConfirm);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('b')).toBeNull();
+    expect(el.textContent).toContain('Unsaved changes in <b>a</b>.conf will be lost.');
+  });
+
   it('shows a warning variant with a primary, focused, identified confirming button', async () => {
     await TestBed.configureTestingModule({
       imports: [DestructiveConfirm],

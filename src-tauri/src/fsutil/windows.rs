@@ -143,6 +143,26 @@ fn attributes(sd: &Descriptor) -> SECURITY_ATTRIBUTES {
     }
 }
 
+/// A drive letter the system maps to a network share (`DRIVE_REMOTE`).
+pub fn is_remote_drive(path: &Path) -> bool {
+    use std::path::{Component, Prefix};
+    use windows_sys::Win32::Storage::FileSystem::GetDriveTypeW;
+    const DRIVE_REMOTE: u32 = 4;
+    let Some(Component::Prefix(prefix)) = path.components().next() else {
+        return false;
+    };
+    let letter = match prefix.kind() {
+        Prefix::Disk(d) | Prefix::VerbatimDisk(d) => d,
+        _ => return true,
+    };
+    let root: Vec<u16> = format!("{}:\\", letter as char)
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    // SAFETY: `root` is a NUL-terminated UTF-16 string that outlives the call.
+    unsafe { GetDriveTypeW(root.as_ptr()) == DRIVE_REMOTE }
+}
+
 pub fn create_owner_only(path: &Path) -> io::Result<File> {
     create_with(path, &owner_only(false)?)
 }

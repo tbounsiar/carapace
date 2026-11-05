@@ -1,0 +1,136 @@
+<form tuiForm="m" data-testid="export-dialog" [formGroup]="form" (ngSubmit)="submit()">
+  <fieldset class="scopes">
+    <legend class="legend">What to export</legend>
+    <div tuiGroup orientation="vertical" class="group" [collapsed]="true">
+      <label tuiBlock="s" data-testid="export-scope-all">
+        <input
+          tuiRadio
+          size="s"
+          type="radio"
+          value="all"
+          formControlName="scope"
+          [tuiAutoFocus]="scope() === 'all'"
+        />
+        <span tuiTitle>
+          Everything
+          <span tuiSubtitle>{{ allNote() }}</span>
+        </span>
+      </label>
+      <label tuiBlock="s" data-testid="export-scope-home">
+        <input
+          tuiRadio
+          size="s"
+          type="radio"
+          value="home"
+          formControlName="scope"
+          [tuiAutoFocus]="scope() === 'home'"
+        />
+        <span tuiTitle>
+          Home
+          <span tuiSubtitle>{{ homeNote() }}</span>
+        </span>
+      </label>
+      <label tuiBlock="s" data-testid="export-scope-project">
+        @if (projects().length) {
+          <input
+            tuiRadio
+            size="s"
+            type="radio"
+            value="project"
+            formControlName="scope"
+            [tuiAutoFocus]="scope() === 'project'"
+            (change)="selectFirstProject()"
+          />
+        } @else {
+          <!-- One radio of a reactive group cannot be disabled alone. -->
+          <input tuiRadio size="s" type="radio" disabled />
+        }
+        <span tuiTitle>
+          A project
+          <span tuiSubtitle>
+            {{ projects().length ? 'One project with its variables' : 'No projects yet' }}
+          </span>
+        </span>
+      </label>
+    </div>
+  </fieldset>
+
+  @if (scope() === 'project') {
+    <tui-textfield
+      tuiChevron
+      tuiTextfieldSize="s"
+      [stringify]="stringify"
+      [tuiTextfieldCleaner]="false"
+      [tuiDropdownMaxHeight]="320"
+    >
+      <label tuiLabel>Project</label>
+      <input tuiSelect formControlName="projectId" data-testid="export-project-select" />
+      <tui-data-list *tuiDropdown size="s">
+        @for (project of projects(); track project.id) {
+          <button
+            tuiOption
+            type="button"
+            class="option"
+            [value]="project.id"
+            [attr.data-testid]="'export-project-option-' + project.name"
+          >
+            {{ project.name }}
+          </button>
+        }
+      </tui-data-list>
+    </tui-textfield>
+
+    <label class="check">
+      <input
+        tuiCheckbox
+        size="s"
+        type="checkbox"
+        formControlName="includeShared"
+        data-testid="export-include-shared"
+      />
+      Include the global variables and SSH keys its hosts use
+    </label>
+  }
+
+  <div tuiNotification appearance="info" size="s" data-testid="export-secrets-note">
+    <div tuiTitle>
+      Not included
+      <div tuiSubtitle>
+        Passwords, passphrases and secret variable values, saved passwords and key files. Secret
+        variables are exported by name: set their values after importing. The file lists your hosts
+        and user names; share it only with people who may see them.
+      </div>
+    </div>
+  </div>
+
+  @if (error(); as message) {
+    <div tuiNotification appearance="negative" size="s" role="alert" data-testid="export-error">
+      <div tuiTitle>
+        File not saved
+        <div tuiSubtitle>{{ message }}</div>
+      </div>
+    </div>
+  }
+
+  <footer>
+    <button
+      tuiButton
+      appearance="flat"
+      type="button"
+      data-testid="dialog-cancel"
+      [disabled]="busy()"
+      (click)="cancel()"
+    >
+      Cancel
+    </button>
+    <button
+      tuiButton
+      type="submit"
+      data-testid="export-submit"
+      [disabled]="!canSubmit()"
+      [loading]="busy()"
+    >
+      Export…
+    </button>
+  </footer>
+</form>

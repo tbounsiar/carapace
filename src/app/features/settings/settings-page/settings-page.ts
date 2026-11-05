@@ -34,6 +34,7 @@ import {
   unsavedDenial,
 } from '../../analytics/privacy-page';
 import { notifyError } from '../../../shared/save-error';
+import { DataSettings } from '../data-settings/data-settings';
 import { ExternalEditorSettings } from '../external-editor-settings/external-editor-settings';
 
 const THEME_OPTIONS: readonly { value: ThemeMode; label: string; icon: string }[] = [
@@ -49,6 +50,7 @@ const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
 
 @Component({
   imports: [
+    DataSettings,
     ExternalEditorSettings,
     ReactiveFormsModule,
     TuiError,

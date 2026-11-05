@@ -415,6 +415,12 @@ impl SecretStore {
         self.backend.set(&key.account(kind), &encoded)
     }
 
+    /// Whether an entry exists; the value is read (keyring has no existence check) and
+    /// dropped at once.
+    pub fn has_saved(&self, key: &SavedKey, kind: SecretKind) -> Result<bool, SecretError> {
+        Ok(self.backend.get(&key.account(kind))?.is_some())
+    }
+
     pub fn delete_saved(&self, key: &SavedKey, kind: SecretKind) -> Result<(), SecretError> {
         self.backend.delete(&key.account(kind))
     }

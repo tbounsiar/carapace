@@ -1,0 +1,38 @@
+<fieldset class="group">
+  <legend class="legend" data-testid="settings-data">Data</legend>
+  <p class="note">
+    @if (nothingToExport()) {
+      Nothing to export yet.
+    } @else {
+      Export projects, hosts, collections and variables to a file, or import one. Passwords and
+      other secrets are never included. App settings are not included.
+    }
+  </p>
+  <div class="buttons">
+    <button
+      tuiButton
+      size="s"
+      appearance="secondary"
+      iconStart="@tui.download"
+      type="button"
+      data-testid="settings-export"
+      [disabled]="loading() || nothingToExport()"
+      (click)="exportData()"
+    >
+      Export…
+    </button>
+    <button
+      tuiButton
+      size="s"
+      appearance="secondary"
+      iconStart="@tui.upload"
+      type="button"
+      data-testid="settings-import"
+      [disabled]="loading()"
+      [loading]="importing()"
+      (click)="importData()"
+    >
+      Import…
+    </button>
+  </div>
+</fieldset>

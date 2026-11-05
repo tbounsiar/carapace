@@ -1,0 +1,29 @@
+[[permission]]
+identifier = "allow-export-data"
+description = "Allows the export_data command (native save dialog opened from Rust)."
+commands.allow = ["export_data"]
+
+[[permission]]
+identifier = "allow-preview-import"
+description = "Allows the preview_import command (native open dialog opened from Rust)."
+commands.allow = ["preview_import"]
+
+[[permission]]
+identifier = "allow-refresh-import"
+description = "Allows the refresh_import command."
+commands.allow = ["refresh_import"]
+
+[[permission]]
+identifier = "allow-apply-import"
+description = "Allows the apply_import command."
+commands.allow = ["apply_import"]
+
+[[permission]]
+identifier = "allow-undo-import"
+description = "Allows the undo_import command."
+commands.allow = ["undo_import"]
+
+[[permission]]
+identifier = "allow-cancel-import"
+description = "Allows the cancel_import command."
+commands.allow = ["cancel_import"]

@@ -13,8 +13,10 @@ use super::model::{ConfigFile, Host, KeyEntry, KeyOrigin, Node, Project, Variabl
 use super::validate::{self, same_name};
 
 mod nodes;
+mod replace;
 mod settings;
 pub use nodes::Moved;
+pub use replace::Revision;
 
 const FILE_NAME: &str = "data.json";
 const TMP_NAME: &str = "data.json.tmp";
@@ -46,6 +48,9 @@ pub enum ConfigError {
     /// The keychain work a migration needs before writing the file failed; nothing was written.
     #[error("the system keychain is not available")]
     Keychain,
+    /// `data.json` is no longer the file an earlier read saw.
+    #[error("the data changed since it was read")]
+    Changed,
 }
 
 /// Anything held while it lives.
@@ -169,7 +174,7 @@ fn key_name_taken(cfg: &ConfigFile, name: &str, except: Option<&str>) -> bool {
 }
 
 /// Paths are stored canonical; Windows paths compare case-insensitively.
-fn same_path(a: &str, b: &str) -> bool {
+pub(crate) fn same_path(a: &str, b: &str) -> bool {
     if cfg!(windows) {
         same_name(a, b)
     } else {

@@ -10,7 +10,7 @@ use crate::config::{
     ConfigFile, ConfigStore, Held, KeychainMigration, LegacyProject, MigrationPlan, Variable,
     VariableKind,
 };
-use crate::secrets::{SavedKey, SecretKind, SecretStore, VarKey};
+use crate::secrets::{SavedKey, SecretError, SecretKind, SecretStore, VarKey};
 
 type Res<T> = Result<T, CommandError>;
 
@@ -195,8 +195,16 @@ fn forget_saved_of(store: &ConfigStore, secrets: &SecretStore, host_id: &str) ->
     required("hostId", host_id)?;
     let config: ConfigFile = store.snapshot()?;
     resolve::locate(&config, host_id)?;
-    let key = SavedKey::new(host_id)?;
     let _lifecycle = secrets.lifecycle();
+    Ok(delete_saved_secrets(secrets, host_id)?)
+}
+
+/// Deletes the saved connection secrets of `host_id`, stopping at the first failure.
+pub(super) fn delete_saved_secrets(
+    secrets: &SecretStore,
+    host_id: &str,
+) -> Result<(), SecretError> {
+    let key = SavedKey::new(host_id)?;
     for kind in SecretKind::ALL {
         secrets.delete_saved(&key, kind)?;
     }

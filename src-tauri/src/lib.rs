@@ -1,6 +1,7 @@
 mod analytics;
 mod commands;
 mod config;
+mod data_transfer;
 mod external;
 mod files;
 mod fsutil;
@@ -36,6 +37,7 @@ pub fn run() {
             app.manage(terminal::TerminalManager::default());
             app.manage(sftp::SftpManager::default());
             app.manage(quit::QuitGuard::default());
+            app.manage(data_transfer::pending::PendingImports::default());
             let home_dir = home.clone();
             let store = commands::secrets::config_store(home, &secrets);
             // Loading splits a config.json, moves a version 1 file aside or drops environments;
@@ -127,6 +129,10 @@ pub fn run() {
             // The picker is parented to this window; its answer may never come.
             if window.label() == "main" {
                 keys::cancel_picker();
+                if let Some(pending) = window.try_state::<data_transfer::pending::PendingImports>()
+                {
+                    pending.clear();
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -209,6 +215,12 @@ pub fn run() {
             commands::external::get_external_editor,
             commands::external::set_external_editor,
             commands::external::pick_external_editor,
+            commands::data_transfer::export_data,
+            commands::data_transfer::preview_import,
+            commands::data_transfer::refresh_import,
+            commands::data_transfer::apply_import,
+            commands::data_transfer::undo_import,
+            commands::data_transfer::cancel_import,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

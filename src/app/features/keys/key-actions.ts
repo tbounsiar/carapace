@@ -10,6 +10,7 @@ import type { DeployResult, KeyView } from '../../core/ipc/keys';
 import { SshService } from '../../core/ipc/ssh';
 import { HostConnector } from '../host-connection/host-connector';
 import { NameDialog, type NameDialogData } from '../project-tree/name-dialog/name-dialog';
+import { escapeHtml } from '../../shared/path-breaks';
 import { notifyError } from '../../shared/save-error';
 import {
   KeyDeleteDialog,
@@ -94,7 +95,8 @@ export class KeyActions {
   async remove(key: KeyView): Promise<boolean> {
     const decision = await firstValueFrom(
       this.dialogs.open<KeyDeleteDecision>(new PolymorpheusComponent(KeyDeleteDialog), {
-        label: `Delete key "${key.name}"?`,
+        // Taiga renders a dialog label as HTML.
+        label: `Delete key "${escapeHtml(key.name)}"?`,
         size: 's',
         data: { key } satisfies KeyDeleteDialogData,
       }),
