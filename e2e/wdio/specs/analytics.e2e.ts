@@ -27,7 +27,7 @@ import {
 // `beforeSession` seeds no file for this spec, so the first launch has no consent decision.
 const shot = async (name: string) => console.log('screenshots', await screenshotThemes(name));
 
-const CATEGORIES = ['launch', 'features', 'connections'] as const;
+const CATEGORIES = ['launch', 'features', 'connections', 'crashes'] as const;
 type Category = (typeof CATEGORIES)[number];
 type Stored = Partial<Record<Category, 'granted' | 'denied'>>;
 
@@ -146,6 +146,21 @@ async function eventsAre(expected: string[]): Promise<void> {
   }
 }
 
+/** The categories whose dialog block carries the "New" badge, in display order. */
+const newBadges = () =>
+  browser.execute(() =>
+    [...document.querySelectorAll('[data-testid="consent-dialog"] label')]
+      .filter((label) => label.querySelector('[tuiBadge]'))
+      .map((label) => label.querySelector('input')?.getAttribute('data-testid') ?? ''),
+  );
+
+/** The consent dialog fits the window without scrolling its overlay. */
+const dialogFits = () =>
+  browser.execute(() => {
+    const rect = document.querySelector('tui-dialog')?.getBoundingClientRect();
+    return !!rect && rect.top >= 0 && rect.bottom <= window.innerHeight;
+  });
+
 async function noDialogFor(ms: number): Promise<void> {
   await browser.pause(ms);
   await expect(byId('consent-dialog')).not.toExist();
@@ -168,9 +183,23 @@ async function openTerminal(): Promise<void> {
   await waitStatus(HOST.name, 'Connected');
 }
 
-const ALL_ON = { launch: true, features: true, connections: true };
-const LAUNCH_ONLY = { launch: true, features: false, connections: false };
-const ALL_OFF = { launch: false, features: false, connections: false };
+const ALL_ON = { launch: true, features: true, connections: true, crashes: true };
+const LAUNCH_ONLY = { launch: true, features: false, connections: false, crashes: false };
+const ALL_OFF = { launch: false, features: false, connections: false, crashes: false };
+const GRANTED_V2 = { consent: 'granted', version: 2 };
+const DENIED_V2 = { consent: 'denied', version: 2 };
+const ALL_GRANTED: Stored = {
+  launch: 'granted',
+  features: 'granted',
+  connections: 'granted',
+  crashes: 'granted',
+};
+const ALL_DENIED: Stored = {
+  launch: 'denied',
+  features: 'denied',
+  connections: 'denied',
+  crashes: 'denied',
+};
 
 describe('usage analytics consent', () => {
   before(waitForApp);
@@ -180,11 +209,17 @@ describe('usage analytics consent', () => {
     await expect(byId('welcome')).toExist();
     await dialogShows(ALL_ON);
     await expect(byId('consent-allow-all')).not.toExist();
+    await expect(byId('consent-reask')).not.toExist();
+    expect(await newBadges()).toEqual([]);
+    await expect(byId('consent-crashes-note')).toHaveText(
+      'If Carapace crashes: crash type, app area and, in its own code, the source line. No messages or paths.',
+    );
     await browser.waitUntil(async () => (await focusedId()) === 'consent-launch', {
       timeout: 5000,
       timeoutMsg: 'focus is not on the launch count switch',
     });
     expect(storedConsent()).toEqual({});
+    expect(await dialogFits()).toBe(true);
     await shot('analytics-consent');
   });
 
@@ -197,29 +232,34 @@ describe('usage analytics consent', () => {
     });
     await browser.keys('Escape');
     await waitGone('consent-dialog');
-    await waitStored({ launch: 'granted', features: 'denied', connections: 'granted' });
+    await waitStored({ ...ALL_GRANTED, features: 'denied' });
     await openSettings();
-    await settingsShow({ launch: true, features: false, connections: true });
+    await settingsShow({ ...ALL_ON, features: false });
     await browser.refresh();
     await waitForApp();
     await noDialogFor(3000);
   });
 
-  it('Save choices with the defaults stores all three granted', async () => {
+  it('Save choices with the defaults stores all four granted', async () => {
     await restartWith();
     await waitDialog();
     await dialogShows(ALL_ON);
     await clickId('consent-save');
     await waitGone('consent-dialog');
-    await waitStored({ launch: 'granted', features: 'granted', connections: 'granted' });
+    await waitStored(ALL_GRANTED);
     await openSettings();
     await settingsShow(ALL_ON);
     await byId('settings-analytics-unavailable').waitForDisplayed({ timeout: 10000 });
-    for (const id of ['settings-analytics-common', 'settings-analytics-never'])
+    for (const id of [
+      'settings-analytics-common',
+      'settings-analytics-never',
+      'settings-analytics-crashes-note',
+    ])
       await expect(byId(id)).toBeDisplayed();
     await byId('settings-analytics-launch').scrollIntoView({ block: 'center' });
     await shot('settings-privacy');
     await eventsAre(['session_started', 'app_started']);
+    await expect(byId('analytics-crash-note')).not.toExist();
     await closeEvents();
   });
 
@@ -228,10 +268,11 @@ describe('usage analytics consent', () => {
     await waitDialog();
     await clickId('consent-features');
     await clickId('consent-connections');
+    await clickId('consent-crashes');
     await dialogShows(LAUNCH_ONLY);
     await clickId('consent-save');
     await waitGone('consent-dialog');
-    await waitStored({ launch: 'granted', features: 'denied', connections: 'denied' });
+    await waitStored({ ...ALL_DENIED, launch: 'granted' });
     await openSettings();
     await settingsShow(LAUNCH_ONLY);
   });
@@ -244,8 +285,8 @@ describe('usage analytics consent', () => {
 
   it('turning feature usage on in Settings stores that category only and logs the start', async () => {
     await clickId('settings-analytics-features');
-    await settingsShow({ launch: true, features: true, connections: false });
-    await waitStored({ launch: 'granted', features: 'granted', connections: 'denied' });
+    await settingsShow({ ...LAUNCH_ONLY, features: true });
+    await waitStored({ ...ALL_DENIED, launch: 'granted', features: 'granted' });
     await eventsAre(['session_started', 'app_started']);
     await closeEvents();
   });
@@ -271,8 +312,8 @@ describe('usage analytics consent', () => {
 
   it('turning connection results on logs the next connect', async () => {
     await clickId('settings-analytics-connections');
-    await settingsShow(ALL_ON);
-    await waitStored({ launch: 'granted', features: 'granted', connections: 'granted' });
+    await settingsShow({ ...ALL_ON, crashes: false });
+    await waitStored({ ...ALL_GRANTED, crashes: 'denied' });
     await disconnect(HOST.name);
     await connect(HOST.name);
     await waitStatus(HOST.name, 'Connected');
@@ -283,35 +324,49 @@ describe('usage analytics consent', () => {
     await closeEvents();
   });
 
+  it('turning crash reports on in Settings stores that category only', async () => {
+    await clickId('settings-analytics-crashes');
+    await settingsShow(ALL_ON);
+    await waitStored(ALL_GRANTED);
+  });
+
   it('turning each category off removes its events from the log', async () => {
     await clickId('settings-analytics-launch');
-    await settingsShow({ launch: false, features: true, connections: true });
+    await settingsShow({ ...ALL_ON, launch: false });
     await openEvents();
     expect(await eventNames()).not.toContain('session_started');
     expect(await eventNames()).toContain('terminal_opened');
     await closeEvents();
     await clickId('settings-analytics-features');
     await clickId('settings-analytics-connections');
+    await clickId('settings-analytics-crashes');
     await settingsShow(ALL_OFF);
-    await waitStored({ launch: 'denied', features: 'denied', connections: 'denied' });
+    await waitStored(ALL_DENIED);
     await eventsAre([]);
     await expect(byId('analytics-events-empty')).toHaveText(/Usage data is off\./);
     await shot('analytics-events-empty');
     await closeEvents();
   });
 
-  it('a first-release grant migrates to all three granted, with no dialog', async () => {
+  it('a first-release grant migrates to three granted and asks about crash reports', async () => {
     await restartWithConfigJson({ consent: 'granted', catalogueVersion: 1 });
-    await noDialogFor(3000);
+    await waitDialog();
+    await byId('consent-reask').waitForDisplayed({ timeout: 5000 });
+    expect(await newBadges()).toEqual(['consent-crashes']);
+    await dialogShows(ALL_ON);
+    await clickId('consent-save');
+    await waitGone('consent-dialog');
+    await waitStored(ALL_GRANTED);
     await openSettings();
     await settingsShow(ALL_ON);
     await eventsAre(['session_started', 'app_started']);
     await closeEvents();
   });
 
-  it('a first-release refusal migrates to all three denied, with no dialog', async () => {
+  it('a first-release refusal migrates to all four denied, with no dialog', async () => {
     await restartWithConfigJson({ consent: 'denied', catalogueVersion: 1 });
     await noDialogFor(3000);
+    await waitStored(ALL_DENIED);
     await openSettings();
     await settingsShow(ALL_OFF);
     await eventsAre([]);
@@ -321,25 +376,57 @@ describe('usage analytics consent', () => {
   it('asks again when a first-release grant covers an older catalogue', async () => {
     await restartWithConfigJson({ consent: 'granted', catalogueVersion: 0 });
     await waitDialog();
+    await expect(byId('consent-reask')).not.toExist();
     await dialogShows(ALL_ON);
     await clickId('consent-save');
     await waitGone('consent-dialog');
-    await waitStored({ launch: 'granted', features: 'granted', connections: 'granted' });
+    await waitStored(ALL_GRANTED);
+  });
+
+  it('asks an upgrading user about crash reports only, marked New and on', async () => {
+    await restartWith({ launch: GRANTED_V2, features: DENIED_V2, connections: GRANTED_V2 });
+    await waitDialog();
+    await expect(byId('consent-reask')).toHaveText(
+      'What Carapace can send has changed. Check what is marked New.',
+    );
+    expect(await newBadges()).toEqual(['consent-crashes']);
+    await dialogShows({ ...ALL_ON, features: false });
+    expect(await dialogFits()).toBe(true);
+    await shot('analytics-consent-reask');
+    await browser.keys('Escape');
+    await waitGone('consent-dialog');
+    await waitStored({ ...ALL_GRANTED, features: 'denied' });
+    expect(((readSettings()?.['analytics'] as Toml)['crashes'] as Toml)['version']).toBe(3);
+    await browser.refresh();
+    await waitForApp();
+    await noDialogFor(3000);
+  });
+
+  it('starts crash reports off for a user who refused the three other categories', async () => {
+    await restartWith({ launch: DENIED_V2, features: DENIED_V2, connections: DENIED_V2 });
+    await waitDialog();
+    await byId('consent-reask').waitForDisplayed({ timeout: 5000 });
+    expect(await newBadges()).toEqual(['consent-crashes']);
+    await dialogShows(ALL_OFF);
+    await browser.keys('Escape');
+    await waitGone('consent-dialog');
+    await waitStored(ALL_DENIED);
   });
 
   it('re-asks only an outdated category, keeping the others as stored', async () => {
     await restartWith({
       launch: { consent: 'granted', version: 1 },
-      features: { consent: 'granted', version: 2 },
-      connections: { consent: 'denied', version: 2 },
+      features: GRANTED_V2,
+      connections: DENIED_V2,
+      crashes: { consent: 'granted', version: 3 },
     });
     await waitDialog();
     await byId('consent-reask').waitForDisplayed({ timeout: 5000 });
-    await dialogShows({ launch: true, features: true, connections: false });
-    await shot('analytics-consent-reask');
+    expect(await newBadges()).toEqual(['consent-launch']);
+    await dialogShows({ ...ALL_ON, connections: false });
     await browser.keys('Escape');
     await waitGone('consent-dialog');
-    await waitStored({ launch: 'granted', features: 'granted', connections: 'denied' });
-    expect(((readSettings()?.['analytics'] as Toml)['launch'] as Toml)['version']).toBe(2);
+    await waitStored({ ...ALL_GRANTED, connections: 'denied' });
+    expect(((readSettings()?.['analytics'] as Toml)['launch'] as Toml)['version']).toBe(3);
   });
 });

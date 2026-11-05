@@ -3,7 +3,7 @@ import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import { Analytics, type AnalyticsRecent, type AnalyticsState } from './analytics';
 import { IpcError } from './ipc-error';
 
-const OFF = { launch: false, features: false, connections: false };
+const OFF = { launch: false, features: false, connections: false, crashes: false };
 
 describe('Analytics', () => {
   let service: Analytics;
@@ -12,7 +12,7 @@ describe('Analytics', () => {
 
   const unset: AnalyticsState = {
     categories: OFF,
-    pending: ['launch', 'features', 'connections'],
+    pending: ['launch', 'features', 'connections', 'crashes'],
     doNotTrack: false,
     askNeeded: true,
     available: false,
@@ -50,8 +50,8 @@ describe('Analytics', () => {
     expect(calls).toEqual([{ cmd: 'analytics_state', args: {} }]);
   });
 
-  it('saves the three choices at once and keeps the returned state', async () => {
-    const choices = { launch: true, features: false, connections: true };
+  it('saves the four choices at once and keeps the returned state', async () => {
+    const choices = { launch: true, features: false, connections: true, crashes: false };
     const saved = answered(choices);
     onCall = () => saved;
     expect(await service.setChoices(choices)).toEqual(saved);
@@ -60,7 +60,12 @@ describe('Analytics', () => {
   });
 
   it('saves one category and keeps the returned state', async () => {
-    const saved = answered({ launch: true, features: true, connections: false });
+    const saved = answered({
+      launch: true,
+      features: true,
+      connections: false,
+      crashes: true,
+    });
     onCall = () => saved;
     expect(await service.setCategory('features', true)).toEqual(saved);
     expect(service.current()).toEqual(saved);
@@ -95,7 +100,7 @@ describe('Analytics', () => {
       throw { code: 'io', message: 'broken' };
     };
     await expect(
-      service.setChoices({ launch: true, features: true, connections: true }),
+      service.setChoices({ launch: true, features: true, connections: true, crashes: true }),
     ).rejects.toBeInstanceOf(IpcError);
     expect(service.current()).toEqual(unset);
   });
@@ -113,6 +118,12 @@ describe('Analytics', () => {
       events: [
         { time: '2026-11-03T10:00:01Z', name: 'app_started', props: { theme: 'dark' } },
         { time: '2026-11-03T10:00:00Z', name: 'session_started', props: {} },
+        {
+          time: '2026-11-02T09:58:40Z',
+          name: 'crash',
+          props: { type: 'panic:tauri', kind: 'crash', severity: 'fatal' },
+          previousLaunch: true,
+        },
       ],
     };
     onCall = () => recent;

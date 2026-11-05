@@ -17,6 +17,7 @@ export interface EventRow {
   readonly time: string;
   readonly name: string;
   readonly props: readonly string[];
+  readonly previousLaunch: boolean;
 }
 
 /**
@@ -63,6 +64,9 @@ export class AnalyticsEventsDialog {
       time: localTime(event.time),
       name: event.name,
       props: Object.entries(event.props).map(([key, v]) => `${key}=${String(v)}`),
+      previousLaunch: event.previousLaunch === true,
     }));
   });
+
+  protected readonly hasCrash = computed(() => this.rows().some((row) => row.name === 'crash'));
 }

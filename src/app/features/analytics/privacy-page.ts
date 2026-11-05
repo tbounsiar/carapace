@@ -27,6 +27,11 @@ export const CATEGORY_COPY: readonly CategoryCopy[] = [
     title: 'Connection results',
     note: 'Whether connections and tests succeed: auth type, error code, time as a range.',
   },
+  {
+    id: 'crashes',
+    title: 'Crash reports',
+    note: 'If Carapace crashes: crash type, app area and, in its own code, the source line. No messages or paths.',
+  },
 ];
 
 export const COMMON_LEAD = 'Sent with every event:';
@@ -44,11 +49,22 @@ export function unsavedDenial(state: AnalyticsState | null): boolean {
   return state !== null && !state.persisted;
 }
 
-/** What the dialog shows first: every pending category on, the others as stored. */
+const USAGE_CATEGORIES: readonly AnalyticsCategory[] = ['launch', 'features', 'connections'];
+
+/**
+ * What the dialog shows first: every pending category on, the others as stored. A pending crash
+ * reports category starts off for someone who refused all three usage categories: switching on a
+ * new kind of data that Escape would grant contradicts a recorded refusal.
+ */
 export function initialChoices(state: AnalyticsState): AnalyticsChoices {
+  const denied = (category: AnalyticsCategory) =>
+    !state.categories[category] && !state.pending.includes(category);
+  const refusedAll = USAGE_CATEGORIES.every(denied);
   const choices = {} as AnalyticsChoices;
   for (const category of ANALYTICS_CATEGORIES) {
-    choices[category] = state.pending.includes(category) || state.categories[category];
+    const pending = state.pending.includes(category);
+    choices[category] =
+      (pending && !(category === 'crashes' && refusedAll)) || state.categories[category];
   }
   return choices;
 }

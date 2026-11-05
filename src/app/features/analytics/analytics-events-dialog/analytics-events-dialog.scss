@@ -27,7 +27,8 @@
   overflow-wrap: anywhere;
 }
 
-.session-note {
+.session-note,
+.previous {
   display: block;
 }
 
@@ -45,7 +46,7 @@
 }
 
 .col-time {
-  inline-size: 6rem;
+  inline-size: 8rem;
 }
 
 footer {

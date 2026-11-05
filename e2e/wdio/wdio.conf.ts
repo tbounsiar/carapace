@@ -42,9 +42,12 @@ function emptyHome(): void {
     rmSync(join(home, entry), { recursive: true, force: true });
 }
 
-/** Every analytics category refused for the current catalogue (2): no consent dialog. */
+/** Every analytics category refused, each at its current version: no consent dialog. */
 const DECLINED_ANALYTICS = Object.fromEntries(
-  ['launch', 'features', 'connections'].map((c) => [c, { consent: 'denied', version: 2 }]),
+  ['launch', 'features', 'connections', 'crashes'].map((c) => [
+    c,
+    { consent: 'denied', version: c === 'crashes' ? 3 : 2 },
+  ]),
 );
 
 /**

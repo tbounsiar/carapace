@@ -59,7 +59,12 @@
           <tbody tuiTbody>
             @for (row of rows(); track $index) {
               <tr [attr.data-testid]="'analytics-event-' + $index" [attr.data-event]="row.name">
-                <td tuiTd>{{ row.time }}</td>
+                <td tuiTd>
+                  {{ row.time }}
+                  @if (row.previousLaunch) {
+                    <span class="note previous">Previous launch</span>
+                  }
+                </td>
                 <td tuiTd>
                   <span class="mono">{{ row.name }}</span>
                 </td>
@@ -75,6 +80,12 @@
           </tbody>
         </table>
       </tui-scrollbar>
+      @if (hasCrash()) {
+        <p class="text note" data-testid="analytics-crash-note">
+          Crash reports carry the app version and OS but not the language, and use their own random
+          ID so they cannot be linked to the other events in this list.
+        </p>
+      }
     }
   </section>
 }

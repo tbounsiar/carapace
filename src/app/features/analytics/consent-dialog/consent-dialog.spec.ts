@@ -19,10 +19,14 @@ describe('ConsentDialog', () => {
   const byId = <T extends HTMLElement = HTMLButtonElement>(id: string): T | null =>
     el().querySelector<T>(`[data-testid="${id}"]`);
   const sw = (id: string) => byId<HTMLInputElement>(id)!;
+  const badges = () =>
+    Array.from(el().querySelectorAll('label')).map(
+      (label) => label.querySelector('[tuiBadge]')?.textContent?.trim() ?? null,
+    );
 
   async function setup(
-    initial: AnalyticsChoices = { launch: true, features: true, connections: true },
-    pending: readonly AnalyticsCategory[] = ['launch', 'features', 'connections'],
+    initial: AnalyticsChoices = { launch: true, features: true, connections: true, crashes: true },
+    pending: readonly AnalyticsCategory[] = ['launch', 'features', 'connections', 'crashes'],
   ): Promise<void> {
     completeWith = vi.fn();
     openPrivacyPage = vi.fn().mockResolvedValue(undefined);
@@ -42,11 +46,25 @@ describe('ConsentDialog', () => {
     await fixture.whenStable();
   }
 
-  it('shows the three categories as given', async () => {
-    await setup({ launch: true, features: false, connections: true });
+  it('shows the four categories as given, crash reports last', async () => {
+    await setup({ launch: true, features: false, connections: true, crashes: false });
     expect(sw('consent-launch').checked).toBe(true);
     expect(sw('consent-features').checked).toBe(false);
     expect(sw('consent-connections').checked).toBe(true);
+    expect(sw('consent-crashes').checked).toBe(false);
+    const order = Array.from(el().querySelectorAll<HTMLInputElement>('input[tuiSwitch]')).map(
+      (input) => input.dataset['testid'],
+    );
+    expect(order).toEqual([
+      'consent-launch',
+      'consent-features',
+      'consent-connections',
+      'consent-crashes',
+    ]);
+    expect(byId('consent-crashes-note')?.textContent?.trim()).toBe(
+      'If Carapace crashes: crash type, app area and, in its own code, the source line. No messages or paths.',
+    );
+    expect(sw('consent-crashes').getAttribute('aria-describedby')).toBe('consent-crashes-note');
     expect(byId('consent-launch-note')?.textContent?.trim()).toBe(
       'One event when Carapace starts.',
     );
@@ -73,13 +91,20 @@ describe('ConsentDialog', () => {
     await setup();
     sw('consent-launch').click();
     sw('consent-connections').click();
+    sw('consent-crashes').click();
     await fixture.whenStable();
-    expect(choices()).toEqual({ launch: false, features: true, connections: false });
+    expect(choices()).toEqual({
+      launch: false,
+      features: true,
+      connections: false,
+      crashes: false,
+    });
     byId('consent-save')!.click();
     expect(completeWith).toHaveBeenCalledWith({
       launch: false,
       features: true,
       connections: false,
+      crashes: false,
     });
   });
 
@@ -93,20 +118,35 @@ describe('ConsentDialog', () => {
   });
 
   it('marks the categories asked again after a change', async () => {
-    await setup({ launch: true, features: false, connections: false }, ['features']);
-    expect(byId('consent-reask')?.textContent).toContain(
-      'Something changed in what Carapace can send.',
+    await setup({ launch: true, features: false, connections: false, crashes: false }, [
+      'features',
+    ]);
+    expect(byId('consent-reask')?.textContent?.trim()).toBe(
+      'What Carapace can send has changed. Check what is marked New.',
     );
-    const badges = Array.from(el().querySelectorAll('label')).map(
-      (label) => label.querySelector('[tuiBadge]')?.textContent?.trim() ?? null,
+    expect(badges()).toEqual([null, 'New', null, null]);
+  });
+
+  it('marks only crash reports as new for an upgrading user', async () => {
+    await setup({ launch: true, features: true, connections: true, crashes: true }, ['crashes']);
+    expect(byId('consent-reask')?.textContent?.trim()).toBe(
+      'What Carapace can send has changed. Check what is marked New.',
     );
-    expect(badges).toEqual([null, 'New', null]);
+    expect(badges()).toEqual([null, null, null, 'New']);
+  });
+
+  it('shows no re-ask line or badge when every category is pending', async () => {
+    await setup();
+    expect(byId('consent-reask')).toBeNull();
+    expect(badges()).toEqual([null, null, null, null]);
   });
 
   it('opens the privacy page through the backend', async () => {
     await setup();
     const link = byId('consent-privacy-link')!;
     expect(link.tagName).toBe('BUTTON');
+    // Inside the "Never sent" paragraph so four categories and the re-ask line fit 800 px.
+    expect(link.parentElement).toBe(byId('consent-never'));
     link.click();
     expect(openPrivacyPage).toHaveBeenCalledTimes(1);
   });

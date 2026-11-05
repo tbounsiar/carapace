@@ -11,11 +11,16 @@ import { ConsentPrompter } from './consent-prompter';
 @Component({ imports: [TuiRoot], template: '<tui-root />' })
 class Shell {}
 
-const OFF: AnalyticsChoices = { launch: false, features: false, connections: false };
+const OFF: AnalyticsChoices = {
+  launch: false,
+  features: false,
+  connections: false,
+  crashes: false,
+};
 
 const UNSET: AnalyticsState = {
   categories: OFF,
-  pending: ['launch', 'features', 'connections'],
+  pending: ['launch', 'features', 'connections', 'crashes'],
   doNotTrack: false,
   askNeeded: true,
   available: false,
@@ -90,17 +95,21 @@ describe('ConsentPrompter', () => {
     loaded.set(true);
     await settle();
     expect(dialog()).not.toBeNull();
-    expect(document.activeElement).toBe(byId('consent-launch'));
+    // Taiga's default autofocus handler focuses asynchronously.
+    await vi.waitFor(() => expect(document.activeElement).toBe(byId('consent-launch')));
     expect(byId<HTMLInputElement>('consent-launch').checked).toBe(true);
     expect(byId<HTMLInputElement>('consent-features').checked).toBe(true);
     expect(byId<HTMLInputElement>('consent-connections').checked).toBe(true);
+    expect(byId<HTMLInputElement>('consent-crashes').checked).toBe(true);
     expect(document.body.querySelector('tui-dialog')?.textContent).toContain(
       'Anonymous usage data',
     );
     expect(document.body.querySelector('tui-dialog')?.getAttribute('data-size')).toBe('m');
     byId('consent-save').click();
     await done;
-    expect(saved()).toEqual([{ choices: { launch: true, features: true, connections: true } }]);
+    expect(saved()).toEqual([
+      { choices: { launch: true, features: true, connections: true, crashes: true } },
+    ]);
   });
 
   it('waits until no other dialog is open', async () => {
@@ -115,7 +124,9 @@ describe('ConsentPrompter', () => {
     expect(dialog()).not.toBeNull();
     byId('consent-save').click();
     await done;
-    expect(saved()).toEqual([{ choices: { launch: true, features: true, connections: true } }]);
+    expect(saved()).toEqual([
+      { choices: { launch: true, features: true, connections: true, crashes: true } },
+    ]);
   });
 
   it('saves the switches as shown on Escape, in one call', async () => {
@@ -127,7 +138,9 @@ describe('ConsentPrompter', () => {
     await settle();
     dialog()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await done;
-    expect(saved()).toEqual([{ choices: { launch: false, features: false, connections: true } }]);
+    expect(saved()).toEqual([
+      { choices: { launch: false, features: false, connections: true, crashes: true } },
+    ]);
   });
 
   it('saves the switches as shown on a backdrop click', async () => {
@@ -139,7 +152,9 @@ describe('ConsentPrompter', () => {
     document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 1 }));
     document.body.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 1 }));
     await done;
-    expect(saved()).toEqual([{ choices: { launch: true, features: true, connections: false } }]);
+    expect(saved()).toEqual([
+      { choices: { launch: true, features: true, connections: false, crashes: true } },
+    ]);
   });
 
   it('saves nothing when the dialog is closed without a user action', async () => {
@@ -159,7 +174,7 @@ describe('ConsentPrompter', () => {
   it('starts a re-ask with pending categories on and the others as stored', async () => {
     state = {
       ...UNSET,
-      categories: { launch: false, features: false, connections: false },
+      categories: { launch: false, features: false, connections: false, crashes: false },
       pending: ['features', 'connections'],
     };
     loaded.set(true);
@@ -168,9 +183,40 @@ describe('ConsentPrompter', () => {
     expect(byId<HTMLInputElement>('consent-launch').checked).toBe(false);
     expect(byId<HTMLInputElement>('consent-features').checked).toBe(true);
     expect(byId<HTMLInputElement>('consent-connections').checked).toBe(true);
+    expect(byId<HTMLInputElement>('consent-crashes').checked).toBe(false);
     expect(byId('consent-reask')).not.toBeNull();
     byId('consent-save').click();
     await done;
+  });
+
+  it('asks an upgrading user about crash reports only, switched on', async () => {
+    state = {
+      ...UNSET,
+      categories: { launch: true, features: false, connections: true, crashes: false },
+      pending: ['crashes'],
+    };
+    loaded.set(true);
+    const done = prompter.start();
+    await settle();
+    expect(byId<HTMLInputElement>('consent-features').checked).toBe(false);
+    expect(byId<HTMLInputElement>('consent-crashes').checked).toBe(true);
+    expect(byId('consent-reask')).not.toBeNull();
+    byId('consent-save').click();
+    await done;
+    expect(saved()).toEqual([
+      { choices: { launch: true, features: false, connections: true, crashes: true } },
+    ]);
+  });
+
+  it('starts crash reports off when the three other categories were refused', async () => {
+    state = { ...UNSET, categories: OFF, pending: ['crashes'] };
+    loaded.set(true);
+    const done = prompter.start();
+    await settle();
+    expect(byId<HTMLInputElement>('consent-crashes').checked).toBe(false);
+    byId('consent-save').click();
+    await done;
+    expect(saved()).toEqual([{ choices: OFF }]);
   });
 
   it('has no close button', async () => {

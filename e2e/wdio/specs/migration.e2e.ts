@@ -51,9 +51,10 @@ describe('migration from a v2 config', () => {
     expect(existsSync(homeFile('config.json.v4.bak'))).toBe(false);
     // The consent saved in `before` went to the settings file, not to the data file.
     expect(readSettings()?.['analytics']).toEqual({
-      launch: { consent: 'granted', version: 2 },
-      features: { consent: 'granted', version: 2 },
-      connections: { consent: 'granted', version: 2 },
+      launch: { consent: 'granted', version: 3 },
+      features: { consent: 'granted', version: 3 },
+      connections: { consent: 'granted', version: 3 },
+      crashes: { consent: 'granted', version: 3 },
     });
     const migrated = readData();
     expect(Object.keys(migrated).sort()).toEqual([

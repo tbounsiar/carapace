@@ -13,7 +13,7 @@ import { SettingsPage } from './settings-page';
 })
 class Host {}
 
-const OFF = { launch: false, features: false, connections: false };
+const OFF = { launch: false, features: false, connections: false, crashes: false };
 
 function stateOf(
   categories: AnalyticsState['categories'],
@@ -45,7 +45,7 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     localStorage.clear();
     state = stateOf(OFF, {
-      pending: ['launch', 'features', 'connections'],
+      pending: ['launch', 'features', 'connections', 'crashes'],
       askNeeded: true,
     });
     saveFails = false;
@@ -135,9 +135,9 @@ describe('SettingsPage', () => {
   describe('privacy', () => {
     const saves = () => calls.filter((c) => c.cmd === 'set_analytics_category').map((c) => c.args);
 
-    it('shows the three categories: granted is on, unset and denied are off', async () => {
+    it('shows the four categories: granted is on, unset and denied are off', async () => {
       const first = await setup();
-      for (const id of ['launch', 'features', 'connections']) {
+      for (const id of ['launch', 'features', 'connections', 'crashes']) {
         const sw = first.byId<HTMLInputElement>(`settings-analytics-${id}`)!;
         expect(sw.checked).toBe(false);
         expect(sw.disabled).toBe(false);
@@ -156,11 +156,23 @@ describe('SettingsPage', () => {
       expect(first.byId('settings-analytics-dnt')).toBeNull();
       TestBed.resetTestingModule();
 
-      state = stateOf({ launch: true, features: false, connections: true });
+      state = stateOf({ launch: true, features: false, connections: true, crashes: true });
       const second = await setup();
       expect(second.byId<HTMLInputElement>('settings-analytics-launch')!.checked).toBe(true);
       expect(second.byId<HTMLInputElement>('settings-analytics-features')!.checked).toBe(false);
       expect(second.byId<HTMLInputElement>('settings-analytics-connections')!.checked).toBe(true);
+      expect(second.byId<HTMLInputElement>('settings-analytics-crashes')!.checked).toBe(true);
+      expect(second.byId('settings-analytics-crashes-note')?.textContent?.trim()).toBe(
+        'If Carapace crashes: crash type, app area and, in its own code, the source line. No messages or paths.',
+      );
+    });
+
+    it('saves the crash reports switch for that category only', async () => {
+      const { fixture, byId } = await setup();
+      byId<HTMLInputElement>('settings-analytics-crashes')!.click();
+      await settle(fixture);
+      expect(saves()).toEqual([{ category: 'crashes', granted: true }]);
+      expect(byId<HTMLInputElement>('settings-analytics-crashes')!.checked).toBe(true);
     });
 
     it('saves each switch at once, for its own category only', async () => {
@@ -190,10 +202,13 @@ describe('SettingsPage', () => {
     });
 
     it('shows a refusal kept in memory only, without the generic toast', async () => {
-      state = stateOf({ launch: true, features: true, connections: false });
+      state = stateOf({ launch: true, features: true, connections: false, crashes: true });
       saveFails = true;
       const { fixture, byId } = await setup();
-      state = stateOf({ launch: true, features: false, connections: false }, { persisted: false });
+      state = stateOf(
+        { launch: true, features: false, connections: false, crashes: true },
+        { persisted: false },
+      );
       byId<HTMLInputElement>('settings-analytics-features')!.click();
       await settle(fixture);
       expect(byId<HTMLInputElement>('settings-analytics-features')!.checked).toBe(false);
@@ -246,11 +261,11 @@ describe('SettingsPage', () => {
 
     it('turns every switch off and disables it under DO_NOT_TRACK', async () => {
       state = stateOf(
-        { launch: true, features: true, connections: true },
+        { launch: true, features: true, connections: true, crashes: true },
         { doNotTrack: true, available: false },
       );
       const { el, byId } = await setup();
-      for (const id of ['launch', 'features', 'connections']) {
+      for (const id of ['launch', 'features', 'connections', 'crashes']) {
         const sw = byId<HTMLInputElement>(`settings-analytics-${id}`)!;
         expect(sw.checked).toBe(false);
         expect(sw.disabled).toBe(true);
@@ -288,7 +303,7 @@ describe('SettingsPage', () => {
     it('disables the switches when the setting cannot be read', async () => {
       state = 'fail';
       const { byId } = await setup();
-      for (const id of ['launch', 'features', 'connections']) {
+      for (const id of ['launch', 'features', 'connections', 'crashes']) {
         const sw = byId<HTMLInputElement>(`settings-analytics-${id}`)!;
         expect(sw.disabled).toBe(true);
         expect(sw.getAttribute('aria-describedby')).toBe('settings-analytics-error');

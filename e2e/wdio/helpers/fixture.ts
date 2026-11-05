@@ -30,10 +30,11 @@ export function rotateHostKey(): void {
 }
 
 /**
- * `[analytics.*]` of `settings.toml` for the DO_NOT_TRACK spec: launch and feature usage granted, connections never
- * answered, so without the variable the app would send events and ask for connections.
+ * `[analytics.*]` of `settings.toml` for the DO_NOT_TRACK spec: launch, feature usage and crash reports granted,
+ * connections never answered, so without the variable the app would send events and ask for connections.
  */
 export const DNT_ANALYTICS = {
   launch: { consent: 'granted', version: 2 },
   features: { consent: 'granted', version: 2 },
+  crashes: { consent: 'granted', version: 3 },
 };

@@ -5,9 +5,9 @@ import { byId, clickId, waitForApp, waitGone } from '../helpers/ui';
 
 // This spec runs on the second tauri-driver of wdio.conf.ts, started with DO_NOT_TRACK=1, so the
 // app inherits it. `beforeSession` seeds DNT_ANALYTICS: without the variable the dialog would ask
-// for connection results and launch and feature usage would be on.
+// for connection results and launch, feature usage and crash reports would be on.
 const shot = async (name: string) => console.log('screenshots', await screenshotThemes(name));
-const CATEGORIES = ['launch', 'features', 'connections'];
+const CATEGORIES = ['launch', 'features', 'connections', 'crashes'];
 const storedAnalytics = () => readSettings()?.['analytics'];
 
 describe('usage analytics under DO_NOT_TRACK', () => {
@@ -18,7 +18,7 @@ describe('usage analytics under DO_NOT_TRACK', () => {
     await expect(byId('consent-dialog')).not.toExist();
   });
 
-  it('shows the three switches off and disabled with the explanation', async () => {
+  it('shows the four switches off and disabled with the explanation', async () => {
     await clickId('settings');
     await byId('settings-analytics-dnt').waitForDisplayed({ timeout: 10000 });
     await expect(byId('settings-analytics-dnt')).toHaveText(

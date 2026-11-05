@@ -2,13 +2,14 @@ import { Service, signal } from '@angular/core';
 import type { ThemeMode } from '../theme/theme';
 import { invokeCommand } from './ipc-error';
 
-export type AnalyticsCategory = 'launch' | 'features' | 'connections';
+export type AnalyticsCategory = 'launch' | 'features' | 'connections' | 'crashes';
 
-/** Display order everywhere: launch count first, then the two opt-in categories. */
+/** Display order everywhere; crash reports last, as the only one not about normal use. */
 export const ANALYTICS_CATEGORIES: readonly AnalyticsCategory[] = [
   'launch',
   'features',
   'connections',
+  'crashes',
 ];
 
 export type AnalyticsChoices = Record<AnalyticsCategory, boolean>;
@@ -46,6 +47,8 @@ export interface AnalyticsEvent {
   readonly name: string;
   /** Empty object for events without properties. */
   readonly props: Readonly<Record<string, AnalyticsPropValue>>;
+  /** Only on a crash report saved by the previous launch and sent at this one. */
+  readonly previousLaunch?: true;
 }
 
 export interface AnalyticsRecent {
@@ -70,7 +73,7 @@ export class Analytics {
     return state;
   }
 
-  /** The first-launch dialog: all three categories in one write. */
+  /** The first-launch dialog: every category in one write. */
   setChoices(choices: AnalyticsChoices): Promise<AnalyticsState> {
     return this.save('set_analytics_choices', { choices });
   }

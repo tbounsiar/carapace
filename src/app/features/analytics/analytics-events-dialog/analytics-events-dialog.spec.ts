@@ -13,8 +13,8 @@ const SYSTEM = {
   sessionId: '17303125790123456',
 };
 
-const ON = { launch: true, features: true, connections: true };
-const OFF = { launch: false, features: false, connections: false };
+const ON = { launch: true, features: true, connections: true, crashes: true };
+const OFF = { launch: false, features: false, connections: false, crashes: false };
 
 function stateOf(
   categories: AnalyticsState['categories'],
@@ -89,6 +89,64 @@ describe('AnalyticsEventsDialog', () => {
     expect(cells.map((td) => getComputedStyle(td).verticalAlign)).toEqual(['top', 'top', 'top']);
     expect(byId('analytics-events-empty')).toBeNull();
     expect(byId('analytics-events-keyless')).toBeNull();
+    expect(byId('analytics-crash-note')).toBeNull();
+  });
+
+  it('lists crash reports as crash rows, with the previous launch noted', async () => {
+    const { byId } = await setup(stateOf(ON), () =>
+      Promise.resolve<AnalyticsRecent>({
+        system: SYSTEM,
+        events: [
+          {
+            time: '2026-11-03T14:03:12Z',
+            name: 'crash',
+            props: {
+              type: 'panic:ssh',
+              message: 'panic:ssh:unwrap_none',
+              kind: 'taskException',
+              severity: 'error',
+              line: 'src/ssh/session.rs:214',
+              session: '5b0e7c2e-5d0f-4f3c-9a51-2a7f0c6f1d11',
+            },
+          },
+          {
+            time: '2026-11-03T09:58:40Z',
+            name: 'crash',
+            props: {
+              type: 'panic:tauri',
+              message: 'panic:tauri:other',
+              kind: 'crash',
+              severity: 'fatal',
+              session: '1c7a0b2e-5d0f-4f3c-9a51-2a7f0c6f1d11',
+            },
+            previousLaunch: true,
+          },
+          { time: '2026-11-03T14:01:57Z', name: 'session_started', props: {} },
+        ],
+      }),
+    );
+    const props = (i: number) =>
+      Array.from(byId(`analytics-event-${i}`)!.querySelectorAll('td')[2].children).map((d) =>
+        d.textContent?.trim(),
+      );
+    const time = (i: number) => byId(`analytics-event-${i}`)!.querySelectorAll('td')[0];
+    expect(byId('analytics-event-0')?.dataset['event']).toBe('crash');
+    expect(props(0)).toEqual([
+      'type=panic:ssh',
+      'message=panic:ssh:unwrap_none',
+      'kind=taskException',
+      'severity=error',
+      'line=src/ssh/session.rs:214',
+      'session=5b0e7c2e-5d0f-4f3c-9a51-2a7f0c6f1d11',
+    ]);
+    expect(time(0).textContent).not.toContain('Previous launch');
+    expect(byId('analytics-event-1')?.dataset['event']).toBe('crash');
+    expect(props(1)).not.toContain(expect.stringMatching(/^line=/));
+    expect(time(1).querySelector('.note')?.textContent?.trim()).toBe('Previous launch');
+    expect(time(2).textContent).not.toContain('Previous launch');
+    expect(byId('analytics-crash-note')?.textContent?.trim()).toBe(
+      'Crash reports carry the app version and OS but not the language, and use their own random ID so they cannot be linked to the other events in this list.',
+    );
   });
 
   it('says when nothing was sent and usage data is off, in a keyless build', async () => {
