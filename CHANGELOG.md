@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-11-05)
 
 First public release, for Windows (x64, ARM64), macOS (Apple Silicon, Intel) and Linux (x64, ARM64: AppImage, deb, rpm).
 
