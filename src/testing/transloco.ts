@@ -3,8 +3,8 @@ import {
   importProvidersFrom,
   makeEnvironmentProviders,
 } from '@angular/core';
-import { TranslocoTestingModule } from '@jsverse/transloco';
-import { provideTranslocoMessageformat } from '@jsverse/transloco-messageformat';
+import { TRANSLOCO_TRANSPILER, TranslocoTestingModule } from '@jsverse/transloco';
+import { IcuTranspiler } from '../app/core/i18n/icu-transpiler';
 import en from '../app/i18n/en';
 import fr from '../app/i18n/fr';
 
@@ -23,6 +23,6 @@ export function provideTranslocoTesting(): EnvironmentProviders {
         preloadLangs: true,
       }),
     ),
-    provideTranslocoMessageformat(),
+    { provide: TRANSLOCO_TRANSPILER, useClass: IcuTranspiler },
   ]);
 }

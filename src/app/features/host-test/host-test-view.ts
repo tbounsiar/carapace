@@ -3,7 +3,8 @@ import { localeOf } from '../../core/i18n/language';
 import type { HostTestResult } from '../../core/ipc/host-test';
 import type { IpcError } from '../../core/ipc/ipc-error';
 import { textOf } from '../../shared/backend-text';
-import { errorText, sentence } from '../../shared/save-error';
+import { errorText, missingVariableNames, sentence } from '../../shared/save-error';
+import { uiText } from '../../shared/ui-text';
 import type { HostTestDraft, HostTestOutcome, SecretOrigin } from './host-tester';
 
 /** A piece of copy; `mono` for addresses, paths and references, `strong` for names. */
@@ -34,13 +35,13 @@ const MARK = '\u0001';
 export function translateParts(
   key: string,
   parts: Readonly<Record<string, Part>>,
-  plain: Readonly<Record<string, string>> = {},
+  plain: Readonly<Record<string, string | number>> = {},
 ): Part[] {
-  const marked: Record<string, string> = { ...plain };
+  const marked: Record<string, string | number> = { ...plain };
   for (const name of Object.keys(parts)) {
     marked[name] = `${MARK}${name}${MARK}`;
   }
-  return translate<string>(key, marked)
+  return uiText(key, marked)
     .split(MARK)
     .map((piece, i) => (i % 2 ? (parts[piece] ?? text(piece)) : text(piece)))
     .filter((part) => part.text !== '');
@@ -249,12 +250,25 @@ function failureView(err: IpcError, from: SecretOrigin, draft: HostTestDraft): H
       break;
     case 'keychain_unavailable':
       return failure(err.code, [t('failure.keychain.title')], [t('failure.keychain.detail')]);
-    case 'missing_variables':
+    case 'missing_variables': {
+      const missing = missingVariableNames(err);
+      if (missing) {
+        return failure(
+          err.code,
+          [t('failure.missingVariables.title')],
+          translateParts(
+            'common.error.missingVariables',
+            { names: mono(missing.names) },
+            { count: missing.count },
+          ),
+        );
+      }
       return failure(
         err.code,
         [t('failure.missingVariables.title')],
         [t('failure.missingVariables.detail', { detail })],
       );
+    }
     case 'busy':
       return failure(err.code, [t('failure.busy.title')], [t('failure.busy.detail')]);
   }

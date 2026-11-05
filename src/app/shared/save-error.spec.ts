@@ -1,9 +1,32 @@
 import { of } from 'rxjs';
 import type { TuiNotificationService } from '@taiga-ui/core';
 import { IpcError } from '../core/ipc/ipc-error';
-import { errorText, importApplyError, importFileError, notifyError } from './save-error';
+import {
+  errorText,
+  importApplyError,
+  importFileError,
+  missingVariableNames,
+  notifyError,
+} from './save-error';
 import { TranslocoService } from '@jsverse/transloco';
 import { TestBed } from '@angular/core/testing';
+
+describe('missingVariableNames', () => {
+  it('reads the names and their count from the keyed error only', () => {
+    const keyed = (names: unknown) =>
+      new IpcError('missing_variables', 'missing variables', {
+        key: 'errors.config.missingVariables',
+        params: { names },
+      });
+    expect(missingVariableNames(keyed('a'))).toEqual({ names: 'a', count: 1 });
+    expect(missingVariableNames(keyed('a, b'))).toEqual({ names: 'a, b', count: 2 });
+    expect(missingVariableNames(keyed(''))).toBeNull();
+    expect(
+      missingVariableNames(new IpcError('missing_variables', 'missing variables: a')),
+    ).toBeNull();
+    expect(missingVariableNames(new IpcError('busy', 'busy'))).toBeNull();
+  });
+});
 
 describe('errorText', () => {
   beforeEach(() => TestBed.inject(TranslocoService));

@@ -139,7 +139,7 @@
     "projectLabel": "Project",
     "includeShared": "Include the global variables and SSH keys its hosts use",
     "notIncluded": "Not included",
-    "notIncludedText": "Passwords, passphrases and secret variable values, saved passwords and key files. Secret variables are exported by name: set their values after importing. The file lists your hosts and user names; share it only with people who may see them.",
+    "notIncludedText": "Passwords and passphrases (saved ones included), secret variable values and key files. Secret variables are exported by name: set their values after importing. The file lists your hosts and user names; share it only with people who may see them.",
     "error": "File not saved",
     "submit": "Export…"
   },

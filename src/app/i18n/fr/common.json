@@ -33,6 +33,7 @@
   },
   "error": {
     "unexpected": "Une erreur inattendue s’est produite.",
+    "missingVariables": "{names} : {count, plural, one {définissez-la} other {définissez-les}} dans les variables globales ou celles du projet.",
     "notSaved": "{noun, select, host {Hôte non enregistré} project {Projet non enregistré} collection {Collection non enregistrée} other {Non enregistré}}",
     "nameTaken": "{noun, select, host {Un hôte porte déjà ce nom} project {Un projet porte déjà ce nom} collection {Une collection porte déjà ce nom} other {Ce nom est déjà utilisé}}",
     "settingNotSaved": "Paramètre non enregistré",

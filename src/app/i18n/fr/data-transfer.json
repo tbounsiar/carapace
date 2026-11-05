@@ -75,7 +75,7 @@
   "confirm": {
     "deleted": "{list} {form, select, ms {sera supprimé} fs {sera supprimée} mp {seront supprimés} other {seront supprimées}} de cet ordinateur, avec {form, select, ms {ses} fs {ses} other {leurs}} mots de passe enregistrés.",
     "secretsDeleted": "Les valeurs secrètes et les mots de passe enregistrés seront supprimés de cet ordinateur.",
-    "connections": "{count, plural, one {# connexion ouverte est fermée.} other {# connexions ouvertes sont fermées.}}",
+    "connections": "{count, plural, one {# connexion ouverte sera fermée.} other {# connexions ouvertes seront fermées.}}",
     "backup": "Une sauvegarde de vos données est conservée."
   },
   "deletedSecrets": {
@@ -139,7 +139,7 @@
     "projectLabel": "Projet",
     "includeShared": "Inclure les variables globales et les clés SSH utilisées par ses hôtes",
     "notIncluded": "Non inclus",
-    "notIncludedText": "Mots de passe, phrases secrètes et valeurs des variables secrètes, mots de passe enregistrés et fichiers de clé. Les variables secrètes sont exportées par leur nom : définissez leurs valeurs après l’importation. Le fichier liste vos hôtes et noms d’utilisateur ; ne le partagez qu’avec des personnes autorisées à les voir.",
+    "notIncludedText": "Mots de passe et phrases secrètes (y compris ceux enregistrés), valeurs des variables secrètes et fichiers de clé. Les variables secrètes sont exportées par leur nom : définissez leurs valeurs après l’importation. Le fichier liste vos hôtes et noms d’utilisateur ; ne le partagez qu’avec des personnes autorisées à les voir.",
     "error": "Fichier non enregistré",
     "submit": "Exporter…"
   },

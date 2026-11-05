@@ -134,7 +134,7 @@ describe('TerminalPanel', () => {
     TestBed.inject(TranslocoService).setActiveLang('fr');
     await settle();
     expect(byId('terminal-ended')?.textContent).toContain(
-      "Session terminée. Le shell s'est arrêté.",
+      'Session terminée. Le shell s’est arrêté.',
     );
     expect(byId('terminal-reopen')?.textContent).toContain('Rouvrir');
     TestBed.inject(TranslocoService).setActiveLang('en');

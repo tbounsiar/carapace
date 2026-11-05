@@ -7,8 +7,8 @@
   "loadError": "Impossible de charger les hôtes",
   "retry": "Réessayer",
   "empty": {
-    "home": "Rien ici pour l’instant. Utilisez + pour une collection ou un projet.",
-    "project": "Aucun hôte pour l’instant. Utilisez + pour une collection."
+    "home": "Rien ici pour l’instant. Utilisez + pour créer une collection ou un projet.",
+    "project": "Aucun hôte pour l’instant. Utilisez + pour créer une collection."
   },
   "noMatch": "Aucun hôte ne correspond à",
   "query": "« {query} »",

@@ -2,8 +2,8 @@
   "view": {
     "upload": "Envoi",
     "download": "Téléchargement",
-    "queued": "En file d'attente",
-    "waiting": "En attente d'une décision",
+    "queued": "En file d’attente",
+    "waiting": "En attente d’une décision",
     "done": "{skipped, plural, =0 {Terminé} one {Terminé · # ignoré} other {Terminé · # ignorés}}",
     "cancelled": "{skipped, plural, =0 {Annulé} one {Annulé · # ignoré} other {Annulé · # ignorés}}",
     "failed": "Échec : {message}",
@@ -23,7 +23,7 @@
     "list": "Transferts",
     "progress": "Progression de {name}",
     "cancel": "Annuler {name}",
-    "empty": "Aucun transfert pour l'instant. Sélectionnez des fichiers et utilisez Envoyer ou Télécharger, ou faites-les glisser vers l'autre volet."
+    "empty": "Aucun transfert pour l’instant. Sélectionnez des fichiers et utilisez Envoyer ou Télécharger, ou faites-les glisser vers l’autre volet."
   },
   "conflict": {
     "title": "Le fichier existe déjà",

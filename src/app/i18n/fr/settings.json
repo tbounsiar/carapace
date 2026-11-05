@@ -4,12 +4,12 @@
     "system": "Système",
     "light": "Clair",
     "dark": "Sombre",
-    "note": "Système suit le réglage clair ou sombre du système d'exploitation."
+    "note": "Système suit le réglage clair ou sombre du système d’exploitation."
   },
   "language": {
     "title": "Langue",
     "system": "Système ({name})",
-    "note": "Système suit la langue du système d'exploitation."
+    "note": "Système suit la langue du système d’exploitation."
   },
   "title": "Paramètres",
   "subtitle": "Préférences de cette application sur cet ordinateur. Les modifications s’appliquent immédiatement.",
@@ -34,7 +34,7 @@
   "data": {
     "title": "Données",
     "nothing": "Rien à exporter pour l’instant.",
-    "note": "Exportez les projets, hôtes, collections et variables dans un fichier, ou importez-en un. Les mots de passe et autres secrets ne sont jamais inclus. Les paramètres de l’application ne sont pas inclus.",
+    "note": "Exportez les projets, hôtes, collections et variables dans un fichier, ou importez-en un. Les mots de passe et autres secrets ne sont jamais inclus. Les paramètres de l’application ne sont pas inclus.",
     "export": "Exporter…",
     "import": "Importer…"
   },

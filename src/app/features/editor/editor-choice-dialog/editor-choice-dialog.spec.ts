@@ -44,7 +44,7 @@ describe('EditorChoiceDialog', () => {
     const { el, button } = await render({ kind: 'deleted', name: 'nginx.conf', host: 'vps' });
     TestBed.inject(TranslocoService).setActiveLang('fr');
     await TestBed.inject(ApplicationRef).whenStable();
-    expect(el.textContent).toContain("nginx.conf n'existe plus sur vps.");
+    expect(el.textContent).toContain('nginx.conf n’existe plus sur vps.');
     expect(button('conflict-edit-save-anyway')?.textContent).toContain('Enregistrer quand même');
     expect(button('conflict-edit-cancel')?.textContent).toContain('Annuler');
     TestBed.inject(TranslocoService).setActiveLang('en');

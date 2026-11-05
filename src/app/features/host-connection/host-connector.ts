@@ -10,7 +10,7 @@ import type { Credential, HostKeyChanged } from '../../core/ipc/ssh.models';
 import type { CredentialDialogData } from '../credential-dialog/credential-dialog';
 import { CredentialPrompter } from '../credential-dialog/credential-prompter';
 import { HostKeyPrompter } from '../host-key-dialog/host-key-prompter';
-import { notifyError } from '../../shared/save-error';
+import { missingVariableNames, notifyError } from '../../shared/save-error';
 
 interface Subjects {
   readonly address: string;
@@ -43,14 +43,7 @@ export class HostConnector {
         const prompt = await this.credentialPrompt(target, err);
         if (!prompt) {
           if (!(err instanceof IpcError && err.code === 'host_key_changed')) {
-            const missing = err instanceof IpcError && err.code === 'missing_variables';
-            notifyError(
-              this.alerts,
-              err,
-              this.transloco.translate(
-                missing ? 'hostConnection.missingVariables' : 'hostConnection.connectionFailed',
-              ),
-            );
+            this.notifyConnectError(err);
           }
           return;
         }
@@ -60,6 +53,24 @@ export class HostConnector {
         }
       }
     }
+  }
+
+  private notifyConnectError(err: unknown): void {
+    const missing = missingVariableNames(err);
+    if (missing) {
+      const label = this.transloco.translate('hostConnection.missingVariables');
+      const body = this.transloco.translate('common.error.missingVariables', missing);
+      this.alerts.open(body, { label, appearance: 'negative' }).subscribe();
+      return;
+    }
+    const generic = err instanceof IpcError && err.code === 'missing_variables';
+    notifyError(
+      this.alerts,
+      err,
+      this.transloco.translate(
+        generic ? 'hostConnection.missingVariables' : 'hostConnection.connectionFailed',
+      ),
+    );
   }
 
   async disconnect(connectionId: string): Promise<void> {

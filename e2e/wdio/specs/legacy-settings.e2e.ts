@@ -55,6 +55,7 @@ describe('preferences left in the webview storage by an older version', () => {
       timeoutMsg: `the import never reached settings.toml: ${JSON.stringify(readSettings())}`,
     });
     expect(readSettings()).toEqual({
+      language: 'en',
       theme: 'dark',
       default_key_type: 'rsa4096',
       terminal_font_size: 17,

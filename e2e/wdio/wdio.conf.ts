@@ -51,6 +51,12 @@ const DECLINED_ANALYTICS = Object.fromEntries(
 );
 
 /**
+ * The interface language is pinned so English text assertions never depend on the OS language.
+ * Seeds that are a pre-split `config.json` (migration) or no file at all (analytics) follow the OS.
+ */
+const PINNED = { language: 'en' } as const;
+
+/**
  * The DO_NOT_TRACK spec runs on its own tauri-driver, started with that variable set, and its
  * own app home, so no file of another spec can reach it.
  */
@@ -111,13 +117,13 @@ async function assertDriverPortsFree(): Promise<void> {
 function seedDeclined(): void {
   if (!homeDir()) return;
   writeData();
-  writeSettings({ analytics: DECLINED_ANALYTICS });
+  writeSettings({ ...PINNED, analytics: DECLINED_ANALYTICS });
 }
 
 function seedDoNotTrack(): void {
   if (!homeDir()) return;
   writeData();
-  writeSettings({ analytics: DNT_ANALYTICS });
+  writeSettings({ ...PINNED, analytics: DNT_ANALYTICS });
 }
 
 /** Consent denied, and the external editor set to the no-op program; the notice still shows. */
@@ -125,6 +131,7 @@ function seedExternalEditor(): void {
   if (!homeDir()) return;
   writeData();
   writeSettings({
+    ...PINNED,
     analytics: DECLINED_ANALYTICS,
     external_editor: { mode: 'custom', app_path: NOOP_EDITOR, notice_seen: false },
   });

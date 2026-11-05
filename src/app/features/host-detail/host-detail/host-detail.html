@@ -6,16 +6,9 @@
           <span data-testid="host-detail-name">{{ located.host.name }}</span>
         </h1>
         @if (address(); as address) {
-          <p
-            tuiSubtitle
-            class="mono"
-            data-testid="host-detail-address"
-            [class._problem]="!address.ok"
-          >
-            @if (address.missing; as names) {
-              {{ 'hostDetail.missing' | transloco: { names } }}
-            } @else {
-              {{ address.text }}
+          <p tuiSubtitle data-testid="host-detail-address" [class._problem]="!address.ok">
+            @for (part of address.parts; track $index) {
+              <span [class.mono]="part.mono" [textContent]="part.text"></span>
             }
           </p>
         } @else {

@@ -25,11 +25,14 @@
       <p
         tuiSubtitle
         tuiHintOverflow
-        class="ellipsis mono"
+        class="ellipsis"
         [class._missing]="!preview().ok"
         [attr.data-testid]="'card-address-' + current.name"
-        [textContent]="preview().text"
-      ></p>
+      >
+        @for (part of preview().parts; track $index) {
+          <span [class.mono]="part.mono" [textContent]="part.text"></span>
+        }
+      </p>
     </hgroup>
     <aside tuiAccessories>
       <span

@@ -115,6 +115,20 @@ describe('HostConnector', () => {
     expect(credentials.ask).not.toHaveBeenCalled();
   });
 
+  it('names only the missing variables under the "Missing variables" title', async () => {
+    ssh.connect.mockRejectedValue(
+      new IpcError('missing_variables', 'missing variables: host, port', {
+        key: 'errors.config.missingVariables',
+        params: { names: 'host, port' },
+      }),
+    );
+    await connector.connect(target);
+    expect(alerts.open).toHaveBeenCalledWith(
+      'host, port: define them in the global or project variables.',
+      { label: 'Missing variables', appearance: 'negative' },
+    );
+  });
+
   it('does not notify host_key_changed, the dialog covers it', async () => {
     ssh.connect.mockRejectedValue(new IpcError('host_key_changed', 'changed'));
     await connector.connect(target);

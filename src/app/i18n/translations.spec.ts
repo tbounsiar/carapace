@@ -1,4 +1,4 @@
-import { parse, type Token } from '@messageformat/parser';
+import { type MessageFormatElement, parse, TYPE } from '@formatjs/icu-messageformat-parser';
 import en from './en';
 import fr from './fr';
 
@@ -19,21 +19,26 @@ function text(lang: object, key: string): unknown {
 
 function argumentNames(message: string): Set<string> {
   const names = new Set<string>();
-  const walk = (tokens: Token[]) => {
-    for (const token of tokens) {
-      if (token.type === 'argument' || token.type === 'function') {
-        names.add(token.arg);
-      } else if (
-        token.type === 'plural' ||
-        token.type === 'select' ||
-        token.type === 'selectordinal'
+  const walk = (elements: MessageFormatElement[]) => {
+    for (const element of elements) {
+      if (
+        element.type === TYPE.argument ||
+        element.type === TYPE.number ||
+        element.type === TYPE.date ||
+        element.type === TYPE.time ||
+        element.type === TYPE.plural ||
+        element.type === TYPE.select
       ) {
-        names.add(token.arg);
-        token.cases.forEach((c) => walk(c.tokens));
+        names.add(element.value);
+      }
+      if (element.type === TYPE.plural || element.type === TYPE.select) {
+        Object.values(element.options).forEach((option) => walk(option.value));
+      } else if (element.type === TYPE.tag) {
+        walk(element.children);
       }
     }
   };
-  walk(parse(message));
+  walk(parse(message, { ignoreTag: true }));
   return names;
 }
 
@@ -71,5 +76,10 @@ describe('translations', () => {
       const doubled = keys(lang).filter((key) => /\{\{\s*\w+\s*\}\}/.test(String(text(lang, key))));
       expect(doubled).toEqual([]);
     }
+  });
+
+  it('use the typographic apostrophe in French', () => {
+    const straight = keys(fr).filter((key) => /\p{L}'\p{L}/u.test(String(text(fr, key))));
+    expect(straight).toEqual([]);
   });
 });

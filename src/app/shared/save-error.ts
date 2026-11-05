@@ -81,6 +81,21 @@ export function sentence(message: string): string {
   return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
 }
 
+/**
+ * The variable names of a `missing_variables` error that lists them (comma separated), so a
+ * notification titled "Missing variables" can say only which ones and what to do.
+ */
+export function missingVariableNames(err: unknown): { names: string; count: number } | null {
+  if (!(err instanceof IpcError) || err.code !== 'missing_variables') {
+    return null;
+  }
+  const names = err.key === 'errors.config.missingVariables' ? err.params?.['names'] : undefined;
+  if (typeof names !== 'string' || !names.trim()) {
+    return null;
+  }
+  return { names, count: names.split(',').length };
+}
+
 /** `label` names what failed ("Connection failed", "Folder not deleted"). */
 export function notifyError(alerts: TuiNotificationService, err: unknown, label: string): void {
   alerts.open(errorText(err), { label, appearance: 'negative' }).subscribe();

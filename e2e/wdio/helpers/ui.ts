@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { readSettings } from './app-files';
 import { HOST } from './fixture';
 
 export const tid = (id: string) => `[data-testid="${id}"]`;
@@ -60,6 +61,28 @@ export async function waitForApp(): Promise<void> {
     timeout: 20000,
     timeoutMsg: 'sidebar did not render',
   });
+  await waitLanguage();
+}
+
+function savedLanguage(): string | null {
+  try {
+    const language = readSettings()?.['language'];
+    return language === 'en' || language === 'fr' ? language : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The first frame uses the webview's `carapace.language` cache, which outlives a spec; the saved
+ * language replaces it once the settings are read. Waits for that when the file names one.
+ */
+export async function waitLanguage(language = savedLanguage()): Promise<void> {
+  if (!language) return;
+  await browser.waitUntil(
+    async () => (await browser.execute(() => document.documentElement.lang)) === language,
+    { timeout: 10000, timeoutMsg: `the interface never switched to ${language}` },
+  );
 }
 
 /**

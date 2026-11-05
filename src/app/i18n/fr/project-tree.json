@@ -12,7 +12,7 @@
     "hostnameChars": "Le nom d’hôte ne peut contenir que des lettres, des chiffres, « . », « - » et « : »",
     "portRequired": "Le port est obligatoire",
     "portRange": "Le port doit être compris entre 1 et 65535",
-    "invalidReference": "« {reference} » n’est pas une référence de variable valide ; écrivez $$ pour obtenir un $ littéral",
+    "invalidReference": "« {reference} » n’est pas une référence de variable valide ; écrivez $$ pour obtenir un $ littéral",
     "portTemplate": "Le port doit être composé de chiffres ou d’une seule variable comme {example}",
     "secretReference": "« {label} » doit être une référence à une variable secrète, comme {example}",
     "keyPathRequired": "Le chemin de la clé est obligatoire",
@@ -25,7 +25,7 @@
   },
   "hostDialog": {
     "location": "Dans : {location}",
-    "note": "Les champs acceptent des variables comme {example} ; écrivez {escape} pour obtenir un {dollar} littéral.",
+    "note": "Les champs acceptent des variables comme {example} ; écrivez {escape} pour obtenir un {dollar} littéral.",
     "fields": {
       "name": "Nom",
       "hostname": "Nom d’hôte",
@@ -90,10 +90,10 @@
         "other": "Déplacer vers un autre projet ?",
         "into": "Déplacer dans un projet ?"
       },
-      "hostToProject": "{name} utilisera les variables de {project}. Ses connexions ouvertes sont fermées et ses mots de passe enregistrés sont oubliés.",
-      "hostToHome": "{name} n’utilisera que les variables globales. Ses connexions ouvertes sont fermées et ses mots de passe enregistrés sont oubliés.",
-      "collectionToProject": "{count, plural, =0 {Les hôtes de {name} utiliseront les variables de {project}. Leurs connexions ouvertes sont fermées et leurs mots de passe enregistrés sont oubliés.} one {L’hôte de {name} utilisera les variables de {project}. Ses connexions ouvertes sont fermées et ses mots de passe enregistrés sont oubliés.} other {Les # hôtes de {name} utiliseront les variables de {project}. Leurs connexions ouvertes sont fermées et leurs mots de passe enregistrés sont oubliés.}}",
-      "collectionToHome": "{count, plural, =0 {Les hôtes de {name} n’utiliseront que les variables globales. Leurs connexions ouvertes sont fermées et leurs mots de passe enregistrés sont oubliés.} one {L’hôte de {name} n’utilisera que les variables globales. Ses connexions ouvertes sont fermées et ses mots de passe enregistrés sont oubliés.} other {Les # hôtes de {name} n’utiliseront que les variables globales. Leurs connexions ouvertes sont fermées et leurs mots de passe enregistrés sont oubliés.}}",
+      "hostToProject": "{name} utilisera les variables de {project}. Ses connexions ouvertes seront fermées et ses mots de passe enregistrés seront oubliés.",
+      "hostToHome": "{name} n’utilisera que les variables globales. Ses connexions ouvertes seront fermées et ses mots de passe enregistrés seront oubliés.",
+      "collectionToProject": "{count, plural, =0 {Les hôtes de {name} utiliseront les variables de {project}. Leurs connexions ouvertes seront fermées et leurs mots de passe enregistrés seront oubliés.} one {L’hôte de {name} utilisera les variables de {project}. Ses connexions ouvertes seront fermées et ses mots de passe enregistrés seront oubliés.} other {Les # hôtes de {name} utiliseront les variables de {project}. Leurs connexions ouvertes seront fermées et leurs mots de passe enregistrés seront oubliés.}}",
+      "collectionToHome": "{count, plural, =0 {Les hôtes de {name} n’utiliseront que les variables globales. Leurs connexions ouvertes seront fermées et leurs mots de passe enregistrés seront oubliés.} one {L’hôte de {name} n’utilisera que les variables globales. Ses connexions ouvertes seront fermées et ses mots de passe enregistrés seront oubliés.} other {Les # hôtes de {name} n’utiliseront que les variables globales. Leurs connexions ouvertes seront fermées et leurs mots de passe enregistrés seront oubliés.}}",
       "missing": "Non défini dans {scope} : {names}."
     }
   },
@@ -108,19 +108,19 @@
     "collectionConflict": "Une collection portant ce nom existe déjà ici.",
     "deleteProject": {
       "label": "Supprimer le projet ?",
-      "full": "« {name} » contient {content}. Tout son contenu sera supprimé, avec ses variables et ses mots de passe enregistrés. Les connexions ouvertes sont fermées. Cette action est irréversible.",
+      "full": "« {name} » contient {content}. Tout son contenu sera supprimé, avec ses variables et ses mots de passe enregistrés. Les connexions ouvertes seront fermées. Cette action est irréversible.",
       "empty": "« {name} » est vide. Il sera supprimé avec ses variables. Cette action est irréversible.",
       "failed": "Projet non supprimé"
     },
     "deleteCollection": {
       "label": "Supprimer la collection ?",
-      "full": "« {name} » contient {content}. Tout sera supprimé, avec les mots de passe enregistrés. Les connexions ouvertes vers ces hôtes sont fermées. Cette action est irréversible. Pour garder les hôtes, déplacez-les d’abord.",
+      "full": "« {name} » contient {content}. Tout sera supprimé, avec les mots de passe enregistrés. Les connexions ouvertes vers ces hôtes seront fermées. Cette action est irréversible. Pour garder les hôtes, déplacez-les d’abord.",
       "empty": "« {name} » est vide.",
       "failed": "Collection non supprimée"
     },
     "deleteHost": {
       "label": "Supprimer l’hôte ?",
-      "content": "« {name} » et ses mots de passe enregistrés seront supprimés. Les connexions ouvertes vers cet hôte sont fermées.",
+      "content": "« {name} » et ses mots de passe enregistrés seront supprimés. Les connexions ouvertes vers cet hôte seront fermées.",
       "failed": "Hôte non supprimé"
     },
     "tabs": "{count, plural, one {# onglet ouvert sera fermé.} other {# onglets ouverts seront fermés.}}",

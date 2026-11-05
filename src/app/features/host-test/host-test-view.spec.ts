@@ -192,6 +192,16 @@ describe('host test copy', () => {
       expect(failure('missing_variables', key, 'missing variables: host').detail).toBe(
         'Missing variables: host. Define them in the global or project variables.',
       );
+      const keyed = { key: 'errors.config.missingVariables', params: { names: 'host' } };
+      const one = failure('missing_variables', key, 'missing variables: host', 'stored', keyed);
+      expect(one.title).toBe('Missing variables');
+      expect(one.detail).toBe('host: define it in the global or project variables.');
+      expect(one.view.detail.find((part) => part.mono)?.text).toBe('host');
+      const two = failure('missing_variables', key, 'x', 'stored', {
+        ...keyed,
+        params: { names: 'host, port' },
+      });
+      expect(two.detail).toBe('host, port: define them in the global or project variables.');
       const busy = failure('busy', key, 'too many connection tests are running');
       expect(busy.view).toMatchObject({ state: 'failure', code: 'busy' });
       expect(busy.title).toBe('Too many tests are running');
@@ -211,6 +221,17 @@ describe('host test copy', () => {
       const view = testingView(draft(key));
       expect(join(view.title)).toBe('Test de carapace@127.0.0.1:2223 en cours…');
       expect(view.title.find((p) => p.mono)?.text).toBe('carapace@127.0.0.1:2223');
+      const missing = (names: string) =>
+        failure('missing_variables', key, 'x', 'stored', {
+          key: 'errors.config.missingVariables',
+          params: { names },
+        }).detail;
+      expect(missing('host')).toBe(
+        'host : définissez-la dans les variables globales ou celles du projet.',
+      );
+      expect(missing('host, port')).toBe(
+        'host, port : définissez-les dans les variables globales ou celles du projet.',
+      );
     } finally {
       document.documentElement.lang = '';
     }

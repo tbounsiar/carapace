@@ -123,6 +123,8 @@ describe('HostDetail', () => {
     resolveHost.mockResolvedValue({ ...RESOLVED, missing: ['host', 'port'] });
     await setup();
     expect(byId('host-detail-address')?.textContent).toContain('Missing variables: host, port');
+    const mono = byId('host-detail-address')?.querySelectorAll('.mono');
+    expect([...(mono ?? [])].map((el) => el.textContent)).toEqual(['host, port']);
   });
 
   it('connects a Home host', async () => {

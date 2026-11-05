@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "SSH keys",
-    "subtitle": "Generate or register private keys, then deploy their public key to a host. Private keys never leave this machine.",
+    "subtitle": "Generate or import private keys, then deploy their public key to a host. Private keys never leave this machine.",
     "generate": "Generate key",
     "import": "Import key",
     "columns": {
@@ -29,7 +29,7 @@
     "unavailable": "Keys unavailable",
     "empty": {
       "title": "No SSH keys yet",
-      "text": "Generate a new Ed25519 key, or register a private key you already have."
+      "text": "Generate a new Ed25519 key, or import a private key you already have."
     }
   },
   "actions": {

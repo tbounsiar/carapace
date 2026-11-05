@@ -33,6 +33,7 @@
   },
   "error": {
     "unexpected": "Something unexpected went wrong.",
+    "missingVariables": "{names}: {count, plural, one {define it} other {define them}} in the global or project variables.",
     "notSaved": "{noun, select, host {Host not saved} project {Project not saved} collection {Collection not saved} other {Not saved}}",
     "nameTaken": "{noun, select, host {A host with this name already exists} project {A project with this name already exists} collection {A collection with this name already exists} other {This name is already used}}",
     "settingNotSaved": "Setting not saved",

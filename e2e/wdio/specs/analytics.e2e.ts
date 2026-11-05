@@ -34,7 +34,7 @@ type Stored = Partial<Record<Category, 'granted' | 'denied'>>;
 /** Restarts with these `[analytics.*]` categories in `settings.toml`, or no settings file. */
 async function restartWith(categories?: Toml) {
   await restartApp(() => {
-    if (categories) writeSettings({ analytics: categories });
+    if (categories) writeSettings({ language: 'en', analytics: categories });
     else removeHomeFiles('settings.toml');
   });
   await waitForApp();

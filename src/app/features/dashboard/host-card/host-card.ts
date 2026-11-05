@@ -28,6 +28,7 @@ import { SshService } from '../../../core/ipc/ssh';
 import { AUTH_LABELS } from '../../../shared/auth-method';
 import { connectionStatus } from '../../../shared/connection-status';
 import { previewHost, variableLayers } from '../../../shared/template';
+import { mono, translateParts } from '../../host-test/host-test-view';
 import { uiText } from '../../../shared/ui-text';
 import { HostConnector } from '../../host-connection/host-connector';
 import { HostLauncher } from '../../host-connection/host-launcher';
@@ -96,8 +97,13 @@ export class HostCard {
     const project = host.projectId ? this.config.findProject(host.projectId) : null;
     const preview = previewHost(host, variableLayers(this.config.variables(), project));
     return preview.missing.length
-      ? { ok: false, text: uiText('dashboard.card.missing', { names: preview.missing.join(', ') }) }
-      : { ok: true, text: preview.address };
+      ? {
+          ok: false,
+          parts: translateParts('dashboard.card.missing', {
+            names: mono(preview.missing.join(', ')),
+          }),
+        }
+      : { ok: true, parts: [mono(preview.address)] };
   });
 
   protected readonly menuEntries = computed<CardMenuEntry[]>(() => {

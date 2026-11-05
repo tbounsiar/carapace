@@ -22,6 +22,7 @@ import { SshService } from '../../../core/ipc/ssh';
 import { AUTH_LABELS } from '../../../shared/auth-method';
 import { connectionStatus } from '../../../shared/connection-status';
 import { HostConnector } from '../../host-connection/host-connector';
+import { mono, translateParts } from '../../host-test/host-test-view';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { textOf } from '../../../shared/backend-text';
 import { notifyError } from '../../../shared/save-error';
@@ -87,15 +88,18 @@ export class HostDetail {
       return null;
     }
     if (r.missing.length) {
-      return { ok: false, missing: r.missing.join(', '), text: '' };
+      return {
+        ok: false,
+        parts: translateParts('hostDetail.missing', { names: mono(r.missing.join(', ')) }),
+      };
     }
     if (r.errors.length) {
-      return { ok: false, missing: null, text: r.errors.map(textOf).join('; ') };
+      return { ok: false, parts: [{ text: r.errors.map(textOf).join('; ') }] };
     }
     if (r.username === null || r.hostname === null || r.port === null) {
       return null;
     }
-    return { ok: true, missing: null, text: `${r.username}@${r.hostname}:${r.port}` };
+    return { ok: true, parts: [mono(`${r.username}@${r.hostname}:${r.port}`)] };
   });
 
   protected readonly authLabel = computed(() => {

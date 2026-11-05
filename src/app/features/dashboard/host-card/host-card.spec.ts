@@ -97,6 +97,8 @@ describe('HostCard', () => {
     await settle();
     expect(byId('card-address-api')?.textContent).toBe('Missing: db_host, db_port');
     expect(byId('card-address-api')?.classList).toContain('_missing');
+    const mono = byId('card-address-api')?.querySelectorAll('.mono');
+    expect([...(mono ?? [])].map((el) => el.textContent)).toEqual(['db_host, db_port']);
   });
 
   it('offers Connect while disconnected, then Terminal and Files', async () => {

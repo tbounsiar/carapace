@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "Clés SSH",
-    "subtitle": "Générez ou enregistrez des clés privées, puis déployez leur clé publique sur un hôte. Les clés privées ne quittent jamais cet ordinateur.",
+    "subtitle": "Générez ou importez des clés privées, puis déployez leur clé publique sur un hôte. Les clés privées ne quittent jamais cet ordinateur.",
     "generate": "Générer une clé",
     "import": "Importer une clé",
     "columns": {
@@ -29,7 +29,7 @@
     "unavailable": "Clés indisponibles",
     "empty": {
       "title": "Aucune clé SSH pour l’instant",
-      "text": "Générez une nouvelle clé Ed25519 ou enregistrez une clé privée que vous possédez déjà."
+      "text": "Générez une nouvelle clé Ed25519 ou importez une clé privée que vous possédez déjà."
     }
   },
   "actions": {
@@ -63,7 +63,7 @@
     "text": "La clé est retirée de la liste et toute phrase secrète enregistrée est oubliée.",
     "deleteFiles": "Supprimer aussi les fichiers de la clé",
     "pubFile": "et {file}.pub.",
-    "managedNote": "Les serveurs qui font confiance à cette clé ne seront plus accessibles avec elle.",
+    "managedNote": "Les hôtes qui font confiance à cette clé ne seront plus accessibles avec elle.",
     "sharedNote": "D’autres outils utilisent peut-être cette clé.",
     "importedNote": "Le fichier reste où il est : il a été importé, pas généré ici."
   },
@@ -78,7 +78,7 @@
   },
   "keygen": {
     "type": "Type",
-    "typeNote": "Ed25519 est recommandé. RSA 4096 est plus lent, pour les serveurs sans Ed25519.",
+    "typeNote": "Ed25519 est recommandé. RSA 4096 est plus lent, pour les hôtes qui ne prennent pas en charge Ed25519.",
     "folder": "Dossier",
     "resetFolder": "Utiliser le dossier par défaut",
     "chooseFolder": "Choisir un dossier",

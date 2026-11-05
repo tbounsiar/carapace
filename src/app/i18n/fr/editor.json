@@ -5,10 +5,10 @@
     "retargetedTitle": "Lien modifié sur le serveur",
     "unsaved": "Vos modifications seront perdues si vous ne les enregistrez pas.",
     "changed": "{name} a été modifié sur {host} après son ouverture.",
-    "retargeted": "{name} pointe maintenant vers un autre fichier sur {host}. Rechargez-le pour voir ce qu'un enregistrement changerait.",
+    "retargeted": "{name} pointe maintenant vers un autre fichier sur {host}. Rechargez-le pour voir ce qu’un enregistrement changerait.",
     "externalChanged": "{name} a été modifié sur {host} après votre dernier envoi.",
     "externalChangedDetail": "Votre copie locale contient des modifications absentes du serveur.",
-    "deleted": "{name} n'existe plus sur {host}.",
+    "deleted": "{name} n’existe plus sur {host}.",
     "dontSave": "Ne pas enregistrer",
     "overwrite": "Écraser",
     "reload": "Recharger depuis le serveur",
@@ -24,7 +24,7 @@
   },
   "panel": {
     "readOnly": "Lecture seule",
-    "readOnlyHint": "Vous n'avez pas le droit d'écriture sur ce fichier.",
+    "readOnlyHint": "Vous n’avez pas le droit d’écriture sur ce fichier.",
     "reload": "Recharger depuis le serveur",
     "lost": "Connexion perdue. Vos modifications sont conservées ; reconnectez-vous pour enregistrer.",
     "ended": "Déconnecté. Vos modifications sont conservées ; reconnectez-vous pour enregistrer.",
@@ -48,9 +48,9 @@
     "ini": "INI / propriétés"
   },
   "docs": {
-    "theHost": "l'hôte",
+    "theHost": "l’hôte",
     "contents": "Contenu de {name}",
-    "loadFailed": "L'éditeur n'a pas pu être chargé. Réessayez.",
+    "loadFailed": "L’éditeur n’a pas pu être chargé. Réessayez.",
     "reloadTitle": "Recharger depuis le serveur ?",
     "reloadContent": "Abandonner vos modifications de {name} et le recharger depuis {host} ?",
     "reloadYes": "Recharger",
@@ -58,8 +58,8 @@
     "notSaved": "Non enregistré : {reason}",
     "tooLarge": "{name} est trop volumineux pour être modifié ici (max. 5 Mo). Téléchargez-le plutôt.",
     "tooLargeSize": "{name} est trop volumineux pour être modifié ici ({size}, max. 5 Mo). Téléchargez-le plutôt.",
-    "notText": "{name} n'est pas du texte UTF-8. Seuls les fichiers texte peuvent être modifiés ici.",
-    "permissionDenied": "Vous n'avez pas la permission de lire {name} sur {host}.",
+    "notText": "{name} n’est pas du texte UTF-8. Seuls les fichiers texte peuvent être modifiés ici.",
+    "permissionDenied": "Vous n’avez pas la permission de lire {name} sur {host}.",
     "notOpened": "Fichier non ouvert"
   },
   "search": {
