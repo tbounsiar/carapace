@@ -36,7 +36,7 @@ pub fn counts(store: &ConfigStore) -> Counts {
     })
 }
 
-/// The dialog answers for all three categories, so it is refused while the stored choices are
+/// The dialog answers for all four categories, so it is refused while the stored choices are
 /// unknown: it could only have been built without them, and saving it would overwrite answers
 /// the user never saw. The file is read again instead.
 pub(crate) fn set_choices(
@@ -87,7 +87,7 @@ pub async fn analytics_state(
     Ok(state_of(&store, &analytics))
 }
 
-/// The first-launch dialog: all three categories in one write.
+/// The first-launch dialog: all four categories in one write.
 #[tauri::command]
 pub async fn set_analytics_choices(
     store: State<'_, ConfigStore>,
@@ -164,6 +164,13 @@ mod tests {
         })
     }
 
+    /// The first release's grant: the three categories it covered, crash reports unset.
+    fn v1_granted() -> Option<AnalyticsSettings> {
+        let mut s = all(Consent::Granted, 2)?;
+        s.categories.crashes = CategoryChoice::default();
+        Some(s)
+    }
+
     fn read(analytics: &str) -> Option<AnalyticsSettings> {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
@@ -179,11 +186,11 @@ mod tests {
         let cases = [
             (
                 r#"{"consent":"granted","catalogueVersion":1}"#,
-                all(Consent::Granted, 2),
+                v1_granted(),
             ),
             (
                 r#"{"consent":"granted","catalogueVersion":7}"#,
-                all(Consent::Granted, 2),
+                v1_granted(),
             ),
             (
                 r#"{"consent":"denied","catalogueVersion":1}"#,
@@ -212,7 +219,7 @@ mod tests {
     }
 
     #[test]
-    fn a_migrated_grant_needs_no_dialog_and_starts_the_session() {
+    fn a_migrated_grant_asks_only_about_crash_reports_and_starts_the_session() {
         let a = Analytics::new(
             read(r#"{"consent":"granted","catalogueVersion":1}"#),
             system(),
@@ -221,7 +228,9 @@ mod tests {
         );
         a.launched();
         let s = a.status();
-        assert!(!s.ask_needed && s.pending.is_empty());
+        assert!(s.ask_needed);
+        assert_eq!(s.pending, [Category::Crashes]);
+        assert!(!s.categories.crashes);
         assert_eq!(a.recorded(), [("session_started", serde_json::json!({}))]);
         let a = Analytics::new(
             read(r#"{"consent":"denied","catalogueVersion":1}"#),
@@ -232,6 +241,108 @@ mod tests {
         a.launched();
         assert!(!a.status().ask_needed);
         assert!(a.recorded().is_empty());
+    }
+
+    /// What each earlier answer becomes once crash reports exist. The frontend starts the
+    /// crash switch off when the three other categories are stored denied (all false, none
+    /// pending); everyone else sees it on.
+    #[test]
+    fn earlier_answers_ask_about_crash_reports_once() {
+        let v2 = |l: &str, f: &str, c: &str| {
+            let cat = |consent: &str| format!(r#"{{"consent":"{consent}","version":2}}"#);
+            format!(
+                r#"{{"categories":{{"launch":{},"features":{},"connections":{}}}}}"#,
+                cat(l),
+                cat(f),
+                cat(c)
+            )
+        };
+        let cases: Vec<(String, AnalyticsChoices, Vec<Category>)> = vec![
+            (
+                v2("granted", "granted", "granted"),
+                AnalyticsChoices {
+                    launch: true,
+                    features: true,
+                    connections: true,
+                    crashes: false,
+                },
+                vec![Category::Crashes],
+            ),
+            (
+                v2("denied", "denied", "denied"),
+                AnalyticsChoices::default(),
+                vec![Category::Crashes],
+            ),
+            (
+                v2("granted", "denied", "granted"),
+                AnalyticsChoices {
+                    launch: true,
+                    features: false,
+                    connections: true,
+                    crashes: false,
+                },
+                vec![Category::Crashes],
+            ),
+            (
+                r#"{"consent":"granted","catalogueVersion":1}"#.into(),
+                AnalyticsChoices {
+                    launch: true,
+                    features: true,
+                    connections: true,
+                    crashes: false,
+                },
+                vec![Category::Crashes],
+            ),
+            // A first-release refusal covers crash reports too: nothing is asked.
+            (
+                r#"{"consent":"denied","catalogueVersion":1}"#.into(),
+                AnalyticsChoices::default(),
+                vec![],
+            ),
+            (
+                r#"{"consent":"unset","catalogueVersion":1}"#.into(),
+                AnalyticsChoices::default(),
+                Category::ALL.to_vec(),
+            ),
+        ];
+        for (file, categories, pending) in cases {
+            let s = Analytics::new(read(&file), system(), None, false).status();
+            assert_eq!(s.categories, categories, "{file}");
+            assert_eq!(s.pending, pending, "{file}");
+            assert_eq!(s.ask_needed, !pending.is_empty(), "{file}");
+        }
+        let denied = read(r#"{"consent":"denied","catalogueVersion":1}"#).unwrap();
+        assert_eq!(denied.categories.crashes.consent, Consent::Denied);
+        // DO_NOT_TRACK: never asked, whatever is pending.
+        let s = Analytics::new(
+            read(&v2("granted", "granted", "granted")),
+            system(),
+            None,
+            true,
+        )
+        .status();
+        assert!(!s.ask_needed && s.pending == [Category::Crashes]);
+    }
+
+    #[test]
+    fn the_crash_answer_is_stored_on_its_own() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("settings.toml"),
+            "[analytics.launch]\nconsent = \"granted\"\nversion = 2\n",
+        )
+        .unwrap();
+        let store = ConfigStore::new(dir.path().to_path_buf());
+        let analytics = Analytics::new(stored(&store), system(), None, false);
+        let s = set_category(&store, &analytics, Category::Crashes, false).unwrap();
+        assert!(s.pending.contains(&Category::Features) && !s.pending.contains(&Category::Crashes));
+        assert_eq!(
+            raw(dir.path())["analytics"],
+            serde_json::json!({
+                "launch": {"consent": "granted", "version": 2},
+                "crashes": {"consent": "denied", "version": 3},
+            })
+        );
     }
 
     #[test]
@@ -293,6 +404,7 @@ mod tests {
                 launch: true,
                 features: true,
                 connections: false,
+                crashes: false,
             },
         )
         .unwrap();
@@ -301,9 +413,10 @@ mod tests {
         assert_eq!(
             file["analytics"],
             serde_json::json!({
-                "launch": {"consent": "granted", "version": 2},
-                "features": {"consent": "granted", "version": 2},
-                "connections": {"consent": "denied", "version": 2},
+                "launch": {"consent": "granted", "version": 3},
+                "features": {"consent": "granted", "version": 3},
+                "connections": {"consent": "denied", "version": 3},
+                "crashes": {"consent": "denied", "version": 3},
             })
         );
         let events = analytics.recorded();
@@ -319,7 +432,7 @@ mod tests {
         set_category(&store, &analytics, Category::Launch, false).unwrap();
         assert_eq!(
             raw(dir.path())["analytics"]["launch"],
-            serde_json::json!({"consent": "denied", "version": 2})
+            serde_json::json!({"consent": "denied", "version": 3})
         );
         assert_eq!(
             analytics.recorded().iter().map(|e| e.0).collect::<Vec<_>>(),
@@ -342,12 +455,15 @@ mod tests {
         let store = ConfigStore::new(dir.path().to_path_buf());
         let analytics = Analytics::new(stored(&store), system(), None, false);
         let s = set_category(&store, &analytics, Category::Connections, true).unwrap();
-        assert_eq!(s.pending, [Category::Launch, Category::Features]);
+        assert_eq!(
+            s.pending,
+            [Category::Launch, Category::Features, Category::Crashes]
+        );
         assert_eq!(
             raw(dir.path())["analytics"],
             serde_json::json!({
                 "launch": {"consent": "granted", "version": 1},
-                "connections": {"consent": "granted", "version": 2},
+                "connections": {"consent": "granted", "version": 3},
             })
         );
     }
@@ -430,35 +546,46 @@ version = 2
                 launch: true,
                 features: true,
                 connections: true,
+                crashes: true,
             },
         )
         .unwrap_err();
         assert_eq!(e.code, "corrupt_config");
-        assert_eq!(analytics.status().pending.len(), 3);
+        assert_eq!(analytics.status().pending.len(), 4);
         assert!(analytics.recorded().is_empty());
     }
 
     #[test]
     fn arguments_deserialize_from_the_frontend_shapes() {
-        let c: AnalyticsChoices =
-            serde_json::from_str(r#"{"launch":true,"features":false,"connections":true}"#).unwrap();
+        let c: AnalyticsChoices = serde_json::from_str(
+            r#"{"launch":true,"features":false,"connections":true,"crashes":true}"#,
+        )
+        .unwrap();
         assert_eq!(
             c,
             AnalyticsChoices {
                 launch: true,
                 features: false,
-                connections: true
+                connections: true,
+                crashes: true,
             }
         );
         assert!(serde_json::from_str::<AnalyticsChoices>(r#"{"launch":true}"#).is_err());
+        assert!(
+            serde_json::from_str::<AnalyticsChoices>(
+                r#"{"launch":true,"features":false,"connections":true}"#
+            )
+            .is_err()
+        );
         for (raw, cat) in [
             ("launch", Category::Launch),
             ("features", Category::Features),
             ("connections", Category::Connections),
+            ("crashes", Category::Crashes),
         ] {
             assert_eq!(serde_json::from_value::<Category>(raw.into()).unwrap(), cat);
         }
-        for odd in ["Launch", "all", ""] {
+        for odd in ["Launch", "all", "", "crash", "Crashes"] {
             assert!(
                 serde_json::from_value::<Category>(odd.into()).is_err(),
                 "{odd}"
@@ -514,7 +641,7 @@ version = 2
         (store, Analytics::new(None, system(), None, false).unread())
     }
 
-    const ALL_DENIED: &str = r#"{"categories":{"launch":{"consent":"denied","version":2},"features":{"consent":"denied","version":2},"connections":{"consent":"denied","version":2}}}"#;
+    const ALL_DENIED: &str = r#"{"categories":{"launch":{"consent":"denied","version":2},"features":{"consent":"denied","version":2},"connections":{"consent":"denied","version":2},"crashes":{"consent":"denied","version":3}}}"#;
 
     #[test]
     fn an_unread_startup_never_overwrites_a_stored_refusal() {
@@ -530,6 +657,7 @@ version = 2
                 launch: true,
                 features: false,
                 connections: false,
+                crashes: false,
             },
         )
         .unwrap_err();
@@ -590,6 +718,7 @@ version = 2
                 launch: true,
                 features: true,
                 connections: true,
+                crashes: true,
             },
         )
         .unwrap_err();
@@ -620,7 +749,8 @@ version = 2
                 AnalyticsChoices {
                     launch: true,
                     features: true,
-                    connections: true
+                    connections: true,
+                    crashes: false,
                 }
             );
             assert_eq!(

@@ -47,7 +47,10 @@ pub fn run() {
             commands::secrets::forget_legacy(&store, &secrets);
             let version = app.package_info().version.to_string();
             let analytics = analytics::Analytics::for_app(choices, &version);
+            analytics.set_crash_dir(home_dir.clone());
+            analytics::crash::install(analytics.crashes());
             analytics.launched();
+            analytics.resume_crash_report();
             app.manage(transfer::TransferManager::with_observer(
                 Arc::new(commands::transfer::AppConnections(app.handle().clone())),
                 commands::transfer::observer(analytics.clone()),
@@ -79,6 +82,7 @@ pub fn run() {
                     let _ = tauri::async_runtime::spawn_blocking(move || {
                         let store = handle.state::<config::ConfigStore>();
                         sender.reload(|| store.analytics());
+                        sender.resume_crash_report();
                         sender.retry_save(|w| store.update_analytics(w));
                         sender.flush(analytics::PERIODIC_FLUSH);
                     })

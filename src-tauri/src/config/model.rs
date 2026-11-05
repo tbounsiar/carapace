@@ -203,10 +203,27 @@ pub enum Category {
     Launch,
     Features,
     Connections,
+    Crashes,
 }
 
 impl Category {
-    pub const ALL: [Category; 3] = [Category::Launch, Category::Features, Category::Connections];
+    pub const COUNT: usize = 4;
+    pub const ALL: [Category; Self::COUNT] = [
+        Category::Launch,
+        Category::Features,
+        Category::Connections,
+        Category::Crashes,
+    ];
+
+    /// The key in `settings.toml` and on the IPC boundary.
+    pub fn name(self) -> &'static str {
+        match self {
+            Category::Launch => "launch",
+            Category::Features => "features",
+            Category::Connections => "connections",
+            Category::Crashes => "crashes",
+        }
+    }
 
     pub fn index(self) -> usize {
         self as usize
@@ -222,6 +239,8 @@ pub struct CategoryChoices {
     pub features: CategoryChoice,
     #[serde(skip_serializing_if = "CategoryChoice::is_unset")]
     pub connections: CategoryChoice,
+    #[serde(skip_serializing_if = "CategoryChoice::is_unset")]
+    pub crashes: CategoryChoice,
 }
 
 impl CategoryChoices {
@@ -230,6 +249,7 @@ impl CategoryChoices {
             Category::Launch => self.launch,
             Category::Features => self.features,
             Category::Connections => self.connections,
+            Category::Crashes => self.crashes,
         }
     }
 
@@ -238,6 +258,7 @@ impl CategoryChoices {
             Category::Launch => self.launch = choice,
             Category::Features => self.features = choice,
             Category::Connections => self.connections = choice,
+            Category::Crashes => self.crashes = choice,
         }
     }
 
@@ -246,6 +267,7 @@ impl CategoryChoices {
             launch: choice,
             features: choice,
             connections: choice,
+            crashes: choice,
         }
     }
 }

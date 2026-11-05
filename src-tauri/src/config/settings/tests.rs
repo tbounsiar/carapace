@@ -27,6 +27,7 @@ fn full() -> Settings {
                     version: 1,
                 },
                 connections: CategoryChoice::default(),
+                crashes: granted(3),
             },
         }),
     }
@@ -63,6 +64,7 @@ fn keys_are_snake_case() {
         ]
     );
     assert!(text.contains("[analytics.launch]"), "{text}");
+    assert!(text.contains("[analytics.crashes]"), "{text}");
     let editor = t["external_editor"].as_table().unwrap();
     assert!(editor.contains_key("app_path") && editor.contains_key("notice_seen"));
 }
@@ -151,12 +153,16 @@ version = 2
 [analytics.extra]
 consent = "granted"
 version = 2
+[analytics.crashes]
+consent = "denied"
+version = 3
 "#,
     )
     .unwrap();
     let c = s.analytics.unwrap().categories;
     assert_eq!(c.launch, granted(2));
     assert!(c.features.is_unset() && c.connections.is_unset());
+    assert_eq!(c.crashes.consent, Consent::Denied);
     for odd in [
         "analytics = \"granted\"",
         "analytics = true",

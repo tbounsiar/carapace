@@ -278,19 +278,11 @@ fn editor_of(t: &dyn TableLike) -> Option<ExternalEditor> {
     })
 }
 
-fn category_name(category: Category) -> &'static str {
-    match category {
-        Category::Launch => "launch",
-        Category::Features => "features",
-        Category::Connections => "connections",
-    }
-}
-
 fn analytics_of(t: &dyn TableLike) -> AnalyticsSettings {
     let mut categories = CategoryChoices::default();
     for category in Category::ALL {
         let choice = t
-            .get(category_name(category))
+            .get(category.name())
             .and_then(Item::as_table_like)
             .and_then(choice_of)
             .unwrap_or_default();
@@ -398,7 +390,7 @@ pub(super) fn write(doc: &mut DocumentMut, before: &Settings, after: &Settings) 
         if old.get(category) == choice {
             continue;
         }
-        let name = category_name(category);
+        let name = category.name();
         let consent = match choice.consent {
             Consent::Unset => {
                 if let Some(t) = root.get_mut("analytics").and_then(Item::as_table_like_mut) {

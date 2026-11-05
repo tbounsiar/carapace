@@ -1,12 +1,14 @@
-//! Usage analytics in three categories. Choices are enforced here: unless an event's category
-//! is granted for its current catalogue version and DO_NOT_TRACK is not set, the event is not
-//! built, logged, queued or sent.
+//! Usage analytics in three categories, and crash reports as a fourth. Choices are enforced
+//! here: unless an event's category is granted for its current catalogue version and
+//! DO_NOT_TRACK is not set, the event is not built, logged, queued or sent.
 
 mod client;
+pub mod crash;
 mod event;
 mod system;
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -21,6 +23,7 @@ pub use system::SystemProps;
 
 use crate::config::{AnalyticsSettings, CategoryChoice, CategoryChoices, Consent};
 use client::{Envelope, WireSystem};
+use crash::Crashes;
 
 pub const MAX_RECENT: usize = 50;
 pub const FLUSH_INTERVAL: Duration = Duration::from_secs(60);
@@ -61,6 +64,7 @@ pub struct AnalyticsChoices {
     pub launch: bool,
     pub features: bool,
     pub connections: bool,
+    pub crashes: bool,
 }
 
 impl AnalyticsChoices {
@@ -69,6 +73,7 @@ impl AnalyticsChoices {
             Category::Launch => self.launch,
             Category::Features => self.features,
             Category::Connections => self.connections,
+            Category::Crashes => self.crashes,
         }
     }
 
@@ -77,6 +82,7 @@ impl AnalyticsChoices {
             Category::Launch => self.launch = on,
             Category::Features => self.features = on,
             Category::Connections => self.connections = on,
+            Category::Crashes => self.crashes = on,
         }
     }
 }
@@ -100,6 +106,18 @@ pub struct RecentEvent {
     pub time: String,
     pub name: &'static str,
     pub props: Props,
+    /// A crash report the previous launch saved and this one sends; only written when true.
+    #[serde(rename = "previousLaunch", skip_serializing_if = "std::ops::Not::not")]
+    pub previous_launch: bool,
+    /// Logging order across events and crash reports, for rows of the same millisecond.
+    #[serde(skip)]
+    pub seq: u64,
+}
+
+static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn next_seq() -> u64 {
+    SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 /// Everything sent with each event besides its name, time and props.
@@ -163,7 +181,7 @@ struct State {
     attempts: HashMap<Attempt, Pending>,
     listed: HashSet<String>,
     /// Refusals in effect in memory whose save failed; written by the next save.
-    unsaved: [bool; 3],
+    unsaved: [bool; Category::COUNT],
     /// The stored choices could not be read: nothing is known, so every gate stays closed and
     /// nothing is asked until a read succeeds.
     unread: bool,
@@ -207,6 +225,7 @@ struct Inner {
     system: SystemProps,
     session_id: String,
     outbox: Option<Outbox>,
+    crashes: Arc<Crashes>,
 }
 
 #[derive(Clone)]
@@ -223,7 +242,8 @@ impl Analytics {
         transport: Option<Box<dyn Transport>>,
         do_not_track: bool,
     ) -> Self {
-        Self {
+        let transport: Option<Arc<dyn Transport>> = transport.map(Arc::from);
+        let analytics = Self {
             inner: Arc::new(Inner {
                 consent: Mutex::new(()),
                 state: Mutex::new(State {
@@ -231,18 +251,62 @@ impl Analytics {
                     ..State::default()
                 }),
                 do_not_track,
+                crashes: Arc::new(Crashes::new(system.clone(), transport.clone())),
                 system,
                 // Not numeric: Aptabase reads numeric session ids as timestamps.
                 session_id: uuid::Uuid::new_v4().to_string(),
                 outbox: transport.map(Outbox::new),
             }),
-        }
+        };
+        analytics.arm(&analytics.state());
+        analytics
     }
 
     /// The stored choices could not be read: see `State::unread`.
     pub fn unread(self) -> Self {
-        self.state().unread = true;
+        {
+            let mut st = self.state();
+            st.unread = true;
+            self.arm(&st);
+        }
         self
+    }
+
+    /// What the panic hook reports to; see `crash::install`.
+    pub fn crashes(&self) -> Arc<Crashes> {
+        self.inner.crashes.clone()
+    }
+
+    /// Where a fatal crash leaves its report for the next launch (`$CARAPACE_HOME`).
+    pub fn set_crash_dir(&self, dir: PathBuf) {
+        self.inner.crashes.set_dir(dir);
+    }
+
+    /// The panic hook's gate follows the crash category; it is closed before anything of that
+    /// category is discarded.
+    fn arm(&self, st: &State) {
+        self.inner
+            .crashes
+            .set_armed(self.open(st, Category::Crashes));
+    }
+
+    /// Everything not yet sent of one category, queued or (for crashes) on disk.
+    fn discard(&self, category: Category) {
+        if let Some(outbox) = &self.inner.outbox {
+            outbox.discard(category);
+        }
+        if category == Category::Crashes {
+            self.inner.crashes.discard();
+        }
+    }
+
+    /// Once the choices are known: a report left by a fatal crash of the previous launch is
+    /// queued if crash reports are on, deleted otherwise (DO_NOT_TRACK included).
+    pub fn resume_crash_report(&self) {
+        if self.state().unread {
+            return;
+        }
+        self.inner.crashes.resume();
     }
 
     /// The app's instance: the key compiled in, if any, and DO_NOT_TRACK read once. An error
@@ -325,6 +389,8 @@ impl Analytics {
                 time: time.clone(),
                 name: event.name(),
                 props: props.clone(),
+                previous_launch: false,
+                seq: next_seq(),
             },
         ));
         st.recent.truncate(MAX_RECENT);
@@ -368,12 +434,11 @@ impl Analytics {
         let was = Category::ALL.map(|c| self.open(st, c));
         st.stored = stored.categories;
         st.unread = false;
+        self.arm(st);
         for (c, was) in Category::ALL.into_iter().zip(was) {
             if was && !self.open(st, c) {
                 st.forget(c);
-                if let Some(outbox) = &self.inner.outbox {
-                    outbox.discard(c);
-                }
+                self.discard(c);
             }
         }
         if !was[Category::Launch.index()] {
@@ -397,7 +462,7 @@ impl Analytics {
         }
     }
 
-    /// The dialog: all three answered in one write, each stamped with the current version.
+    /// The dialog: all four answered in one write, each stamped with the current version.
     pub fn set_choices<E>(
         &self,
         choices: AnalyticsChoices,
@@ -438,10 +503,9 @@ impl Analytics {
                 if !granted {
                     st.stored.set(category, answer(false));
                     st.unsaved[category.index()] = true;
+                    self.arm(&st);
                     st.forget(category);
-                    if let Some(outbox) = &self.inner.outbox {
-                        outbox.discard(category);
-                    }
+                    self.discard(category);
                 }
             }
             let mut writes = unsaved_writes(&st);
@@ -453,7 +517,7 @@ impl Analytics {
         let counts = (grants(Category::Features) && !self.state().started).then(counts);
         let saved = persist(&writes)?;
         let mut st = self.state();
-        st.unsaved = [false; 3];
+        st.unsaved = [false; Category::COUNT];
         self.adopt(&mut st, saved);
         if let (false, Some(theme), Some(counts)) = (st.started, st.theme, counts)
             && self.open(&st, Category::Features)
@@ -476,7 +540,7 @@ impl Analytics {
         }
         if let Ok(saved) = persist(&writes) {
             let mut st = self.state();
-            st.unsaved = [false; 3];
+            st.unsaved = [false; Category::COUNT];
             self.adopt(&mut st, saved);
         }
     }
@@ -502,14 +566,20 @@ impl Analytics {
         self.record_in(&mut st, Event::app_started(theme, counts));
     }
 
+    /// Events and crash reports of open categories, newest first.
     pub fn recent(&self) -> Recent {
         let st = self.state();
-        let events = st
+        let mut events: Vec<RecentEvent> = st
             .recent
             .iter()
             .filter(|(c, _)| self.open(&st, *c))
             .map(|(_, e)| e.clone())
             .collect();
+        if self.open(&st, Category::Crashes) {
+            events.extend(self.inner.crashes.rows());
+            events.sort_by(|a, b| (&b.time, b.seq).cmp(&(&a.time, a.seq)));
+            events.truncate(MAX_RECENT);
+        }
         Recent {
             system: RecentSystem {
                 props: self.inner.system.clone(),
@@ -596,10 +666,12 @@ impl Analytics {
         }
     }
 
-    /// Blocking; call from a blocking thread.
+    /// Blocking; call from a blocking thread. Crash reports go first.
     pub fn flush(&self, budget: Duration) {
+        let deadline = Instant::now() + budget;
+        self.inner.crashes.flush(deadline);
         if let Some(outbox) = &self.inner.outbox {
-            outbox.flush(Instant::now() + budget);
+            outbox.flush(deadline);
         }
     }
 
@@ -608,8 +680,14 @@ impl Analytics {
     /// not let go in time).
     pub fn shutdown(&self) {
         self.expire_attempts(Duration::ZERO);
+        let deadline = Instant::now() + EXIT_FLUSH;
+        self.inner.crashes.stop();
         if let Some(outbox) = &self.inner.outbox {
-            outbox.stop_and_flush(Instant::now() + EXIT_FLUSH);
+            outbox.stop();
+        }
+        self.inner.crashes.flush(deadline);
+        if let Some(outbox) = &self.inner.outbox {
+            outbox.flush(deadline);
         }
     }
 

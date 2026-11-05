@@ -30,7 +30,7 @@ impl SystemProps {
 }
 
 /// Printable ASCII only, bounded to what the ingestion API accepts.
-fn clean(raw: &str, max: usize) -> String {
+pub(super) fn clean(raw: &str, max: usize) -> String {
     let s: String = raw
         .chars()
         .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | ' ' | '+'))

@@ -37,22 +37,18 @@ pub(super) fn legacy_preferences(raw: &[u8]) -> Settings {
     }
 }
 
-/// `analytics` as stored in `config.json`. With `categories`, each category is read on its own and anything that
-/// does not parse is unset; without it, the first release's single consent is mapped onto all
-/// three. Any other shape is unset, so a hand edit can never turn a category on.
+/// `analytics` as stored in `config.json`. With `categories`, each category is read on its own
+/// and anything that does not parse is unset; without it, the first release's single consent is
+/// mapped: a refusal onto every category, a grant onto the three it covered. Any other shape is
+/// unset, so a hand edit can never turn a category on.
 pub(super) fn analytics(value: &serde_json::Value) -> Option<AnalyticsSettings> {
     let obj = value.as_object()?;
     if let Some(categories) = obj.get("categories") {
         let categories = categories.as_object()?;
         let mut out = CategoryChoices::default();
         for category in Category::ALL {
-            let key = match category {
-                Category::Launch => "launch",
-                Category::Features => "features",
-                Category::Connections => "connections",
-            };
             if let Some(choice) = categories
-                .get(key)
+                .get(category.name())
                 .and_then(|v| CategoryChoice::deserialize(v).ok())
             {
                 out.set(category, choice);
@@ -61,18 +57,23 @@ pub(super) fn analytics(value: &serde_json::Value) -> Option<AnalyticsSettings> 
         return Some(AnalyticsSettings { categories: out });
     }
     let v1 = V1Analytics::deserialize(value).ok()?;
-    let consent = match v1.consent {
+    let answer = |consent| CategoryChoice {
+        consent,
+        version: V1_ANALYTICS_VERSION,
+    };
+    let categories = match v1.consent {
         // The first release asked again below catalogue 1, so such a grant was never in effect.
-        Consent::Granted if v1.catalogue_version >= 1 => Consent::Granted,
-        Consent::Denied => Consent::Denied,
+        Consent::Granted if v1.catalogue_version >= 1 => {
+            // That grant never covered crash reports: they are asked about.
+            let mut c = CategoryChoices::all(answer(Consent::Granted));
+            c.crashes = CategoryChoice::default();
+            c
+        }
+        // A refusal is never turned into a question.
+        Consent::Denied => CategoryChoices::all(answer(Consent::Denied)),
         _ => return None,
     };
-    Some(AnalyticsSettings {
-        categories: CategoryChoices::all(CategoryChoice {
-            consent,
-            version: V1_ANALYTICS_VERSION,
-        }),
-    })
+    Some(AnalyticsSettings { categories })
 }
 
 /// The version 2 shape, read only to migrate it: hosts lived inside their project. Environments
