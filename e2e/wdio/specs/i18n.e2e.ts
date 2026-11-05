@@ -139,7 +139,7 @@ describe('Interface language', () => {
     await connect(HOST_NAME);
     await waitText(
       bodyText,
-      'Définissez-les dans les variables globales ou du projet.',
+      'définissez-la dans les variables globales ou celles du projet.',
       'the connection error',
     );
     await shot('i18n-06-connect-error');
