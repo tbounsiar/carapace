@@ -60,3 +60,5 @@ libc = "0.2.191"
 [features]
 # Debug end-to-end builds only: the data file pickers return CARAPACE_E2E_PICKED_FILE.
 e2e-pickers = []
+# Debug end-to-end builds only: the main window opens off-screen and out of the taskbar.
+e2e-offscreen = []

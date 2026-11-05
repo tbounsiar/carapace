@@ -20,6 +20,9 @@ use std::sync::Arc;
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, RunEvent, WindowEvent};
 
+#[cfg(all(feature = "e2e-offscreen", not(debug_assertions)))]
+compile_error!("the e2e-offscreen feature is for debug end-to-end builds only");
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -30,6 +33,13 @@ pub fn run() {
                         .level(log::LevelFilter::Info)
                         .build(),
                 )?;
+            }
+            #[cfg(feature = "e2e-offscreen")]
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_skip_taskbar(true)?;
+                window.set_position(tauri::PhysicalPosition::new(-10_000, -10_000))?;
+                window.set_focusable(false)?;
+                window.show()?;
             }
             let home = config::resolve_home()?;
             let secrets = secrets::SecretStore::keychain();
