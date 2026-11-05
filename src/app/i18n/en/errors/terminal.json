@@ -1,0 +1,10 @@
+{
+  "busy": "the terminal is not accepting input right now",
+  "network": "could not open a shell on the host",
+  "notConnected": "the host is not connected",
+  "notFound": "terminal not found",
+  "required": "{name} is required",
+  "size": "cols must be 1 to {cols} and rows 1 to {rows}",
+  "tooMany": "at most {max} terminals can be open on a connection",
+  "writeTooLarge": "data must be at most {max} bytes per call"
+}

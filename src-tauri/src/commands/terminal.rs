@@ -12,7 +12,12 @@ type Res<T> = Result<T, CommandError>;
 
 fn required(name: &str, value: &str) -> Res<()> {
     if value.trim().is_empty() {
-        return Err(TerminalError::InvalidInput(format!("{name} is required")).into());
+        return Err(TerminalError::InvalidInput(crate::text!(
+            "errors.terminal.required",
+            "{name} is required",
+            name = name
+        ))
+        .into());
     }
     Ok(())
 }

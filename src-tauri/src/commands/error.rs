@@ -6,20 +6,34 @@ use crate::keys::KeyError;
 use crate::secrets::SecretError;
 use crate::ssh::SshError;
 use crate::terminal::TerminalError;
+use crate::text::{Localized, Text};
 use crate::vars::ResolveError;
 
+/// `{ code, message, key?, params? }`: `code` is the category the interface reacts to, `key` and
+/// `params` its translated text, `message` the English text.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CommandError {
     pub code: &'static str,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<&'static str>,
+    #[serde(skip_serializing_if = "serde_json::Map::is_empty")]
+    pub params: serde_json::Map<String, serde_json::Value>,
 }
 
 impl CommandError {
-    pub fn new(code: &'static str, message: impl Into<String>) -> Self {
+    pub fn new(code: &'static str, text: impl Into<Text>) -> Self {
+        let text = text.into();
         Self {
             code,
-            message: message.into(),
+            message: text.message,
+            key: text.key,
+            params: text.params,
         }
+    }
+
+    fn localized(code: &'static str, e: &impl Localized) -> Self {
+        Self::new(code, e.text())
     }
 }
 
@@ -36,7 +50,7 @@ impl From<ConfigError> for CommandError {
             ConfigError::Corrupt => "corrupt_config",
             ConfigError::Keychain => "keychain_unavailable",
         };
-        Self::new(code, e.to_string())
+        Self::localized(code, &e)
     }
 }
 
@@ -46,37 +60,37 @@ impl From<ResolveError> for CommandError {
             ResolveError::Missing(_) => "missing_variables",
             ResolveError::Invalid(_) => "invalid_input",
         };
-        Self::new(code, e.to_string())
+        Self::localized(code, &e)
     }
 }
 
 impl From<SshError> for CommandError {
     fn from(e: SshError) -> Self {
-        Self::new(e.code(), e.to_string())
+        Self::localized(e.code(), &e)
     }
 }
 
 impl From<TerminalError> for CommandError {
     fn from(e: TerminalError) -> Self {
-        Self::new(e.code(), e.to_string())
+        Self::localized(e.code(), &e)
     }
 }
 
 impl From<FsError> for CommandError {
     fn from(e: FsError) -> Self {
-        Self::new(e.code(), e.to_string())
+        Self::localized(e.code(), &e)
     }
 }
 
 impl From<KeyError> for CommandError {
     fn from(e: KeyError) -> Self {
-        Self::new(e.code(), e.to_string())
+        Self::localized(e.code(), &e)
     }
 }
 
 impl From<SecretError> for CommandError {
     fn from(e: SecretError) -> Self {
-        Self::new(e.code(), e.to_string())
+        Self::localized(e.code(), &e)
     }
 }
 

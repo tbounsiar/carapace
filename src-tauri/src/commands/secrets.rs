@@ -17,18 +17,20 @@ type Res<T> = Result<T, CommandError>;
 /// Upper bound for a typed secret; storing one is further limited by the keychain.
 const MAX_SECRET_CHARS: usize = 4096;
 
-fn invalid(message: &str) -> CommandError {
-    CommandError::new("invalid_input", message)
-}
-
 /// Checked before the value is used; the message never includes it.
 pub(super) fn check_secret(value: &SecretString) -> Res<()> {
     let value = value.expose_secret();
     if value.is_empty() {
-        return Err(invalid("the secret must not be empty"));
+        return Err(CommandError::new(
+            "invalid_input",
+            crate::text!("errors.secrets.empty", "the secret must not be empty"),
+        ));
     }
     if value.chars().count() > MAX_SECRET_CHARS {
-        return Err(invalid("the secret is too long"));
+        return Err(CommandError::new(
+            "invalid_input",
+            crate::text!("errors.secrets.tooLongTyped", "the secret is too long"),
+        ));
     }
     Ok(())
 }
@@ -231,10 +233,15 @@ mod tests {
     fn typed_secret_is_validated_without_echoing_it() {
         let empty = check_secret(&SecretString::from("")).unwrap_err();
         assert_eq!(empty.code, "invalid_input");
+        assert_eq!(empty.key, Some("errors.secrets.empty"));
         assert!(check_secret(&SecretString::from("a".repeat(MAX_SECRET_CHARS))).is_ok());
         let long = "é".repeat(MAX_SECRET_CHARS + 1);
         let err = check_secret(&SecretString::from(long)).unwrap_err();
         assert!(!err.message.contains('é'));
+        assert_eq!(err.key, Some("errors.secrets.tooLongTyped"));
+        let unavailable = CommandError::from(SecretError::Unavailable);
+        assert_eq!(unavailable.code, "keychain_unavailable");
+        assert_eq!(unavailable.key, Some("errors.secrets.unavailable"));
     }
 
     #[test]

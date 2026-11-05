@@ -14,6 +14,7 @@ use zeroize::Zeroizing;
 use super::error::KeyError;
 use super::location::{self, KeyDir};
 use crate::config::KeyAlgorithm;
+use crate::text::{Localized, Text};
 use crate::{config, fsutil, localfs};
 
 pub const MAX_KEY_FILE_BYTES: u64 = 64 * 1024;
@@ -71,16 +72,18 @@ pub fn validate_file_name(raw: &str) -> Result<&str, KeyError> {
     let raw = name_syntax(raw)?;
     let lower = raw.to_ascii_lowercase();
     if lower.ends_with(".pub") {
-        return Err(KeyError::invalid(
-            "A private key file name cannot end in .pub.",
-        ));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.nameEndsInPub",
+            "A private key file name cannot end in .pub."
+        )));
     }
     // Files OpenSSH reads from ~/.ssh: a key written there under one of these names would be
     // taken for configuration.
     if RESERVED_NAMES.contains(&lower.as_str()) {
-        return Err(KeyError::invalid(
-            "This name is reserved. Choose another file name.",
-        ));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.reservedName",
+            "This name is reserved. Choose another file name."
+        )));
     }
     Ok(raw)
 }
@@ -92,19 +95,21 @@ fn name_syntax(raw: &str) -> Result<&str, KeyError> {
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
     if raw.is_empty() || raw.len() > MAX_FILE_NAME_CHARS || !charset || raw.starts_with('.') {
-        return Err(KeyError::invalid(
-            "file name must be 1 to 64 letters, digits, '_', '.' or '-' and not start with '.'",
-        ));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.fileNameRules",
+            "file name must be 1 to 64 letters, digits, '_', '.' or '-' and not start with '.'"
+        )));
     }
-    localfs::name(raw).map_err(|e| KeyError::invalid(e.to_string()))
+    localfs::name(raw).map_err(|e| KeyError::invalid(e.text()))
 }
 
 pub fn validate_comment(raw: &str) -> Result<String, KeyError> {
     let comment = raw.trim();
     if comment.chars().count() > MAX_COMMENT_CHARS || comment.chars().any(char::is_control) {
-        return Err(KeyError::invalid(
-            "comment must be at most 255 characters without control characters",
-        ));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.commentRules",
+            "comment must be at most 255 characters without control characters"
+        )));
     }
     Ok(comment.to_owned())
 }
@@ -113,13 +118,16 @@ pub fn validate_comment(raw: &str) -> Result<String, KeyError> {
 pub fn validate_passphrase(value: &SecretString) -> Result<(), KeyError> {
     let len = value.expose_secret().chars().count();
     if !(1..=MAX_PASSPHRASE_CHARS).contains(&len) {
-        return Err(KeyError::invalid("passphrase must be 1 to 1024 characters"));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.passphraseLength",
+            "passphrase must be 1 to 1024 characters"
+        )));
     }
     Ok(())
 }
 
 fn generation_failed() -> KeyError {
-    KeyError::Io("the generated key".into())
+    KeyError::GenerationFailed
 }
 
 /// Control characters (a newline would add an authorized_keys line when the public key is
@@ -140,17 +148,26 @@ pub(super) fn info_of(public: &PublicKey, encrypted: bool) -> Result<KeyInfo, Ke
         KeyData::Rsa(rsa) => {
             let bits = rsa.key_size();
             if bits < MIN_RSA_BITS {
-                return Err(KeyError::invalid(
-                    "RSA keys shorter than 2048 bits are not supported",
-                ));
+                return Err(KeyError::invalid(crate::text!(
+                    "errors.keys.rsaTooShort",
+                    "RSA keys shorter than 2048 bits are not supported"
+                )));
             }
             (KeyAlgorithm::Rsa, Some(bits))
         }
-        _ => return Err(KeyError::invalid("only Ed25519 and RSA keys are supported")),
+        _ => {
+            return Err(KeyError::invalid(crate::text!(
+                "errors.keys.unsupportedType",
+                "only Ed25519 and RSA keys are supported"
+            )));
+        }
     };
-    let public_key = public
-        .to_openssh()
-        .map_err(|_| KeyError::invalid("the public key could not be encoded"))?;
+    let public_key = public.to_openssh().map_err(|_| {
+        KeyError::invalid(crate::text!(
+            "errors.keys.publicKeyEncoding",
+            "the public key could not be encoded"
+        ))
+    })?;
     Ok(KeyInfo {
         algorithm,
         bits,
@@ -226,33 +243,49 @@ pub fn generate(
 
 fn not_openssh(text: &str) -> KeyError {
     let pem = text.contains("-----BEGIN");
-    let msg = if text.starts_with("PuTTY-User-Key-File") {
-        "PuTTY keys are not supported; export the key in OpenSSH format with PuTTYgen"
+    KeyError::invalid(if text.starts_with("PuTTY-User-Key-File") {
+        crate::text!(
+            "errors.keys.puttyKey",
+            "PuTTY keys are not supported; export the key in OpenSSH format with PuTTYgen"
+        )
     } else if pem && text.contains("OPENSSH") {
-        "the private key file could not be parsed"
+        crate::text!(
+            "errors.keys.unparsable",
+            "the private key file could not be parsed"
+        )
     } else if pem {
-        "PEM and PKCS#8 keys are not supported; convert the key with ssh-keygen -p -f <file>"
+        crate::text!(
+            "errors.keys.pemKey",
+            "PEM and PKCS#8 keys are not supported; convert the key with ssh-keygen -p -f <file>"
+        )
     } else {
+        not_a_private_key()
+    })
+}
+
+fn not_a_private_key() -> Text {
+    crate::text!(
+        "errors.keys.notPrivateKey",
         "the file is not an OpenSSH private key"
-    };
-    KeyError::invalid(msg)
+    )
 }
 
 /// Reads a key file through one bounded handle, never following a link at the last component
 /// (stored paths are canonical, so a link there was swapped in).
 fn read_key_file(path: &Path, max: u64) -> Result<Zeroizing<Vec<u8>>, KeyError> {
     fsutil::read_regular_capped(path, max, false).map_err(|e| match e.kind() {
-        ErrorKind::InvalidInput => {
-            KeyError::invalid(format!("{} is not a regular file", path.display()))
-        }
+        ErrorKind::InvalidInput => KeyError::invalid(crate::text!(
+            "errors.keys.notRegularFile",
+            "{path} is not a regular file",
+            path = path.display().to_string()
+        )),
         ErrorKind::FileTooLarge => KeyError::TooLarge(path.display().to_string()),
         _ => KeyError::io(e, path),
     })
 }
 
 fn parse_private(raw: &[u8]) -> Result<PrivateKey, KeyError> {
-    let text = std::str::from_utf8(raw)
-        .map_err(|_| KeyError::invalid("the file is not an OpenSSH private key"))?;
+    let text = std::str::from_utf8(raw).map_err(|_| KeyError::invalid(not_a_private_key()))?;
     PrivateKey::from_openssh(text).map_err(|_| not_openssh(text))
 }
 
@@ -271,24 +304,32 @@ pub fn inspect(
     raw_path: &str,
     passphrase: Option<&SecretString>,
 ) -> Result<(PathBuf, KeyInfo), KeyError> {
-    config::validate::key_path(raw_path).map_err(KeyError::InvalidInput)?;
+    config::validate::key_path(raw_path).map_err(KeyError::invalid)?;
     if let Some(p) = passphrase {
         validate_passphrase(p)?;
     }
-    let expanded = fsutil::expand_local(raw_path)
-        .ok_or_else(|| KeyError::invalid("key path must be absolute or start with ~/"))?;
+    let expanded = fsutil::expand_local(raw_path).ok_or_else(|| {
+        KeyError::invalid(crate::text!(
+            "errors.keys.pathNotLocal",
+            "key path must be absolute or start with ~/"
+        ))
+    })?;
     let path = fsutil::canonical(&expanded).map_err(|e| KeyError::io(e, &expanded))?;
     if !fsutil::is_local_path(&path) {
-        return Err(KeyError::invalid("key path must be on a local drive"));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.pathNotOnLocalDrive",
+            "key path must be on a local drive"
+        )));
     }
     let key = parse_private(&read_key_file(&path, MAX_KEY_FILE_BYTES)?)?;
     let encrypted = key.is_encrypted();
     let mut public = key.public_key().clone();
     let comment = match (encrypted, passphrase) {
         (false, Some(_)) => {
-            return Err(KeyError::invalid(
-                "this key is not protected by a passphrase",
-            ));
+            return Err(KeyError::invalid(crate::text!(
+                "errors.keys.notEncrypted",
+                "this key is not protected by a passphrase"
+            )));
         }
         (false, None) => key.comment().to_string(),
         (true, Some(p)) => key
@@ -310,12 +351,17 @@ pub fn inspect(
 /// config lists, so a swapped file is never deployed under the registered key's name.
 pub fn deployable_line(path: &str, registered: &str, comment: &str) -> Result<String, KeyError> {
     let key = parse_private(&read_key_file(Path::new(path), MAX_KEY_FILE_BYTES)?)?;
-    let listed = PublicKey::from_openssh(registered)
-        .map_err(|_| KeyError::invalid("the registered public key is invalid"))?;
+    let listed = PublicKey::from_openssh(registered).map_err(|_| {
+        KeyError::invalid(crate::text!(
+            "errors.keys.registeredKeyInvalid",
+            "the registered public key is invalid"
+        ))
+    })?;
     if listed.key_data() != key.public_key().key_data() {
-        return Err(KeyError::invalid(
-            "the key file no longer holds the registered key; remove the key and import it again",
-        ));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.fileChanged",
+            "the key file no longer holds the registered key; remove the key and import it again"
+        )));
     }
     let mut public = key.public_key().clone();
     public.set_comment(validate_comment(comment).unwrap_or_default());
@@ -323,11 +369,14 @@ pub fn deployable_line(path: &str, registered: &str, comment: &str) -> Result<St
 }
 
 /// A user-facing warning about the private key file, if any.
-pub fn permission_warning(path: &str) -> Option<String> {
+pub fn permission_warning(path: &str) -> Option<Text> {
     let meta = match fs::metadata(path) {
         Ok(m) => m,
         Err(e) if e.kind() == ErrorKind::NotFound => {
-            return Some("the private key file was not found".into());
+            return Some(crate::text!(
+                "errors.keys.fileMissing",
+                "the private key file was not found"
+            ));
         }
         Err(_) => return None,
     };
@@ -335,10 +384,10 @@ pub fn permission_warning(path: &str) -> Option<String> {
     {
         use std::os::unix::fs::PermissionsExt;
         if meta.permissions().mode() & 0o077 != 0 {
-            return Some(
+            return Some(crate::text!(
+                "errors.keys.fileOpenToOthers",
                 "the private key file is accessible to other users; restrict it with chmod 600"
-                    .into(),
-            );
+            ));
         }
     }
     #[cfg(windows)]
@@ -348,10 +397,10 @@ pub fn permission_warning(path: &str) -> Option<String> {
             .and_then(|f| fsutil::readable_by_others(&f))
             .unwrap_or(false);
         if exposed {
-            return Some(
+            return Some(crate::text!(
+                "errors.keys.fileReadableByOthers",
                 "the private key file is readable by other users; restrict its permissions to your account"
-                    .into(),
-            );
+            ));
         }
     }
     None
@@ -413,7 +462,12 @@ pub fn check_pair(path: &str, fingerprint: &str, managed: Option<&Path>) -> Resu
         .file_name()
         .and_then(|n| n.to_str())
         .filter(|_| fsutil::is_local_path(path))
-        .ok_or_else(|| KeyError::invalid("the key files cannot be located"))?;
+        .ok_or_else(|| {
+            KeyError::invalid(crate::text!(
+                "errors.keys.filesNotLocated",
+                "the key files cannot be located"
+            ))
+        })?;
     name_syntax(name)?;
     if let Some(dir) = managed {
         let inside = match (path.parent().map(fsutil::canonical), fsutil::canonical(dir)) {
@@ -421,7 +475,10 @@ pub fn check_pair(path: &str, fingerprint: &str, managed: Option<&Path>) -> Resu
             _ => false,
         };
         if !inside {
-            return Err(KeyError::invalid("the key is not in the keys directory"));
+            return Err(KeyError::invalid(crate::text!(
+                "errors.keys.outsideKeysDir",
+                "the key is not in the keys directory"
+            )));
         }
     }
     if let Some(raw) = read_for_delete(path, MAX_KEY_FILE_BYTES)? {

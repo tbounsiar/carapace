@@ -1,4 +1,5 @@
 import { Service } from '@angular/core';
+import type { BackendText } from './backend-text';
 import { invokeCommand } from './ipc-error';
 
 export type KeyAlgorithm = 'ed25519' | 'rsa';
@@ -28,7 +29,7 @@ export interface KeyEntry {
 
 export interface KeyView extends KeyEntry {
   hasPassphrase: boolean;
-  warning: string | null;
+  warning: BackendText | null;
 }
 
 /** The passphrase is sent once and never returned. */
@@ -55,7 +56,7 @@ export interface KeyLocation {
   dir: string;
   isDefault: boolean;
   /** Set when other users can open a custom folder. */
-  warning: string | null;
+  warning: BackendText | null;
 }
 
 export interface DeployResult {

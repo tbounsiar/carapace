@@ -1,0 +1,14 @@
+{
+  "interrupted": "impossible d’accéder au transfert",
+  "localInterrupted": "l’opération sur le fichier local a échoué",
+  "localRoot": "impossible de transférer une racine",
+  "noFreeName": "aucun nom libre pour {name}",
+  "notDirectory": "{path} n’est pas un dossier",
+  "notFound": "transfert introuvable",
+  "notWaiting": "le transfert n’attend pas cette décision",
+  "queueFull": "la file des transferts est trop longue",
+  "remoteRoot": "impossible de transférer /",
+  "required": "{name} est requis",
+  "sourceCount": "un transfert prend de 1 à {max} sources",
+  "tempNameTooLong": "{name} est trop long pour être écrit via un fichier temporaire"
+}

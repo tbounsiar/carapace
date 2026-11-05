@@ -23,6 +23,7 @@ import { AUTH_LABELS } from '../../../shared/auth-method';
 import { connectionStatus } from '../../../shared/connection-status';
 import { HostConnector } from '../../host-connection/host-connector';
 import { ProjectActions } from '../../project-tree/project-actions';
+import { textOf } from '../../../shared/backend-text';
 import { notifyError } from '../../../shared/save-error';
 import { Workspace } from '../../workspace/workspace';
 import { HostTabs } from '../host-tabs/host-tabs';
@@ -89,7 +90,7 @@ export class HostDetail {
       return { ok: false, missing: r.missing.join(', '), text: '' };
     }
     if (r.errors.length) {
-      return { ok: false, missing: null, text: r.errors.join('; ') };
+      return { ok: false, missing: null, text: r.errors.map(textOf).join('; ') };
     }
     if (r.username === null || r.hostname === null || r.port === null) {
       return null;

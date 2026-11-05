@@ -30,6 +30,7 @@ import { IpcError } from '../../../core/ipc/ipc-error';
 import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import { KeyStore } from '../../../core/ipc/key-store';
 import type { KeyView } from '../../../core/ipc/keys';
+import { textOf } from '../../../shared/backend-text';
 import { notifyError } from '../../../shared/save-error';
 import {
   baseName,
@@ -180,7 +181,7 @@ export class KeyImportDialog {
     const message =
       err.code === 'invalid_passphrase'
         ? this.transloco.translate('keys.import.wrongPassphrase')
-        : err.message;
+        : textOf(err);
     field.setErrors({ invalid: new TuiValidationError(message) });
     field.markAsTouched();
   }

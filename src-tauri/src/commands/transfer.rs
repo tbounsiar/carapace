@@ -57,7 +57,11 @@ fn required(name: &str, value: &str) -> Res<()> {
     if value.trim().is_empty() {
         return Err(CommandError::new(
             "invalid_input",
-            format!("{name} is required"),
+            crate::text!(
+                "errors.transfer.required",
+                "{name} is required",
+                name = name
+            ),
         ));
     }
     Ok(())

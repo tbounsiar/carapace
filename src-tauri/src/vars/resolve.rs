@@ -1,3 +1,6 @@
+use std::fmt;
+
+use serde::{Serialize, Serializer};
 use thiserror::Error;
 
 use super::template::{Segment, parse, single_reference};
@@ -5,6 +8,7 @@ use crate::config::model::{
     AuthMethod, ConfigFile, Host, Project, Template, Variable, VariableKind,
 };
 use crate::config::validate;
+use crate::text::{Localized, Text};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Level {
@@ -67,24 +71,45 @@ pub struct ResolvedHost {
     pub auth: ResolvedAuth,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Clone, PartialEq, Error)]
 pub enum ResolveError {
     #[error("missing variables: {}", .0.join(", "))]
     Missing(Vec<String>),
-    #[error("{}", .0.join("; "))]
-    Invalid(Vec<String>),
+    #[error("{}", Joined(.0))]
+    Invalid(Vec<Text>),
+}
+
+/// Texts shown as one, separated by `; `; sent as a list of texts.
+struct Joined<'a>(&'a [Text]);
+
+impl fmt::Display for Joined<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, t) in self.0.iter().enumerate() {
+            if i > 0 {
+                f.write_str("; ")?;
+            }
+            f.write_str(&t.message)?;
+        }
+        Ok(())
+    }
+}
+
+impl Serialize for Joined<'_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
 }
 
 /// Everything that could be resolved; fields stay `None` when they depend on a problem
 /// listed in `missing` or `errors`. Never holds a secret value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Resolution {
     pub hostname: Option<String>,
     pub port: Option<u16>,
     pub username: Option<String>,
     pub key_path: Option<String>,
     pub missing: Vec<String>,
-    pub errors: Vec<String>,
+    pub errors: Vec<Text>,
     auth: Option<ResolvedAuth>,
 }
 
@@ -103,9 +128,10 @@ impl Resolution {
                 username,
                 auth,
             }),
-            _ => Err(ResolveError::Invalid(vec![
-                "the host could not be resolved".into(),
-            ])),
+            _ => Err(ResolveError::Invalid(vec![crate::text!(
+                "errors.config.hostUnresolved",
+                "the host could not be resolved"
+            )])),
         }
     }
 }
@@ -113,11 +139,11 @@ impl Resolution {
 struct Resolver<'a> {
     layers: Layers<'a>,
     missing: Vec<String>,
-    errors: Vec<String>,
+    errors: Vec<Text>,
 }
 
 impl Resolver<'_> {
-    fn error(&mut self, msg: String) {
+    fn error(&mut self, msg: Text) {
         if !self.errors.contains(&msg) {
             self.errors.push(msg);
         }
@@ -131,11 +157,11 @@ impl Resolver<'_> {
 
     /// Plain fields only take plain variables: a secret value must never reach a field that is
     /// displayed, logged or put in an error.
-    fn plain(&mut self, label: &str, template: &str) -> Option<String> {
+    fn plain(&mut self, label: &'static str, template: &str) -> Option<String> {
         let segments = match parse(template) {
             Ok(s) => s,
             Err(e) => {
-                self.error(format!("{label} {e}"));
+                self.error(e.of_field(label));
                 return None;
             }
         };
@@ -150,7 +176,11 @@ impl Resolver<'_> {
                         complete = false;
                     }
                     Some((_, v)) if v.kind == VariableKind::Secret => {
-                        self.error(format!("secret variable {name} used in a non-secret field"));
+                        self.error(crate::text!(
+                            "errors.config.secretInPlainField",
+                            "secret variable {name} used in a non-secret field",
+                            name = name
+                        ));
                         complete = false;
                     }
                     Some((_, v)) => out.push_str(v.value.as_deref().unwrap_or("")),
@@ -163,7 +193,7 @@ impl Resolver<'_> {
     fn checked<T>(
         &mut self,
         value: Option<String>,
-        check: impl Fn(&str) -> Result<T, String>,
+        check: impl Fn(&str) -> Result<T, Text>,
     ) -> Option<T> {
         let value = value?;
         match check(&value) {
@@ -178,16 +208,14 @@ impl Resolver<'_> {
     /// `Err` means the problem was recorded.
     fn secret(
         &mut self,
-        label: &str,
+        label: &'static str,
         template: &Option<Template>,
     ) -> Result<Option<SecretRef>, ()> {
         let Some(template) = template else {
             return Ok(None);
         };
         let Some(name) = single_reference(template) else {
-            self.error(format!(
-                "{label} must be empty or a single ${{name}} reference to a secret variable"
-            ));
+            self.error(validate::not_a_secret_reference(label));
             return Err(());
         };
         match self.layers.lookup(name) {
@@ -196,7 +224,11 @@ impl Resolver<'_> {
                 Err(())
             }
             Some((_, v)) if v.kind == VariableKind::Plain => {
-                self.error(format!("plain variable {name} used in a secret field"));
+                self.error(crate::text!(
+                    "errors.config.plainInSecretField",
+                    "plain variable {name} used in a secret field",
+                    name = name
+                ));
                 Err(())
             }
             Some((level, _)) => Ok(Some(SecretRef {
@@ -253,6 +285,27 @@ pub fn resolve_host(host: &Host, layers: Layers<'_>) -> Resolution {
     }
 }
 
+/// One invalid field gives its own text; several give a list of texts in `errors`.
+impl Localized for ResolveError {
+    fn text(&self) -> Text {
+        match self {
+            Self::Missing(names) => crate::text!(
+                "errors.config.missingVariables",
+                "missing variables: {names}",
+                names = names.join(", ")
+            ),
+            Self::Invalid(list) if list.len() == 1 => list[0].clone(),
+            Self::Invalid(list) => {
+                crate::text!(
+                    "errors.config.invalidFields",
+                    "{errors}",
+                    errors = Joined(list)
+                )
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,6 +337,10 @@ mod tests {
             username: username.into(),
             auth,
         }
+    }
+
+    fn messages(r: &Resolution) -> Vec<&str> {
+        r.errors.iter().map(|t| t.message.as_str()).collect()
     }
 
     fn templated(auth: AuthMethod) -> Host {
@@ -415,7 +472,8 @@ mod tests {
             };
             let r = w.resolve(&host("h", "${port}", "u", AuthMethod::Agent));
             assert_eq!(r.port, None, "{bad}");
-            assert_eq!(r.errors, vec!["port must be between 1 and 65535"]);
+            assert_eq!(messages(&r), vec!["port must be between 1 and 65535"]);
+            assert_eq!(r.errors[0].key, Some("errors.config.portRange"));
         }
         let w = World {
             global: vec![plain("port", "65535")],
@@ -449,7 +507,7 @@ mod tests {
         assert!(
             r.errors
                 .iter()
-                .all(|e| !e.contains("a b") && !e.contains("relative"))
+                .all(|e| !e.message.contains("a b") && !e.message.contains("relative"))
         );
         assert!(matches!(r.complete(), Err(ResolveError::Invalid(_))));
     }
@@ -461,14 +519,17 @@ mod tests {
         assert_eq!(r.hostname, None);
         assert_eq!(r.username, None);
         assert_eq!(
-            r.errors,
+            messages(&r),
             vec!["secret variable pw used in a non-secret field"]
         );
         let err = r.complete().unwrap_err();
         assert_eq!(
-            err,
-            ResolveError::Invalid(vec!["secret variable pw used in a non-secret field".into()])
+            err.to_string(),
+            "secret variable pw used in a non-secret field"
         );
+        let text = err.text();
+        assert_eq!(text.key, Some("errors.config.secretInPlainField"));
+        assert_eq!(text.params["name"], "pw");
     }
 
     #[test]
@@ -492,7 +553,10 @@ mod tests {
         let r = w.resolve(&templated(AuthMethod::Password {
             password: Some("${user}".into()),
         }));
-        assert_eq!(r.errors, vec!["plain variable user used in a secret field"]);
+        assert_eq!(
+            messages(&r),
+            vec!["plain variable user used in a secret field"]
+        );
         assert!(r.complete().is_err());
     }
 
@@ -527,7 +591,12 @@ mod tests {
                 password: Some(bad.into()),
             }));
             assert_eq!(r.errors.len(), 1, "{bad}");
-            assert!(!r.errors[0].contains("hunter2"));
+            assert!(!r.errors[0].message.contains("hunter2"));
+            assert!(
+                !serde_json::to_string(&r.errors)
+                    .unwrap()
+                    .contains("hunter2")
+            );
         }
     }
 
@@ -564,6 +633,52 @@ mod tests {
         let w = world();
         let r = w.resolve(&host("${host", "22", "u", AuthMethod::Agent));
         assert_eq!(r.errors.len(), 1);
-        assert!(r.errors[0].starts_with("hostname "));
+        assert!(r.errors[0].message.starts_with("hostname "));
+        assert_eq!(r.errors[0].key, Some("errors.config.templateMalformed"));
+        assert_eq!(r.errors[0].params["field"], "hostname");
+        let r = w.resolve(&host(
+            "h",
+            "22",
+            "u",
+            AuthMethod::Key {
+                key_path: "${k".into(),
+                passphrase: None,
+            },
+        ));
+        assert_eq!(r.errors[0].key, Some("errors.config.keyPathMalformed"));
+        assert!(
+            r.errors[0]
+                .message
+                .starts_with("key path has a malformed ${...}")
+        );
+    }
+
+    #[test]
+    fn errors_carry_keys_and_params() {
+        let missing = ResolveError::Missing(vec!["a".into(), "b".into()]).text();
+        assert_eq!(missing.key, Some("errors.config.missingVariables"));
+        assert_eq!(missing.params["names"], "a, b");
+        assert_eq!(missing.message, "missing variables: a, b");
+
+        let w = World {
+            global: vec![plain("h", "a b"), plain("p", "0")],
+            project: vec![],
+        };
+        let err = w
+            .resolve(&host("${h}", "${p}", "u", AuthMethod::Agent))
+            .complete()
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "hostname must not contain whitespace or control characters; port must be between 1 and 65535"
+        );
+        let text = err.text();
+        assert_eq!(text.key, Some("errors.config.invalidFields"));
+        assert_eq!(text.message, err.to_string());
+        let list = text.params["errors"].as_array().unwrap();
+        assert_eq!(list[0]["key"], "errors.config.fieldWhitespace");
+        assert_eq!(list[0]["params"]["field"], "hostname");
+        assert_eq!(list[1]["key"], "errors.config.portRange");
+        assert_eq!(list[1]["params"]["max"], 65535);
     }
 }

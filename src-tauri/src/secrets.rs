@@ -606,6 +606,25 @@ mod memory {
     }
 }
 
+impl crate::text::Localized for SecretError {
+    fn text(&self) -> crate::text::Text {
+        match self {
+            Self::Unavailable => crate::text!(
+                "errors.secrets.unavailable",
+                "the system keychain is not available"
+            ),
+            Self::TooLong => crate::text!(
+                "errors.secrets.tooLong",
+                "the secret is too long for the system keychain"
+            ),
+            Self::InvalidScope => crate::text!(
+                "errors.secrets.invalidScope",
+                "invalid identifier or variable name"
+            ),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

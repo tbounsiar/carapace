@@ -49,7 +49,10 @@ pub(crate) fn set_choices(
         analytics.reload(|| Ok::<_, ()>(stored));
         return Err(CommandError::new(
             "conflict",
-            "the analytics choices were not known; check them again",
+            crate::text!(
+                "errors.analytics.choicesUnknown",
+                "the analytics choices were not known; check them again"
+            ),
         ));
     }
     analytics
@@ -130,7 +133,15 @@ pub async fn open_privacy_page() -> Res<()> {
         .await
         .ok()
         .and_then(Result::ok)
-        .ok_or_else(|| CommandError::new("io", "the browser could not be opened"))
+        .ok_or_else(|| {
+            CommandError::new(
+                "io",
+                crate::text!(
+                    "errors.analytics.browserFailed",
+                    "the browser could not be opened"
+                ),
+            )
+        })
 }
 
 #[cfg(test)]

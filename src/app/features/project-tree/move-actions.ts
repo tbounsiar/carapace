@@ -11,6 +11,7 @@ import type { MoveDialogData } from './move-dialog/move-dialog';
 import type { MoveUndoData } from './move-undo/move-undo';
 import { crossScopeWarning, moveDestination } from './move-rules';
 import { ancestors, canMoveInto, sameContainer, type Container } from './node-tree';
+import { textOf } from '../../shared/backend-text';
 import { escapeHtml } from '../../shared/path-breaks';
 import { errorText, notifyError } from '../../shared/save-error';
 import { uiText } from '../../shared/ui-text';
@@ -25,7 +26,7 @@ function failureLabel(node: ConfigNode): string {
 
 /** "A host named "ui" already exists in Payments. Rename one of them first." */
 export function conflictText(err: IpcError): string {
-  const raw = err.message.trim().replace(/[.!]$/, '');
+  const raw = textOf(err).trim().replace(/[.!]$/, '');
   return uiText('projectTree.move.renameFirst', {
     message: `${raw.charAt(0).toUpperCase()}${raw.slice(1)}`,
   });

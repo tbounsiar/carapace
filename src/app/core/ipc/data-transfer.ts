@@ -1,4 +1,6 @@
 import { Service } from '@angular/core';
+import type { BackendText } from './backend-text';
+import type { AuthMethod } from './config.models';
 import { invokeCommand } from './ipc-error';
 
 export type DataScope =
@@ -60,9 +62,12 @@ export type PlanReason =
 
 export interface PlanChange {
   readonly field: 'name' | 'address' | 'location' | 'auth' | 'value' | 'kind';
-  /** Plain data only (raw templates, plain values, paths), never a secret. */
-  readonly from: string;
-  readonly to: string;
+  /**
+   * Plain data only (raw templates, plain values, paths), never a secret. An `AuthMethod` (with
+   * `${name}` references) when `field` is `auth`.
+   */
+  readonly from: string | AuthMethod;
+  readonly to: string | AuthMethod;
 }
 
 export interface PlanItem {
@@ -120,7 +125,7 @@ export interface ImportPlan {
   readonly needsSecret: readonly NeedsSecret[];
   readonly undefinedVariables: readonly { readonly name: string; readonly hostCount: number }[];
   /** Non-empty: this strategy cannot be applied. */
-  readonly blocking: readonly string[];
+  readonly blocking: readonly BackendText[];
   /** Absent from older backends: read as empty. */
   readonly secretsSentTo?: readonly SecretTarget[];
 }

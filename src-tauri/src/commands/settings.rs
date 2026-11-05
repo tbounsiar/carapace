@@ -4,9 +4,11 @@ use tauri::State;
 
 use super::error::CommandError;
 use crate::config::{
-    ConfigStore, DEFAULT_FONT_SIZE, KeyType, Language, Settings, SettingsPatch, ThemeMode,
-    check_key_folder, is_font_size,
+    ConfigStore, DEFAULT_FONT_SIZE, FONT_SIZE_MAX, FONT_SIZE_MIN, KeyType, Language, Settings,
+    SettingsPatch, ThemeMode, check_key_folder, is_font_size,
 };
+use crate::text;
+use crate::text::Text;
 
 type Res<T> = Result<T, CommandError>;
 
@@ -33,7 +35,7 @@ impl From<Settings> for AppSettings {
     }
 }
 
-fn invalid(message: &str) -> CommandError {
+fn invalid(message: Text) -> CommandError {
     CommandError::new("invalid_input", message)
 }
 
@@ -41,9 +43,12 @@ fn invalid(message: &str) -> CommandError {
 /// is always refused. `skip_invalid` drops a bad value instead of refusing the call: the
 /// one-time import must not fail forever on a stale value the webview kept.
 pub(crate) fn parse_patch(value: &Value, skip_invalid: bool) -> Res<SettingsPatch> {
-    let map = value
-        .as_object()
-        .ok_or_else(|| invalid("the settings must be an object"))?;
+    let map = value.as_object().ok_or_else(|| {
+        invalid(text!(
+            "errors.settings.notAnObject",
+            "the settings must be an object"
+        ))
+    })?;
     let mut patch = SettingsPatch::default();
     for (key, v) in map {
         let parsed = match key.as_str() {
@@ -51,23 +56,45 @@ pub(crate) fn parse_patch(value: &Value, skip_invalid: bool) -> Res<SettingsPatc
                 .as_str()
                 .and_then(ThemeMode::from_name)
                 .map(|t| patch.theme = Some(t))
-                .ok_or_else(|| invalid("theme must be system, light or dark")),
+                .ok_or_else(|| {
+                    invalid(text!(
+                        "errors.settings.theme",
+                        "theme must be system, light or dark"
+                    ))
+                }),
             "language" => v
                 .as_str()
                 .and_then(Language::from_name)
                 .map(|l| patch.language = Some(l))
-                .ok_or_else(|| invalid("language must be system, en or fr")),
+                .ok_or_else(|| {
+                    invalid(text!(
+                        "errors.settings.language",
+                        "language must be system, en or fr"
+                    ))
+                }),
             "defaultKeyType" => v
                 .as_str()
                 .and_then(KeyType::from_name)
                 .map(|k| patch.default_key_type = Some(k))
-                .ok_or_else(|| invalid("defaultKeyType must be ed25519 or rsa4096")),
+                .ok_or_else(|| {
+                    invalid(text!(
+                        "errors.settings.defaultKeyType",
+                        "defaultKeyType must be ed25519 or rsa4096"
+                    ))
+                }),
             "terminalFontSize" => v
                 .as_i64()
                 .filter(|&n| is_font_size(n))
                 .and_then(|n| u8::try_from(n).ok())
                 .map(|n| patch.terminal_font_size = Some(n))
-                .ok_or_else(|| invalid("terminalFontSize must be a whole number from 10 to 24")),
+                .ok_or_else(|| {
+                    invalid(text!(
+                        "errors.settings.terminalFontSize",
+                        "terminalFontSize must be a whole number from {min} to {max}",
+                        min = FONT_SIZE_MIN,
+                        max = FONT_SIZE_MAX
+                    ))
+                }),
             "keyFolder" => match v {
                 Value::Null => {
                     patch.key_folder = Some(None);
@@ -76,9 +103,17 @@ pub(crate) fn parse_patch(value: &Value, skip_invalid: bool) -> Res<SettingsPatc
                 Value::String(s) => check_key_folder(s)
                     .map(|()| patch.key_folder = Some(Some(s.clone())))
                     .map_err(CommandError::from),
-                _ => Err(invalid("keyFolder must be a path or null")),
+                _ => Err(invalid(text!(
+                    "errors.settings.keyFolder",
+                    "keyFolder must be a path or null"
+                ))),
             },
-            _ => return Err(invalid("unknown setting")),
+            _ => {
+                return Err(invalid(text!(
+                    "errors.settings.unknownSetting",
+                    "unknown setting"
+                )));
+            }
         };
         if let Err(e) = parsed
             && !skip_invalid
@@ -89,18 +124,24 @@ pub(crate) fn parse_patch(value: &Value, skip_invalid: bool) -> Res<SettingsPatc
     Ok(patch)
 }
 
+/// The native dialogs read the language from memory, not from the store.
+fn remembered(settings: Settings) -> Settings {
+    crate::native_text::remember(settings.language);
+    settings
+}
+
 pub(crate) fn settings_in(store: &ConfigStore) -> Res<AppSettings> {
-    Ok(store.settings()?.into())
+    Ok(remembered(store.settings()?).into())
 }
 
 pub(crate) fn update_in(store: &ConfigStore, patch: &Value) -> Res<AppSettings> {
     let patch = parse_patch(patch, false)?;
-    Ok(store.update_settings(&patch)?.into())
+    Ok(remembered(store.update_settings(&patch)?).into())
 }
 
 pub(crate) fn import_in(store: &ConfigStore, values: &Value) -> Res<AppSettings> {
     let values = parse_patch(values, true)?;
-    Ok(store.import_legacy_settings(&values)?.into())
+    Ok(remembered(store.import_legacy_settings(&values)?).into())
 }
 
 /// `corrupt_config` when `settings.toml` is not TOML: the frontend then uses the defaults, and

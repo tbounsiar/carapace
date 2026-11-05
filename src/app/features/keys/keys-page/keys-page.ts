@@ -15,6 +15,7 @@ import { TuiAvatar, TuiBadge } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiHeader } from '@taiga-ui/layout';
 import { KeyStore } from '../../../core/ipc/key-store';
 import { keyTypeLabel, type KeyView } from '../../../core/ipc/keys';
+import { textOf } from '../../../shared/backend-text';
 import { errorText, notifyError } from '../../../shared/save-error';
 import { KeyActions } from '../key-actions';
 
@@ -45,6 +46,7 @@ export class KeysPage {
   protected readonly actions = inject(KeyActions);
 
   protected readonly keys = this.store.keys;
+  protected readonly text = textOf;
   protected readonly loading = signal(true);
   /** Set when the last load failed, so an empty list is not shown as "no keys". */
   protected readonly loadError = signal<string | null>(null);

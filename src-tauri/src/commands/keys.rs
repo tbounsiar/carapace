@@ -13,6 +13,7 @@ use crate::keys::{self, Deployed, KeyError, KeyInfo, KeyLocation, KeyType, Picke
 use crate::secrets::{KeyPassKey, SecretStore, fits_keychain};
 use crate::sftp::SftpManager;
 use crate::ssh::SshManager;
+use crate::text::Text;
 
 type Res<T> = Result<T, CommandError>;
 
@@ -24,7 +25,7 @@ pub struct KeyView {
     #[serde(flatten)]
     pub key: KeyEntry,
     pub has_passphrase: bool,
-    pub warning: Option<String>,
+    pub warning: Option<Text>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -40,7 +41,7 @@ pub struct DeployResult {
 pub struct KeyLocationView {
     pub dir: String,
     pub is_default: bool,
-    pub warning: Option<String>,
+    pub warning: Option<Text>,
 }
 
 fn view(secrets: &SecretStore, key: KeyEntry) -> KeyView {
@@ -65,9 +66,15 @@ fn keys_dir_of(store: &ConfigStore) -> PathBuf {
 }
 
 fn display(path: &Path) -> Res<String> {
-    path.to_str()
-        .map(str::to_owned)
-        .ok_or_else(|| CommandError::new("invalid_input", "the path is not valid Unicode"))
+    path.to_str().map(str::to_owned).ok_or_else(|| {
+        CommandError::new(
+            "invalid_input",
+            crate::text!(
+                "errors.keys.pathNotUnicode",
+                "the path is not valid Unicode"
+            ),
+        )
+    })
 }
 
 fn list(store: &ConfigStore, secrets: &SecretStore) -> Res<Vec<KeyView>> {
@@ -95,7 +102,10 @@ fn check_request(
     {
         return Err(CommandError::new(
             "already_exists",
-            "a key with this name already exists",
+            crate::text!(
+                "errors.keys.nameTaken",
+                "a key with this name already exists"
+            ),
         ));
     }
     if let Some(p) = passphrase {
@@ -104,11 +114,17 @@ fn check_request(
     match (remember, passphrase) {
         (true, None) => Err(CommandError::new(
             "invalid_input",
-            "there is no passphrase to remember",
+            crate::text!(
+                "errors.keys.nothingToRemember",
+                "there is no passphrase to remember"
+            ),
         )),
         (true, Some(p)) if !fits_keychain(p) => Err(CommandError::new(
             "invalid_input",
-            "the passphrase is too long for the system keychain",
+            crate::text!(
+                "errors.keys.passphraseTooLong",
+                "the passphrase is too long for the system keychain"
+            ),
         )),
         _ => Ok(()),
     }
@@ -119,7 +135,12 @@ async fn blocking<T: Send + 'static>(
 ) -> Res<T> {
     tauri::async_runtime::spawn_blocking(f)
         .await
-        .map_err(|_| CommandError::new("io", "the key operation failed"))?
+        .map_err(|_| {
+            CommandError::new(
+                "io",
+                crate::text!("errors.keys.operationFailed", "the key operation failed"),
+            )
+        })?
         .map_err(CommandError::from)
 }
 
@@ -160,7 +181,10 @@ fn register(
         if stored.is_err() {
             return Err(CommandError::new(
                 "keychain_unavailable",
-                "the key was added but its passphrase could not be saved in the system keychain",
+                crate::text!(
+                    "errors.keys.passphraseNotSaved",
+                    "the key was added but its passphrase could not be saved in the system keychain"
+                ),
             ));
         }
     }
@@ -275,7 +299,20 @@ async fn check_location(
 }
 
 pub(super) fn busy() -> CommandError {
-    CommandError::new("busy", "a file picker is already open")
+    CommandError::new(
+        "busy",
+        crate::text!("errors.keys.pickerBusy", "a file picker is already open"),
+    )
+}
+
+fn picker_failed() -> CommandError {
+    CommandError::new(
+        "io",
+        crate::text!(
+            "errors.keys.pickerFailed",
+            "the file picker could not be opened"
+        ),
+    )
 }
 
 pub(super) type Picked =
@@ -303,10 +340,9 @@ pub(super) async fn native_dialog(
             let _ = tx.send(chosen.map(|h| h.path().to_path_buf()));
         });
     })
-    .map_err(|_| CommandError::new("io", "the file picker could not be opened"))?;
+    .map_err(|_| picker_failed())?;
     Ok(tokio::select! {
-        picked = rx => picked
-            .map_err(|_| CommandError::new("io", "the file picker could not be opened"))?,
+        picked = rx => picked.map_err(|_| picker_failed())?,
         _ = cancelled => None,
     })
 }
@@ -340,11 +376,12 @@ fn rename(store: &ConfigStore, secrets: &SecretStore, key_id: &str, name: &str) 
 
 fn find(store: &ConfigStore, key_id: &str) -> Res<KeyEntry> {
     required("keyId", key_id)?;
-    store
-        .snapshot()?
-        .key(key_id)
-        .cloned()
-        .ok_or_else(|| CommandError::new("not_found", "key not found"))
+    store.snapshot()?.key(key_id).cloned().ok_or_else(|| {
+        CommandError::new(
+            "not_found",
+            crate::text!("errors.keys.keyNotFound", "key not found"),
+        )
+    })
 }
 
 fn delete(store: &ConfigStore, secrets: &SecretStore, key_id: &str, delete_files: bool) -> Res<()> {
@@ -352,7 +389,10 @@ fn delete(store: &ConfigStore, secrets: &SecretStore, key_id: &str, delete_files
     if delete_files && found.origin != KeyOrigin::Generated {
         return Err(CommandError::new(
             "invalid_input",
-            "the files of an imported key are never deleted",
+            crate::text!(
+                "errors.keys.importedFilesKept",
+                "the files of an imported key are never deleted"
+            ),
         ));
     }
     let managed_dir = keys_dir_of(store);
@@ -475,14 +515,8 @@ pub async fn pick_key_folder(
     let (_open, cancelled) = PickerGuard::acquire().ok_or_else(busy)?;
     let keys_dir = keys_dir_of(&store);
     let start = blocking(move || Ok(keys::folder_start(current.as_deref(), &keys_dir))).await?;
-    pick(
-        &app,
-        "Choose a folder for the key pair",
-        start,
-        true,
-        cancelled,
-    )
-    .await
+    let title = crate::native_text::get(crate::native_text::NativeText::PickKeyFolder);
+    pick(&app, title, start, true, cancelled).await
 }
 
 #[tauri::command]
@@ -495,7 +529,8 @@ pub async fn pick_key_file(app: AppHandle, current: Option<String>) -> Res<Optio
         ))
     })
     .await?;
-    pick(&app, "Choose a private key file", start, false, cancelled).await
+    let title = crate::native_text::get(crate::native_text::NativeText::PickKeyFile);
+    pick(&app, title, start, false, cancelled).await
 }
 
 #[tauri::command]

@@ -376,7 +376,11 @@ impl SftpManager {
         let target = r.resolve(path)?;
         let canonical = r.realpath(&target).await?;
         if r.lstat(&canonical).await.map(|a| kind(&a))? != Some(EntryKind::Dir) {
-            return Err(FsError::invalid(format!("{canonical} is not a directory")));
+            return Err(FsError::invalid(crate::text!(
+                "errors.files.notDirectory",
+                "{path} is not a directory",
+                path = canonical
+            )));
         }
         let entries = r
             .read_dir(&canonical, MAX_ENTRIES)
@@ -422,8 +426,15 @@ impl SftpManager {
         new_name: &str,
     ) -> Result<FileEntry, FsError> {
         files::name(new_name)?;
-        let source = normalize(path)?.ok_or_else(|| FsError::invalid("path is required"))?;
-        let dir = parent(&source).ok_or_else(|| FsError::invalid("cannot rename /"))?;
+        let source = normalize(path)?.ok_or_else(|| {
+            FsError::invalid(crate::text!(
+                "errors.files.pathRequired",
+                "path is required"
+            ))
+        })?;
+        let dir = parent(&source).ok_or_else(|| {
+            FsError::invalid(crate::text!("errors.files.renameRoot", "cannot rename /"))
+        })?;
         let r = self.remote(ssh, connection_id).await?;
         let target = join(&dir, new_name);
         if target == source {
@@ -450,10 +461,17 @@ impl SftpManager {
         path: &str,
         recursive: bool,
     ) -> Result<(), FsError> {
-        let target = normalize(path)?
-            .ok_or_else(|| FsError::invalid("refusing to delete the home directory"))?;
+        let target = normalize(path)?.ok_or_else(|| {
+            FsError::invalid(crate::text!(
+                "errors.files.deleteHome",
+                "refusing to delete the home directory"
+            ))
+        })?;
         if target == "/" {
-            return Err(FsError::invalid("refusing to delete /"));
+            return Err(FsError::invalid(crate::text!(
+                "errors.files.deleteRoot",
+                "refusing to delete /"
+            )));
         }
         let r = self.remote(ssh, connection_id).await?;
         let attrs = r.lstat(&target).await?;
@@ -462,7 +480,11 @@ impl SftpManager {
         }
         let real = r.realpath(&target).await?;
         if real == "/" || real == r.home || target == r.home {
-            return Err(FsError::invalid(format!("refusing to delete {target}")));
+            return Err(FsError::invalid(crate::text!(
+                "errors.files.deleteRefused",
+                "refusing to delete {path}",
+                path = target
+            )));
         }
         if recursive {
             r.remove_tree(real, 0).await

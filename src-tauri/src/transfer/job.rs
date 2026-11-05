@@ -61,7 +61,12 @@ pub async fn run(ctl: &Ctl, spec: &Spec) -> Result<(), Stop> {
     match ctl.check(dst.stat_dest(&spec.target_dir)).await?? {
         Some(m) if m.kind == EntryKind::Dir => {}
         Some(_) => {
-            return Err(FsError::invalid(format!("{} is not a directory", spec.target_dir)).into());
+            return Err(FsError::invalid(crate::text!(
+                "errors.transfer.notDirectory",
+                "{path} is not a directory",
+                path = spec.target_dir.as_str()
+            ))
+            .into());
         }
         None => return Err(FsError::NotFound(spec.target_dir.clone()).into()),
     }
@@ -280,7 +285,12 @@ impl Runner<'_> {
         for n in 1..=MAX_RENAMES {
             let candidate = numbered(name, n, is_dir);
             if !self.dst.valid_name(&candidate) {
-                return Err(FsError::invalid(format!("no free name for {name}")).into());
+                return Err(FsError::invalid(crate::text!(
+                    "errors.transfer.noFreeName",
+                    "no free name for {name}",
+                    name = name
+                ))
+                .into());
             }
             let path = self.dst.join(parent, &candidate);
             let busy = match temp_name(&candidate, 0) {

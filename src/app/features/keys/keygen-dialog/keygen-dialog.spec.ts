@@ -14,6 +14,11 @@ import type { KeyLocation } from '../../../core/ipc/keys';
 import { Settings } from '../../../core/settings/settings';
 import { KeygenDialog, locationProblem, samePath } from './keygen-dialog';
 
+const SHARED = {
+  key: 'errors.keys.sharedFolder',
+  message: 'Other users can open this folder.',
+};
+
 interface DialogApi {
   form: FormGroup;
   submit(): Promise<void>;
@@ -391,13 +396,13 @@ describe('KeygenDialog', () => {
 
     it('shows the shared-folder warning for a custom folder only', async () => {
       keyFolder.set('/srv/shared');
-      checkLocation.mockResolvedValue({ dir: '/srv/shared', isDefault: false, warning: 'shared' });
+      checkLocation.mockResolvedValue({ dir: '/srv/shared', isDefault: false, warning: SHARED });
       const { fixture, el } = await setup();
       await settle(fixture);
       expect(byId(el, 'keygen-folder-warning').textContent).toContain(
         'Other users can open this folder. The private key file stays readable only by you, but they may be able to replace or delete it.',
       );
-      checkLocation.mockResolvedValue({ dir: '/k', isDefault: true, warning: 'shared' });
+      checkLocation.mockResolvedValue({ dir: '/k', isDefault: true, warning: SHARED });
       byId<HTMLButtonElement>(el, 'keygen-folder-reset').click();
       await settle(fixture);
       expect(byId(el, 'keygen-folder-warning')).toBeNull();

@@ -98,8 +98,11 @@ fn lock(registry: &Shared) -> MutexGuard<'_, Registry> {
 
 pub fn check_size(cols: u32, rows: u32) -> Result<(), TerminalError> {
     if !(1..=MAX_COLS).contains(&cols) || !(1..=MAX_ROWS).contains(&rows) {
-        return Err(TerminalError::InvalidInput(format!(
-            "cols must be 1 to {MAX_COLS} and rows 1 to {MAX_ROWS}"
+        return Err(TerminalError::InvalidInput(crate::text!(
+            "errors.terminal.size",
+            "cols must be 1 to {cols} and rows 1 to {rows}",
+            cols = MAX_COLS,
+            rows = MAX_ROWS
         )));
     }
     Ok(())
@@ -197,8 +200,10 @@ impl TerminalManager {
     /// Never blocks: input is queued in call order, and a full queue is reported, not awaited.
     pub fn write(&self, terminal_id: &str, data: &str) -> Result<(), TerminalError> {
         if data.len() > MAX_WRITE_BYTES {
-            return Err(TerminalError::InvalidInput(format!(
-                "data must be at most {MAX_WRITE_BYTES} bytes per call"
+            return Err(TerminalError::InvalidInput(crate::text!(
+                "errors.terminal.writeTooLarge",
+                "data must be at most {max} bytes per call",
+                max = MAX_WRITE_BYTES
             )));
         }
         let (input, budget) = self.input(terminal_id)?;
@@ -267,8 +272,10 @@ impl TerminalManager {
             .count();
         let opening = reg.opening.get(connection_id).copied().unwrap_or(0);
         if open + opening >= MAX_PER_CONNECTION {
-            return Err(TerminalError::InvalidInput(format!(
-                "at most {MAX_PER_CONNECTION} terminals can be open on a connection"
+            return Err(TerminalError::InvalidInput(crate::text!(
+                "errors.terminal.tooMany",
+                "at most {max} terminals can be open on a connection",
+                max = MAX_PER_CONNECTION
             )));
         }
         *reg.opening.entry(connection_id.to_owned()).or_default() += 1;

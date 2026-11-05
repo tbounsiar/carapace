@@ -99,7 +99,11 @@ describe('KeysPage', () => {
         origin: 'imported',
         encrypted: true,
         hasPassphrase: true,
-        warning: 'Readable by other users',
+        warning: {
+          key: 'errors.keys.fileReadableByOthers',
+          message:
+            'the private key file is readable by other users; restrict its permissions to your account',
+        },
         fingerprint: 'SHA256:xyz',
       }),
       key({ id: 'k3', name: 'work', managed: false, path: '/home/me/.ssh/work' }),
@@ -120,7 +124,25 @@ describe('KeysPage', () => {
     expect(byId('key-badge-encrypted-legacy')!.textContent).toContain('Encrypted');
     expect(byId('key-badge-saved-legacy')!.textContent).toContain('Passphrase saved');
     expect(byId('key-badge-external-legacy')!.textContent).toContain('External');
-    expect(byId('key-warning-legacy')!.getAttribute('aria-label')).toBe('Readable by other users');
+    expect(byId('key-warning-legacy')!.getAttribute('aria-label')).toBe(
+      'the private key file is readable by other users; restrict its permissions to your account',
+    );
+  });
+
+  it('translates a key warning', async () => {
+    await setup([
+      key({
+        warning: {
+          key: 'errors.keys.fileReadableByOthers',
+          message: 'the private key file is readable by other users',
+        },
+      }),
+    ]);
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await settle();
+    expect(byId('key-warning-id_ed25519')!.getAttribute('aria-label')).toContain(
+      'le fichier de clé privée est lisible par d’autres utilisateurs',
+    );
   });
 
   it('runs the row menu actions', async () => {

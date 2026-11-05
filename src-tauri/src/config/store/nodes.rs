@@ -33,10 +33,43 @@ fn by_id(cfg: &ConfigFile) -> HashMap<&str, &Node> {
     cfg.nodes.iter().map(|n| (n.id(), n)).collect()
 }
 
-fn scope_label(cfg: &ConfigFile, project_id: Option<&str>) -> String {
+/// The project name, `None` for Home.
+fn project_name<'a>(cfg: &'a ConfigFile, project_id: Option<&str>) -> Option<&'a str> {
     project_id
         .and_then(|p| cfg.project(p))
-        .map_or_else(|| "Home".to_string(), |p| p.name.clone())
+        .map(|p| p.name.as_str())
+}
+
+fn collection_taken_in(name: &str, target: Option<&str>) -> ConfigError {
+    ConfigError::NameTaken(match target {
+        Some(target) => crate::text!(
+            "errors.config.collectionTakenIn",
+            "a collection named \"{name}\" already exists in {target}",
+            name = name,
+            target = target
+        ),
+        None => crate::text!(
+            "errors.config.collectionTakenInHome",
+            "a collection named \"{name}\" already exists in Home",
+            name = name
+        ),
+    })
+}
+
+fn host_taken_in(name: &str, project: Option<&str>) -> ConfigError {
+    ConfigError::NameTaken(match project {
+        Some(project) => crate::text!(
+            "errors.config.hostTakenIn",
+            "a host named \"{name}\" already exists in {project}",
+            name = name,
+            project = project
+        ),
+        None => crate::text!(
+            "errors.config.hostTakenInHome",
+            "a host named \"{name}\" already exists in Home",
+            name = name
+        ),
+    })
 }
 
 /// Checks that `parent_id` can hold nodes of `project_id`; returns how many collections deep
@@ -58,14 +91,16 @@ fn location_depth(
         .node(parent)
         .ok_or(ConfigError::NotFound("collection"))?;
     if !node.is_collection() {
-        return Err(ConfigError::InvalidInput(
-            "the parent must be a collection".into(),
-        ));
+        return Err(ConfigError::InvalidInput(crate::text!(
+            "errors.config.parentNotCollection",
+            "the parent must be a collection"
+        )));
     }
     if node.project_id() != project_id {
-        return Err(ConfigError::InvalidInput(
-            "the parent collection belongs to another scope".into(),
-        ));
+        return Err(ConfigError::InvalidInput(crate::text!(
+            "errors.config.parentOtherScope",
+            "the parent collection belongs to another scope"
+        )));
     }
     collection_chain(&by_id(cfg), Some(parent))
         .map(|c| c.len())
@@ -73,15 +108,19 @@ fn location_depth(
 }
 
 fn too_deep() -> ConfigError {
-    ConfigError::InvalidInput(format!(
-        "collections can be nested {MAX_DEPTH} levels deep at most"
+    ConfigError::InvalidInput(crate::text!(
+        "errors.config.tooDeep",
+        "collections can be nested {max} levels deep at most",
+        max = MAX_DEPTH
     ))
 }
 
 fn check_room(cfg: &ConfigFile) -> Result<(), ConfigError> {
     if cfg.nodes.len() >= MAX_NODES {
-        return Err(ConfigError::InvalidInput(format!(
-            "the configuration holds at most {MAX_NODES} hosts and collections"
+        return Err(ConfigError::InvalidInput(crate::text!(
+            "errors.config.tooManyNodes",
+            "the configuration holds at most {max} hosts and collections",
+            max = MAX_NODES
         )));
     }
     Ok(())
@@ -162,9 +201,10 @@ fn apply_move(
     let map = by_id(cfg);
     let target_chain = collection_chain(&map, parent_id).ok_or(ConfigError::Corrupt)?;
     if target_chain.iter().any(|c| c.id() == node_id) {
-        return Err(ConfigError::InvalidInput(
-            "a collection cannot be moved into itself or one of its collections".into(),
-        ));
+        return Err(ConfigError::InvalidInput(crate::text!(
+            "errors.config.moveIntoItself",
+            "a collection cannot be moved into itself or one of its collections"
+        )));
     }
     let height = subtree
         .iter()
@@ -180,23 +220,16 @@ fn apply_move(
         && collection_taken(cfg, project_id, parent_id, &c.name, Some(node_id))
     {
         let target = match parent_id.and_then(|p| map.get(p)) {
-            Some(parent) => parent.name().to_string(),
-            None => scope_label(cfg, project_id),
+            Some(parent) => Some(parent.name()),
+            None => project_name(cfg, project_id),
         };
-        return Err(ConfigError::NameTaken(format!(
-            "a collection named \"{}\" already exists in {target}",
-            c.name
-        )));
+        return Err(collection_taken_in(&c.name, target));
     }
     let scope_changed = node.project_id() != project_id;
     if scope_changed {
         for h in subtree.iter().filter_map(Node::as_host) {
             if host_taken(cfg, project_id, &h.name, &|id| ids.contains(id)).is_some() {
-                return Err(ConfigError::NameTaken(format!(
-                    "a host named \"{}\" already exists in {}",
-                    h.name,
-                    scope_label(cfg, project_id)
-                )));
+                return Err(host_taken_in(&h.name, project_name(cfg, project_id)));
             }
         }
     }

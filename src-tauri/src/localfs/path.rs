@@ -9,14 +9,23 @@ pub fn resolve(raw: &str) -> Result<Option<PathBuf>, FsError> {
         return Ok(None);
     }
     if raw.len() > MAX_PATH_BYTES {
-        return Err(FsError::invalid("path is too long"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.pathTooLong",
+            "path is too long"
+        )));
     }
     if raw.chars().any(char::is_control) {
-        return Err(FsError::invalid("path must not contain control characters"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.pathControl",
+            "path must not contain control characters"
+        )));
     }
     // Also rejects UNC, verbatim (`\\?\`) and device (`\\.\`) paths.
     if !is_local_absolute(raw) {
-        return Err(FsError::invalid("local path must be absolute"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.pathRelative",
+            "local path must be absolute"
+        )));
     }
     let mut out = PathBuf::new();
     for c in Path::new(raw).components() {
@@ -41,15 +50,22 @@ pub fn resolve(raw: &str) -> Result<Option<PathBuf>, FsError> {
 
 /// Path as the frontend sees it: UTF-8, without the `\\?\` prefix `canonicalize` adds on Windows.
 pub fn display(path: &Path) -> Result<String, FsError> {
-    let s = path
-        .to_str()
-        .ok_or_else(|| FsError::invalid("path is not valid Unicode"))?;
+    let s = path.to_str().ok_or_else(|| {
+        FsError::invalid(crate::text!(
+            "errors.local.pathNotUnicode",
+            "path is not valid Unicode"
+        ))
+    })?;
     let s = match s.strip_prefix(r"\\?\") {
         Some(rest) if rest.as_bytes().get(1) == Some(&b':') => rest,
         _ => s,
     };
     if !is_local_absolute(s) {
-        return Err(FsError::invalid(format!("{s} is not a local path")));
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.notLocal",
+            "{path} is not a local path",
+            path = s
+        )));
     }
     Ok(s.to_owned())
 }
@@ -58,7 +74,10 @@ pub fn display(path: &Path) -> Result<String, FsError> {
 fn windows_component(raw: &str) -> Result<(), FsError> {
     // `:` would address an alternate data stream instead of a file.
     if raw.contains(['<', '>', ':', '"', '|', '?', '*']) {
-        return Err(FsError::invalid("name must not contain < > : \" | ? or *"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.nameWindowsChars",
+            "name must not contain < > : \" | ? or *"
+        )));
     }
     let stem = raw
         .split('.')
@@ -79,7 +98,11 @@ fn windows_component(raw: &str) -> Result<(), FsError> {
         .or_else(|| stem.strip_prefix("LPT"))
         .is_some_and(numbered);
     if reserved {
-        return Err(FsError::invalid(format!("{raw} is a reserved name")));
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.reservedName",
+            "{name} is a reserved name",
+            name = raw
+        )));
     }
     Ok(())
 }
@@ -88,12 +111,18 @@ fn windows_component(raw: &str) -> Result<(), FsError> {
 pub fn name(raw: &str) -> Result<&str, FsError> {
     files::name(raw)?;
     if raw.contains('\\') {
-        return Err(FsError::invalid("name must not contain \\"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.nameBackslash",
+            "name must not contain \\"
+        )));
     }
     if cfg!(windows) {
         windows_component(raw)?;
         if raw.ends_with(['.', ' ']) {
-            return Err(FsError::invalid("name must not end with a dot or a space"));
+            return Err(FsError::invalid(crate::text!(
+                "errors.local.nameTrailing",
+                "name must not end with a dot or a space"
+            )));
         }
     }
     Ok(raw)

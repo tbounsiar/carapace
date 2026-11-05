@@ -91,7 +91,12 @@ describe('ExternalOpener', () => {
   });
 
   it('asks before a large download, then calls again with confirmLarge', async () => {
-    failures = [new IpcError('large_file', 'big.iso is 125829120 bytes; confirm to download it')];
+    failures = [
+      new IpcError('large_file', 'big.iso is 125829120 bytes; confirm to download it', {
+        key: 'errors.external.largeFile',
+        params: { name: 'big.iso', size: 125829120 },
+      }),
+    ];
     answers = [true];
     await expect(opener().open(vps, '/big.iso', 125829120)).resolves.toBe(true);
     expect(labels()).toEqual(['Download 120 MiB?']);
@@ -99,7 +104,12 @@ describe('ExternalOpener', () => {
   });
 
   it('stops when the large download is cancelled; the size comes from the message if needed', async () => {
-    failures = [new IpcError('large_file', 'big.iso is 31457280 bytes; confirm to download it')];
+    failures = [
+      new IpcError('large_file', 'big.iso is 31457280 bytes; confirm to download it', {
+        key: 'errors.external.largeFile',
+        params: { name: 'big.iso', size: 31457280 },
+      }),
+    ];
     answers = [false];
     await expect(opener().open(vps, '/big.iso', null)).resolves.toBe(false);
     expect(labels()).toEqual(['Download 30 MiB?']);
@@ -109,7 +119,10 @@ describe('ExternalOpener', () => {
   it('asks before copying a sensitive file, then keeps both confirmations', async () => {
     failures = [
       new IpcError('sensitive', 'id_rsa may hold secrets'),
-      new IpcError('large_file', 'x is 31457280 bytes'),
+      new IpcError('large_file', 'x is 31457280 bytes; confirm to download it', {
+        key: 'errors.external.largeFile',
+        params: { name: 'x', size: 31457280 },
+      }),
     ];
     answers = [true, true];
     await expect(opener().open(vps, '/home/u/id_rsa', 31457280)).resolves.toBe(true);
@@ -141,7 +154,12 @@ describe('ExternalOpener', () => {
   });
 
   it('names the missing app and words the other refusals', async () => {
-    failures = [new IpcError('app_not_found', 'the editor app was not found: code.exe')];
+    failures = [
+      new IpcError('app_not_found', 'the editor app was not found: code.exe', {
+        key: 'errors.external.appNotFound',
+        params: { app: 'code.exe' },
+      }),
+    ];
     await opener().open(vps, '/a.txt', 1);
     expect(alertOf().at(1)).toMatchObject({
       data: { text: 'The editor app was not found: code.exe. Choose it again in Settings.' },

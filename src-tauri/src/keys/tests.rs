@@ -281,16 +281,46 @@ fn removes_managed_files_only_inside_the_keys_dir() {
 }
 
 #[test]
+fn errors_carry_keys_and_params() {
+    use crate::text::Localized;
+    let t = KeyError::Taken("id_work".into()).text();
+    assert_eq!(t.key, Some("errors.keys.taken"));
+    assert_eq!(t.params["name"], "id_work");
+    assert_eq!(
+        t.message,
+        "id_work or id_work.pub already exists in this folder."
+    );
+    let t = KeyError::NotFound("/k/id".into()).text();
+    assert_eq!(
+        (t.key, &t.params["path"]),
+        (Some("errors.keys.notFound"), &serde_json::json!("/k/id"))
+    );
+    let e = validate_file_name("x.pub").unwrap_err();
+    assert_eq!(e.code(), "invalid_input");
+    assert_eq!(e.text().key, Some("errors.keys.nameEndsInPub"));
+    assert_eq!(KeyError::GenerationFailed.code(), "io");
+    let e = crate::commands::error::CommandError::from(KeyError::InvalidPassphrase);
+    assert_eq!(e.key, Some("errors.keys.invalidPassphrase"));
+}
+
+#[test]
 fn warns_about_missing_or_exposed_key_files() {
     let dir = tempfile::tempdir().unwrap();
     let missing = path_str(&dir.path().join("missing"));
-    assert!(permission_warning(&missing).unwrap().contains("not found"));
+    let warning = permission_warning(&missing).unwrap();
+    assert!(warning.message.contains("not found"));
+    assert_eq!(warning.key, Some("errors.keys.fileMissing"));
     #[cfg(unix)]
     {
         let path = write_key(dir.path(), "k", "");
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
-        assert!(permission_warning(&path).unwrap().contains("other users"));
+        assert!(
+            permission_warning(&path)
+                .unwrap()
+                .message
+                .contains("other users")
+        );
         fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
         assert_eq!(permission_warning(&path), None);
     }

@@ -127,7 +127,11 @@ fn check_test_id(test_id: &str) -> Res<()> {
     if test_id.chars().count() > MAX_TEST_ID_CHARS {
         return Err(CommandError::new(
             "invalid_input",
-            format!("testId is longer than {MAX_TEST_ID_CHARS} characters"),
+            crate::text!(
+                "errors.ssh.testIdTooLong",
+                "testId is longer than {max} characters",
+                max = MAX_TEST_ID_CHARS
+            ),
         ));
     }
     Ok(())

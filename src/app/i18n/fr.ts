@@ -1,5 +1,6 @@
 // One file per area, owned by that feature; the top-level key is the area name.
 import common from './fr/common.json';
+import errors from './fr/errors';
 import analytics from './fr/analytics.json';
 import credentialDialog from './fr/credential-dialog.json';
 import dashboard from './fr/dashboard.json';
@@ -25,6 +26,7 @@ import workspace from './fr/workspace.json';
 
 export default {
   common,
+  errors,
   analytics,
   credentialDialog,
   dashboard,

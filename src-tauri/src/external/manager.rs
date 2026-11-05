@@ -16,6 +16,7 @@ use super::watch::{self as watcher, Signal, Watch};
 use crate::files::FsError;
 use crate::sftp::{self, Body, Remote, Version};
 use crate::ssh::SessionEnd;
+use crate::text::Localized;
 use crate::transfer::Connections;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -650,7 +651,12 @@ impl Shared {
         let host = req.connection_id;
         let path = sftp::normalize(req.path)?
             .filter(|p| p != "/")
-            .ok_or_else(|| EditError::invalid("path must name a file"))?;
+            .ok_or_else(|| {
+                EditError::invalid(crate::text!(
+                    "errors.external.pathNotFile",
+                    "path must name a file"
+                ))
+            })?;
         let name = sftp::file_name(&path).to_owned();
         let opener = (self.settings)();
         if let Some(id) = self.find(host, &path) {
@@ -688,9 +694,10 @@ impl Shared {
         size_gate(size, req.confirm_large, &name)?;
         let identity = remote.identity().clone();
         if identity.fingerprint.is_empty() {
-            return Err(EditError::invalid(
-                "the host key of this connection is unknown; connect again",
-            ));
+            return Err(EditError::invalid(crate::text!(
+                "errors.external.hostKeyUnknown",
+                "the host key of this connection is unknown; connect again"
+            )));
         }
         let root = self.root.clone();
         let slot = blocking(move || Slot::create(&root, &local_name)).await?;
@@ -840,10 +847,7 @@ impl Shared {
     fn fail(&self, id: &str, err: &EditError) {
         self.update(id, |e| {
             e.state = State::Failed;
-            e.error = Some(ErrorView {
-                code: err.code(),
-                message: err.to_string(),
-            });
+            e.error = Some(ErrorView::of(err));
         });
     }
 
@@ -878,10 +882,7 @@ impl Shared {
         let err = EditError::HostChanged(path);
         self.update(id, |e| {
             e.state = State::Failed;
-            e.error = Some(ErrorView {
-                code: err.code(),
-                message: err.to_string(),
-            });
+            e.error = Some(ErrorView::of(&err));
         });
         Err(err)
     }
@@ -967,10 +968,7 @@ impl Shared {
             Err(e) => {
                 self.update(id, |x| {
                     x.state = State::Failed;
-                    x.error = Some(ErrorView {
-                        code: e.code(),
-                        message: e.to_string(),
-                    });
+                    x.error = Some(ErrorView::of(&e));
                 });
                 return Err(e);
             }
@@ -982,10 +980,7 @@ impl Shared {
             };
             self.update(id, |e| {
                 e.state = State::Failed;
-                e.error = Some(ErrorView {
-                    code: err.code(),
-                    message: err.to_string(),
-                });
+                e.error = Some(ErrorView::of(&err));
             });
             return Err(err);
         }
@@ -1072,7 +1067,7 @@ impl Shared {
                         e.state = State::Failed;
                         e.error = Some(ErrorView {
                             code: err.code(),
-                            message: err.to_string(),
+                            text: Box::new(err.text()),
                         });
                     }
                 })
@@ -1192,7 +1187,10 @@ impl Shared {
             )
         };
         if recovered_only && state != State::Recovered {
-            return Err(EditError::invalid("only a recovered file can be discarded"));
+            return Err(EditError::invalid(crate::text!(
+                "errors.external.notRecovered",
+                "only a recovered file can be discarded"
+            )));
         }
         if force {
             let removed = self.lock().files.remove(id);

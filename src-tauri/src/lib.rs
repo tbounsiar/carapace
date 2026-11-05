@@ -7,11 +7,13 @@ mod files;
 mod fsutil;
 mod keys;
 mod localfs;
+mod native_text;
 mod quit;
 mod secrets;
 mod sftp;
 mod ssh;
 mod terminal;
+mod text;
 mod transfer;
 mod vars;
 
@@ -56,6 +58,7 @@ pub fn run() {
             // runs; a failed read keeps analytics off and silent until a later read succeeds.
             let known = store.snapshot().ok();
             let choices = store.analytics();
+            native_text::remember(store.settings().ok().and_then(|s| s.language));
             commands::secrets::forget_legacy(&store, &secrets);
             let version = app.package_info().version.to_string();
             let analytics = analytics::Analytics::for_app(choices, &version);

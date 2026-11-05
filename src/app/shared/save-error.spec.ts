@@ -1,11 +1,13 @@
 import { of } from 'rxjs';
 import type { TuiNotificationService } from '@taiga-ui/core';
 import { IpcError } from '../core/ipc/ipc-error';
-import { errorText, notifyError } from './save-error';
+import { errorText, importApplyError, importFileError, notifyError } from './save-error';
 import { TranslocoService } from '@jsverse/transloco';
 import { TestBed } from '@angular/core/testing';
 
 describe('errorText', () => {
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   it('says what happened, then what to do', () => {
     expect(errorText(new IpcError('timeout', 'the connection timed out'))).toBe(
       'The connection timed out. Check that the host is reachable, then try again.',
@@ -51,6 +53,34 @@ describe('errorText', () => {
     );
   });
 
+  it('translates a keyed backend text, from an error or an event payload', () => {
+    const open = vi.fn(() => of(undefined));
+    const err = new IpcError('not_found', '/srv/a was not found', {
+      key: 'errors.files.notFound',
+      params: { path: '/srv/a' },
+    });
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    notifyError({ open } as unknown as TuiNotificationService, err, 'Non supprimé');
+    expect(open).toHaveBeenCalledWith(expect.stringMatching(/^\/srv\/a est introuvable\. /u), {
+      label: 'Non supprimé',
+      appearance: 'negative',
+    });
+    expect(
+      errorText({
+        code: 'not_connected',
+        key: 'errors.files.notConnected',
+        message: 'the host is not connected',
+      }),
+    ).toMatch(/^L’hôte n’est pas connecté\. /u);
+    TestBed.inject(TranslocoService).setActiveLang('en');
+  });
+
+  it('keeps the English message when the key is malformed', () => {
+    expect(errorText({ code: 'io', key: 3, params: 'x', message: 'disk' })).toBe(
+      'Disk. Check that the disk is available and not full, then try again.',
+    );
+  });
+
   it('writes its own texts in French, the backend message as is', () => {
     TestBed.inject(TranslocoService).setActiveLang('fr');
     expect(errorText(new IpcError('busy', 'the host is busy'))).toBe(
@@ -59,5 +89,52 @@ describe('errorText', () => {
     expect(errorText(null)).toBe(
       'Une erreur inattendue s’est produite. Réessayez. Redémarrez l’application si le problème persiste.',
     );
+  });
+});
+
+describe('importFileError', () => {
+  const dt = (name: string, params?: Record<string, unknown>) => ({
+    key: `errors.dataTransfer.${name}`,
+    message: name,
+    ...(params ? { params } : {}),
+  });
+  const inFile = (code: 'import_invalid' | 'import_version', error: unknown) =>
+    new IpcError(code, 'file “notes.json”: …', {
+      key: 'errors.dataTransfer.inFile',
+      params: { file: 'notes.json', error },
+    });
+
+  beforeEach(() => TestBed.inject(TranslocoService));
+  afterEach(() => TestBed.inject(TranslocoService).setActiveLang('en'));
+
+  it('reads the version from the params', () => {
+    const view = importFileError(
+      inFile('import_version', dt('newerVersion', { version: 4, supported: 1 })),
+    );
+    expect(view.fileName).toBe('notes.json');
+    expect(view.lines).toEqual([
+      'It was exported in data format 4. Update Carapace, then import it again.',
+    ]);
+  });
+
+  it('translates the invalid data lines into French', () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    const who = dt('itemNamed', { kind: 'collection', name: 'Backend' });
+    const view = importFileError(
+      inFile('import_invalid', dt('invalidFile', { errors: [dt('ownParent', { who })] })),
+    );
+    expect(view.lines).toHaveLength(1);
+    expect(view.lines[0]).toMatch(
+      /^Collection «\sBackend\s»\s:\sl’élément est son propre parent\.$/u,
+    );
+  });
+
+  it('keeps the count of a partial keychain failure, in French', () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    const err = new IpcError('keychain_unavailable', 'english', {
+      key: 'errors.dataTransfer.keychainPartlyRemoved',
+      params: { count: 1 },
+    });
+    expect(importApplyError(err)).toContain('1 valeur secrète a déjà été supprimée');
   });
 });

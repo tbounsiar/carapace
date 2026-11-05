@@ -127,11 +127,13 @@ fn custom_location_rules() {
 
     let shared = shared_dir(home.path(), "shared");
     let loc = check_location(&managed, Some(&s(&shared)), "id_work").unwrap();
+    let warning = loc.warning.unwrap();
     assert!(
-        loc.warning
-            .unwrap()
+        warning
+            .message
             .starts_with("Other users can open this folder.")
     );
+    assert_eq!(warning.key, Some("errors.keys.sharedFolder"));
 
     assert_eq!(
         code(check_location(

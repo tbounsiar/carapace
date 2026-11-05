@@ -2,6 +2,7 @@ import { translate } from '@jsverse/transloco';
 import { localeOf } from '../../core/i18n/language';
 import type { HostTestResult } from '../../core/ipc/host-test';
 import type { IpcError } from '../../core/ipc/ipc-error';
+import { textOf } from '../../shared/backend-text';
 import { errorText, sentence } from '../../shared/save-error';
 import type { HostTestDraft, HostTestOutcome, SecretOrigin } from './host-tester';
 
@@ -164,7 +165,8 @@ function failure(code: string, title: Part[], detail: Part[]): HostTestView {
 function failureView(err: IpcError, from: SecretOrigin, draft: HostTestDraft): HostTestView {
   const { user, hostPort } = split(draft.address);
   const auth = draft.host.auth.kind;
-  const detail = err.message.trim() ? `${sentence(err.message)} ` : '';
+  const message = textOf(err).trim();
+  const detail = message ? `${sentence(message)} ` : '';
   const host = { host: mono(hostPort) };
   const path = { path: mono(draft.keyPath) };
   switch (err.code) {
@@ -236,7 +238,7 @@ function failureView(err: IpcError, from: SecretOrigin, draft: HostTestDraft): H
       break;
     case 'io':
     case 'not_found':
-      if (/known_hosts/i.test(err.message)) {
+      if (err.key === 'errors.ssh.userKnownHostsUnreadable') {
         return failure(err.code, [t('failure.knownHostsUnreadable.title')], [text(detail.trim())]);
       }
       if (auth === 'key') {

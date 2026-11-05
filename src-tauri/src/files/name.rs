@@ -3,16 +3,29 @@ use super::FsError;
 /// Checks a single path component for mkdir and rename (both sides).
 pub fn name(raw: &str) -> Result<&str, FsError> {
     if raw.is_empty() || raw.len() > 255 {
-        return Err(FsError::invalid("name must be 1 to 255 bytes"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.files.nameLength",
+            "name must be 1 to {max} bytes",
+            max = 255
+        )));
     }
     if raw == "." || raw == ".." {
-        return Err(FsError::invalid("name must not be . or .."));
+        return Err(FsError::invalid(crate::text!(
+            "errors.files.nameDots",
+            "name must not be . or .."
+        )));
     }
     if raw.contains('/') {
-        return Err(FsError::invalid("name must not contain /"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.files.nameSlash",
+            "name must not contain /"
+        )));
     }
     if raw.chars().any(char::is_control) {
-        return Err(FsError::invalid("name must not contain control characters"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.files.nameControl",
+            "name must not contain control characters"
+        )));
     }
     Ok(raw)
 }

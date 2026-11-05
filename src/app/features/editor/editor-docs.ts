@@ -309,11 +309,12 @@ export class EditorDoc {
   }
 
   private async resolveConflict(err: IpcError): Promise<boolean> {
-    const kind = /no longer exists/i.test(err.message)
-      ? 'deleted'
-      : /points to another file/i.test(err.message)
-        ? 'retargeted'
-        : 'changed';
+    const kind =
+      err.key === 'errors.files.deleted'
+        ? 'deleted'
+        : err.key === 'errors.files.retargeted'
+          ? 'retargeted'
+          : 'changed';
     const choice = await askEditorChoice(this.deps.dialogs, {
       kind,
       name: this.name,

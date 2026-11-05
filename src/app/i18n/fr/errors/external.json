@@ -1,0 +1,23 @@
+{
+  "appFailed": "l’application d’édition n’a pas pu être démarrée",
+  "appNotEditor": "{app} exécute ou transmet les fichiers au lieu de les modifier ; choisissez un éditeur",
+  "appNotFound": "application d’édition introuvable : {app}",
+  "appPathInvalid": "l’application d’édition doit être un chemin absolu sur cet ordinateur",
+  "blockedType": "{name} serait exécuté, et non ouvert, par votre système",
+  "hostChanged": "{path} a été ouvert depuis un autre serveur ; rien n’a été envoyé",
+  "hostGone": "l’hôte de {path} n’existe plus",
+  "hostKeyUnknown": "la clé d’hôte de cette connexion est inconnue ; connectez-vous à nouveau",
+  "largeFile": "{name} fait {size} octets ; confirmez pour le télécharger",
+  "local": "la copie locale n’a pas pu être lue ou écrite",
+  "noConflict": "{path} n’est pas en conflit",
+  "notRecovered": "seul un fichier récupéré peut être abandonné",
+  "notRegular": "{path} n’est pas un fichier ordinaire",
+  "notUploaded": "les modifications de {path} n’ont pas été envoyées",
+  "pathInvalid": "le chemin n’est pas valide",
+  "pathNotFile": "le chemin doit désigner un fichier",
+  "pickerBusy": "un sélecteur de fichiers est déjà ouvert",
+  "required": "{name} est requis ({max} caractères au plus)",
+  "sensitive": "{name} peut contenir des secrets ; confirmez pour le copier sur cet ordinateur",
+  "tooLarge": "{name} est trop volumineux pour être modifié (1 Gio au plus)",
+  "unknownId": "fichier modifié introuvable"
+}

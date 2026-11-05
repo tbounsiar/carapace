@@ -1,5 +1,6 @@
 import { Service } from '@angular/core';
 import { Channel } from '@tauri-apps/api/core';
+import type { BackendText } from './backend-text';
 import { invokeCommand } from './ipc-error';
 
 export type TransferDirection = 'upload' | 'download';
@@ -25,7 +26,7 @@ export interface TransferView {
   totalFiles: number | null;
   doneFiles: number;
   skipped: number;
-  error: { code: string; message: string } | null;
+  error: (BackendText & { code: string }) | null;
 }
 
 export interface TransferConflict {

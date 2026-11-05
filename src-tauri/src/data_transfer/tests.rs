@@ -226,7 +226,7 @@ fn apply_all(
     store: &ConfigStore,
     file: &DataFile,
     strategy: Strategy,
-) -> Result<Applied, ConfigError> {
+) -> Result<Applied, ApplyError> {
     let (_, rev) = store.snapshot_revision().unwrap();
     let connected = HashSet::new();
     let inputs = Inputs {
@@ -314,13 +314,16 @@ fn apply_refuses_stale_and_blocked_imports_and_writes_nothing() {
         at(NOV_5),
         |_| Ok(()),
     );
-    assert!(matches!(stale, Err(ConfigError::Changed)));
+    assert!(matches!(stale, Err(ApplyError::Data(ConfigError::Changed))));
 
     let (_, rev) = store.snapshot_revision().unwrap();
     let failed = apply(&store, &inputs, &rev, Strategy::Replace, at(NOV_5), |_| {
         Err(ConfigError::Keychain)
     });
-    assert!(matches!(failed, Err(ConfigError::Keychain)));
+    assert!(matches!(
+        failed,
+        Err(ApplyError::Data(ConfigError::Keychain))
+    ));
     assert_eq!(std::fs::read(dir.path().join("data.json")).unwrap(), before);
 
     let mut big = file.clone();
@@ -337,11 +340,18 @@ fn apply_refuses_stale_and_blocked_imports_and_writes_nothing() {
     assert!(first.outcome.plan.blocking.is_empty());
     let blocked = apply_all(&store, &big2, Strategy::Merge).unwrap_err();
     match blocked {
-        ConfigError::InvalidInput(m) => {
+        ApplyError::Blocked(t) => {
             assert!(
-                m.starts_with("This import cannot be done with Merge: there would be"),
-                "{m}"
-            )
+                t.message
+                    .starts_with("This import cannot be done with Merge: there would be"),
+                "{t}"
+            );
+            assert_eq!(t.key, Some("errors.dataTransfer.importBlocked"));
+            assert_eq!(t.params["strategy"], "merge");
+            assert_eq!(
+                t.params["reasons"][0]["key"],
+                "errors.dataTransfer.wouldHaveTooManyGlobals"
+            );
         }
         other => panic!("{other:?}"),
     }
@@ -367,7 +377,7 @@ fn a_backup_failure_aborts_the_import() {
         ran = true;
         Ok(())
     });
-    assert!(matches!(r, Err(ConfigError::Io)));
+    assert!(matches!(r, Err(ApplyError::Data(ConfigError::Io))));
     assert!(!ran, "no keychain delete before the backup exists");
     assert_eq!(std::fs::read(dir.path().join("data.json")).unwrap(), before);
 }

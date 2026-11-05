@@ -208,3 +208,17 @@ fn a_bad_language_names_the_allowed_values_only() {
     assert_eq!(e.code, "invalid_input");
     assert_eq!(e.message, "language must be system, en or fr");
 }
+
+#[test]
+fn bad_patches_carry_keys_and_params() {
+    let (_d, s) = store();
+    let e = update_in(&s, &json!({"terminalFontSize": 99})).unwrap_err();
+    assert_eq!(e.key, Some("errors.settings.terminalFontSize"));
+    assert_eq!(e.params["min"], 10);
+    assert_eq!(e.params["max"], 24);
+    let e = update_in(&s, &json!({"keyFolder": "relative"})).unwrap_err();
+    assert_eq!(e.key, Some("errors.settings.keyFolderNotLocal"));
+    assert!(e.params.is_empty());
+    let e = update_in(&s, &json!({"nope": 1})).unwrap_err();
+    assert_eq!(e.key, Some("errors.settings.unknownSetting"));
+}

@@ -1,4 +1,5 @@
 import { invoke, type InvokeArgs } from '@tauri-apps/api/core';
+import { type BackendText, isRecord, textParts } from './backend-text';
 import type { CommandErrorCode, IpcErrorCode } from './config.models';
 
 const KNOWN_CODES: readonly string[] = [
@@ -43,13 +44,24 @@ const KNOWN_CODES: readonly string[] = [
   'import_secret_value',
 ];
 
-export class IpcError extends Error {
+/** `message` is the English text; `key`/`params` translate it (see `textOf`). */
+export class IpcError extends Error implements BackendText {
+  readonly key?: string;
+  readonly params?: Readonly<Record<string, unknown>>;
+
   constructor(
     readonly code: IpcErrorCode,
     message: string,
+    text: Pick<BackendText, 'key' | 'params'> = {},
   ) {
     super(message);
     this.name = 'IpcError';
+    if (text.key !== undefined) {
+      this.key = text.key;
+    }
+    if (text.params !== undefined) {
+      this.params = text.params;
+    }
   }
 }
 
@@ -57,10 +69,10 @@ function toIpcError(raw: unknown): IpcError {
   if (raw instanceof IpcError) {
     return raw;
   }
-  if (typeof raw === 'object' && raw !== null) {
-    const { code, message } = raw as { code?: unknown; message?: unknown };
+  if (isRecord(raw)) {
+    const { code, message } = raw;
     if (typeof code === 'string' && typeof message === 'string' && KNOWN_CODES.includes(code)) {
-      return new IpcError(code as CommandErrorCode, message);
+      return new IpcError(code as CommandErrorCode, message, textParts(raw));
     }
   }
   return new IpcError('unknown', 'Unexpected error');

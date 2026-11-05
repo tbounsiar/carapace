@@ -1,3 +1,4 @@
+import type { AuthMethod } from '../../core/ipc/config.models';
 import type {
   DataCounts,
   FileScope,
@@ -5,6 +6,7 @@ import type {
   ImportResult,
   ItemKind,
   NeedsSecret,
+  PlanChange,
   PlanItem,
   PlanRow,
   Strategy,
@@ -306,10 +308,66 @@ function gender(kind: ItemKind): string {
   return FEMININE.has(kind) ? 'f' : 'm';
 }
 
+function authValue(t: Translate, auth: AuthMethod): string {
+  const label = t(`common.auth.${auth.kind}`);
+  switch (auth.kind) {
+    case 'password':
+      return auth.password
+        ? t('dataTransfer.detail.authRef', { auth: label, ref: auth.password })
+        : label;
+    case 'key':
+      return auth.passphrase
+        ? t('dataTransfer.detail.authKeyPassphrase', {
+            auth: label,
+            path: auth.keyPath,
+            ref: auth.passphrase,
+          })
+        : t('dataTransfer.detail.authKey', { auth: label, path: auth.keyPath });
+    case 'agent':
+      return label;
+  }
+}
+
+/**
+ * The scope segment of a location is the backend's English "Home" (hosts, collections) or
+ * "Global" (variables); project names stay as they are.
+ */
+function scopeSegment(t: Translate, kind: ItemKind, segment: string): string {
+  if (kind === 'variable') {
+    return segment === 'Global' ? t('dataTransfer.detail.global') : segment;
+  }
+  return segment === 'Home' ? t('common.home') : segment;
+}
+
+function locationText(t: Translate, kind: ItemKind, location: readonly string[]): string {
+  return location.map((s, i) => (i === 0 ? scopeSegment(t, kind, s) : s)).join(' / ');
+}
+
+function changeValue(
+  t: Translate,
+  kind: ItemKind,
+  field: PlanChange['field'],
+  value: PlanChange['from'],
+): string {
+  if (typeof value !== 'string') {
+    return authValue(t, value);
+  }
+  if (field === 'kind' && (value === 'plain' || value === 'secret')) {
+    return t(`variables.editor.kinds.${value}`);
+  }
+  if (field === 'location') {
+    return locationText(t, kind, value.split(' / '));
+  }
+  return value;
+}
+
 export function detailLines(t: Translate, item: PlanItem): string[] {
   const lines: string[] = [];
   for (const change of item.changes) {
-    lines.push(t(`dataTransfer.detail.${change.field}`, { from: change.from, to: change.to }));
+    const value = (v: PlanChange['from']) => changeValue(t, item.kind, change.field, v);
+    lines.push(
+      t(`dataTransfer.detail.${change.field}`, { from: value(change.from), to: value(change.to) }),
+    );
   }
   if (item.newName && item.newName !== item.name && !item.changes.some((c) => c.field === 'name')) {
     lines.push(t('dataTransfer.detail.name', { from: item.name, to: item.newName }));
@@ -396,7 +454,7 @@ export function detailViews(t: Translate, items: readonly PlanItem[]): DetailVie
       testId: `import-item-${key}${repeated ? `/${item.location.join('/')}` : ''}`,
       icon: KIND_ICONS[item.kind],
       name: item.name,
-      location: item.location.join(' / '),
+      location: locationText(t, item.kind, item.location),
       lines: detailLines(t, item),
       badge: {
         label: t(`dataTransfer.badge.${item.action}`, { gender: gender(item.kind) }),

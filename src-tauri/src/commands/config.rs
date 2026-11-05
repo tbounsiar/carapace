@@ -162,14 +162,18 @@ fn save_variables(
         if !crate::vars::is_valid_name(&input.name) {
             return Err(CommandError::new(
                 "invalid_input",
-                "variable names start with a letter or '_' and contain only letters, digits, '_', '.' and '-' (64 characters at most)",
+                crate::config::validate::invalid_variable_name(),
             ));
         }
         match (input.kind, input.secret_value) {
             (VariableKind::Plain, Some(_)) => {
                 return Err(CommandError::new(
                     "invalid_input",
-                    format!("plain variable {} cannot take a secret value", input.name),
+                    crate::text!(
+                        "errors.config.plainWithSecretValue",
+                        "plain variable {name} cannot take a secret value",
+                        name = input.name.as_str()
+                    ),
                 ));
             }
             (VariableKind::Secret, Some(value)) => {
@@ -177,9 +181,10 @@ fn save_variables(
                 if !fits_keychain(&value) {
                     return Err(CommandError::new(
                         "invalid_input",
-                        format!(
-                            "the value of {} is too long for the system keychain",
-                            input.name
+                        crate::text!(
+                            "errors.config.secretValueTooLong",
+                            "the value of {name} is too long for the system keychain",
+                            name = input.name.as_str()
                         ),
                     ));
                 }

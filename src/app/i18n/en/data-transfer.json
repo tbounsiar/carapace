@@ -96,6 +96,10 @@
     "line": "Not defined anywhere: {list}."
   },
   "detail": {
+    "authRef": "{auth} {ref}",
+    "authKey": "{auth} {path}",
+    "authKeyPassphrase": "{auth} {path}, passphrase {ref}",
+    "global": "Global",
     "address": "Address: {from} → {to}",
     "location": "Moves from {from} to {to}",
     "name": "Renamed: {from} → {to}",

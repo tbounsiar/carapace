@@ -330,6 +330,24 @@ fn picked_files_are_read_capped_and_errors_name_the_file() {
         e.message,
         "file “notes.json”: This is not a Carapace data file."
     );
+    let json = serde_json::to_value(&e).unwrap();
+    assert_eq!(json["key"], "errors.dataTransfer.inFile");
+    assert_eq!(json["params"]["file"], "notes.json");
+    assert_eq!(
+        json["params"]["error"]["key"],
+        "errors.dataTransfer.notDataFile"
+    );
+    let broken = dir.join("broken.json");
+    std::fs::write(&broken, b"{\n  oops\n}").unwrap();
+    let json = serde_json::to_value(read_import(broken).unwrap_err()).unwrap();
+    assert_eq!(
+        json["params"]["error"],
+        serde_json::json!({
+            "key": "errors.dataTransfer.syntax",
+            "params": { "line": 2, "column": 3 },
+            "message": "The file is not valid JSON (line 2, column 3).",
+        })
+    );
     #[cfg(windows)]
     assert_eq!(
         read_import(PathBuf::from(r"\\host\share\f.json"))

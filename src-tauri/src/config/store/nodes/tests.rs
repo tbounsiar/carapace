@@ -37,7 +37,7 @@ fn conflict<T: std::fmt::Debug>(r: Result<T, ConfigError>) {
 
 fn name_taken<T: std::fmt::Debug>(r: Result<T, ConfigError>, message: &str) {
     match r {
-        Err(ConfigError::NameTaken(m)) => assert_eq!(m, message),
+        Err(ConfigError::NameTaken(m)) => assert_eq!(m.message, message),
         other => panic!("{other:?}"),
     }
 }
@@ -398,4 +398,26 @@ fn failed_move_does_not_call_back_or_write() {
     invalid(w.s.move_node(&w.backend, Some(&w.pay), Some(&w.api), |_| called = true));
     assert!(!called);
     assert_eq!(raw(&w.d), before);
+}
+
+#[test]
+fn move_conflicts_carry_keys_and_params() {
+    let w = world();
+    host(&w, Some(&w.pay), None, "ui");
+    let home_ui = host(&w, None, Some(&w.tools), "UI");
+    let Err(ConfigError::NameTaken(t)) = w.s.plan_move(&home_ui, Some(&w.pay), None) else {
+        panic!("conflict expected");
+    };
+    assert_eq!(t.key, Some("errors.config.hostTakenIn"));
+    assert_eq!(t.params["name"], "UI");
+    assert_eq!(t.params["project"], "Payments");
+    let other =
+        w.s.create_collection(Some(&w.pay), Some(&w.api), "Tools")
+            .unwrap();
+    let Err(ConfigError::NameTaken(t)) = w.s.plan_move(&other.id, None, None) else {
+        panic!("conflict expected");
+    };
+    assert_eq!(t.key, Some("errors.config.collectionTakenInHome"));
+    assert_eq!(t.params["name"], "Tools");
+    assert!(!t.params.contains_key("target"));
 }

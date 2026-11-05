@@ -227,7 +227,10 @@ describe('EditorDocs', () => {
     const doc = await open();
     factory.created[0].type('x');
     files.write.mockRejectedValueOnce(
-      new IpcError('conflict', '/etc/nginx/nginx.conf changed on the server since it was opened'),
+      new IpcError('conflict', '/etc/nginx/nginx.conf changed on the server since it was opened', {
+        key: 'errors.files.changed',
+        params: { path: '/etc/nginx/nginx.conf' },
+      }),
     );
     answers = ['overwrite'];
     expect(await doc.save()).toBe(true);
@@ -247,7 +250,10 @@ describe('EditorDocs', () => {
     const editor = factory.created[0];
     editor.type('mine');
     files.write.mockRejectedValue(
-      new IpcError('conflict', '/etc/nginx/nginx.conf no longer exists on the server'),
+      new IpcError('conflict', '/etc/nginx/nginx.conf no longer exists on the server', {
+        key: 'errors.files.deleted',
+        params: { path: '/etc/nginx/nginx.conf' },
+      }),
     );
     answers = ['cancel'];
     expect(await doc.save()).toBe(false);
@@ -269,7 +275,10 @@ describe('EditorDocs', () => {
     const doc = await open();
     factory.created[0].type('x');
     files.write.mockRejectedValueOnce(
-      new IpcError('conflict', '/etc/nginx/nginx.conf now points to another file on the server'),
+      new IpcError('conflict', '/etc/nginx/nginx.conf now points to another file on the server', {
+        key: 'errors.files.retargeted',
+        params: { path: '/etc/nginx/nginx.conf' },
+      }),
     );
     answers = ['cancel'];
     expect(await doc.save()).toBe(false);

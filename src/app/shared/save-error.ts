@@ -1,8 +1,10 @@
 import type { AbstractControl } from '@angular/forms';
 import { TuiValidationError } from '@taiga-ui/cdk';
 import type { TuiNotificationService } from '@taiga-ui/core';
+import { type BackendText, isBackendText, isRecord, textParts } from '../core/ipc/backend-text';
 import type { IpcErrorCode } from '../core/ipc/config.models';
 import { IpcError } from '../core/ipc/ipc-error';
+import { textOf } from './backend-text';
 import { uiText } from './ui-text';
 
 /** Error codes with a "what to do next" text (`common.error.next.<code>`). */
@@ -59,18 +61,17 @@ function isCode(code: unknown): code is IpcErrorCode {
 }
 
 /**
- * "What happened. What to do." for a notification. Takes an `IpcError` or a `{code, message}`
- * from an event payload; backend messages are lower-case fragments.
+ * "What happened. What to do." for a notification. Takes an `IpcError` or a
+ * `{code, message, key?, params?}` from an event payload; backend texts are lower-case fragments.
  */
 export function errorText(err: unknown): string {
-  const { code, message } =
-    typeof err === 'object' && err !== null
-      ? (err as { code?: unknown; message?: unknown })
-      : { code: undefined, message: undefined };
+  const code = isRecord(err) ? err['code'] : undefined;
+  const message = isRecord(err) ? err['message'] : undefined;
   if (!isCode(code) || code === 'unknown' || typeof message !== 'string' || !message.trim()) {
     return `${uiText('common.error.unexpected')} ${nextStep('unknown')}`;
   }
-  return `${sentence(message)} ${nextStep(code)}`;
+  const text = textOf({ message, ...textParts(err as Readonly<Record<string, unknown>>) });
+  return `${sentence(text)} ${nextStep(code)}`;
 }
 
 /** A backend message (a lower-case fragment) as a sentence. */
@@ -106,8 +107,6 @@ export function handleSaveError(
   notifyError(alerts, err, uiText('common.error.notSaved', { noun }));
 }
 
-const FILE_PREFIX = /^file “([^”]*)”:\s*/;
-
 export interface ImportFileError {
   /** Base name of the picked file, when the backend named it. */
   readonly fileName: string | null;
@@ -116,12 +115,30 @@ export interface ImportFileError {
   readonly lines: readonly string[];
 }
 
+const IN_FILE = 'errors.dataTransfer.inFile';
+
+/** The file name and the error inside `errors.dataTransfer.inFile`, else the error itself. */
+function fileError(err: unknown): { fileName: string | null; inner: BackendText } {
+  if (!(err instanceof IpcError)) {
+    return { fileName: null, inner: { message: '' } };
+  }
+  const { file, error } = err.params ?? {};
+  if (err.key === IN_FILE && typeof file === 'string' && isBackendText(error)) {
+    return { fileName: file, inner: error };
+  }
+  return { fileName: null, inner: err };
+}
+
+function numberParam(text: BackendText, key: string, name: string): string | null {
+  const value = text.key === key ? text.params?.[name] : undefined;
+  return typeof value === 'number' || typeof value === 'string' ? String(value) : null;
+}
+
 /** Title and body of an unreadable import file (spec S5), by error code. */
 export function importFileError(err: unknown): ImportFileError {
   const code = err instanceof IpcError ? err.code : 'unknown';
-  const raw = err instanceof IpcError ? err.message : '';
-  const fileName = FILE_PREFIX.exec(raw)?.[1] ?? null;
-  const message = raw.replace(FILE_PREFIX, '').trim();
+  const { fileName, inner } = fileError(err);
+  const message = textOf(inner).trim();
   const of = (title: string, ...lines: string[]): ImportFileError => ({ fileName, title, lines });
   const t = (key: string, params?: Record<string, unknown>) =>
     uiText(`common.error.import.${key}`, params);
@@ -129,21 +146,26 @@ export function importFileError(err: unknown): ImportFileError {
     case 'import_format':
       return of(t('formatTitle'), nextStep('import_format'));
     case 'import_version': {
-      const version = /version (\d+)/i.exec(message)?.[1];
+      const version = numberParam(inner, 'errors.dataTransfer.newerVersion', 'version');
       return of(t('versionTitle'), version ? t('versionKnown', { version }) : t('versionNewer'));
     }
     case 'import_malformed': {
-      const at = /line (\d+)\D+?column (\d+)/i.exec(message);
-      const what = at
-        ? t('jsonAt', { line: at[1], column: at[2] })
-        : /utf-?8/i.test(message)
-          ? t('notUtf8')
-          : t('notJson');
+      const line = numberParam(inner, 'errors.dataTransfer.syntax', 'line');
+      const column = numberParam(inner, 'errors.dataTransfer.syntax', 'column');
+      const what =
+        line && column
+          ? t('jsonAt', { line, column })
+          : inner.key === 'errors.dataTransfer.notUtf8'
+            ? t('notUtf8')
+            : t('notJson');
       return of(t('malformedTitle'), `${what} ${nextStep('import_malformed')}`);
     }
     case 'import_invalid': {
-      const lines = message
-        .split('\n')
+      const list =
+        inner.key === 'errors.dataTransfer.invalidFile' ? inner.params?.['errors'] : null;
+      const texts =
+        Array.isArray(list) && list.every(isBackendText) ? list.map(textOf) : message.split('\n');
+      const lines = texts
         .map((line) => line.trim())
         .filter(Boolean)
         .slice(0, 5)
@@ -162,7 +184,7 @@ export function importFileError(err: unknown): ImportFileError {
     default:
       return of(
         t('unreadableTitle'),
-        errorText(err instanceof IpcError ? new IpcError(err.code, message) : err),
+        errorText(err instanceof IpcError ? new IpcError(err.code, inner.message, inner) : err),
       );
   }
 }
@@ -170,9 +192,9 @@ export function importFileError(err: unknown): ImportFileError {
 /** The apply error of an import preview: nothing was written. */
 export function importApplyError(err: unknown): string {
   if (err instanceof IpcError && err.code === 'keychain_unavailable') {
-    // A partial failure says how many values were already removed: keep the backend's words.
-    return /already removed/i.test(err.message)
-      ? `${sentence(err.message)} ${nextStep('keychain_unavailable')}`
+    // A partial failure says how many values were already removed.
+    return err.key === 'errors.dataTransfer.keychainPartlyRemoved'
+      ? `${sentence(textOf(err))} ${nextStep('keychain_unavailable')}`
       : uiText('common.error.import.keychainUnavailable');
   }
   return uiText('common.error.import.nothingImported', { reason: errorText(err) });

@@ -90,11 +90,24 @@ describe('TransferPanel', () => {
     await setup([
       job('big.iso', { state: 'running', totalBytes: 4096, doneBytes: 1536 }),
       job('a.txt', { state: 'done', skipped: 2 }),
+      job('b.txt', {
+        state: 'failed',
+        error: {
+          code: 'not_found',
+          key: 'errors.files.notFound',
+          params: { path: '/srv/b.txt' },
+          message: '/srv/b.txt was not found',
+        },
+      }),
     ]);
+    expect(byId('transfer-state-b.txt')!.textContent).toContain('Failed: /srv/b.txt was not found');
     TestBed.inject(LanguageService).apply('fr');
     await settle();
     expect(byId('transfer-state-big.iso')!.textContent).toContain('1,5\u00a0Ko sur 4,0\u00a0Ko');
     expect(byId('transfer-state-a.txt')!.textContent).toContain('Terminé · 2 ignorés');
+    expect(byId('transfer-state-b.txt')!.textContent).toMatch(
+      /Échec\s:\s\/srv\/b\.txt est introuvable/u,
+    );
     expect(byId('transfer-done')!.textContent).toContain('1 terminé');
     expect(byId('transfer-toggle')!.textContent).toContain('Transferts');
     TestBed.inject(LanguageService).apply('en');

@@ -133,18 +133,27 @@ pub fn is_font_size(size: i64) -> bool {
 /// The folder of the last generated key: what the key generation accepts as a folder, checked
 /// on the text only (it may no longer exist when it is used again). Messages never quote it.
 pub fn check_key_folder(raw: &str) -> Result<(), ConfigError> {
-    let invalid = |m: &str| Err(ConfigError::InvalidInput(m.into()));
+    let invalid = |t| Err(ConfigError::InvalidInput(t));
     if raw.is_empty() || raw.trim() != raw {
-        return invalid("the key folder must be a path without surrounding spaces");
+        return invalid(crate::text!(
+            "errors.settings.keyFolderSpaces",
+            "the key folder must be a path without surrounding spaces"
+        ));
     }
     if raw.chars().count() > KEY_FOLDER_MAX_CHARS || raw.chars().any(char::is_control) {
-        return invalid("the key folder path is invalid");
+        return invalid(crate::text!(
+            "errors.settings.keyFolderInvalid",
+            "the key folder path is invalid"
+        ));
     }
     let rooted = raw.starts_with('/')
         || raw.starts_with("~/")
         || matches!(raw.as_bytes(), [d, b':', b'\\' | b'/', ..] if d.is_ascii_alphabetic());
     if !rooted || !(raw.starts_with("~/") || is_local_absolute(raw)) {
-        return invalid("the key folder must be a full local path, or one starting with ~/");
+        return invalid(crate::text!(
+            "errors.settings.keyFolderNotLocal",
+            "the key folder must be a full local path, or one starting with ~/"
+        ));
     }
     Ok(())
 }

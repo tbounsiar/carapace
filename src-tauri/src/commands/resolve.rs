@@ -4,6 +4,7 @@ use super::error::CommandError;
 use crate::config::{ConfigFile, ConfigStore, Host, HostInput, Project};
 use crate::secrets::{KeyPassKey, SavedKey, SecretError, VarKey};
 use crate::ssh::{RegisteredKey, Target, TargetAuth};
+use crate::text::Text;
 use crate::vars::{Layers, Level, Resolution, ResolvedAuth, ResolvedHost, SecretRef, resolve_host};
 
 type Res<T> = Result<T, CommandError>;
@@ -12,14 +13,15 @@ pub(super) fn required(name: &str, value: &str) -> Res<()> {
     if value.trim().is_empty() {
         return Err(CommandError::new(
             "invalid_input",
-            format!("{name} is required"),
+            crate::text!("errors.config.required", "{name} is required", name = name),
         ));
     }
     Ok(())
 }
 
-fn not_found(what: &str) -> CommandError {
-    CommandError::new("not_found", format!("{what} not found"))
+/// `what` is a code: "host" or "project".
+fn not_found(what: &'static str) -> CommandError {
+    crate::config::ConfigError::NotFound(what).into()
 }
 
 pub(super) struct Located<'a> {
@@ -111,15 +113,18 @@ pub(super) fn draft_target(
         Some(id) => {
             let host = config.host(id).ok_or_else(|| not_found("host"))?;
             if host.project_id.as_deref() != project_id {
-                let scope = if project_id.is_some() {
-                    "this project"
+                let message = if project_id.is_some() {
+                    crate::text!(
+                        "errors.config.hostNotInProject",
+                        "the host does not belong to this project"
+                    )
                 } else {
-                    "Home"
+                    crate::text!(
+                        "errors.config.hostNotInHome",
+                        "the host does not belong to Home"
+                    )
                 };
-                return Err(CommandError::new(
-                    "invalid_input",
-                    format!("the host does not belong to {scope}"),
-                ));
+                return Err(CommandError::new("invalid_input", message));
             }
             Some(SavedKey::new(id)?)
         }
@@ -181,7 +186,7 @@ pub struct ResolvedView {
     pub username: Option<String>,
     pub key_path: Option<String>,
     pub missing: Vec<String>,
-    pub errors: Vec<String>,
+    pub errors: Vec<Text>,
 }
 
 impl From<Resolution> for ResolvedView {

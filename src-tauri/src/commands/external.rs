@@ -13,6 +13,8 @@ use crate::external::{
 };
 use crate::files::MAX_PATH_BYTES;
 use crate::keys::PickerGuard;
+use crate::native_text::{self, NativeText};
+use crate::text::Localized;
 
 type Res<T> = Result<T, CommandError>;
 
@@ -21,7 +23,7 @@ const MAX_APP_PATH_CHARS: usize = 4096;
 
 impl From<EditError> for CommandError {
     fn from(e: EditError) -> Self {
-        Self::new(e.code(), e.to_string())
+        Self::new(e.code(), e.text())
     }
 }
 
@@ -29,7 +31,12 @@ fn required(name: &str, value: &str) -> Res<()> {
     if value.trim().is_empty() || value.chars().count() > MAX_ID_CHARS {
         return Err(CommandError::new(
             "invalid_input",
-            format!("{name} is required (at most {MAX_ID_CHARS} characters)"),
+            crate::text!(
+                "errors.external.required",
+                "{name} is required (at most {max} characters)",
+                name = name,
+                max = MAX_ID_CHARS
+            ),
         ));
     }
     Ok(())
@@ -37,7 +44,10 @@ fn required(name: &str, value: &str) -> Res<()> {
 
 fn check_path(path: &str) -> Res<()> {
     if path.is_empty() || path.len() > MAX_PATH_BYTES {
-        return Err(CommandError::new("invalid_input", "path is invalid"));
+        return Err(CommandError::new(
+            "invalid_input",
+            crate::text!("errors.external.pathInvalid", "path is invalid"),
+        ));
     }
     Ok(())
 }
@@ -197,7 +207,10 @@ pub fn check_app_path(raw: &str) -> Res<String> {
     {
         return Err(CommandError::new(
             "invalid_input",
-            "the editor app must be an absolute path on this computer",
+            crate::text!(
+                "errors.external.appPathInvalid",
+                "the editor app must be an absolute path on this computer"
+            ),
         ));
     }
     check_app(Path::new(path))?;
@@ -233,13 +246,21 @@ pub(super) fn set_editor_in(
 /// Native picker for the editor app, parented to the main window.
 #[tauri::command]
 pub async fn pick_external_editor(app: AppHandle, current: Option<String>) -> Res<Option<String>> {
-    let (_open, cancelled) = PickerGuard::acquire()
-        .ok_or_else(|| CommandError::new("busy", "a file picker is already open"))?;
+    let (_open, cancelled) = PickerGuard::acquire().ok_or_else(|| {
+        CommandError::new(
+            "busy",
+            crate::text!(
+                "errors.external.pickerBusy",
+                "a file picker is already open"
+            ),
+        )
+    })?;
     let start = current
         .as_deref()
         .and_then(|c| check_app_path(c).ok())
         .and_then(|p| Path::new(&p).parent().map(Path::to_path_buf));
-    pick(&app, "Choose the editor app", start, false, cancelled).await
+    let title = native_text::get(NativeText::PickEditorApp);
+    pick(&app, title, start, false, cancelled).await
 }
 
 #[cfg(test)]

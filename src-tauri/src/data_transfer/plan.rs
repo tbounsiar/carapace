@@ -12,6 +12,7 @@ use crate::config::model::{
 use crate::config::same_path;
 use crate::config::validate::{self, MAX_DEPTH, MAX_NODES, MAX_VARIABLES, same_name};
 use crate::keys::KeyInfo;
+use crate::text::{Localized, Text};
 use crate::vars::{Layers, Level, resolve_host};
 
 const MAX_ITEMS: usize = 500;
@@ -28,13 +29,16 @@ pub enum Strategy {
 
 impl Strategy {
     pub const ALL: [Strategy; 3] = [Strategy::Merge, Strategy::Replace, Strategy::Duplicate];
+}
 
-    pub fn label(self) -> &'static str {
-        match self {
+/// The English name of the strategy, for the fallback message; the interface gets the code.
+impl std::fmt::Display for Strategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
             Strategy::Merge => "Merge",
             Strategy::Replace => "Replace",
             Strategy::Duplicate => "Keep both",
-        }
+        })
     }
 }
 
@@ -104,8 +108,46 @@ pub enum Field {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Change {
     pub field: Field,
-    pub from: String,
-    pub to: String,
+    pub from: ChangeValue,
+    pub to: ChangeValue,
+}
+
+/// A string for every field but `auth`, which is the authentication as the host stores it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum ChangeValue {
+    Text(String),
+    Auth(AuthView),
+}
+
+impl From<String> for ChangeValue {
+    fn from(s: String) -> Self {
+        Self::Text(s)
+    }
+}
+
+impl PartialEq<&str> for ChangeValue {
+    fn eq(&self, other: &&str) -> bool {
+        matches!(self, Self::Text(s) if s == other)
+    }
+}
+
+/// Same shape as a host's `auth`; secret fields are `${name}` references, never values.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum AuthView {
+    Password {
+        password: Option<String>,
+    },
+    Key {
+        key_path: String,
+        passphrase: Option<String>,
+    },
+    Agent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -172,7 +214,7 @@ pub struct Undefined {
     pub host_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportPlan {
     pub rows: Vec<Row>,
@@ -188,7 +230,7 @@ pub struct ImportPlan {
     /// Hosts that would send a secret with a value on this computer to a target it does not
     /// go to today (new host, new address, or another secret variable).
     pub secrets_sent_to: Vec<SecretSent>,
-    pub blocking: Vec<String>,
+    pub blocking: Vec<Text>,
 }
 
 /// `from` / `to`: resolved `user@host:port`, plain values only; `from` is null for a host that
@@ -322,19 +364,29 @@ fn address(h: &Host) -> String {
     format!("{}@{}:{}", h.username, h.hostname, h.port)
 }
 
-fn auth_text(a: &AuthMethod) -> String {
-    match a {
-        AuthMethod::Password { password: None } => "password".into(),
-        AuthMethod::Password { password: Some(r) } => format!("password {r}"),
+/// Secret fields are `${name}` references once validated; anything else (a hand-edited
+/// `data.json`) is shown as unset rather than echoed to the page.
+fn reference(secret: &Option<String>) -> Option<String> {
+    secret
+        .as_deref()
+        .filter(|s| crate::vars::single_reference(s).is_some())
+        .map(str::to_owned)
+}
+
+fn auth_view(a: &AuthMethod) -> ChangeValue {
+    ChangeValue::Auth(match a {
+        AuthMethod::Password { password } => AuthView::Password {
+            password: reference(password),
+        },
         AuthMethod::Key {
             key_path,
             passphrase,
-        } => match passphrase {
-            Some(r) => format!("key {key_path}, passphrase {r}"),
-            None => format!("key {key_path}"),
+        } => AuthView::Key {
+            key_path: key_path.clone(),
+            passphrase: reference(passphrase),
         },
-        AuthMethod::Agent => "agent".into(),
-    }
+        AuthMethod::Agent => AuthView::Agent,
+    })
 }
 
 fn algorithm_text(a: crate::config::KeyAlgorithm) -> String {
@@ -613,8 +665,8 @@ impl<'a> Builder<'a> {
                     let reason = if fv.kind != lv.kind {
                         changes.push(Change {
                             field: Field::Kind,
-                            from: kind_text(lv.kind),
-                            to: kind_text(fv.kind),
+                            from: kind_text(lv.kind).into(),
+                            to: kind_text(fv.kind).into(),
                         });
                         self.delete_account(account(&fv.name), lv.kind == VariableKind::Secret);
                         if fv.kind == VariableKind::Secret {
@@ -628,8 +680,8 @@ impl<'a> Builder<'a> {
                     if fv.kind == VariableKind::Plain {
                         changes.push(Change {
                             field: Field::Value,
-                            from: lv.value.clone().unwrap_or_default(),
-                            to: fv.value.clone().unwrap_or_default(),
+                            from: lv.value.clone().unwrap_or_default().into(),
+                            to: fv.value.clone().unwrap_or_default().into(),
                         });
                     }
                     self.row(ItemKind::Variable).updated += 1;
@@ -1094,23 +1146,23 @@ impl<'a> Builder<'a> {
         if before.project_id() != after.project_id() || before.parent_id() != after.parent_id() {
             out.push(Change {
                 field: Field::Location,
-                from: places.local(before).join(" / "),
-                to: places.result(after).join(" / "),
+                from: places.local(before).join(" / ").into(),
+                to: places.result(after).join(" / ").into(),
             });
         }
         if let (Node::Host(a), Node::Host(b)) = (before, after) {
             if address(a) != address(b) {
                 out.push(Change {
                     field: Field::Address,
-                    from: address(a),
-                    to: address(b),
+                    from: address(a).into(),
+                    to: address(b).into(),
                 });
             }
             if a.auth != b.auth {
                 out.push(Change {
                     field: Field::Auth,
-                    from: auth_text(&a.auth),
-                    to: auth_text(&b.auth),
+                    from: auth_view(&a.auth),
+                    to: auth_view(&b.auth),
                 });
             }
         }
@@ -1135,8 +1187,8 @@ impl<'a> Builder<'a> {
                     {
                         changes.push(Change {
                             field: Field::Name,
-                            from: b.name.clone(),
-                            to: after.name.clone(),
+                            from: b.name.clone().into(),
+                            to: after.name.clone().into(),
                         });
                     }
                     (Vec::new(), changes)
@@ -1149,8 +1201,8 @@ impl<'a> Builder<'a> {
                         if b.name() != after.name() && suffix.is_none() {
                             changes.push(Change {
                                 field: Field::Name,
-                                from: b.name().to_owned(),
-                                to: after.name().to_owned(),
+                                from: b.name().to_owned().into(),
+                                to: after.name().to_owned().into(),
                             });
                         }
                         changes.extend(self.node_changes(b, after, &places));
@@ -1321,8 +1373,8 @@ impl<'a> Builder<'a> {
                         },
                         changes: vec![Change {
                             field: Field::Name,
-                            from: before,
-                            to: name.clone(),
+                            from: before.into(),
+                            to: name.clone().into(),
                         }],
                         path: Some(fk.path.clone()),
                         detail: None,
@@ -1457,41 +1509,49 @@ impl<'a> Builder<'a> {
         sent
     }
 
-    fn blocking(&self) -> Vec<String> {
+    fn blocking(&self) -> Vec<Text> {
         let mut out = Vec::new();
         let r = &self.result;
         if r.nodes.len() > MAX_NODES {
-            out.push(format!(
-                "there would be {} hosts and collections (max {MAX_NODES})",
-                r.nodes.len()
+            out.push(crate::text!(
+                "errors.dataTransfer.wouldHaveTooManyNodes",
+                "there would be {count} hosts and collections (max {max})",
+                count = r.nodes.len(),
+                max = MAX_NODES
             ));
         }
         if r.projects.len() > format::MAX_PROJECTS {
-            out.push(format!(
-                "there would be {} projects (max {})",
-                r.projects.len(),
-                format::MAX_PROJECTS
+            out.push(crate::text!(
+                "errors.dataTransfer.wouldHaveTooManyProjects",
+                "there would be {count} projects (max {max})",
+                count = r.projects.len(),
+                max = format::MAX_PROJECTS
             ));
         }
         if r.keys.len() > format::MAX_KEYS {
-            out.push(format!(
-                "there would be {} SSH keys (max {})",
-                r.keys.len(),
-                format::MAX_KEYS
+            out.push(crate::text!(
+                "errors.dataTransfer.wouldHaveTooManyKeys",
+                "there would be {count} SSH keys (max {max})",
+                count = r.keys.len(),
+                max = format::MAX_KEYS
             ));
         }
         if r.variables.len() > MAX_VARIABLES {
-            out.push(format!(
-                "there would be {} global variables (max {MAX_VARIABLES})",
-                r.variables.len()
+            out.push(crate::text!(
+                "errors.dataTransfer.wouldHaveTooManyGlobals",
+                "there would be {count} global variables (max {max})",
+                count = r.variables.len(),
+                max = MAX_VARIABLES
             ));
         }
         for p in &r.projects {
             if p.variables.len() > MAX_VARIABLES {
-                out.push(format!(
-                    "{} would have {} variables (max {MAX_VARIABLES})",
-                    p.name,
-                    p.variables.len()
+                out.push(crate::text!(
+                    "errors.dataTransfer.projectWouldHaveTooManyVariables",
+                    "{project} would have {count} variables (max {max})",
+                    project = &p.name,
+                    count = p.variables.len(),
+                    max = MAX_VARIABLES
                 ));
             }
         }
@@ -1501,14 +1561,22 @@ impl<'a> Builder<'a> {
         let lists = std::iter::once(&r.variables).chain(r.projects.iter().map(|p| &p.variables));
         for list in lists {
             if let Err(e) = validate::variables(list) {
-                out.push(e.to_string());
+                out.push(e.text());
             }
         }
         if let Err(e) = validate::structure(r) {
-            out.push(if e.contains("nested too deep") {
-                format!("a collection would be nested deeper than {MAX_DEPTH} levels")
+            out.push(if e.key == Some("errors.config.structureTooDeep") {
+                crate::text!(
+                    "errors.dataTransfer.wouldBeTooDeep",
+                    "a collection would be nested deeper than {max} levels",
+                    max = MAX_DEPTH
+                )
             } else {
-                format!("the result would not be consistent ({e})")
+                crate::text!(
+                    "errors.dataTransfer.wouldBeInconsistent",
+                    "the result would not be consistent ({error})",
+                    error = e
+                )
             });
         }
         out

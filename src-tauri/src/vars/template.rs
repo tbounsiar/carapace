@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::text::Text;
+
 pub const MAX_TEMPLATE_CHARS: usize = 1024;
 pub const MAX_NAME_CHARS: usize = 64;
 
@@ -26,6 +28,35 @@ pub enum TemplateError {
     TooLong,
     #[error("has a malformed ${{...}} reference (write $$ for a literal $)")]
     Malformed,
+}
+
+impl TemplateError {
+    /// The error for the template of `field` ("hostname", "port", "username" or "key path").
+    pub fn of_field(self, field: &'static str) -> Text {
+        let max = MAX_TEMPLATE_CHARS;
+        match (self, field) {
+            (Self::TooLong, "key path") => crate::text!(
+                "errors.config.keyPathTooLong",
+                "key path is longer than {max} characters",
+                max = max
+            ),
+            (Self::Malformed, "key path") => crate::text!(
+                "errors.config.keyPathMalformed",
+                "key path has a malformed ${{...}} reference (write $$ for a literal $)"
+            ),
+            (Self::TooLong, field) => crate::text!(
+                "errors.config.templateTooLong",
+                "{field} is longer than {max} characters",
+                field = field,
+                max = max
+            ),
+            (Self::Malformed, field) => crate::text!(
+                "errors.config.templateMalformed",
+                "{field} has a malformed ${{...}} reference (write $$ for a literal $)",
+                field = field
+            ),
+        }
+    }
 }
 
 /// `${name}` is a reference and `$$` a literal `$`. Any other `$` is literal, except `${`,

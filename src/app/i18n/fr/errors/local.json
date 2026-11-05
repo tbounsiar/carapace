@@ -1,0 +1,18 @@
+{
+  "deleteRefused": "suppression de {path} refusée",
+  "deleteRoot": "suppression d’une racine refusée",
+  "homeUnreadable": "impossible d’accéder au dossier personnel",
+  "interrupted": "l’opération sur le fichier a été interrompue",
+  "nameBackslash": "le nom ne doit pas contenir \\",
+  "nameTrailing": "le nom ne doit pas se terminer par un point ou une espace",
+  "nameWindowsChars": "le nom ne doit pas contenir < > : \" | ? ou *",
+  "notDirectory": "{path} n’est pas un dossier",
+  "notLocal": "{path} n’est pas un chemin local",
+  "pathControl": "le chemin ne doit pas contenir de caractères de contrôle",
+  "pathNotUnicode": "le chemin n’est pas en Unicode valide",
+  "pathRelative": "le chemin local doit être absolu",
+  "pathRequired": "le chemin est requis",
+  "pathTooLong": "le chemin est trop long",
+  "renameRoot": "impossible de renommer une racine",
+  "reservedName": "{name} est un nom réservé"
+}

@@ -170,7 +170,11 @@ enum Placed {
 }
 
 fn not_regular(path: &str) -> FsError {
-    FsError::invalid(format!("{path} is not a regular file"))
+    FsError::invalid(crate::text!(
+        "errors.files.notRegular",
+        "{path} is not a regular file",
+        path = path
+    ))
 }
 
 fn is_file(attrs: &FileAttributes) -> bool {
@@ -485,7 +489,12 @@ impl Remote {
     ) -> Result<Saved, FsError> {
         let expected = expected
             .map(|t| {
-                Version::parse(t).ok_or_else(|| FsError::invalid("expectedVersion is invalid"))
+                Version::parse(t).ok_or_else(|| {
+                    FsError::invalid(crate::text!(
+                        "errors.files.versionInvalid",
+                        "expectedVersion is invalid"
+                    ))
+                })
             })
             .transpose()?;
         let (real, original) = match self.edit_target(path).await? {
@@ -500,8 +509,10 @@ impl Remote {
             }
             Target::Missing => (path.to_owned(), None),
             Target::Dangling => {
-                return Err(FsError::invalid(format!(
-                    "{path} is a link to a missing file"
+                return Err(FsError::invalid(crate::text!(
+                    "errors.files.danglingLink",
+                    "{path} is a link to a missing file",
+                    path = path
                 )));
             }
         };
@@ -580,7 +591,11 @@ impl Remote {
             .await
             .map_err(|e| on_user_path(e, path))?;
         let Some((temp, handle)) = created else {
-            return Err(FsError::invalid(format!("{path} has too long a name")));
+            return Err(FsError::invalid(crate::text!(
+                "errors.files.nameTooLong",
+                "{path} has too long a name",
+                path = path
+            )));
         };
         let placed = match self.fill_temp(&handle, body, NEW_FILE_MODE, path).await {
             Ok(mtime) => self.rename_new(&temp, real).await.map(|()| mtime),
@@ -745,7 +760,12 @@ impl SftpManager {
         connection_id: &str,
         path: &str,
     ) -> Result<TextFile, FsError> {
-        let path = normalize(path)?.ok_or_else(|| FsError::invalid("path is required"))?;
+        let path = normalize(path)?.ok_or_else(|| {
+            FsError::invalid(crate::text!(
+                "errors.files.pathRequired",
+                "path is required"
+            ))
+        })?;
         self.remote(ssh, connection_id)
             .await?
             .read_text(&path)
@@ -758,7 +778,12 @@ impl SftpManager {
         connection_id: &str,
         req: WriteText<'_>,
     ) -> Result<Saved, FsError> {
-        let path = normalize(req.path)?.ok_or_else(|| FsError::invalid("path is required"))?;
+        let path = normalize(req.path)?.ok_or_else(|| {
+            FsError::invalid(crate::text!(
+                "errors.files.pathRequired",
+                "path is required"
+            ))
+        })?;
         if path == "/" {
             return Err(not_regular(&path));
         }

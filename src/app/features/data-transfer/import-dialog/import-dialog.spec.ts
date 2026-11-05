@@ -5,6 +5,7 @@ import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import { of } from 'rxjs';
 import { LanguageService } from '../../../core/i18n/language';
 import { DataTransferIpc, type ImportPreview } from '../../../core/ipc/data-transfer';
+import type { BackendText } from '../../../core/ipc/backend-text';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { plan, preview, result, row } from '../import.fixture';
 import { ImportDialog, type ImportDialogData, type ImportStart } from './import-dialog';
@@ -149,7 +150,13 @@ describe('ImportDialog', () => {
             ...p.plans,
             replace: {
               ...p.plans.replace,
-              blocking: ['Payments would have 214 variables (max 200)'],
+              blocking: [
+                {
+                  key: 'errors.dataTransfer.projectWouldHaveTooManyVariables',
+                  params: { project: 'Payments', count: 214, max: 200 },
+                  message: 'Payments would have 214 variables (max 200)',
+                },
+              ],
             },
           },
         },
@@ -159,6 +166,13 @@ describe('ImportDialog', () => {
         'This import cannot be done with Replace: Payments would have 214 variables (max 200).',
       );
       expect(byId<HTMLButtonElement>('import-submit')!.disabled).toBe(true);
+      TestBed.inject(LanguageService).apply('fr');
+      await settle();
+      expect(text('import-blocking')).toBe(
+        'Cette importation est impossible avec « Remplacer » : Payments aurait 214 variables (maximum 200).',
+      );
+      TestBed.inject(LanguageService).apply('system');
+      await settle();
       await choose('merge');
       expect(byId('import-blocking')).toBeNull();
       expect(byId<HTMLButtonElement>('import-submit')!.disabled).toBe(false);
@@ -410,6 +424,7 @@ describe('ImportDialog', () => {
         new IpcError(
           'keychain_unavailable',
           'Nothing was imported, but 2 secret values were already removed from the keychain.',
+          { key: 'errors.dataTransfer.keychainPartlyRemoved', params: { count: 2 } },
         ),
       );
       await setup();
@@ -468,34 +483,64 @@ describe('ImportDialog', () => {
   });
 
   describe('invalid file', () => {
-    it.each([
+    const dt = (name: string, message: string, params?: Record<string, unknown>): BackendText => ({
+      key: `errors.dataTransfer.${name}`,
+      message,
+      ...(params ? { params } : {}),
+    });
+    it.each<[string, BackendText, string, string[]]>([
       [
         'import_format',
-        'the file is not a Carapace data file.',
+        dt('notDataFile', 'This is not a Carapace data file.'),
         'This is not a Carapace data file',
         ['Choose a file made with Export in Carapace.'],
       ],
       [
         'import_version',
-        'The file uses data format version 3; this version of Carapace reads format version 1.',
+        dt(
+          'newerVersion',
+          'The file uses data format version 3; this version of Carapace reads format version 1.',
+          { version: 3, supported: 1 },
+        ),
         'This file needs a newer Carapace',
         ['It was exported in data format 3. Update Carapace, then import it again.'],
       ],
       [
         'import_malformed',
-        'The file is not valid JSON (line 4, column 12).',
+        dt('syntax', 'The file is not valid JSON (line 4, column 12).', { line: 4, column: 12 }),
         'This file is damaged',
         ['It is not valid JSON (line 4, column 12). Export it again.'],
       ],
       [
         'import_malformed',
-        'The file is not UTF-8 text.',
+        dt('notUtf8', 'The file is not UTF-8 text.'),
         'This file is damaged',
         ['It is not UTF-8 text. Export it again.'],
       ],
       [
         'import_invalid',
-        'host “api-1”: port must be between 1 and 65535.\ncollection “Backend” is its own parent.',
+        dt(
+          'invalidFile',
+          'host “api-1”: port must be between 1 and 65535.\ncollection “Backend” is its own parent.',
+          {
+            errors: [
+              dt('itemError', 'host “api-1”: port must be between 1 and 65535.', {
+                who: dt('itemNamed', 'host “api-1”', { kind: 'host', name: 'api-1' }),
+                error: {
+                  key: 'errors.config.portRange',
+                  params: { min: 1, max: 65535 },
+                  message: 'port must be between 1 and 65535',
+                },
+              }),
+              dt('ownParent', 'collection “Backend” is its own parent.', {
+                who: dt('itemNamed', 'collection “Backend”', {
+                  kind: 'collection',
+                  name: 'Backend',
+                }),
+              }),
+            ],
+          },
+        ),
         'This file has invalid data',
         [
           'Host “api-1”: port must be between 1 and 65535.',
@@ -504,7 +549,13 @@ describe('ImportDialog', () => {
       ],
       [
         'import_secret_value',
-        'secret variable “db_pw” has a value. Carapace never imports secret values.',
+        dt(
+          'secretHasValue',
+          'secret variable “db_pw” has a value. Carapace never imports secret values.',
+          {
+            what: dt('secretVariableNamed', 'secret variable “db_pw”', { name: 'db_pw' }),
+          },
+        ),
         'This file contains a secret value',
         [
           'Secret variable “db_pw” has a value. Carapace never imports secret values.',
@@ -513,38 +564,41 @@ describe('ImportDialog', () => {
       ],
       [
         'too_large',
-        'the file is larger than 8 MiB.',
+        dt('fileTooLarge', 'Carapace data files are at most 8 MB.', { max: 8 }),
         'This file is too large',
         ['Carapace data files are at most 8 MB.'],
       ],
       [
         'permission_denied',
-        'cannot open the file',
+        { message: 'cannot open the file' },
         'The file could not be read',
         ['Cannot open the file. Check the permissions of the file or folder.'],
       ],
       [
         'invalid_input',
-        'the file is on a network drive.',
+        { message: 'the file is on a network drive.' },
         'The file could not be read',
         ['The file is on a network drive. Choose a file on a drive of this computer.'],
       ],
       [
         'not_found',
-        'file not found',
+        dt('fileNotFound', 'The file was not found.'),
         'The file could not be read',
-        ['File not found. It may have been deleted or moved. Refresh and try again.'],
+        ['The file was not found. It may have been deleted or moved. Refresh and try again.'],
       ],
       [
         'io',
-        'read failed',
+        { message: 'read failed' },
         'The file could not be read',
         ['Read failed. Check that the disk is available and not full, then try again.'],
       ],
-    ])('shows %s: %s', async (code, message, title, lines) => {
+    ])('shows %s (%#)', async (code, inner, title, lines) => {
       await setup({
         kind: 'error',
-        error: new IpcError(code as never, `file “notes.json”: ${message}`),
+        error: new IpcError(code as never, `file “notes.json”: ${inner.message}`, {
+          key: 'errors.dataTransfer.inFile',
+          params: { file: 'notes.json', error: inner },
+        }),
       });
       expect(text('import-file')).toBe('notes.json');
       expect(text('import-error')).toContain(title);

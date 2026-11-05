@@ -2,7 +2,9 @@
 
 use serde::Serialize;
 
+use super::EditError;
 use crate::files::FsError;
+use crate::text::{Localized, Text};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -124,10 +126,21 @@ pub fn failure(err: &FsError, connected: bool) -> Failure {
     }
 }
 
+/// `{ code, key?, params?, message }`, the shape of a command error.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ErrorView {
     pub code: &'static str,
-    pub message: String,
+    #[serde(flatten)]
+    pub text: Box<Text>,
+}
+
+impl ErrorView {
+    pub fn of(err: &EditError) -> Self {
+        Self {
+            code: err.code(),
+            text: Box::new(err.text()),
+        }
+    }
 }
 
 /// What the frontend sees of an edited file: never the local path or the content.

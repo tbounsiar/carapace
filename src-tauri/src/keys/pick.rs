@@ -95,9 +95,15 @@ pub fn file_start(current: Option<&str>, home: Option<&Path>) -> Option<PathBuf>
 pub fn picked_path(path: PathBuf) -> Result<String, KeyError> {
     let path = fsutil::strip_verbatim(path);
     if !path.is_absolute() {
-        return Err(KeyError::invalid("the picker returned a relative path"));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.pickedRelative",
+            "the picker returned a relative path"
+        )));
     }
-    path.into_os_string()
-        .into_string()
-        .map_err(|_| KeyError::invalid("the path is not valid Unicode"))
+    path.into_os_string().into_string().map_err(|_| {
+        KeyError::invalid(crate::text!(
+            "errors.keys.pathNotUnicode",
+            "the path is not valid Unicode"
+        ))
+    })
 }

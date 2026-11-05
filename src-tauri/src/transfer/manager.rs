@@ -336,11 +336,17 @@ impl TransferManager {
 
     pub async fn enqueue(&self, req: EnqueueRequest) -> Result<Vec<String>, FsError> {
         if req.connection_id.trim().is_empty() {
-            return Err(FsError::invalid("connectionId is required"));
+            return Err(FsError::invalid(crate::text!(
+                "errors.transfer.required",
+                "{name} is required",
+                name = "connectionId"
+            )));
         }
         if req.sources.is_empty() || req.sources.len() > MAX_SOURCES {
-            return Err(FsError::invalid(format!(
-                "a transfer takes 1 to {MAX_SOURCES} sources"
+            return Err(FsError::invalid(crate::text!(
+                "errors.transfer.sourceCount",
+                "a transfer takes 1 to {max} sources",
+                max = MAX_SOURCES
             )));
         }
         let mut sources = Vec::with_capacity(req.sources.len());
@@ -368,7 +374,13 @@ impl TransferManager {
         let mut st = lock(&self.inner);
         let pending = st.jobs.iter().filter(|j| !j.view.state.finished()).count();
         if pending + sources.len() > MAX_PENDING {
-            return Err(FsError::TooLarge("the transfer queue".into()));
+            return Err(FsError::Other {
+                code: "too_large",
+                text: crate::text!(
+                    "errors.transfer.queueFull",
+                    "the transfer queue is too large to process"
+                ),
+            });
         }
         let mut ids = Vec::with_capacity(sources.len());
         for (path, name) in sources {
@@ -430,7 +442,10 @@ impl TransferManager {
             .jobs
             .iter()
             .find(|j| j.view.id == id)
-            .ok_or_else(|| FsError::NotFound("the transfer".into()))?;
+            .ok_or_else(|| FsError::Other {
+                code: "not_found",
+                text: crate::text!("errors.transfer.notFound", "the transfer was not found"),
+            })?;
         if !job.view.state.finished() {
             job.cancel.send_replace(true);
         }
@@ -447,13 +462,15 @@ impl TransferManager {
         apply_to_all: bool,
     ) -> Result<(), FsError> {
         let mut st = lock(&self.inner);
-        let job = st
-            .job(id)
-            .ok_or_else(|| FsError::NotFound("the transfer".into()))?;
+        let job = st.job(id).ok_or_else(|| FsError::Other {
+            code: "not_found",
+            text: crate::text!("errors.transfer.notFound", "the transfer was not found"),
+        })?;
         let Some(tx) = job.answer.take_if(|_| job.conflict_seq == conflict_id) else {
-            return Err(FsError::invalid(
-                "the transfer is not waiting for this decision",
-            ));
+            return Err(FsError::invalid(crate::text!(
+                "errors.transfer.notWaiting",
+                "the transfer is not waiting for this decision"
+            )));
         };
         job.conflict = None;
         job.view.state = TransferState::Queued;
@@ -485,21 +502,39 @@ impl TransferManager {
 fn source(direction: Direction, raw: &str) -> Result<(String, String), FsError> {
     match direction {
         Direction::Upload => {
-            let path =
-                localfs::resolve(raw)?.ok_or_else(|| FsError::invalid("source is required"))?;
+            let path = localfs::resolve(raw)?.ok_or_else(|| {
+                FsError::invalid(crate::text!(
+                    "errors.transfer.required",
+                    "{name} is required",
+                    name = "source"
+                ))
+            })?;
             let name = path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .ok_or_else(|| FsError::invalid("cannot transfer a root"))?
+                .ok_or_else(|| {
+                    FsError::invalid(crate::text!(
+                        "errors.transfer.localRoot",
+                        "cannot transfer a root"
+                    ))
+                })?
                 .to_owned();
             files::name(&name)?;
             Ok((localfs::display(&path)?, name))
         }
         Direction::Download => {
-            let path =
-                sftp::normalize(raw)?.ok_or_else(|| FsError::invalid("source is required"))?;
+            let path = sftp::normalize(raw)?.ok_or_else(|| {
+                FsError::invalid(crate::text!(
+                    "errors.transfer.required",
+                    "{name} is required",
+                    name = "source"
+                ))
+            })?;
             if path == "/" {
-                return Err(FsError::invalid("cannot transfer /"));
+                return Err(FsError::invalid(crate::text!(
+                    "errors.transfer.remoteRoot",
+                    "cannot transfer /"
+                )));
             }
             let name = sftp::file_name(&path).to_owned();
             localfs::name(&name)?;
@@ -509,7 +544,13 @@ fn source(direction: Direction, raw: &str) -> Result<(String, String), FsError> 
 }
 
 fn local_dir(raw: &str) -> Result<String, FsError> {
-    let path = localfs::resolve(raw)?.ok_or_else(|| FsError::invalid("targetDir is required"))?;
+    let path = localfs::resolve(raw)?.ok_or_else(|| {
+        FsError::invalid(crate::text!(
+            "errors.transfer.required",
+            "{name} is required",
+            name = "targetDir"
+        ))
+    })?;
     localfs::display(&path)
 }
 
@@ -523,9 +564,15 @@ async fn run_job(ctl: Ctl, spec: Spec, go: oneshot::Receiver<()>) {
         }
     });
     // Run separately so a panic in the job still frees its slot and temp names below.
-    let result = body
-        .await
-        .unwrap_or_else(|_| Err(Stop::Failed(FsError::Io("the transfer".into()))));
+    let result = body.await.unwrap_or_else(|_| {
+        Err(Stop::Failed(FsError::Other {
+            code: "io",
+            text: crate::text!(
+                "errors.transfer.interrupted",
+                "could not access the transfer"
+            ),
+        }))
+    });
     let mut st = lock(&inner);
     st.release(&id);
     st.queued.retain(|i| *i != id);

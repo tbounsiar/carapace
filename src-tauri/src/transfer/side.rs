@@ -54,7 +54,13 @@ where
 {
     tokio::task::spawn_blocking(f)
         .await
-        .map_err(|_| FsError::Io("the local file operation".into()))?
+        .map_err(|_| FsError::Other {
+            code: "io",
+            text: crate::text!(
+                "errors.transfer.localInterrupted",
+                "could not access the local file operation"
+            ),
+        })?
 }
 
 #[derive(Clone)]

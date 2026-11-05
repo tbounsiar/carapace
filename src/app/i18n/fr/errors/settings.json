@@ -1,0 +1,12 @@
+{
+  "defaultKeyType": "defaultKeyType doit valoir ed25519 ou rsa4096",
+  "keyFolder": "keyFolder doit être un chemin ou null",
+  "keyFolderInvalid": "Le chemin du dossier des clés n’est pas valide",
+  "keyFolderNotLocal": "Le dossier des clés doit être un chemin local complet, ou commencer par ~/",
+  "keyFolderSpaces": "Le dossier des clés doit être un chemin sans espaces au début ni à la fin",
+  "language": "language doit valoir system, en ou fr",
+  "notAnObject": "Les préférences doivent être un objet",
+  "terminalFontSize": "terminalFontSize doit être un nombre entier de {min} à {max}",
+  "theme": "theme doit valoir system, light ou dark",
+  "unknownSetting": "Préférence inconnue"
+}

@@ -108,15 +108,15 @@
                   {{ 'keys.page.badges.customFolder' | transloco }}
                 </span>
               }
-              @if (key.warning) {
+              @if (key.warning; as warning) {
                 <tui-icon
                   icon="@tui.triangle-alert"
                   class="warning"
                   tabindex="0"
                   role="img"
-                  [attr.aria-label]="key.warning"
+                  [attr.aria-label]="text(warning)"
                   [attr.data-testid]="'key-warning-' + key.name"
-                  [tuiHint]="key.warning"
+                  [tuiHint]="text(warning)"
                 />
               }
             </span>

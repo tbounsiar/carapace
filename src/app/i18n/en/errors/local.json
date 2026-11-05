@@ -1,0 +1,18 @@
+{
+  "deleteRefused": "refusing to delete {path}",
+  "deleteRoot": "refusing to delete a root",
+  "homeUnreadable": "could not access the home directory",
+  "interrupted": "the file operation was interrupted",
+  "nameBackslash": "name must not contain \\",
+  "nameTrailing": "name must not end with a dot or a space",
+  "nameWindowsChars": "name must not contain < > : \" | ? or *",
+  "notDirectory": "{path} is not a directory",
+  "notLocal": "{path} is not a local path",
+  "pathControl": "path must not contain control characters",
+  "pathNotUnicode": "path is not valid Unicode",
+  "pathRelative": "local path must be absolute",
+  "pathRequired": "path is required",
+  "pathTooLong": "path is too long",
+  "renameRoot": "cannot rename a root",
+  "reservedName": "{name} is a reserved name"
+}

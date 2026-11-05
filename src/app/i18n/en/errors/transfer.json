@@ -1,0 +1,14 @@
+{
+  "interrupted": "could not access the transfer",
+  "localInterrupted": "could not access the local file operation",
+  "localRoot": "cannot transfer a root",
+  "noFreeName": "no free name for {name}",
+  "notDirectory": "{path} is not a directory",
+  "notFound": "the transfer was not found",
+  "notWaiting": "the transfer is not waiting for this decision",
+  "queueFull": "the transfer queue is too large to process",
+  "remoteRoot": "cannot transfer /",
+  "required": "{name} is required",
+  "sourceCount": "a transfer takes 1 to {max} sources",
+  "tempNameTooLong": "{name} is too long to be written through a temporary file"
+}

@@ -18,12 +18,13 @@ use crate::data_transfer::pending::{AppliedState, Pending, PendingImports};
 use crate::data_transfer::plan::{
     ImportPlan, KeyProbe, KeychainWork, NeedsSecret, PlanItem, Renamed, Row, Strategy, VarAccount,
 };
-use crate::data_transfer::{self as data, Inputs, Stamp, backup};
+use crate::data_transfer::{self as data, ApplyError, Inputs, Stamp, backup};
 use crate::external::ExternalEdits;
 use crate::fsutil;
 use crate::keys::PickerGuard;
 use crate::secrets::{SavedKey, SecretKind, SecretStore, VarKey};
 use crate::ssh::SshManager;
+use crate::text::Text;
 
 type Res<T> = Result<T, CommandError>;
 
@@ -96,31 +97,71 @@ pub struct ImportResult {
     pub secret_values_deleted: usize,
 }
 
-fn invalid(message: &str) -> CommandError {
-    CommandError::new("invalid_input", message)
+fn invalid(text: Text) -> CommandError {
+    CommandError::new("invalid_input", text)
 }
 
 fn expired() -> CommandError {
-    CommandError::new("not_found", "This preview expired. Choose the file again.")
+    CommandError::new(
+        "not_found",
+        crate::text!(
+            "errors.dataTransfer.previewExpired",
+            "This preview expired. Choose the file again."
+        ),
+    )
 }
 
 impl From<ParseError> for CommandError {
     fn from(e: ParseError) -> Self {
-        Self::new(e.code(), e.message())
+        Self::new(e.code(), e.text())
     }
+}
+
+fn missing_folder() -> CommandError {
+    CommandError::new(
+        "not_found",
+        crate::text!(
+            "errors.dataTransfer.folderMissing",
+            "This folder does not exist."
+        ),
+    )
 }
 
 fn read_error(e: &io::Error) -> CommandError {
     match e.kind() {
-        ErrorKind::FileTooLarge => {
-            CommandError::new("too_large", "Carapace data files are at most 8 MB.")
-        }
-        ErrorKind::NotFound => CommandError::new("not_found", "The file was not found."),
-        ErrorKind::PermissionDenied => {
-            CommandError::new("permission_denied", "Carapace cannot read this file.")
-        }
-        ErrorKind::InvalidInput => invalid("This is not a regular file."),
-        _ => CommandError::new("io", "The file could not be read."),
+        ErrorKind::FileTooLarge => CommandError::new(
+            "too_large",
+            crate::text!(
+                "errors.dataTransfer.fileTooLarge",
+                "Carapace data files are at most {max} MB.",
+                max = format::MAX_FILE_BYTES / (1024 * 1024)
+            ),
+        ),
+        ErrorKind::NotFound => CommandError::new(
+            "not_found",
+            crate::text!(
+                "errors.dataTransfer.fileNotFound",
+                "The file was not found."
+            ),
+        ),
+        ErrorKind::PermissionDenied => CommandError::new(
+            "permission_denied",
+            crate::text!(
+                "errors.dataTransfer.fileNotReadable",
+                "Carapace cannot read this file."
+            ),
+        ),
+        ErrorKind::InvalidInput => invalid(crate::text!(
+            "errors.dataTransfer.notRegularFile",
+            "This is not a regular file."
+        )),
+        _ => CommandError::new(
+            "io",
+            crate::text!(
+                "errors.dataTransfer.readFailed",
+                "The file could not be read."
+            ),
+        ),
     }
 }
 
@@ -128,17 +169,32 @@ fn write_error(e: &io::Error) -> CommandError {
     match e.kind() {
         ErrorKind::PermissionDenied => CommandError::new(
             "permission_denied",
-            "Carapace cannot write to this folder. Choose another one.",
+            crate::text!(
+                "errors.dataTransfer.folderReadOnly",
+                "Carapace cannot write to this folder. Choose another one."
+            ),
         ),
-        ErrorKind::NotFound => CommandError::new("not_found", "This folder does not exist."),
-        _ => CommandError::new("io", "The file could not be written."),
+        ErrorKind::NotFound => missing_folder(),
+        _ => CommandError::new(
+            "io",
+            crate::text!(
+                "errors.dataTransfer.writeFailed",
+                "The file could not be written."
+            ),
+        ),
     }
 }
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Res<T> + Send + 'static) -> Res<T> {
-    tauri::async_runtime::spawn_blocking(f)
-        .await
-        .map_err(|_| CommandError::new("io", "the operation failed"))?
+    tauri::async_runtime::spawn_blocking(f).await.map_err(|_| {
+        CommandError::new(
+            "io",
+            crate::text!(
+                "errors.dataTransfer.operationFailed",
+                "the operation failed"
+            ),
+        )
+    })?
 }
 
 /// Only paths on a local drive reach the file system: opening a UNC path would authenticate to
@@ -146,12 +202,16 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Res<T> + Send + 'static
 fn local(path: PathBuf) -> Res<PathBuf> {
     let path = fsutil::strip_verbatim(path);
     if !fsutil::is_local_path(&path) {
-        return Err(invalid("Choose a file on this computer."));
+        return Err(invalid(crate::text!(
+            "errors.dataTransfer.notLocal",
+            "Choose a file on this computer."
+        )));
     }
     if !fsutil::links_stay_local(&path) {
-        return Err(invalid(
-            "This file is on a network drive or links outside this computer. Choose a file on this computer.",
-        ));
+        return Err(invalid(crate::text!(
+            "errors.dataTransfer.linksOutside",
+            "This file is on a network drive or links outside this computer. Choose a file on this computer."
+        )));
     }
     Ok(path)
 }
@@ -160,7 +220,12 @@ fn base_name(path: &Path) -> Res<String> {
     path.file_name()
         .and_then(|n| n.to_str())
         .map(str::to_owned)
-        .ok_or_else(|| invalid("The file name is not valid Unicode."))
+        .ok_or_else(|| {
+            invalid(crate::text!(
+                "errors.dataTransfer.nameNotUnicode",
+                "The file name is not valid Unicode."
+            ))
+        })
 }
 
 /// The folder and name to write the export to. Never inside the app home, whose files the
@@ -171,13 +236,19 @@ pub(super) fn export_target(path: PathBuf, home: &Path) -> Res<(PathBuf, String)
     let dir = path
         .parent()
         .filter(|d| d.is_dir())
-        .ok_or_else(|| CommandError::new("not_found", "This folder does not exist."))?
+        .ok_or_else(missing_folder)?
         .to_path_buf();
     if data::inside_home(&dir, home) {
-        return Err(invalid("Choose a folder outside the Carapace data folder."));
+        return Err(invalid(crate::text!(
+            "errors.dataTransfer.insideHome",
+            "Choose a folder outside the Carapace data folder."
+        )));
     }
     if std::fs::symlink_metadata(&path).is_ok_and(|m| m.is_dir()) {
-        return Err(invalid("A folder has this name. Choose another file name."));
+        return Err(invalid(crate::text!(
+            "errors.dataTransfer.folderNamed",
+            "A folder has this name. Choose another file name."
+        )));
     }
     Ok((dir, name))
 }
@@ -189,8 +260,23 @@ pub(super) fn read_import(path: PathBuf) -> Res<(String, DataFile)> {
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let named =
-        |e: CommandError| CommandError::new(e.code, format!("file “{shown}”: {}", e.message));
+    let named = |e: CommandError| {
+        let code = e.code;
+        let error = Text {
+            key: e.key,
+            params: e.params,
+            message: e.message,
+        };
+        CommandError::new(
+            code,
+            crate::text!(
+                "errors.dataTransfer.inFile",
+                "file “{file}”: {error}",
+                file = &shown,
+                error = error
+            ),
+        )
+    };
     let read = || -> Res<(String, DataFile)> {
         let path = local(path)?;
         let name = base_name(&path)?;
@@ -334,7 +420,10 @@ fn waiting(pending: &PendingImports, import_id: &str) -> Res<Pending> {
     required("importId", import_id)?;
     let p = pending.get(import_id).ok_or_else(expired)?;
     if p.applied.is_some() {
-        return Err(invalid("This file was already imported."));
+        return Err(invalid(crate::text!(
+            "errors.dataTransfer.alreadyImported",
+            "This file was already imported."
+        )));
     }
     Ok(p)
 }
@@ -393,22 +482,32 @@ pub(super) fn apply_pending(
         )
     }
     .map_err(|e| match e {
-        ConfigError::Changed => {
-            CommandError::new("conflict", "Your data changed since this preview.")
-        }
-        ConfigError::Keychain => match removed.get() {
+        ApplyError::Blocked(reason) => CommandError::new("invalid_input", reason),
+        ApplyError::Data(ConfigError::Changed) => CommandError::new(
+            "conflict",
+            crate::text!(
+                "errors.dataTransfer.changedSincePreview",
+                "Your data changed since this preview."
+            ),
+        ),
+        ApplyError::Data(ConfigError::Keychain) => match removed.get() {
             0 => CommandError::new(
                 "keychain_unavailable",
-                "The system keychain is not available. Nothing was imported.",
+                crate::text!(
+                    "errors.dataTransfer.keychainNothingImported",
+                    "The system keychain is not available. Nothing was imported."
+                ),
             ),
             n => CommandError::new(
                 "keychain_unavailable",
-                format!(
-                    "Nothing was imported, but {n} secret values were already removed from the keychain."
+                crate::text!(
+                    "errors.dataTransfer.keychainPartlyRemoved",
+                    "Nothing was imported, but {count} secret values were already removed from the keychain.",
+                    count = n
                 ),
             ),
         },
-        other => CommandError::from(other),
+        ApplyError::Data(other) => CommandError::from(other),
     })?;
     let state = AppliedState {
         backup: applied.backup.clone(),
@@ -462,9 +561,7 @@ pub(super) fn undo_pending(
 ) -> Res<(Vec<String>, Vec<String>)> {
     required("importId", import_id)?;
     let p = pending.get(import_id).ok_or_else(expired)?;
-    let applied = p
-        .applied
-        .ok_or_else(|| invalid("Nothing was imported from this file."))?;
+    let applied = p.applied.ok_or_else(nothing_imported)?;
     let (before, after) = {
         let _lifecycle = secrets.lifecycle();
         store.restore_data(&applied.revision, bytes, |cur, restored| {
@@ -477,7 +574,10 @@ pub(super) fn undo_pending(
     .map_err(|e| match e {
         ConfigError::Changed => CommandError::new(
             "conflict",
-            "Your data changed since the import, so it was not restored.",
+            crate::text!(
+                "errors.dataTransfer.changedSinceImport",
+                "Your data changed since the import, so it was not restored."
+            ),
         ),
         other => CommandError::from(other),
     })?;
@@ -489,9 +589,7 @@ pub(super) fn undo_pending(
 pub(super) fn backup_bytes(pending: &PendingImports, import_id: &str) -> Res<PathBuf> {
     required("importId", import_id)?;
     let p = pending.get(import_id).ok_or_else(expired)?;
-    let applied = p
-        .applied
-        .ok_or_else(|| invalid("Nothing was imported from this file."))?;
+    let applied = p.applied.ok_or_else(nothing_imported)?;
     Ok(applied.backup.path)
 }
 
@@ -506,8 +604,18 @@ fn export_scope(scope: &DataScope) -> Res<ExportScope> {
     })
 }
 
+fn nothing_imported() -> CommandError {
+    invalid(crate::text!(
+        "errors.dataTransfer.nothingImported",
+        "Nothing was imported from this file."
+    ))
+}
+
 fn unknown_project() -> CommandError {
-    invalid("This project does not exist.")
+    invalid(crate::text!(
+        "errors.dataTransfer.unknownProject",
+        "This project does not exist."
+    ))
 }
 
 /// The file bytes of an export of the current data.
@@ -563,22 +671,22 @@ async fn pick_data_file(
         .ok()
         .filter(|d| d.is_dir())
         .or_else(std::env::home_dir);
+    use crate::native_text::{self, NativeText};
+    let text = |t| native_text::get(t);
+    let (filter, all, export, import) = (
+        text(NativeText::DataFilter),
+        text(NativeText::AllFilesFilter),
+        text(NativeText::ExportData),
+        text(NativeText::ImportData),
+    );
     let build = move |d: rfd::AsyncFileDialog| -> super::keys::Picked {
-        let mut d = d.add_filter("Carapace data", &["json"]);
+        let mut d = d.add_filter(filter, &["json"]);
         if let Some(start) = start {
             d = d.set_directory(start);
         }
         match dialog {
-            Dialog::Save(name) => Box::pin(
-                d.set_title("Export Carapace data")
-                    .set_file_name(name)
-                    .save_file(),
-            ),
-            Dialog::Open => Box::pin(
-                d.add_filter("All files", &["*"])
-                    .set_title("Import Carapace data")
-                    .pick_file(),
-            ),
+            Dialog::Save(name) => Box::pin(d.set_title(export).set_file_name(name).save_file()),
+            Dialog::Open => Box::pin(d.add_filter(all, &["*"]).set_title(import).pick_file()),
         }
     };
     super::keys::native_dialog(app, build, cancelled).await
@@ -706,8 +814,20 @@ pub async fn undo_import(
     let path = backup_bytes(&pending, &import_id)?;
     let bytes = blocking(move || {
         backup::read(&path).map_err(|e| match e.kind() {
-            ErrorKind::NotFound => CommandError::new("not_found", "The backup file is missing."),
-            _ => CommandError::new("io", "The backup file could not be read."),
+            ErrorKind::NotFound => CommandError::new(
+                "not_found",
+                crate::text!(
+                    "errors.dataTransfer.backupMissing",
+                    "The backup file is missing."
+                ),
+            ),
+            _ => CommandError::new(
+                "io",
+                crate::text!(
+                    "errors.dataTransfer.backupUnreadable",
+                    "The backup file could not be read."
+                ),
+            ),
         })
     })
     .await?;

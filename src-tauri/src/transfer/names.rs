@@ -13,8 +13,10 @@ pub fn temp_name(name: &str, n: u32) -> Result<String, FsError> {
         format!(".{name}.{n}{TEMP_SUFFIX}")
     };
     if temp.len() > 255 {
-        return Err(FsError::invalid(format!(
-            "{name} is too long to be written through a temporary file"
+        return Err(FsError::invalid(crate::text!(
+            "errors.transfer.tempNameTooLong",
+            "{name} is too long to be written through a temporary file",
+            name = name
         )));
     }
     Ok(temp)

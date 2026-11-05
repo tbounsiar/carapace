@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::error::KeyError;
 use super::file::validate_file_name;
+use crate::text::Text;
 use crate::{config, fsutil, localfs};
 
 const MAX_PATH_CHARS: usize = 4096;
@@ -29,15 +30,13 @@ impl KeyDir {
 }
 
 /// The result of checking a folder before generating into it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct KeyLocation {
     /// Canonical, except for a managed directory that does not exist yet.
     pub dir: PathBuf,
     pub is_default: bool,
-    pub warning: Option<String>,
+    pub warning: Option<Text>,
 }
-
-const SHARED_FOLDER: &str = "Other users can open this folder. The private key file stays readable only by you, but they may be able to replace or delete it.";
 
 fn folder_io(e: io::Error, path: &Path) -> KeyError {
     match e.kind() {
@@ -49,15 +48,23 @@ fn folder_io(e: io::Error, path: &Path) -> KeyError {
 
 /// A real directory at `path` itself: a link or junction is refused even when it points to
 /// a directory, so the folder the user sees is the one written to.
+fn link_refused() -> KeyError {
+    KeyError::invalid(crate::text!(
+        "errors.keys.folderIsLink",
+        "Links are not accepted. Choose the real folder."
+    ))
+}
+
 fn real_dir(path: &Path) -> Result<(), KeyError> {
     let meta = fs::symlink_metadata(path).map_err(|e| folder_io(e, path))?;
     if localfs::is_link(&meta) {
-        return Err(KeyError::invalid(
-            "Links are not accepted. Choose the real folder.",
-        ));
+        return Err(link_refused());
     }
     if !meta.is_dir() {
-        return Err(KeyError::invalid("This is a file, not a folder."));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.folderIsFile",
+            "This is a file, not a folder."
+        )));
     }
     Ok(())
 }
@@ -70,12 +77,23 @@ pub fn key_dir(managed: &Path, raw: Option<&str>) -> Result<KeyDir, KeyError> {
         return Ok(KeyDir::managed(managed));
     };
     if raw.trim().is_empty() {
-        return Err(KeyError::invalid("Choose a folder for the key."));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.folderRequired",
+            "Choose a folder for the key."
+        )));
     }
     if raw.chars().count() > MAX_PATH_CHARS || raw.chars().any(char::is_control) {
-        return Err(KeyError::invalid("The folder path is invalid."));
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.folderInvalid",
+            "The folder path is invalid."
+        )));
     }
-    let not_local = || KeyError::invalid("Use a full path, or one starting with ~/.");
+    let not_local = || {
+        KeyError::invalid(crate::text!(
+            "errors.keys.folderNotLocal",
+            "Use a full path, or one starting with ~/."
+        ))
+    };
     if !(raw.starts_with("~/") || config::is_local_absolute(raw)) {
         return Err(not_local());
     }
@@ -107,15 +125,16 @@ pub(super) fn ensure_free(dir: &Path, file_name: &str) -> Result<(), KeyError> {
 
 fn open(path: &Path) -> Result<fsutil::DirHandle, KeyError> {
     fsutil::open_dir(path).map_err(|e| match e.kind() {
-        ErrorKind::InvalidInput => {
-            KeyError::invalid("Links are not accepted. Choose the real folder.")
-        }
+        ErrorKind::InvalidInput => link_refused(),
         _ => folder_io(e, path),
     })
 }
 
 fn changed() -> KeyError {
-    KeyError::invalid("The folder changed. Choose it again.")
+    KeyError::invalid(crate::text!(
+        "errors.keys.folderChanged",
+        "The folder changed. Choose it again."
+    ))
 }
 
 /// Opens the checked custom folder for the whole generation. On Windows the handle keeps it
@@ -157,13 +176,18 @@ pub(super) fn write_error(e: io::Error, dir: &KeyDir, file_name: &str) -> KeyErr
 }
 
 /// A warning when other users can list or change the folder. Never for the managed directory.
-pub fn folder_warning(dir: &KeyDir) -> Option<String> {
+pub fn folder_warning(dir: &KeyDir) -> Option<Text> {
     if dir.managed {
         return None;
     }
     fsutil::dir_open_to_others(&dir.path)
         .unwrap_or(false)
-        .then(|| SHARED_FOLDER.to_owned())
+        .then(|| {
+            crate::text!(
+                "errors.keys.sharedFolder",
+                "Other users can open this folder. The private key file stays readable only by you, but they may be able to replace or delete it."
+            )
+        })
 }
 
 /// The checks a generation into `raw` (or the managed directory) applies, without generating.

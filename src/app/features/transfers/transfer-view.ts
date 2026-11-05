@@ -1,5 +1,6 @@
 import { translate } from '@jsverse/transloco';
 import { isFinished, type TransferView } from '../../core/ipc/transfers';
+import { textOf } from '../../shared/backend-text';
 import { formatSize } from '../files/file-list';
 
 export interface TransferRow {
@@ -50,7 +51,7 @@ function stateText(job: TransferView, locale: string): string {
     case 'done':
       return t('done', { skipped: job.skipped });
     case 'failed':
-      return t('failed', { message: job.error?.message ?? t('unexpected') });
+      return t('failed', { message: job.error ? textOf(job.error) : t('unexpected') });
     case 'cancelled':
       return t('cancelled', { skipped: job.skipped });
   }

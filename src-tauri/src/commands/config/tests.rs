@@ -216,17 +216,34 @@ fn invalid_inputs_change_nothing() {
     save_variables(&w.store, &w.secrets, &g, vec![secret("pw", Some("keep"))]).unwrap();
     let before = raw_config(&w);
     let cases = vec![
-        vec![input("p", VariableKind::Plain, Some("v"), Some("hunter2"))],
-        vec![input("s", VariableKind::Secret, Some("hunter2"), None)],
-        vec![secret("s", Some(""))],
-        vec![secret("s", Some(&"a".repeat(MAX_SECRET_UTF16_UNITS + 1)))],
-        vec![secret("bad name", Some("x"))],
-        vec![plain("dup", "1"), plain("DUP", "2")],
+        (
+            vec![input("p", VariableKind::Plain, Some("v"), Some("hunter2"))],
+            "errors.config.plainWithSecretValue",
+        ),
+        (
+            vec![input("s", VariableKind::Secret, Some("hunter2"), None)],
+            "errors.config.secretWithValue",
+        ),
+        (vec![secret("s", Some(""))], "errors.secrets.empty"),
+        (
+            vec![secret("s", Some(&"a".repeat(MAX_SECRET_UTF16_UNITS + 1)))],
+            "errors.config.secretValueTooLong",
+        ),
+        (
+            vec![secret("bad name", Some("x"))],
+            "errors.config.variableName",
+        ),
+        (
+            vec![plain("dup", "1"), plain("DUP", "2")],
+            "errors.config.variableTwice",
+        ),
     ];
-    for vars in cases {
+    for (vars, key) in cases {
         let err = save_variables(&w.store, &w.secrets, &g, vars).unwrap_err();
         assert_eq!(err.code, "invalid_input");
+        assert_eq!(err.key, Some(key));
         assert!(!err.message.contains("hunter2"));
+        assert!(!serde_json::to_string(&err).unwrap().contains("hunter2"));
     }
     assert_eq!(raw_config(&w), before);
     assert_eq!(w.mem.accounts(), vec!["var/global/pw".to_string()]);
@@ -459,6 +476,34 @@ fn resolve_view_uses_project_then_global_variables() {
     let code = |r: Res<ResolvedView>| r.unwrap_err().code;
     assert_eq!(code(resolve::view(&w.store, &other.id)), "not_found");
     assert_eq!(code(resolve::view(&w.store, " ")), "invalid_input");
+    let missing = resolve::view(&w.store, &other.id).unwrap_err();
+    assert_eq!(missing.key, Some("errors.config.notFound"));
+    assert_eq!(missing.params["what"], "host");
+    let required = resolve::view(&w.store, " ").unwrap_err();
+    assert_eq!(required.key, Some("errors.config.required"));
+    assert_eq!(required.params["name"], "hostId");
+}
+
+#[test]
+fn resolve_view_errors_are_texts() {
+    let w = world();
+    let h = w.store.create_host(None, None, &host_input("web")).unwrap();
+    let mut host = w.store.snapshot().unwrap().host(&h.id).unwrap().clone();
+    host.hostname = "${host".into();
+    let layers = crate::vars::Layers {
+        global: &[],
+        project: None,
+    };
+    let r: ResolvedView = crate::vars::resolve_host(&host, layers).into();
+    let json = serde_json::to_value(&r).unwrap();
+    assert_eq!(json["errors"][0]["key"], "errors.config.templateMalformed");
+    assert_eq!(json["errors"][0]["params"]["field"], "hostname");
+    assert!(
+        json["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("hostname ")
+    );
 }
 
 #[test]

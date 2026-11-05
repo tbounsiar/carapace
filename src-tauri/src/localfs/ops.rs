@@ -127,7 +127,13 @@ fn entry_at(path: &Path) -> Result<FileEntry, FsError> {
 }
 
 pub fn home() -> Result<String, FsError> {
-    let home = std::env::home_dir().ok_or_else(|| FsError::Io("the home directory".into()))?;
+    let home = std::env::home_dir().ok_or_else(|| FsError::Other {
+        code: "io",
+        text: crate::text!(
+            "errors.local.homeUnreadable",
+            "could not access the home directory"
+        ),
+    })?;
     display(&home)
 }
 
@@ -180,9 +186,10 @@ pub fn list(raw: &str) -> Result<Listing, FsError> {
     // A mapped network drive canonicalizes to a UNC path; keep the drive path then.
     let shown = PathBuf::from(display(&canonical).or_else(|_| display(&path))?);
     if !fs::metadata(&shown).map_err(|e| fail(e, &shown))?.is_dir() {
-        return Err(FsError::invalid(format!(
-            "{} is not a directory",
-            shown.display()
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.notDirectory",
+            "{path} is not a directory",
+            path = shown.display().to_string()
         )));
     }
     let entries = children(&shown, MAX_ENTRIES)?
@@ -198,7 +205,12 @@ pub fn list(raw: &str) -> Result<Listing, FsError> {
 }
 
 fn required(raw: &str) -> Result<PathBuf, FsError> {
-    resolve(raw)?.ok_or_else(|| FsError::invalid("path is required"))
+    resolve(raw)?.ok_or_else(|| {
+        FsError::invalid(crate::text!(
+            "errors.local.pathRequired",
+            "path is required"
+        ))
+    })
 }
 
 pub fn mkdir(parent: &str, name: &str) -> Result<FileEntry, FsError> {
@@ -212,7 +224,10 @@ pub fn rename(raw: &str, new_name: &str) -> Result<FileEntry, FsError> {
     local_name(new_name)?;
     let source = required(raw)?;
     let (Some(dir), Some(old_name)) = (source.parent(), source.file_name()) else {
-        return Err(FsError::invalid("cannot rename a root"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.renameRoot",
+            "cannot rename a root"
+        )));
     };
     let target = dir.join(new_name);
     if target == source {
@@ -240,7 +255,10 @@ pub fn rename(raw: &str, new_name: &str) -> Result<FileEntry, FsError> {
 pub fn delete(raw: &str, recursive: bool) -> Result<(), FsError> {
     let path = required(raw)?;
     if path.parent().is_none() {
-        return Err(FsError::invalid("refusing to delete a root"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.deleteRoot",
+            "refusing to delete a root"
+        )));
     }
     let meta = lstat(&path)?;
     if is_link(&meta) {
@@ -252,9 +270,10 @@ pub fn delete(raw: &str, recursive: bool) -> Result<(), FsError> {
     let real = fs::canonicalize(&path).map_err(|e| fail(e, &path))?;
     let home = std::env::home_dir().and_then(|h| fs::canonicalize(h).ok());
     if real.parent().is_none() || home.as_ref() == Some(&real) {
-        return Err(FsError::invalid(format!(
-            "refusing to delete {}",
-            path.display()
+        return Err(FsError::invalid(crate::text!(
+            "errors.local.deleteRefused",
+            "refusing to delete {path}",
+            path = path.display().to_string()
         )));
     }
     if recursive {

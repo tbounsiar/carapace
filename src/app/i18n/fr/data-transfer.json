@@ -96,6 +96,10 @@
     "line": "Définies nulle part : {list}."
   },
   "detail": {
+    "authRef": "{auth} {ref}",
+    "authKey": "{auth} {path}",
+    "authKeyPassphrase": "{auth} {path}, phrase secrète {ref}",
+    "global": "Variables globales",
     "address": "Adresse : {from} → {to}",
     "location": "Passe de {from} à {to}",
     "name": "Nouveau nom : {from} → {to}",

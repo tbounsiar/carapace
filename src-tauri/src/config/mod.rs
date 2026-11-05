@@ -15,8 +15,8 @@ pub use model::{
     VariableKind, VariableScope,
 };
 pub use settings::{
-    DEFAULT_FONT_SIZE, KeyType, Language, Settings, SettingsPatch, ThemeMode, check_key_folder,
-    is_font_size,
+    DEFAULT_FONT_SIZE, FONT_SIZE_MAX, FONT_SIZE_MIN, KeyType, Language, Settings, SettingsPatch,
+    ThemeMode, check_key_folder, is_font_size,
 };
 pub(crate) use store::same_path;
 pub use store::{ConfigError, ConfigStore, Held, KeychainMigration, Moved, Revision};

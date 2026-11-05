@@ -45,6 +45,7 @@ import {
 } from '../../../core/ipc/data-transfer';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { LanguageService } from '../../../core/i18n/language';
+import { textOf } from '../../../shared/backend-text';
 import { confirmDestructive } from '../../../shared/destructive-confirm/confirm-destructive';
 import {
   importApplyError,
@@ -197,7 +198,7 @@ export class ImportDialog {
     return plan?.blocking.length
       ? this.t('dataTransfer.import.blocking', {
           strategy: strategyLabel(this.t, this.strategy()),
-          reasons: plan.blocking.join('; '),
+          reasons: plan.blocking.map(textOf).join('; '),
         })
       : '';
   });

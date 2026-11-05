@@ -5,6 +5,7 @@ use tauri::{AppHandle, Manager, State};
 
 use super::error::CommandError;
 use crate::external::ExternalEdits;
+use crate::native_text::{self, NativeText};
 use crate::quit::{AppEvent, Decision, QuitGuard};
 
 /// While active, closing the main window sends `quitRequested` instead of closing. Setting it
@@ -66,18 +67,25 @@ pub fn attention(app: AppHandle) -> Arc<dyn Fn() + Send + Sync> {
 /// The page did not answer: the user decides in a native dialog parented to the main window.
 fn confirm(app: AppHandle) {
     let handle = app.clone();
+    let text = |t| native_text::get(t);
+    let (title, message, yes, no) = (
+        text(NativeText::QuitTitle),
+        text(NativeText::QuitMessage),
+        text(NativeText::QuitConfirm),
+        text(NativeText::QuitCancel),
+    );
     let shown = app.run_on_main_thread(move || {
         let mut dialog = rfd::AsyncMessageDialog::new()
             .set_level(rfd::MessageLevel::Warning)
-            .set_title("Quit Carapace")
-            .set_description("Quit anyway? Unsaved changes will be lost.")
-            .set_buttons(rfd::MessageButtons::YesNo);
+            .set_title(title)
+            .set_description(message)
+            .set_buttons(rfd::MessageButtons::OkCancelCustom(yes.into(), no.into()));
         if let Some(window) = handle.get_webview_window("main") {
             dialog = dialog.set_parent(&window);
         }
         let answer = dialog.show();
         std::thread::spawn(move || {
-            let quit = tauri::async_runtime::block_on(answer) == rfd::MessageDialogResult::Yes;
+            let quit = confirmed(tauri::async_runtime::block_on(answer), yes);
             handle.state::<QuitGuard>().confirmed(quit);
             if quit {
                 quit_now(&handle);
@@ -86,5 +94,30 @@ fn confirm(app: AppHandle) {
     });
     if shown.is_err() {
         app.state::<QuitGuard>().confirmed(false);
+    }
+}
+
+/// Custom buttons answer with their label; a backend that falls back to standard buttons
+/// answers `Ok`.
+fn confirmed(answer: rfd::MessageDialogResult, quit_label: &str) -> bool {
+    match answer {
+        rfd::MessageDialogResult::Ok | rfd::MessageDialogResult::Yes => true,
+        rfd::MessageDialogResult::Custom(label) => label == quit_label,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_quit_button_confirms() {
+        use rfd::MessageDialogResult as R;
+        assert!(confirmed(R::Custom("Quitter".into()), "Quitter"));
+        assert!(confirmed(R::Ok, "Quit"));
+        assert!(!confirmed(R::Custom("Annuler".into()), "Quitter"));
+        assert!(!confirmed(R::Cancel, "Quit"));
+        assert!(!confirmed(R::No, "Quit"));
     }
 }

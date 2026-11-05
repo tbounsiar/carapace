@@ -8,6 +8,7 @@ use crate::config::model::{
 };
 use crate::config::validate::{self, MAX_DEPTH, MAX_NODES, MAX_VARIABLES, same_name};
 use crate::config::{ConfigError, KeyEntry};
+use crate::text::{Localized, Text};
 
 pub const FORMAT: &str = "carapace-data";
 pub const VERSION: u64 = 1;
@@ -89,14 +90,40 @@ pub struct DataFile {
 }
 
 /// Messages never quote a value from the file; only item kinds and names.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ParseError {
     Format,
     Version(u64),
     NotUtf8,
     Syntax { line: usize, column: usize },
-    Invalid(Vec<String>),
-    SecretValue(String),
+    Invalid(Vec<Text>),
+    SecretValue(Text),
+}
+
+/// A list parameter: sent as an array of texts the interface translates one by one; the English
+/// joins them with `separator`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextList {
+    pub items: Vec<Text>,
+    pub separator: &'static str,
+}
+
+impl Serialize for TextList {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.items.serialize(s)
+    }
+}
+
+impl std::fmt::Display for TextList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, t) in self.items.iter().enumerate() {
+            if i > 0 {
+                f.write_str(self.separator)?;
+            }
+            f.write_str(&t.message)?;
+        }
+        Ok(())
+    }
 }
 
 impl ParseError {
@@ -110,17 +137,35 @@ impl ParseError {
         }
     }
 
-    pub fn message(&self) -> String {
+    pub fn text(&self) -> Text {
         match self {
-            Self::Format => "This is not a Carapace data file.".into(),
-            Self::Version(v) => format!(
-                "The file uses data format version {v}; this version of Carapace reads format version {VERSION}."
+            Self::Format => crate::text!(
+                "errors.dataTransfer.notDataFile",
+                "This is not a Carapace data file."
             ),
-            Self::NotUtf8 => "The file is not UTF-8 text.".into(),
-            Self::Syntax { line, column } => {
-                format!("The file is not valid JSON (line {line}, column {column}).")
+            Self::Version(v) => crate::text!(
+                "errors.dataTransfer.newerVersion",
+                "The file uses data format version {version}; this version of Carapace reads format version {supported}.",
+                version = *v,
+                supported = VERSION
+            ),
+            Self::NotUtf8 => {
+                crate::text!("errors.dataTransfer.notUtf8", "The file is not UTF-8 text.")
             }
-            Self::Invalid(m) => m.join("\n"),
+            Self::Syntax { line, column } => crate::text!(
+                "errors.dataTransfer.syntax",
+                "The file is not valid JSON (line {line}, column {column}).",
+                line = *line,
+                column = *column
+            ),
+            Self::Invalid(m) => crate::text!(
+                "errors.dataTransfer.invalidFile",
+                "{errors}",
+                errors = TextList {
+                    items: m.clone(),
+                    separator: "\n",
+                }
+            ),
             Self::SecretValue(m) => m.clone(),
         }
     }
@@ -182,9 +227,10 @@ pub fn parse(raw: &[u8]) -> Result<DataFile, ParseError> {
     }
     secret_values(&value)?;
     let file: DataFile = serde_json::from_value(value).map_err(|_| {
-        ParseError::Invalid(vec![
-            "The file does not have the structure Carapace writes.".into(),
-        ])
+        ParseError::Invalid(vec![crate::text!(
+            "errors.dataTransfer.unknownStructure",
+            "The file does not have the structure Carapace writes."
+        )])
     })?;
     let messages = check(&file);
     if messages.is_empty() {
@@ -194,17 +240,30 @@ pub fn parse(raw: &[u8]) -> Result<DataFile, ParseError> {
     }
 }
 
-fn quoted_variable(v: &Value) -> String {
+fn quoted_variable(v: &Value) -> Text {
     match v.get("name").and_then(Value::as_str) {
-        Some(n) if crate::vars::is_valid_name(n) => format!("secret variable “{n}”"),
-        _ => "a secret variable".into(),
+        Some(n) if crate::vars::is_valid_name(n) => crate::text!(
+            "errors.dataTransfer.secretVariableNamed",
+            "secret variable “{name}”",
+            name = n
+        ),
+        _ => crate::text!(
+            "errors.dataTransfer.secretVariableUnnamed",
+            "a secret variable"
+        ),
     }
 }
 
-fn label(kind: &str, name: Option<&str>) -> String {
+/// `kind` is a stable code (`host`, `collection`, `project`) the translations select on.
+fn label(kind: &'static str, name: Option<&str>) -> Text {
     match name.and_then(|n| validate::name(n).ok()) {
-        Some(n) => format!("{kind} “{n}”"),
-        None => format!("a {kind}"),
+        Some(n) => crate::text!(
+            "errors.dataTransfer.itemNamed",
+            "{kind} “{name}”",
+            kind = kind,
+            name = n
+        ),
+        None => crate::text!("errors.dataTransfer.itemUnnamed", "a {kind}", kind = kind),
     }
 }
 
@@ -221,9 +280,10 @@ fn secret_values(doc: &Value) -> Result<(), ParseError> {
         for v in list {
             let secret = v.get("kind").and_then(Value::as_str) == Some("secret");
             if secret && v.get("value").is_some_and(|x| !x.is_null()) {
-                return Err(ParseError::SecretValue(format!(
-                    "{} has a value. Carapace never imports secret values.",
-                    quoted_variable(v)
+                return Err(ParseError::SecretValue(crate::text!(
+                    "errors.dataTransfer.secretHasValue",
+                    "{what} has a value. Carapace never imports secret values.",
+                    what = quoted_variable(v)
                 )));
             }
         }
@@ -246,8 +306,11 @@ fn secret_values(doc: &Value) -> Result<(), ParseError> {
             };
             if !ok {
                 let host = label("host", n.get("name").and_then(Value::as_str));
-                return Err(ParseError::SecretValue(format!(
-                    "{host} has a {field} in the file. Carapace only imports a ${{name}} reference to a secret variable there."
+                return Err(ParseError::SecretValue(crate::text!(
+                    "errors.dataTransfer.authHasSecret",
+                    "{host} has a {field} in the file. Carapace only imports a ${{name}} reference to a secret variable there.",
+                    host = host,
+                    field = field
                 )));
             }
         }
@@ -255,7 +318,7 @@ fn secret_values(doc: &Value) -> Result<(), ParseError> {
     Ok(())
 }
 
-fn kind_label(n: &Node) -> String {
+fn kind_label(n: &Node) -> Text {
     let kind = if n.is_collection() {
         "collection"
     } else {
@@ -264,11 +327,8 @@ fn kind_label(n: &Node) -> String {
     label(kind, Some(n.name()))
 }
 
-fn field_message(e: ConfigError) -> String {
-    match e {
-        ConfigError::InvalidInput(m) => m,
-        other => other.to_string(),
-    }
+fn field_message(e: ConfigError) -> Text {
+    e.text()
 }
 
 /// The data of the file as a `data.json` document, keys left out.
@@ -289,10 +349,10 @@ pub(super) fn as_config(file: &DataFile) -> ConfigFile {
     }
 }
 
-struct Messages(Vec<String>);
+struct Messages(Vec<Text>);
 
 impl Messages {
-    fn push(&mut self, m: String) {
+    fn push(&mut self, m: Text) {
         if self.0.len() < MAX_MESSAGES && !self.0.contains(&m) {
             self.0.push(m);
         }
@@ -305,36 +365,44 @@ impl Messages {
 
 /// Counts are checked before any per-item work, so no check below is quadratic in an
 /// unbounded list.
-fn check_sizes(file: &DataFile) -> Vec<String> {
+fn check_sizes(file: &DataFile) -> Vec<Text> {
     let mut out = Vec::new();
     if file.nodes.len() > MAX_NODES {
-        out.push(format!(
-            "The file holds {} hosts and collections (max {MAX_NODES}).",
-            file.nodes.len()
+        out.push(crate::text!(
+            "errors.dataTransfer.fileTooManyNodes",
+            "The file holds {count} hosts and collections (max {max}).",
+            count = file.nodes.len(),
+            max = MAX_NODES
         ));
     }
     if file.projects.len() > MAX_PROJECTS {
-        out.push(format!(
-            "The file holds {} projects (max {MAX_PROJECTS}).",
-            file.projects.len()
+        out.push(crate::text!(
+            "errors.dataTransfer.fileTooManyProjects",
+            "The file holds {count} projects (max {max}).",
+            count = file.projects.len(),
+            max = MAX_PROJECTS
         ));
     }
     if file.keys.len() > MAX_KEYS {
-        out.push(format!(
-            "The file holds {} SSH keys (max {MAX_KEYS}).",
-            file.keys.len()
+        out.push(crate::text!(
+            "errors.dataTransfer.fileTooManyKeys",
+            "The file holds {count} SSH keys (max {max}).",
+            count = file.keys.len(),
+            max = MAX_KEYS
         ));
     }
     let scopes = std::iter::once(&file.variables).chain(file.projects.iter().map(|p| &p.variables));
     if scopes.clone().any(|v| v.len() > MAX_VARIABLES) {
-        out.push(format!(
-            "A scope of the file holds more than {MAX_VARIABLES} variables."
+        out.push(crate::text!(
+            "errors.dataTransfer.fileTooManyVariables",
+            "A scope of the file holds more than {max} variables.",
+            max = MAX_VARIABLES
         ));
     }
     out
 }
 
-fn check(file: &DataFile) -> Vec<String> {
+fn check(file: &DataFile) -> Vec<Text> {
     let sizes = check_sizes(file);
     if !sizes.is_empty() {
         return sizes;
@@ -342,7 +410,11 @@ fn check(file: &DataFile) -> Vec<String> {
     let mut out = Messages(Vec::new());
     check_scope(file, &mut out);
     if let Err(e) = validate::variables(&to_variables(&file.variables)) {
-        out.push(format!("global variables: {}.", field_message(e)));
+        out.push(crate::text!(
+            "errors.dataTransfer.globalVariables",
+            "global variables: {error}.",
+            error = field_message(e)
+        ));
     }
     check_projects(file, &mut out);
     if !out.full() {
@@ -352,8 +424,10 @@ fn check(file: &DataFile) -> Vec<String> {
     if out.0.is_empty()
         && let Err(e) = validate::structure(&as_config(file))
     {
-        out.push(format!(
-            "The hosts and collections are not consistent: {e}."
+        out.push(crate::text!(
+            "errors.dataTransfer.inconsistentNodes",
+            "The hosts and collections are not consistent: {error}.",
+            error = e
         ));
     }
     out.0
@@ -364,22 +438,56 @@ fn check_scope(file: &DataFile, out: &mut Messages) {
         FileScope::All => {}
         FileScope::Home => {
             if !file.projects.is_empty() || file.nodes.iter().any(|n| n.project_id().is_some()) {
-                out.push("A Home export cannot hold projects.".into());
+                out.push(crate::text!(
+                    "errors.dataTransfer.homeWithProjects",
+                    "A Home export cannot hold projects."
+                ));
             }
         }
         FileScope::Project { project_id, .. } => {
             if file.projects.len() != 1 || &file.projects[0].id != project_id {
-                out.push("A project export must hold exactly its project.".into());
+                out.push(crate::text!(
+                    "errors.dataTransfer.projectExportProjects",
+                    "A project export must hold exactly its project."
+                ));
             }
             if file
                 .nodes
                 .iter()
                 .any(|n| n.project_id() != Some(project_id.as_str()))
             {
-                out.push("A project export holds hosts or collections of another scope.".into());
+                out.push(crate::text!(
+                    "errors.dataTransfer.projectExportForeignNodes",
+                    "A project export holds hosts or collections of another scope."
+                ));
             }
         }
     }
+}
+
+fn invalid_name(who: &Text) -> Text {
+    crate::text!(
+        "errors.dataTransfer.invalidName",
+        "{who} has an invalid name (1 to 100 characters).",
+        who = who
+    )
+}
+
+fn invalid_id(who: &Text) -> Text {
+    crate::text!(
+        "errors.dataTransfer.invalidId",
+        "{who}: the id is not valid.",
+        who = who
+    )
+}
+
+fn item_error(who: &Text, e: ConfigError) -> Text {
+    crate::text!(
+        "errors.dataTransfer.itemError",
+        "{who}: {error}.",
+        who = who,
+        error = field_message(e)
+    )
 }
 
 fn check_projects(file: &DataFile, out: &mut Messages) {
@@ -387,16 +495,20 @@ fn check_projects(file: &DataFile, out: &mut Messages) {
     for p in &file.projects {
         let who = label("project", Some(&p.name));
         if validate::name(&p.name).is_err() {
-            out.push(format!("{who} has an invalid name (1 to 100 characters)."));
+            out.push(invalid_name(&who));
         } else if names.iter().any(|n| same_name(n, &p.name)) {
-            out.push(format!("{who} is in the file twice."));
+            out.push(crate::text!(
+                "errors.dataTransfer.inFileTwice",
+                "{who} is in the file twice.",
+                who = &who
+            ));
         }
         names.push(&p.name);
         if !validate::is_canonical_id(&p.id) {
-            out.push(format!("{who}: the id is not valid."));
+            out.push(invalid_id(&who));
         }
         if let Err(e) = validate::variables(&to_variables(&p.variables)) {
-            out.push(format!("{who}: {}.", field_message(e)));
+            out.push(item_error(&who, e));
         }
     }
 }
@@ -411,45 +523,72 @@ fn check_nodes(file: &DataFile, out: &mut Messages) {
         if out.full() {
             return;
         }
-        let who = kind_label(n);
+        let who = &kind_label(n);
         if validate::name(n.name()).is_err() {
-            out.push(format!("{who} has an invalid name (1 to 100 characters)."));
+            out.push(invalid_name(who));
         }
         if !validate::is_canonical_id(n.id()) {
-            out.push(format!("{who}: the id is not valid."));
+            out.push(invalid_id(who));
         } else if !ids.insert(n.id()) {
-            out.push(format!("{who}: the id is used twice."));
+            out.push(crate::text!(
+                "errors.dataTransfer.idTwice",
+                "{who}: the id is used twice.",
+                who = who
+            ));
         }
         if let Some(p) = n.project_id()
             && !projects.contains(p)
         {
-            out.push(format!("{who}: its project is not in the file."));
+            out.push(crate::text!(
+                "errors.dataTransfer.projectMissing",
+                "{who}: its project is not in the file.",
+                who = who
+            ));
         }
         if let Some(parent) = n.parent_id() {
             if parent == n.id() {
-                out.push(format!("{who} is its own parent."));
+                out.push(crate::text!(
+                    "errors.dataTransfer.ownParent",
+                    "{who} is its own parent.",
+                    who = who
+                ));
             } else {
                 match by_id.get(parent) {
                     Some(c) if c.is_collection() && c.project_id() == n.project_id() => {
                         if n.is_collection() {
                             match validate::collection_chain(&by_id, Some(parent)) {
-                                None => {
-                                    out.push(format!("{who} is inside itself or nested too deep."))
-                                }
+                                None => out.push(crate::text!(
+                                    "errors.dataTransfer.cycleOrTooDeep",
+                                    "{who} is inside itself or nested too deep.",
+                                    who = who
+                                )),
                                 Some(chain) if chain.iter().any(|c| c.id() == n.id()) => {
-                                    out.push(format!("{who} is inside itself."))
+                                    out.push(crate::text!(
+                                        "errors.dataTransfer.insideItself",
+                                        "{who} is inside itself.",
+                                        who = who
+                                    ))
                                 }
-                                Some(chain) if chain.len() >= MAX_DEPTH => out.push(format!(
-                                    "{who} is nested deeper than {MAX_DEPTH} levels."
+                                Some(chain) if chain.len() >= MAX_DEPTH => out.push(crate::text!(
+                                    "errors.dataTransfer.tooDeep",
+                                    "{who} is nested deeper than {max} levels.",
+                                    who = who,
+                                    max = MAX_DEPTH
                                 )),
                                 Some(_) => {}
                             }
                         }
                     }
-                    Some(c) if c.is_collection() => {
-                        out.push(format!("{who}: its parent collection is in another scope."))
-                    }
-                    _ => out.push(format!("{who}: its parent collection is not in the file.")),
+                    Some(c) if c.is_collection() => out.push(crate::text!(
+                        "errors.dataTransfer.parentOtherScope",
+                        "{who}: its parent collection is in another scope.",
+                        who = who
+                    )),
+                    _ => out.push(crate::text!(
+                        "errors.dataTransfer.parentMissing",
+                        "{who}: its parent collection is not in the file.",
+                        who = who
+                    )),
                 }
             }
         }
@@ -460,7 +599,11 @@ fn check_nodes(file: &DataFile, out: &mut Messages) {
                     .iter()
                     .any(|(p, q, name)| (*p, *q) == key && same_name(name, &c.name))
                 {
-                    out.push(format!("{who} is twice in the same place."));
+                    out.push(crate::text!(
+                        "errors.dataTransfer.twiceInPlace",
+                        "{who} is twice in the same place.",
+                        who = who
+                    ));
                 }
                 collection_names.push((key.0, key.1, &c.name));
             }
@@ -470,7 +613,11 @@ fn check_nodes(file: &DataFile, out: &mut Messages) {
                     .iter()
                     .any(|(p, name)| *p == scope && same_name(name, &h.name))
                 {
-                    out.push(format!("{who} is twice in the same scope."));
+                    out.push(crate::text!(
+                        "errors.dataTransfer.twiceInScope",
+                        "{who} is twice in the same scope.",
+                        who = who
+                    ));
                 }
                 host_names.push((scope, &h.name));
                 let input = HostInput {
@@ -481,7 +628,7 @@ fn check_nodes(file: &DataFile, out: &mut Messages) {
                     auth: h.auth.clone(),
                 };
                 if let Err(e) = validate::host(&input) {
-                    out.push(format!("{who}: {}.", field_message(e)));
+                    out.push(item_error(who, e));
                 }
             }
         }
@@ -491,19 +638,28 @@ fn check_nodes(file: &DataFile, out: &mut Messages) {
 fn check_keys(file: &DataFile, out: &mut Messages) {
     for k in &file.keys {
         let who = match validate::key_name(&k.name) {
-            Ok(n) => format!("SSH key “{n}”"),
+            Ok(n) => crate::text!("errors.dataTransfer.keyNamed", "SSH key “{name}”", name = n),
             Err(_) => {
-                out.push("An SSH key has an invalid name (1 to 64 characters).".into());
+                out.push(crate::text!(
+                    "errors.dataTransfer.keyInvalidName",
+                    "An SSH key has an invalid name (1 to 64 characters)."
+                ));
                 continue;
             }
         };
         if validate::key_path(&k.path).is_err() {
-            out.push(format!(
-                "{who}: the path must be absolute or start with ~/."
+            out.push(crate::text!(
+                "errors.dataTransfer.keyPathNotLocal",
+                "{who}: the path must be absolute or start with ~/.",
+                who = &who
             ));
         }
         if k.bits.is_some_and(|b| b == 0 || b > MAX_KEY_BITS) {
-            out.push(format!("{who}: the key size is not valid."));
+            out.push(crate::text!(
+                "errors.dataTransfer.keySizeInvalid",
+                "{who}: the key size is not valid.",
+                who = &who
+            ));
         }
     }
 }

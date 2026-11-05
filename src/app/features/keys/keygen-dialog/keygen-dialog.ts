@@ -43,6 +43,7 @@ import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import { KeyStore } from '../../../core/ipc/key-store';
 import type { KeyLocation, KeyType, KeyView } from '../../../core/ipc/keys';
 import { Settings } from '../../../core/settings/settings';
+import { textOf } from '../../../shared/backend-text';
 import { notifyError, sentence } from '../../../shared/save-error';
 import {
   commentValidator,
@@ -95,7 +96,7 @@ export function locationProblem(err: unknown, fileName: string): LocationProblem
     case 'invalid_input':
       // One code covers several folder problems (link, file, relative path); the backend
       // message names the one found.
-      return { field: 'folder', message: sentence(err.message) };
+      return { field: 'folder', message: sentence(textOf(err)) };
     default:
       return null;
   }

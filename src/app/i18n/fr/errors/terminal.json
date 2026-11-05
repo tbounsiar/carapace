@@ -1,0 +1,10 @@
+{
+  "busy": "le terminal n’accepte pas de saisie pour le moment",
+  "network": "impossible d’ouvrir un shell sur l’hôte",
+  "notConnected": "l’hôte n’est pas connecté",
+  "notFound": "terminal introuvable",
+  "required": "{name} est requis",
+  "size": "cols doit être entre 1 et {cols}, et rows entre 1 et {rows}",
+  "tooMany": "{max} terminaux au plus peuvent être ouverts sur une connexion",
+  "writeTooLarge": "data ne doit pas dépasser {max} octets par appel"
+}

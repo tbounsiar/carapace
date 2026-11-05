@@ -21,6 +21,7 @@ use super::ends::{ConnectionEnd, EndEmit, Ends};
 use super::error::SshError;
 use super::known_hosts::{HostKeyStatus, KnownHosts, fingerprint};
 use crate::secrets::{KeyPassKey, SavedKey, SecretKind, SecretStore, VarKey, fits_saved};
+use crate::text::Text;
 
 pub type Emit = Arc<dyn Fn(ConnectEvent) + Send + Sync>;
 
@@ -560,13 +561,40 @@ impl Source {
         }
     }
 
-    /// Names a stored secret for an error message, never its value; `None` when typed.
-    fn describe(&self, kind: SecretKind) -> Option<String> {
+    /// The server refused this stored password; names the variable, never the value. `None`
+    /// when typed.
+    fn password_refused(&self) -> Option<Text> {
+        match self {
+            Self::Typed | Self::Key => None,
+            Self::Variable(name) => Some(crate::text!(
+                "errors.ssh.variablePasswordRefused",
+                "the password from variable {name} was refused by the server",
+                name = name.as_str()
+            )),
+            Self::Saved => Some(crate::text!(
+                "errors.ssh.savedPasswordRefused",
+                "the saved password was refused by the server"
+            )),
+        }
+    }
+
+    /// This stored passphrase does not unlock the key; `None` when typed.
+    fn passphrase_refused(&self) -> Option<Text> {
         match self {
             Self::Typed => None,
-            Self::Variable(name) => Some(format!("the {kind} from variable {name}")),
-            Self::Saved => Some(format!("the saved {kind}")),
-            Self::Key => Some("the remembered key passphrase".into()),
+            Self::Variable(name) => Some(crate::text!(
+                "errors.ssh.variablePassphraseRefused",
+                "the passphrase from variable {name} does not unlock the private key",
+                name = name.as_str()
+            )),
+            Self::Saved => Some(crate::text!(
+                "errors.ssh.savedPassphraseRefused",
+                "the saved passphrase does not unlock the private key"
+            )),
+            Self::Key => Some(crate::text!(
+                "errors.ssh.rememberedPassphraseRefused",
+                "the remembered key passphrase does not unlock the private key"
+            )),
         }
     }
 }
@@ -721,9 +749,10 @@ impl SshManager {
             .get(connection_id)
             .ok_or(SshError::NotFound("host key"))?;
         if self::fingerprint(&entry.key) != fingerprint {
-            return Err(SshError::InvalidInput(
-                "the fingerprint does not match the presented host key".into(),
-            ));
+            return Err(SshError::InvalidInput(crate::text!(
+                "errors.ssh.fingerprintMismatch",
+                "the fingerprint does not match the presented host key"
+            )));
         }
         self.known_hosts
             .trust(&entry.hostname, entry.port, &entry.key)?;
@@ -1037,9 +1066,10 @@ impl SshManager {
         let (tx, cancelled) = oneshot::channel();
         let mut tests = self.tests.lock().map_err(|_| SshError::Io)?;
         if tests.contains_key(test_id) {
-            return Err(SshError::InvalidInput(
-                "a test with this id is already running".into(),
-            ));
+            return Err(SshError::InvalidInput(crate::text!(
+                "errors.ssh.testRunning",
+                "a test with this id is already running"
+            )));
         }
         if tests.len() >= MAX_TESTS {
             return Err(SshError::Busy);
@@ -1106,14 +1136,11 @@ impl SshManager {
         } = match self.open(target, &credentials, &emit, true).await {
             Ok(opened) => opened,
             Err(SshError::AuthFailed(message)) => {
-                let who = match (&credentials, &source) {
-                    (Credentials::Password(_), Some(s)) => s.describe(SecretKind::Password),
+                let refused = match (&credentials, &source) {
+                    (Credentials::Password(_), Some(s)) => s.password_refused(),
                     _ => None,
                 };
-                return Err(SshError::AuthFailed(match who {
-                    Some(who) => format!("{who} was refused by the server"),
-                    None => message,
-                }));
+                return Err(SshError::AuthFailed(refused.unwrap_or(message)));
             }
             Err(e) => return Err(e),
         };
@@ -1220,7 +1247,10 @@ fn forget_if_unchanged(
 fn read_key_file(key_path: &str) -> Result<Zeroizing<String>, SshError> {
     use std::io::ErrorKind;
     let path = crate::fsutil::expand_local(key_path).ok_or_else(|| {
-        SshError::InvalidInput("the private key path must be absolute or start with ~/".into())
+        SshError::InvalidInput(crate::text!(
+            "errors.ssh.keyPathInvalid",
+            "the private key path must be absolute or start with ~/"
+        ))
     })?;
     match crate::fsutil::read_regular_capped(&path, crate::keys::MAX_KEY_FILE_BYTES, true) {
         Ok(mut raw) => String::from_utf8(std::mem::take(&mut *raw))
@@ -1229,12 +1259,14 @@ fn read_key_file(key_path: &str) -> Result<Zeroizing<String>, SshError> {
                 drop(Zeroizing::new(e.into_bytes()));
                 unparseable_key()
             }),
-        Err(e) if e.kind() == ErrorKind::InvalidInput => Err(SshError::InvalidInput(
-            "the private key path is not a regular file".into(),
-        )),
-        Err(e) if e.kind() == ErrorKind::FileTooLarge => Err(SshError::InvalidInput(
-            "the private key file is too large".into(),
-        )),
+        Err(e) if e.kind() == ErrorKind::InvalidInput => Err(SshError::InvalidInput(crate::text!(
+            "errors.ssh.keyNotRegular",
+            "the private key path is not a regular file"
+        ))),
+        Err(e) if e.kind() == ErrorKind::FileTooLarge => Err(SshError::InvalidInput(crate::text!(
+            "errors.ssh.keyTooLarge",
+            "the private key file is too large"
+        ))),
         Err(_) => Err(SshError::Io),
     }
 }
@@ -1253,7 +1285,10 @@ fn registered_for<'a>(text: &str, registered: &'a [RegisteredKey]) -> Option<&'a
 }
 
 fn unparseable_key() -> SshError {
-    SshError::InvalidInput("the private key file could not be parsed".into())
+    SshError::InvalidInput(crate::text!(
+        "errors.ssh.keyUnparseable",
+        "the private key file could not be parsed"
+    ))
 }
 
 /// Keychain and key file reads block; they run off the async workers. A cancelled test drops
@@ -1331,14 +1366,12 @@ fn load_credentials(
                                     &r.value,
                                 );
                             }
-                            let who = match purpose {
+                            let refused = match purpose {
                                 Purpose::Connect => None,
-                                Purpose::Test => r.source.describe(SecretKind::Passphrase),
+                                Purpose::Test => r.source.passphrase_refused(),
                             };
-                            return Err(match who {
-                                Some(who) => SshError::PassphraseRefused(format!(
-                                    "{who} does not unlock the private key"
-                                )),
+                            return Err(match refused {
+                                Some(text) => SshError::PassphraseRefused(text),
                                 None => SshError::InvalidPassphrase,
                             });
                         }
@@ -1374,7 +1407,12 @@ async fn authenticate(
     username: &str,
     credentials: &Credentials,
 ) -> Result<(), SshError> {
-    let failed = || SshError::AuthFailed("authentication was refused by the server".into());
+    let failed = || {
+        SshError::AuthFailed(crate::text!(
+            "errors.ssh.authRefused",
+            "authentication was refused by the server"
+        ))
+    };
     match credentials {
         Credentials::Key(key) => {
             let hash = rsa_hash(handle, key.public_key()).await;
@@ -1398,7 +1436,10 @@ async fn authenticate(
         Credentials::Agent => {
             let mut agent = connect_agent().await?;
             let identities = agent.request_identities().await.map_err(|_| {
-                SshError::AuthFailed("the SSH agent could not list its keys".into())
+                SshError::AuthFailed(crate::text!(
+                    "errors.ssh.agentListFailed",
+                    "the SSH agent could not list its keys"
+                ))
             })?;
             for identity in identities {
                 let AgentIdentity::PublicKey { key, .. } = identity else {
@@ -1421,7 +1462,12 @@ async fn authenticate(
 type DynAgent = AgentClient<Box<dyn russh::keys::agent::client::AgentStream + Send + Unpin>>;
 
 async fn connect_agent() -> Result<DynAgent, SshError> {
-    let unavailable = || SshError::AuthFailed("no SSH agent is available".into());
+    let unavailable = || {
+        SshError::AuthFailed(crate::text!(
+            "errors.ssh.agentUnavailable",
+            "no SSH agent is available"
+        ))
+    };
     #[cfg(unix)]
     {
         AgentClient::connect_env()

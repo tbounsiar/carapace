@@ -10,7 +10,12 @@ type Res<T> = Result<T, CommandError>;
 
 fn required(value: &str) -> Res<()> {
     if value.trim().is_empty() {
-        return Err(FsError::invalid("connectionId is required").into());
+        return Err(FsError::invalid(crate::text!(
+            "errors.files.required",
+            "{name} is required",
+            name = "connectionId"
+        ))
+        .into());
     }
     Ok(())
 }

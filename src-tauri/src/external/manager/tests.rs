@@ -322,7 +322,7 @@ async fn a_failed_upload_is_retried_on_request() {
     w.save(&f.id, b"two");
     let failed = w.state(&f.id, State::Failed).await;
     let err = failed.error.unwrap();
-    assert!(!err.message.contains(&*w.home.path().to_string_lossy()));
+    assert!(!err.text.message.contains(&*w.home.path().to_string_lossy()));
     assert_eq!(w.attention.load(Ordering::SeqCst), 1);
     w.server.fs().set_fail_writes(false);
     let retried = w.edits.upload_now(&f.id).await.unwrap();

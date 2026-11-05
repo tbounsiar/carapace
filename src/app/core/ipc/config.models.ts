@@ -1,3 +1,5 @@
+import type { BackendText } from './backend-text';
+
 /** A string with `${name}` variable references; `$$` is a literal `$`. */
 export type Template = string;
 
@@ -84,7 +86,7 @@ export interface ResolvedHost {
   username: string | null;
   keyPath: string | null;
   missing: string[];
-  errors: string[];
+  errors: BackendText[];
 }
 
 export type CommandErrorCode =
@@ -130,7 +132,6 @@ export type CommandErrorCode =
 
 export type IpcErrorCode = CommandErrorCode | 'unknown';
 
-export interface CommandError {
+export interface CommandError extends BackendText {
   code: CommandErrorCode;
-  message: string;
 }

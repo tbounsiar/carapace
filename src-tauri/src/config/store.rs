@@ -11,6 +11,7 @@ use uuid::Uuid;
 use super::migrate::{self, Dropped, LegacyProject, MigrationPlan};
 use super::model::{ConfigFile, Host, KeyEntry, KeyOrigin, Node, Project, Variable, VariableScope};
 use super::validate::{self, same_name};
+use crate::text::{Localized, Text};
 
 mod nodes;
 mod replace;
@@ -33,12 +34,12 @@ pub enum ConfigError {
     #[error("{0} not found")]
     NotFound(&'static str),
     #[error("{0}")]
-    InvalidInput(String),
+    InvalidInput(Text),
     #[error("{0} already exists")]
     Conflict(&'static str),
     /// A conflict whose message names the item and where it clashes.
     #[error("{0}")]
-    NameTaken(String),
+    NameTaken(Text),
     #[error("{0} already exists")]
     Exists(&'static str),
     #[error("could not read or write the configuration file")]
@@ -649,6 +650,47 @@ impl ConfigStore {
                 .ok_or(ConfigError::NotFound("key"))?;
             Ok(cfg.keys.remove(i))
         })
+    }
+}
+
+/// `NotFound` and `Conflict` send `what` (project, collection, host, key, node) as a code.
+impl Localized for ConfigError {
+    fn text(&self) -> Text {
+        match self {
+            Self::NotFound(what) => {
+                crate::text!("errors.config.notFound", "{what} not found", what = *what)
+            }
+            Self::InvalidInput(t) | Self::NameTaken(t) => t.clone(),
+            Self::Exists("a key with this name") => crate::text!(
+                "errors.config.keyNameTaken",
+                "a key with this name already exists"
+            ),
+            Self::Exists("a key with this file") => crate::text!(
+                "errors.config.keyFileTaken",
+                "a key with this file already exists"
+            ),
+            Self::Conflict(what) | Self::Exists(what) => crate::text!(
+                "errors.config.alreadyExists",
+                "{what} already exists",
+                what = *what
+            ),
+            Self::Io => crate::text!(
+                "errors.config.io",
+                "could not read or write the configuration file"
+            ),
+            Self::Corrupt => crate::text!(
+                "errors.config.corrupt",
+                "the configuration file is unreadable or has an unsupported format"
+            ),
+            Self::Keychain => crate::text!(
+                "errors.config.keychain",
+                "the system keychain is not available"
+            ),
+            Self::Changed => crate::text!(
+                "errors.config.changed",
+                "the data changed since it was read"
+            ),
+        }
     }
 }
 

@@ -6,13 +6,22 @@ pub fn normalize(raw: &str) -> Result<Option<String>, FsError> {
         return Ok(None);
     }
     if raw.len() > MAX_PATH_BYTES {
-        return Err(FsError::invalid("path is too long"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.files.pathTooLong",
+            "path is too long"
+        )));
     }
     if raw.contains('\0') {
-        return Err(FsError::invalid("path must not contain NUL"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.files.pathNul",
+            "path must not contain NUL"
+        )));
     }
     if !raw.starts_with('/') {
-        return Err(FsError::invalid("remote path must be absolute"));
+        return Err(FsError::invalid(crate::text!(
+            "errors.files.pathRelative",
+            "remote path must be absolute"
+        )));
     }
     let mut parts: Vec<&str> = Vec::new();
     for part in raw.split('/') {

@@ -144,8 +144,10 @@ pub async fn replace_file(
     // The fallback (move the original aside, then rename) leaves a moment without the file; for
     // authorized_keys that can lock the user out, so only an atomic replace is done.
     if replace && !remote.has_posix_rename() {
-        return Err(KeyError::invalid(format!(
-            "the server cannot replace {name} atomically (no posix-rename@openssh.com); add the key by hand"
+        return Err(KeyError::invalid(crate::text!(
+            "errors.keys.noAtomicReplace",
+            "the server cannot replace {name} atomically (no posix-rename@openssh.com); add the key by hand",
+            name = name
         )));
     }
     let mut created = None;
@@ -175,12 +177,24 @@ pub async fn replace_file(
     Ok(())
 }
 
+fn ssh_dir_not_dir() -> KeyError {
+    KeyError::invalid(crate::text!(
+        "errors.keys.sshDirNotDir",
+        "~/.ssh is not a directory"
+    ))
+}
+
 /// Adds `public_key` (an OpenSSH line) to `~/.ssh/authorized_keys`, unless a line already
 /// holds the same key; nothing is written then.
 pub async fn deploy(remote: &Remote, public_key: &str) -> Result<Deployed, KeyError> {
     let (kind, blob) = key_parts(public_key)
         .filter(|_| !public_key.contains(['\n', '\r']))
-        .ok_or_else(|| KeyError::invalid("the public key is invalid"))?;
+        .ok_or_else(|| {
+            KeyError::invalid(crate::text!(
+                "errors.keys.publicKeyInvalid",
+                "the public key is invalid"
+            ))
+        })?;
     let home = remote.absolute("")?;
     let ssh_dir = join(&home, ".ssh");
     let is_dir = |m: Option<crate::sftp::RemoteMeta>| m.is_some_and(|m| m.kind == EntryKind::Dir);
@@ -188,25 +202,27 @@ pub async fn deploy(remote: &Remote, public_key: &str) -> Result<Deployed, KeyEr
         None => match remote.make_dir(&ssh_dir, 0o700).await {
             Ok(()) => {}
             Err(FsError::AlreadyExists(_)) if is_dir(remote.stat_link(&ssh_dir).await?) => {}
-            Err(FsError::AlreadyExists(_)) => {
-                return Err(KeyError::invalid("~/.ssh is not a directory"));
-            }
+            Err(FsError::AlreadyExists(_)) => return Err(ssh_dir_not_dir()),
             Err(e) => return Err(e.into()),
         },
         Some(m) if m.kind == EntryKind::Dir => {}
-        Some(_) => return Err(KeyError::invalid("~/.ssh is not a directory")),
+        Some(_) => return Err(ssh_dir_not_dir()),
     }
     let path = join(&ssh_dir, "authorized_keys");
     let existing = match remote.stat_link(&path).await? {
         None => None,
         Some(m) if m.kind == EntryKind::Symlink => {
-            return Err(KeyError::invalid(
-                "authorized_keys is a link, edit it by hand",
-            ));
+            return Err(KeyError::invalid(crate::text!(
+                "errors.keys.authorizedKeysLink",
+                "authorized_keys is a link, edit it by hand"
+            )));
         }
         Some(m) if m.kind == EntryKind::File => Some(read_capped(remote, &path).await?),
         Some(_) => {
-            return Err(KeyError::invalid("authorized_keys is not a regular file"));
+            return Err(KeyError::invalid(crate::text!(
+                "errors.keys.authorizedKeysNotFile",
+                "authorized_keys is not a regular file"
+            )));
         }
     };
     let found = existing.as_deref().map_or(Presence::Absent, |c| {

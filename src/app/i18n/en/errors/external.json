@@ -1,0 +1,23 @@
+{
+  "appFailed": "the editor app could not be started",
+  "appNotEditor": "{app} runs or forwards files instead of editing them; choose an editor",
+  "appNotFound": "the editor app was not found: {app}",
+  "appPathInvalid": "the editor app must be an absolute path on this computer",
+  "blockedType": "{name} would be run, not opened, by your system",
+  "hostChanged": "{path} was opened from another server; nothing was sent",
+  "hostGone": "the host of {path} no longer exists",
+  "hostKeyUnknown": "the host key of this connection is unknown; connect again",
+  "largeFile": "{name} is {size} bytes; confirm to download it",
+  "local": "the local copy could not be read or written",
+  "noConflict": "{path} is not in conflict",
+  "notRecovered": "only a recovered file can be discarded",
+  "notRegular": "{path} is not a regular file",
+  "notUploaded": "the changes to {path} were not uploaded",
+  "pathInvalid": "path is invalid",
+  "pathNotFile": "path must name a file",
+  "pickerBusy": "a file picker is already open",
+  "required": "{name} is required (at most {max} characters)",
+  "sensitive": "{name} may hold secrets; confirm to copy it to this computer",
+  "tooLarge": "{name} is too large to edit (max 1 GiB)",
+  "unknownId": "edited file not found"
+}

@@ -194,8 +194,8 @@ fn merge_updates_a_host_matched_by_id_and_adds_new_ones() {
         item.changes,
         vec![Change {
             field: Field::Address,
-            from: "u@h:22".into(),
-            to: "u@b:22".into()
+            from: ChangeValue::Text("u@h:22".into()),
+            to: ChangeValue::Text("u@b:22".into())
         }]
     );
     assert_eq!(item.location, vec!["Home".to_string()]);
@@ -686,8 +686,12 @@ fn variable_rules_per_strategy() {
         .unwrap()
         .changes[0];
     assert_eq!(
-        (change.field, change.from.as_str(), change.to.as_str()),
-        (Field::Value, "old", "new")
+        (change.field, &change.from, &change.to),
+        (
+            Field::Value,
+            &ChangeValue::Text("old".into()),
+            &ChangeValue::Text("new".into())
+        )
     );
 
     let rp = run(&here, &f, Strategy::Replace);
@@ -894,7 +898,12 @@ fn limits_block_a_strategy_not_the_others() {
     let merge = run_with(&here, &f, &[], &[], true, Strategy::Merge);
     assert_eq!(
         merge.plan.blocking,
-        vec!["there would be 300 global variables (max 200)".to_string()]
+        vec![crate::text!(
+            "errors.dataTransfer.wouldHaveTooManyGlobals",
+            "there would be {count} global variables (max {max})",
+            count = 300,
+            max = 200
+        )]
     );
     let replace = run_with(&here, &f, &[], &[], true, Strategy::Replace);
     assert!(replace.plan.blocking.is_empty());
@@ -1194,8 +1203,23 @@ fn counts_beyond_the_caps_block() {
         .collect();
     let f = file(FileScope::Home, &local(vec![], vec![], vec![]), vec![]);
     let out = run_with(&here, &f, &[], &[], true, Strategy::Merge);
+    assert_eq!(out.plan.blocking.len(), 1);
+    let blocking = serde_json::to_value(&out.plan.blocking[0]).unwrap();
     assert_eq!(
-        out.plan.blocking,
-        vec!["there would be 501 SSH keys (max 500)".to_string()]
+        blocking,
+        serde_json::json!({
+            "key": "errors.dataTransfer.wouldHaveTooManyKeys",
+            "params": { "count": 501, "max": 500 },
+            "message": "there would be 501 SSH keys (max 500)",
+        })
     );
+}
+
+#[test]
+fn auth_changes_show_references_only() {
+    let some = |s: &str| Some(s.to_owned());
+    assert_eq!(reference(&some("${pw}")), some("${pw}"));
+    assert_eq!(reference(&some("hunter2")), None);
+    assert_eq!(reference(&some("x${pw}")), None);
+    assert_eq!(reference(&None), None);
 }

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::files::FsError;
+use crate::text::{Localized, Text};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,17 +54,19 @@ impl TransferState {
     }
 }
 
+/// `{ code, key?, params?, message }`, the shape of a command error.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TransferError {
     pub code: &'static str,
-    pub message: String,
+    #[serde(flatten)]
+    pub text: Text,
 }
 
 impl From<&FsError> for TransferError {
     fn from(e: &FsError) -> Self {
         Self {
             code: e.code(),
-            message: e.to_string(),
+            text: e.text(),
         }
     }
 }
@@ -151,6 +154,8 @@ mod tests {
         assert!(t["totalBytes"].is_null());
         assert_eq!(t["totalFiles"], 2);
         assert_eq!(t["error"]["code"], "not_connected");
+        assert_eq!(t["error"]["key"], "errors.files.notConnected");
+        assert_eq!(t["error"]["message"], "the host is not connected");
         let conflict = serde_json::to_value(TransferEvent::Conflict {
             job_id: "j".into(),
             conflict_id: 7,

@@ -10,7 +10,7 @@ Open **Settings** at the bottom of the sidebar. Changes apply right away; there 
 
 ## Language
 
-**System** (default) shows Carapace in French when the operating system language is French, in English otherwise; **English** and **Français** force one. The change applies at once, without a restart. Native file dialogs follow the operating system language.
+**System** (default) shows Carapace in French when the operating system language is French, in English otherwise; **English** and **Français** force one. The change applies at once, without a restart. Native dialogs (file pickers, the quit confirmation) use the chosen language for their titles and messages; the operating system still draws its own standard buttons and labels.
 
 ## Default key type
 

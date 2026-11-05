@@ -411,7 +411,7 @@ fn secret_fields_must_be_a_single_reference() {
         let Err(ConfigError::InvalidInput(msg)) = r else {
             panic!("{bad}: {r:?}");
         };
-        assert!(!msg.contains("hunter2"));
+        assert!(!msg.message.contains("hunter2"));
         invalid(with(
             "b",
             AuthMethod::Key {
@@ -487,7 +487,7 @@ fn variable_validation() {
     let Err(ConfigError::InvalidInput(msg)) = s.set_variables(&g, &[leaking]) else {
         panic!("secret with a value accepted");
     };
-    assert!(!msg.contains("hunter2"));
+    assert!(!msg.message.contains("hunter2"));
     let many: Vec<_> = (0..201).map(|i| plain(&format!("v{i}"), "")).collect();
     invalid(s.set_variables(&g, &many));
     assert!(s.set_variables(&g, &many[..200]).is_ok());
@@ -1473,4 +1473,72 @@ fn many_environments_are_capped_and_hosts_listed_once() {
         migrate::MAX_LEGACY_ENVIRONMENTS
     );
     assert_eq!(drained[0].host_ids.len(), 50);
+}
+
+#[test]
+fn errors_carry_keys_and_params() {
+    let t = ConfigError::NotFound("host").text();
+    assert_eq!(t.key, Some("errors.config.notFound"));
+    assert_eq!(t.params["what"], "host");
+    assert_eq!(t.message, "host not found");
+    let t = ConfigError::Conflict("project").text();
+    assert_eq!(t.key, Some("errors.config.alreadyExists"));
+    assert_eq!(t.params["what"], "project");
+    let t = ConfigError::Exists("a key with this file").text();
+    assert_eq!(t.key, Some("errors.config.keyFileTaken"));
+    assert_eq!(t.message, "a key with this file already exists");
+    assert_eq!(
+        ConfigError::Corrupt.text().key,
+        Some("errors.config.corrupt")
+    );
+
+    let (_d, s) = store();
+    let Err(ConfigError::InvalidInput(t)) = s.create_project(" ") else {
+        panic!("empty name accepted");
+    };
+    assert_eq!(t.key, Some("errors.config.nameLength"));
+    assert_eq!(t.params["max"], 100);
+    let g = VariableScope::Global;
+    let dup = [plain("a", ""), plain("A", "")];
+    let Err(ConfigError::InvalidInput(t)) = s.set_variables(&g, &dup) else {
+        panic!("duplicate accepted");
+    };
+    assert_eq!(t.key, Some("errors.config.variableTwice"));
+    assert_eq!(t.params["name"], "A");
+    assert_eq!(t.message, "variable A is defined twice");
+}
+
+#[test]
+fn host_field_errors_name_the_field_by_code() {
+    let mut input = HostInput {
+        name: "h".into(),
+        hostname: "a b".into(),
+        port: "22".into(),
+        username: "u".into(),
+        auth: AuthMethod::Agent,
+    };
+    let Err(ConfigError::InvalidInput(t)) = validate::host(&input) else {
+        panic!("bad hostname accepted");
+    };
+    assert_eq!(t.key, Some("errors.config.fieldWhitespace"));
+    assert_eq!(t.params["field"], "hostname");
+    input.hostname = "h".into();
+    input.port = "x".repeat(2000);
+    let Err(ConfigError::InvalidInput(t)) = validate::host(&input) else {
+        panic!("long port accepted");
+    };
+    assert_eq!(t.key, Some("errors.config.templateTooLong"));
+    assert_eq!(t.params["field"], "port");
+    assert_eq!(t.params["max"], 1024);
+    assert_eq!(t.message, "port is longer than 1024 characters");
+    input.port = "22".into();
+    input.auth = AuthMethod::Password {
+        password: Some("hunter2".into()),
+    };
+    let Err(ConfigError::InvalidInput(t)) = validate::host(&input) else {
+        panic!("plain password accepted");
+    };
+    assert_eq!(t.key, Some("errors.config.secretFieldReference"));
+    assert_eq!(t.params["field"], "password");
+    assert!(!serde_json::to_string(&t).unwrap().contains("hunter2"));
 }

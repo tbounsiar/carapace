@@ -1,4 +1,5 @@
 use super::*;
+use crate::text::Localized;
 
 type ProbeTask = tokio::task::JoinHandle<Result<HostTestResult, SshError>>;
 
@@ -85,17 +86,21 @@ async fn refused_password_names_its_source_and_a_saved_one_is_kept() {
     trust_server(&env, &server);
 
     let typed = probe(&env, credential("wrong", true)).await.unwrap_err();
+    assert_eq!(typed.code(), "auth_failed");
+    assert_eq!(typed.text().key, Some("errors.ssh.authRefused"));
     assert_eq!(
-        typed,
-        SshError::AuthFailed("authentication was refused by the server".into())
+        typed.to_string(),
+        "authentication was refused by the server"
     );
     assert!(env.mem.accounts().is_empty());
 
     store_secret(&env, SecretKind::Password, "stale");
     let saved = probe(&env, None).await.unwrap_err();
+    assert_eq!(saved.code(), "auth_failed");
+    assert_eq!(saved.text().key, Some("errors.ssh.savedPasswordRefused"));
     assert_eq!(
-        saved,
-        SshError::AuthFailed("the saved password was refused by the server".into())
+        saved.to_string(),
+        "the saved password was refused by the server"
     );
     assert_eq!(
         stored(&env, SecretKind::Password).as_deref(),
@@ -113,6 +118,9 @@ async fn refused_password_names_its_source_and_a_saved_one_is_kept() {
         var.to_string(),
         "the password from variable pw was refused by the server"
     );
+    let text = var.text();
+    assert_eq!(text.key, Some("errors.ssh.variablePasswordRefused"));
+    assert_eq!(text.params["name"], "pw");
     for e in [typed, saved, var] {
         assert!(!e.to_string().contains("stale") && !e.to_string().contains("wrong"));
     }
@@ -161,11 +169,15 @@ async fn plain_and_encrypted_keys_with_each_passphrase_source() {
     enc.secrets
         .set_key_passphrase(&key_id, &SecretString::from("stale"))
         .unwrap();
+    let err = probe(&enc, None).await.unwrap_err();
+    assert_eq!(err.code(), "invalid_passphrase");
     assert_eq!(
-        probe(&enc, None).await.unwrap_err(),
-        SshError::PassphraseRefused(
-            "the remembered key passphrase does not unlock the private key".into()
-        )
+        err.text().key,
+        Some("errors.ssh.rememberedPassphraseRefused")
+    );
+    assert_eq!(
+        err.to_string(),
+        "the remembered key passphrase does not unlock the private key"
     );
 
     store_secret(&enc, SecretKind::Passphrase, PASSPHRASE);

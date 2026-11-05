@@ -49,7 +49,7 @@ fn edit(f: impl FnOnce(&mut Value)) -> Value {
 
 fn invalid_messages(v: &Value) -> Vec<String> {
     match err(v) {
-        ParseError::Invalid(m) => m,
+        ParseError::Invalid(m) => m.into_iter().map(|t| t.message).collect(),
         other => panic!("expected invalid, got {other:?}"),
     }
 }
@@ -93,7 +93,7 @@ fn encoding_syntax_format_and_version_errors() {
     assert_eq!(parse(&[0xff, 0xfe, 0x00]).unwrap_err(), ParseError::NotUtf8);
     let syntax = parse(b"{\n  \"format\": \"carapace-data\",\n  oops\n}").unwrap_err();
     assert_eq!(syntax, ParseError::Syntax { line: 3, column: 3 });
-    assert!(syntax.message().contains("line 3, column 3"));
+    assert!(syntax.text().message.contains("line 3, column 3"));
     assert_eq!(syntax.code(), "import_malformed");
 
     for v in [
@@ -112,7 +112,46 @@ fn encoding_syntax_format_and_version_errors() {
     let newer = err(&edit(|v| v["version"] = json!(2)));
     assert_eq!(newer, ParseError::Version(2));
     assert_eq!(newer.code(), "import_version");
-    assert!(newer.message().contains("format version 2"));
+    assert!(newer.text().message.contains("format version 2"));
+    let t = newer.text();
+    assert_eq!(t.key, Some("errors.dataTransfer.newerVersion"));
+    assert_eq!(t.params["version"], 2);
+    assert_eq!(t.params["supported"], VERSION);
+    let t = syntax.text();
+    assert_eq!(
+        (t.params["line"].as_u64(), t.params["column"].as_u64()),
+        (Some(3), Some(3))
+    );
+}
+
+#[test]
+fn invalid_files_list_each_message_as_a_text() {
+    let v = edit(|v| {
+        v["nodes"][1]["port"] = json!("0");
+        v["projects"][0]["id"] = json!("not-an-id");
+    });
+    let e = err(&v);
+    let t = e.text();
+    assert_eq!(t.key, Some("errors.dataTransfer.invalidFile"));
+    let list = t.params["errors"].as_array().unwrap();
+    assert_eq!(list.len(), t.message.lines().count());
+    let invalid_id = list
+        .iter()
+        .find(|l| l["key"] == "errors.dataTransfer.invalidId")
+        .unwrap();
+    assert_eq!(
+        invalid_id["params"]["who"]["key"],
+        "errors.dataTransfer.itemNamed"
+    );
+    assert_eq!(invalid_id["params"]["who"]["params"]["kind"], "project");
+    let host = err(&edit(|v| {
+        v["nodes"][1]["auth"]["password"] = json!("hunter2")
+    }))
+    .text();
+    assert_eq!(host.key, Some("errors.dataTransfer.authHasSecret"));
+    assert_eq!(host.params["field"], "password");
+    assert_eq!(host.params["host"]["params"]["kind"], "host");
+    assert!(!serde_json::to_string(&host).unwrap().contains("hunter2"));
 }
 
 #[test]
@@ -128,18 +167,20 @@ fn secret_values_are_refused_without_being_echoed() {
         let e = err(v);
         assert_eq!(e.code(), "import_secret_value");
         assert!(
-            e.message().contains("secret variable “db_pw” has a value"),
+            e.text()
+                .message
+                .contains("secret variable “db_pw” has a value"),
             "{}",
-            e.message()
+            e.text().message
         );
-        assert!(!e.message().contains("hunter2"));
+        assert!(!e.text().message.contains("hunter2"));
     }
     let host = err(&edit(|v| {
         v["nodes"][1]["auth"]["password"] = json!("hunter2")
     }));
     assert_eq!(host.code(), "import_secret_value");
-    assert!(host.message().starts_with("host “api-1”"));
-    assert!(!host.message().contains("hunter2"));
+    assert!(host.text().message.starts_with("host “api-1”"));
+    assert!(!host.text().message.contains("hunter2"));
     let pass = edit(|v| {
         v["nodes"][1]["auth"] = json!({"kind": "key", "keyPath": "~/k", "passphrase": 42});
     });
@@ -318,7 +359,7 @@ fn at_most_five_messages() {
     });
     let e = err(&v);
     assert_eq!(invalid_messages(&v).len(), 5);
-    assert_eq!(e.message().lines().count(), 5);
+    assert_eq!(e.text().message.lines().count(), 5);
 }
 
 #[test]

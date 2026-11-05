@@ -12,7 +12,15 @@ where
 {
     tauri::async_runtime::spawn_blocking(f)
         .await
-        .map_err(|_| CommandError::new("io", "the file operation was interrupted"))?
+        .map_err(|_| {
+            CommandError::new(
+                "io",
+                crate::text!(
+                    "errors.local.interrupted",
+                    "the file operation was interrupted"
+                ),
+            )
+        })?
         .map_err(Into::into)
 }
 

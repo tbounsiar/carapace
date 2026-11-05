@@ -14,6 +14,7 @@ use std::time::SystemTime;
 
 use crate::config::{ConfigError, ConfigFile, ConfigStore, Revision};
 use crate::keys::{self, KeyError};
+use crate::text::Text;
 use backup::Backup;
 use format::{DataFile, FileKey};
 use plan::{Context, KeyProbe, KeychainWork, Outcome, Strategy, VarAccount};
@@ -146,6 +147,19 @@ pub struct Applied {
     pub revision: Revision,
 }
 
+#[derive(Debug)]
+pub enum ApplyError {
+    /// The plan on the current data has blocking reasons; nothing was written.
+    Blocked(Text),
+    Data(ConfigError),
+}
+
+impl From<ConfigError> for ApplyError {
+    fn from(e: ConfigError) -> Self {
+        Self::Data(e)
+    }
+}
+
 /// Writes the import in one store transaction, only while `data.json` is still at `expected`:
 /// the plan is computed again on the current data, refused when blocked, then the backup is
 /// written (failure: `Io`, nothing changed), then `keychain` runs the deletes (failure: nothing
@@ -157,18 +171,25 @@ pub fn apply(
     strategy: Strategy,
     now: SystemTime,
     keychain: impl FnOnce(&KeychainWork) -> Result<(), ConfigError>,
-) -> Result<Applied, ConfigError> {
+) -> Result<Applied, ApplyError> {
     let home = store.dir().to_path_buf();
+    let mut blocked = None;
     let done = store.replace_data(
         expected,
         |current| {
             let out = plan::plan(&inputs.context(current), strategy);
             if !out.plan.blocking.is_empty() {
-                return Err(ConfigError::InvalidInput(format!(
-                    "This import cannot be done with {}: {}.",
-                    strategy.label(),
-                    out.plan.blocking.join("; ")
-                )));
+                blocked = Some(crate::text!(
+                    "errors.dataTransfer.importBlocked",
+                    "This import cannot be done with {strategy}: {reasons}.",
+                    strategy = strategy,
+                    reasons = format::TextList {
+                        items: out.plan.blocking,
+                        separator: "; ",
+                    }
+                ));
+                // Any error stops the transaction; `blocked` replaces it below.
+                return Err(ConfigError::Changed);
             }
             Ok((out.result.clone(), out))
         },
@@ -180,7 +201,11 @@ pub fn apply(
             keychain(&out.keychain)?;
             Ok(backup)
         },
-    )?;
+    );
+    if let Some(reason) = blocked {
+        return Err(ApplyError::Blocked(reason));
+    }
+    let done = done?;
     Ok(Applied {
         outcome: done.output,
         backup: done.before,

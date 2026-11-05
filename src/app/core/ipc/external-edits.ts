@@ -1,5 +1,6 @@
 import { Service } from '@angular/core';
 import { Channel } from '@tauri-apps/api/core';
+import type { BackendText } from './backend-text';
 import { invokeCommand } from './ipc-error';
 
 export type EditedState =
@@ -25,7 +26,7 @@ export interface EditedFile {
   /** Only in `conflict`. */
   readonly conflict: 'changed' | 'deleted' | null;
   /** Only in `failed`. */
-  readonly error: { readonly code: string; readonly message: string } | null;
+  readonly error: (BackendText & { readonly code: string }) | null;
   /** Unix milliseconds, like every time below. */
   readonly openedAt: number;
   readonly lastSyncedAt: number | null;

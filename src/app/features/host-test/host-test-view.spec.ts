@@ -1,5 +1,6 @@
 import { TranslocoService } from '@jsverse/transloco';
 import { TestBed } from '@angular/core/testing';
+import type { BackendText } from '../../core/ipc/backend-text';
 import type { AuthMethod, CommandErrorCode } from '../../core/ipc/config.models';
 import type { HostTestResult } from '../../core/ipc/host-test';
 import { IpcError } from '../../core/ipc/ipc-error';
@@ -19,14 +20,20 @@ const join = (parts: readonly Part[]): string => parts.map((p) => p.text).join('
 const key: AuthMethod = { kind: 'key', keyPath: '~/.ssh/id', passphrase: null };
 const password: AuthMethod = { kind: 'password', password: null };
 
+const KNOWN_HOSTS = {
+  key: 'errors.ssh.userKnownHostsUnreadable',
+  params: { kind: 'permission_denied' },
+};
+
 function failure(
   code: CommandErrorCode,
   auth: AuthMethod,
   message = 'connection refused',
   origin: SecretOrigin = 'stored',
+  text: Pick<BackendText, 'key' | 'params'> = {},
 ) {
   const view = outcomeView(
-    { kind: 'failure', error: new IpcError(code, message), origin },
+    { kind: 'failure', error: new IpcError(code, message, text), origin },
     draft(auth),
   )!;
   return { view, title: join(view.title), detail: join(view.detail) };
@@ -156,9 +163,28 @@ describe('host test copy', () => {
       expect(failure('not_found', key, 'no such file').title).toBe(
         'Could not read /home/me/.ssh/id_bad',
       );
-      expect(failure('io', key, 'cannot read known_hosts').title).toBe(
-        'Could not read known_hosts',
+      const knownHosts = failure(
+        'io',
+        key,
+        'Could not read ~/.ssh/known_hosts to verify the host key: permission denied. Fix or move that file, then retry.',
+        'stored',
+        KNOWN_HOSTS,
       );
+      expect(knownHosts.title).toBe('Could not read known_hosts');
+      expect(knownHosts.detail).toBe(
+        'Could not read ~/.ssh/known_hosts to verify the host key: permission denied. Fix or move that file, then retry.',
+      );
+    });
+
+    it('translates the known_hosts problem into French', () => {
+      TestBed.inject(TranslocoService).setActiveLang('fr');
+      try {
+        const { detail } = failure('io', key, 'english', 'stored', KNOWN_HOSTS);
+        expect(detail).toContain('Impossible de lire ~/.ssh/known_hosts');
+        expect(detail).toContain('accès refusé');
+      } finally {
+        TestBed.inject(TranslocoService).setActiveLang('en');
+      }
     });
 
     it('keychain, missing variables and anything else', () => {

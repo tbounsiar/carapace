@@ -22,13 +22,13 @@ function baseName(path: string): string {
   return path.split('/').filter(Boolean).pop() ?? path;
 }
 
-/** The size in a `large_file` message, when the listing had none. */
+/** The size sent with a `large_file` error, when the listing had none. */
 function sizeOf(err: IpcError, listed: number | null): number | null {
   if (listed !== null) {
     return listed;
   }
-  const match = /(\d+) bytes/.exec(err.message);
-  return match ? Number(match[1]) : null;
+  const size = err.key === 'errors.external.largeFile' ? err.params?.['size'] : undefined;
+  return typeof size === 'number' && Number.isFinite(size) ? size : null;
 }
 
 /** "Download 120 MiB?", before a copy over 20 MiB is downloaded. */
@@ -182,7 +182,8 @@ export class ExternalOpener {
         this.failWithSettings(blockedTypeText(name));
         return;
       case 'app_not_found': {
-        const app = err.message.split(': ').slice(1).join(': ').trim();
+        const named = err.key === 'errors.external.appNotFound' ? err.params?.['app'] : undefined;
+        const app = typeof named === 'string' ? named.trim() : '';
         this.failWithSettings(app ? this.t('appNotFoundNamed', { app }) : this.t('appNotFound'));
         return;
       }
