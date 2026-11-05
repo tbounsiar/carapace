@@ -3,6 +3,7 @@ import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { of } from 'rxjs';
 import type { AppPreferences } from '../ipc/app-settings';
+import { LANGUAGE_CACHE, LanguageService } from '../i18n/language';
 import { ThemeService } from '../theme/theme';
 import {
   FONT_SIZE_STORAGE,
@@ -14,6 +15,7 @@ import {
 
 const DEFAULTS: AppPreferences = {
   theme: 'system',
+  language: 'system',
   defaultKeyType: 'ed25519',
   terminalFontSize: 13,
   keyFolder: null,
@@ -94,6 +96,7 @@ describe('Settings', () => {
       localStorage.setItem('carapace.theme', 'light');
       backend = {
         theme: 'dark',
+        language: 'fr',
         defaultKeyType: 'rsa4096',
         terminalFontSize: 18,
         keyFolder: '~/k',
@@ -108,6 +111,30 @@ describe('Settings', () => {
       expect(settings.defaultKeyType()).toBe('rsa4096');
       expect(settings.terminalFontSize()).toBe(18);
       expect(settings.keyFolder()).toBe('~/k');
+      expect(settings.language()).toBe('fr');
+      expect(TestBed.inject(LanguageService).active()).toBe('fr');
+      expect(localStorage.getItem(LANGUAGE_CACHE)).toBe('fr');
+    });
+
+    it('reads an unknown language as system', async () => {
+      localStorage.setItem(IMPORTED_STORAGE, '1');
+      localStorage.setItem(LANGUAGE_CACHE, 'fr');
+      backend = { ...DEFAULTS, language: 'klingon' } as unknown as AppPreferences;
+      const settings = create();
+      expect(settings.language()).toBe('fr');
+      await settings.start();
+      expect(settings.language()).toBe('system');
+      expect(localStorage.getItem(LANGUAGE_CACHE)).toBe('system');
+    });
+
+    it('does not send the language cache as a legacy value', async () => {
+      localStorage.setItem('carapace.theme', 'dark');
+      localStorage.setItem(LANGUAGE_CACHE, 'fr');
+      await create().start();
+      expect(calls[0]).toEqual({
+        cmd: 'import_legacy_settings',
+        args: { values: { theme: 'dark' } },
+      });
     });
 
     it('runs once', async () => {
@@ -271,6 +298,25 @@ describe('Settings', () => {
       expect(localStorage.getItem('carapace.theme')).toBe('dark');
       await flush();
       expect(calls).toEqual([{ cmd: 'update_app_settings', args: { patch: { theme: 'dark' } } }]);
+    });
+
+    it('saves the language through the backend and the cache', async () => {
+      const settings = create();
+      settings.setLanguage('fr');
+      expect(TestBed.inject(LanguageService).active()).toBe('fr');
+      expect(localStorage.getItem(LANGUAGE_CACHE)).toBe('fr');
+      await flush();
+      expect(calls).toEqual([{ cmd: 'update_app_settings', args: { patch: { language: 'fr' } } }]);
+    });
+
+    it('reverts the language and its cache on failure', async () => {
+      failing.add('update_app_settings');
+      const settings = create();
+      settings.setLanguage('fr');
+      await flush();
+      expect(settings.language()).toBe('system');
+      expect(localStorage.getItem(LANGUAGE_CACHE)).toBe('system');
+      expect(document.documentElement.lang).toBe('en');
     });
 
     it('merges changes made during a save into the next one', async () => {

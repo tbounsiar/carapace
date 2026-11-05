@@ -10,6 +10,7 @@ fn granted(version: u32) -> CategoryChoice {
 fn full() -> Settings {
     Settings {
         theme: Some(ThemeMode::Dark),
+        language: Some(Language::Fr),
         default_key_type: Some(KeyType::Rsa4096),
         terminal_font_size: Some(FONT_SIZE_MAX),
         key_folder: Some(if cfg!(windows) { "D:\\keys" } else { "/keys" }.into()),
@@ -58,6 +59,7 @@ fn keys_are_snake_case() {
             "default_key_type",
             "external_editor",
             "key_folder",
+            "language",
             "legacy_imported",
             "terminal_font_size",
             "theme"
@@ -91,6 +93,7 @@ fn each_field_falls_back_on_its_own() {
     let s = parse(
         r#"
 theme = "blue"
+language = "de"
 default_key_type = "rsa4096"
 terminal_font_size = 99
 key_folder = "relative/dir"
@@ -123,6 +126,17 @@ legacy_imported = "yes"
         ("theme = 1", None),
     ] {
         assert_eq!(parse(text).unwrap().theme, expected, "{text}");
+    }
+    for (text, expected) in [
+        ("language = \"en\"", Some(Language::En)),
+        ("language = \"fr\"", Some(Language::Fr)),
+        ("language = \"system\"", Some(Language::System)),
+        ("language = \"FR\"", None),
+        ("language = \"fr-FR\"", None),
+        ("language = 1", None),
+        ("[language]\nvalue = \"fr\"", None),
+    ] {
+        assert_eq!(parse(text).unwrap().language, expected, "{text}");
     }
     assert_eq!(
         parse("default_key_type = \"rsa\"")
@@ -242,6 +256,7 @@ fn key_folders_follow_the_generation_rules() {
 fn a_patch_applies_and_an_import_only_fills_gaps() {
     let patch = SettingsPatch {
         theme: Some(ThemeMode::Light),
+        language: Some(Language::En),
         default_key_type: Some(KeyType::Rsa4096),
         terminal_font_size: Some(20),
         key_folder: Some(Some("~/k".into())),
@@ -253,11 +268,14 @@ fn a_patch_applies_and_an_import_only_fills_gaps() {
     };
     s.fill(&patch);
     assert_eq!(s.theme, Some(ThemeMode::Dark));
+    assert_eq!(s.language, Some(Language::En));
     assert_eq!(s.key_folder.as_deref(), Some("~/mine"));
     assert_eq!(s.default_key_type, Some(KeyType::Rsa4096));
     assert_eq!(s.terminal_font_size, Some(20));
+    s.language = Some(Language::Fr);
     s.apply(&patch);
     assert_eq!(s.theme, Some(ThemeMode::Light));
+    assert_eq!(s.language, Some(Language::En));
     assert_eq!(s.key_folder.as_deref(), Some("~/k"));
     s.apply(&SettingsPatch {
         key_folder: Some(None),
@@ -334,6 +352,7 @@ fn a_write_edits_only_the_changed_values() {
     let text = r#"# my settings
 unknown = "kept"   # mine too
 theme = "dark" # night
+language = "fr" # mine
 terminal_font_size = 99
 
 [external_editor]
@@ -348,6 +367,7 @@ launch = { consent = "denied", version = 2 }
     assert_eq!(before.terminal_font_size, None);
     let mut after = before.clone();
     after.theme = Some(ThemeMode::Light);
+    after.language = Some(Language::En);
     after.external_editor = Some(ExternalEditor {
         mode: EditorMode::Custom,
         app_path: Some("/usr/bin/vi".into()),
@@ -363,7 +383,10 @@ launch = { consent = "denied", version = 2 }
         out.starts_with("# my settings\nunknown = \"kept\"   # mine too\n"),
         "{out}"
     );
-    assert!(out.contains("theme = \"light\" # night\n"), "{out}");
+    assert!(
+        out.contains("theme = \"light\" # night\nlanguage = \"en\" # mine\n"),
+        "{out}"
+    );
     assert!(out.contains("terminal_font_size = 99\n"), "{out}");
     assert!(out.contains("extra = 1"), "{out}");
     assert_eq!(read(&parse_document(&out).unwrap()), after);
@@ -372,13 +395,14 @@ launch = { consent = "denied", version = 2 }
     cleared.analytics = None;
     cleared.external_editor = None;
     cleared.theme = None;
+    cleared.language = None;
     write(&mut doc, &after, &cleared);
     let out = doc.to_string();
     assert!(
         !out.contains("analytics") && !out.contains("external_editor"),
         "{out}"
     );
-    assert!(!out.contains("theme"), "{out}");
+    assert!(!out.contains("theme") && !out.contains("language"), "{out}");
     assert!(
         out.contains("# my settings") && out.contains("unknown"),
         "{out}"

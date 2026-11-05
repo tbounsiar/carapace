@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use super::super::{FILE_NAME, Held, KeychainMigration, LEGACY_NAME, MigrationPlan};
 use super::*;
 use crate::config::model::{CategoryChoices, Consent, EditorMode};
-use crate::config::{KeyType, ThemeMode};
+use crate::config::{KeyType, Language, ThemeMode};
 
 const V3_LEGACY: &str = r#"{"version":3,
   "projects":[{"id":"00000000-0000-4000-8000-000000000001","name":"P","variables":[]}],
@@ -342,12 +342,14 @@ fn the_legacy_import_runs_once_and_keeps_what_the_file_holds() {
     s.update_settings(&theme(ThemeMode::Dark)).unwrap();
     let values = SettingsPatch {
         theme: Some(ThemeMode::Light),
+        language: Some(Language::Fr),
         default_key_type: Some(KeyType::Rsa4096),
         terminal_font_size: Some(16),
         key_folder: Some(Some("~/keys".into())),
     };
     let first = s.import_legacy_settings(&values).unwrap();
     assert_eq!(first.theme, Some(ThemeMode::Dark));
+    assert_eq!(first.language, Some(Language::Fr));
     assert_eq!(first.default_key_type, Some(KeyType::Rsa4096));
     assert_eq!(first.terminal_font_size, Some(16));
     assert_eq!(first.key_folder.as_deref(), Some("~/keys"));
@@ -430,9 +432,14 @@ fn a_failed_replace_keeps_the_corrupt_file_in_place() {
 #[test]
 fn comments_order_and_unknown_keys_survive_every_change() {
     let (d, s) = store();
-    let mine = "# kept on purpose\nzeta = \"unknown\"\ntheme = \"dark\" # night\n\n[analytics.launch] # first answer\nconsent = \"denied\"\nversion = 2\nnote = \"mine\"\n";
+    let mine = "# kept on purpose\nzeta = \"unknown\"\ntheme = \"dark\" # night\nlanguage = \"en\" # words\n\n[analytics.launch] # first answer\nconsent = \"denied\"\nversion = 2\nnote = \"mine\"\n";
     fs::write(d.path().join(SETTINGS_NAME), mine).unwrap();
     s.update_settings(&theme(ThemeMode::Light)).unwrap();
+    s.update_settings(&SettingsPatch {
+        language: Some(Language::Fr),
+        ..SettingsPatch::default()
+    })
+    .unwrap();
     s.update_analytics(&[
         (Category::Features, choice(Consent::Granted)),
         (Category::Launch, choice(Consent::Granted)),
@@ -441,7 +448,9 @@ fn comments_order_and_unknown_keys_survive_every_change() {
     s.set_external_editor(ExternalEditor::default()).unwrap();
     let out = text(d.path(), SETTINGS_NAME);
     assert!(
-        out.starts_with("# kept on purpose\nzeta = \"unknown\"\ntheme = \"light\" # night\n"),
+        out.starts_with(
+            "# kept on purpose\nzeta = \"unknown\"\ntheme = \"light\" # night\nlanguage = \"fr\" # words\n"
+        ),
         "{out}"
     );
     assert!(
@@ -451,6 +460,7 @@ fn comments_order_and_unknown_keys_survive_every_change() {
     assert!(out.contains("note = \"mine\""), "{out}");
     let read = s.settings().unwrap();
     assert_eq!(read.theme, Some(ThemeMode::Light));
+    assert_eq!(read.language, Some(Language::Fr));
     let c = read.analytics.unwrap().categories;
     assert_eq!(
         (c.launch, c.features),

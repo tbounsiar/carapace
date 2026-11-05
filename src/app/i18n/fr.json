@@ -1,0 +1,16 @@
+{
+  "settings": {
+    "theme": {
+      "title": "Thème",
+      "system": "Système",
+      "light": "Clair",
+      "dark": "Sombre",
+      "note": "Système suit le réglage clair ou sombre du système d'exploitation."
+    },
+    "language": {
+      "title": "Langue",
+      "system": "Système ({{name}})",
+      "note": "Système suit la langue du système d'exploitation."
+    }
+  }
+}

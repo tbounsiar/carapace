@@ -1,4 +1,5 @@
 import { Service } from '@angular/core';
+import type { LanguagePreference } from '../i18n/language';
 import type { ThemeMode } from '../theme/theme';
 import { invokeCommand } from './ipc-error';
 import type { KeyType } from './keys';
@@ -6,6 +7,7 @@ import type { KeyType } from './keys';
 /** App preferences as stored in `settings.toml`. */
 export interface AppPreferences {
   readonly theme: ThemeMode;
+  readonly language: LanguagePreference;
   readonly defaultKeyType: KeyType;
   readonly terminalFontSize: number;
   /** Custom folder of the last successful generation; null is the managed keys folder. */

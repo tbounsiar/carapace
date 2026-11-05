@@ -7,18 +7,40 @@
 
 <section tuiForm="m" class="form" aria-labelledby="settings-title">
   <fieldset class="group">
-    <legend class="legend">Theme</legend>
+    <legend class="legend">{{ 'settings.theme.title' | transloco }}</legend>
     <!-- Taiga's pill follows clicks only: the index is bound for reverted and backend values. -->
     <tui-segmented size="s" [(activeItemIndex)]="themeIndex">
       @for (option of themeOptions; track option.value) {
         <label [attr.data-testid]="'settings-theme-' + option.value">
           <input type="radio" name="theme" [value]="option.value" [formControl]="themeControl" />
           <tui-icon [icon]="option.icon" />
-          {{ option.label }}
+          {{ option.label | transloco }}
         </label>
       }
     </tui-segmented>
-    <p class="note">System follows the light or dark setting of the operating system.</p>
+    <p class="note">{{ 'settings.theme.note' | transloco }}</p>
+  </fieldset>
+
+  <fieldset class="group" data-testid="settings-language">
+    <legend class="legend">{{ 'settings.language.title' | transloco }}</legend>
+    <tui-segmented size="s" [(activeItemIndex)]="languageIndex">
+      @for (option of languageOptions(); track option.value) {
+        <label [attr.data-testid]="'settings-language-' + option.value" [lang]="option.lang">
+          <input
+            type="radio"
+            name="language"
+            [value]="option.value"
+            [formControl]="languageControl"
+          />
+          @if (option.name) {
+            {{ option.name }}
+          } @else {
+            {{ 'settings.language.system' | transloco: { name: systemLanguageName() } }}
+          }
+        </label>
+      }
+    </tui-segmented>
+    <p class="note">{{ 'settings.language.note' | transloco }}</p>
   </fieldset>
 
   <fieldset class="group">

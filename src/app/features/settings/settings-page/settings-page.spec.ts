@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import type { AnalyticsCategory, AnalyticsState } from '../../../core/ipc/analytics';
+import { LanguageService } from '../../../core/i18n/language';
 import { Settings } from '../../../core/settings/settings';
 import { ThemeService } from '../../../core/theme/theme';
 import { SettingsPage } from './settings-page';
@@ -78,6 +79,7 @@ describe('SettingsPage', () => {
         }
         return {
           theme: 'system',
+          language: 'system',
           defaultKeyType: 'ed25519',
           terminalFontSize: 13,
           keyFolder: null,
@@ -362,6 +364,71 @@ describe('SettingsPage', () => {
     settings.setTheme('dark');
     await fixture.whenStable();
     expect(radio('settings-theme-dark').checked).toBe(true);
+  });
+
+  describe('language', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      document.documentElement.lang = 'en';
+    });
+
+    const label = (el: HTMLElement, id: string) =>
+      el.querySelector<HTMLElement>(`[data-testid="${id}"]`)!;
+
+    it('sits right after Theme with the three options', async () => {
+      const { el } = await setup();
+      const group = label(el, 'settings-language');
+      expect(group.tagName).toBe('FIELDSET');
+      expect(group.querySelector('legend')?.textContent?.trim()).toBe('Language');
+      expect(group.previousElementSibling?.querySelector('legend')?.textContent?.trim()).toBe(
+        'Theme',
+      );
+      const texts = ['system', 'en', 'fr'].map((v) => {
+        const option = label(el, `settings-language-${v}`);
+        return [option.textContent?.trim(), option.getAttribute('lang')];
+      });
+      expect(texts).toEqual([
+        ['System (English)', 'en'],
+        ['English', 'en'],
+        ['Français', 'fr'],
+      ]);
+      expect(group.textContent).toContain('System follows the language of the operating system.');
+    });
+
+    it('switches the page to French at once and saves the preference', async () => {
+      const { fixture, el, radio } = await setup();
+      expect(radio('settings-language-system').checked).toBe(true);
+      radio('settings-language-fr').click();
+      await settle(fixture);
+      expect(prefSaves()).toEqual([{ patch: { language: 'fr' } }]);
+      expect(localStorage.getItem('carapace.language')).toBe('fr');
+      expect(document.documentElement.lang).toBe('fr');
+      expect(radio('settings-language-fr').checked).toBe(true);
+      expect(label(el, 'settings-language').querySelector('legend')?.textContent?.trim()).toBe(
+        'Langue',
+      );
+      expect(label(el, 'settings-theme-light').textContent?.trim()).toBe('Clair');
+      expect(label(el, 'settings-language-system').textContent?.trim()).toBe('Système (English)');
+      expect(label(el, 'settings-language-system').getAttribute('lang')).toBe('fr');
+      expect(label(el, 'settings-language-en').textContent?.trim()).toBe('English');
+    });
+
+    it('names the system language as the OS reports it', async () => {
+      vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['fr-FR']);
+      const { el } = await setup();
+      expect(label(el, 'settings-language-system').textContent?.trim()).toBe('Système (Français)');
+    });
+
+    it('shows the previous language again when the save fails', async () => {
+      prefsFail = true;
+      const { fixture, radio } = await setup();
+      radio('settings-language-fr').click();
+      await settle(fixture);
+      expect(TestBed.inject(LanguageService).preference()).toBe('system');
+      expect(radio('settings-language-system').checked).toBe(true);
+      expect(document.documentElement.lang).toBe('en');
+      expect(document.body.textContent).toContain('Setting not saved');
+    });
   });
 
   it('changes and saves the default key type', async () => {

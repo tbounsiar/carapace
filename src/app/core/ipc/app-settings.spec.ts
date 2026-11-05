@@ -5,6 +5,7 @@ import { IpcError } from './ipc-error';
 
 const STORED: AppPreferences = {
   theme: 'dark',
+  language: 'fr',
   defaultKeyType: 'rsa4096',
   terminalFontSize: 16,
   keyFolder: null,

@@ -17,18 +17,19 @@ fn the_view_has_the_frontend_shape_and_defaults() {
     let (_d, s) = store();
     assert_eq!(
         serde_json::to_value(settings_in(&s).unwrap()).unwrap(),
-        json!({"theme": "system", "defaultKeyType": "ed25519", "terminalFontSize": 13, "keyFolder": null})
+        json!({"theme": "system", "language": "system", "defaultKeyType": "ed25519", "terminalFontSize": 13, "keyFolder": null})
     );
     let v = update_in(
         &s,
-        &json!({"theme": "dark", "defaultKeyType": "rsa4096", "terminalFontSize": 24, "keyFolder": folder()}),
+        &json!({"theme": "dark", "language": "fr", "defaultKeyType": "rsa4096", "terminalFontSize": 24, "keyFolder": folder()}),
     )
     .unwrap();
     assert_eq!(
         serde_json::to_value(v).unwrap(),
-        json!({"theme": "dark", "defaultKeyType": "rsa4096", "terminalFontSize": 24, "keyFolder": folder()})
+        json!({"theme": "dark", "language": "fr", "defaultKeyType": "rsa4096", "terminalFontSize": 24, "keyFolder": folder()})
     );
     assert_eq!(settings_in(&s).unwrap().theme, ThemeMode::Dark);
+    assert_eq!(settings_in(&s).unwrap().language, Language::Fr);
 }
 
 #[test]
@@ -36,6 +37,9 @@ fn a_patch_changes_only_its_fields_and_null_clears_the_folder() {
     let (_d, s) = store();
     update_in(&s, &json!({"keyFolder": "~/keys", "terminalFontSize": 10})).unwrap();
     let v = update_in(&s, &json!({"theme": "light"})).unwrap();
+    assert_eq!(v.language, Language::System);
+    let v = update_in(&s, &json!({"language": "en"})).unwrap();
+    assert_eq!((v.theme, v.language), (ThemeMode::Light, Language::En));
     assert_eq!(v.key_folder.as_deref(), Some("~/keys"));
     assert_eq!(v.terminal_font_size, 10);
     let v = update_in(&s, &json!({"keyFolder": null})).unwrap();
@@ -51,6 +55,11 @@ fn every_bad_patch_is_invalid_input_and_writes_nothing() {
         json!({"theme": "blue"}),
         json!({"theme": null}),
         json!({"theme": 1}),
+        json!({"language": "de"}),
+        json!({"language": "FR"}),
+        json!({"language": null}),
+        json!({"language": 1}),
+        json!({"theme": "dark", "language": "relative"}),
         json!({"defaultKeyType": "rsa"}),
         json!({"defaultKeyType": "dsa"}),
         json!({"terminalFontSize": 9}),
@@ -86,7 +95,7 @@ fn the_legacy_import_skips_bad_values_and_runs_once() {
     .unwrap();
     assert_eq!(
         serde_json::to_value(&v).unwrap(),
-        json!({"theme": "dark", "defaultKeyType": "ed25519", "terminalFontSize": 18, "keyFolder": null})
+        json!({"theme": "dark", "language": "system", "defaultKeyType": "ed25519", "terminalFontSize": 18, "keyFolder": null})
     );
     let raw = std::fs::read_to_string(d.path().join("settings.toml")).unwrap();
     assert!(raw.contains("legacy_imported = true"));
@@ -190,4 +199,12 @@ fn update_app_settings_and_analytics_keep_the_users_comments() {
     assert!(out.starts_with(mine), "{out}");
     assert!(out.contains("terminal_font_size = 15"), "{out}");
     assert!(out.contains("[analytics.launch]"), "{out}");
+}
+
+#[test]
+fn a_bad_language_names_the_allowed_values_only() {
+    let (_d, s) = store();
+    let e = update_in(&s, &json!({"language": "klingon"})).unwrap_err();
+    assert_eq!(e.code, "invalid_input");
+    assert_eq!(e.message, "language must be system, en or fr");
 }

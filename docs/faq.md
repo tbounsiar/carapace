@@ -69,7 +69,7 @@ In the data folder: `~/.carapace` by default, `%USERPROFILE%\.carapace` on Windo
 | Path | Content |
 | - | - |
 | `data.json` | Projects, collections, hosts, variables (secret ones without value), registered key paths |
-| `settings.toml` | App settings: theme, default key type, terminal font size, last key folder, external editor, usage data choices |
+| `settings.toml` | App settings: theme, language, default key type, terminal font size, last key folder, external editor, usage data choices |
 | `known_hosts` | Host keys you accepted in Carapace |
 | `keys/` | Keys generated in the default folder |
 | `edit/` | Copies of files open in an external editor |

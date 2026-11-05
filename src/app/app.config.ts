@@ -5,13 +5,18 @@ import {
   Injector,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
+  isDevMode,
 } from '@angular/core';
+import { provideTransloco } from '@jsverse/transloco';
+import { tuiLanguageSwitcher } from '@taiga-ui/i18n';
 import { provideRouter, withComponentInputBinding, withRouterConfig } from '@angular/router';
 import { routes } from './app.routes';
 import { ConnectionEvents } from './core/ipc/connection-events';
 import { EditedFiles } from './core/ipc/edited-files';
 import { Settings } from './core/settings/settings';
 import { provideOpenDialogs } from './shared/open-dialogs';
+import { LanguageService } from './core/i18n/language';
+import { TranslocoBundleLoader } from './core/i18n/transloco-loader';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -23,7 +28,25 @@ export const appConfig: ApplicationConfig = {
       withRouterConfig({ paramsInheritanceStrategy: 'always' }),
     ),
     provideTaiga(),
+    tuiLanguageSwitcher((language) =>
+      language === 'french'
+        ? import('@taiga-ui/i18n/languages/french')
+        : import('@taiga-ui/i18n/languages/english'),
+    ),
+    provideTransloco({
+      config: {
+        availableLangs: ['en', 'fr'],
+        defaultLang: 'en',
+        fallbackLang: 'en',
+        reRenderOnLangChange: true,
+        prodMode: !isDevMode(),
+        missingHandler: { logMissingKey: true, useFallbackTranslation: true },
+      },
+      loader: TranslocoBundleLoader,
+    }),
     provideOpenDialogs(),
+    // Awaited, unlike the backend reads below: a local chunk, and the first frame must not show keys.
+    provideAppInitializer(() => inject(LanguageService).ready()),
     // Not awaited: the app must not wait on the backend to render. Lazy: only the host page shows
     // transfers, so the queue stays out of the initial bundle.
     provideAppInitializer(() => {

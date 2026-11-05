@@ -51,6 +51,34 @@ impl ThemeMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
+pub enum Language {
+    #[default]
+    System,
+    En,
+    Fr,
+}
+
+impl Language {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "system" => Some(Self::System),
+            "en" => Some(Self::En),
+            "fr" => Some(Self::Fr),
+            _ => None,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::En => "en",
+            Self::Fr => "fr",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum KeyType {
     #[default]
     Ed25519,
@@ -79,6 +107,7 @@ impl KeyType {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Settings {
     pub theme: Option<ThemeMode>,
+    pub language: Option<Language>,
     pub default_key_type: Option<KeyType>,
     pub terminal_font_size: Option<u8>,
     pub key_folder: Option<String>,
@@ -91,6 +120,7 @@ pub struct Settings {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SettingsPatch {
     pub theme: Option<ThemeMode>,
+    pub language: Option<Language>,
     pub default_key_type: Option<KeyType>,
     pub terminal_font_size: Option<u8>,
     pub key_folder: Option<Option<String>>,
@@ -124,6 +154,9 @@ impl Settings {
         if let Some(theme) = patch.theme {
             self.theme = Some(theme);
         }
+        if let Some(language) = patch.language {
+            self.language = Some(language);
+        }
         if let Some(kind) = patch.default_key_type {
             self.default_key_type = Some(kind);
         }
@@ -138,6 +171,7 @@ impl Settings {
     /// Only the values the file does not hold yet; a cleared folder imports nothing.
     pub fn fill(&mut self, patch: &SettingsPatch) {
         self.theme = self.theme.or(patch.theme);
+        self.language = self.language.or(patch.language);
         self.default_key_type = self.default_key_type.or(patch.default_key_type);
         self.terminal_font_size = self.terminal_font_size.or(patch.terminal_font_size);
         if self.key_folder.is_none() {
@@ -234,6 +268,7 @@ pub(super) fn read(doc: &DocumentMut) -> Settings {
     let text_of = |key: &str| root.get(key).and_then(Item::as_str);
     Settings {
         theme: text_of("theme").and_then(ThemeMode::from_name),
+        language: text_of("language").and_then(Language::from_name),
         default_key_type: text_of("default_key_type").and_then(KeyType::from_name),
         terminal_font_size: root
             .get("terminal_font_size")
@@ -342,6 +377,9 @@ pub(super) fn write(doc: &mut DocumentMut, before: &Settings, after: &Settings) 
     let root = doc.as_table_mut();
     if before.theme != after.theme {
         put(root, "theme", after.theme.map(|t| t.name().into()));
+    }
+    if before.language != after.language {
+        put(root, "language", after.language.map(|l| l.name().into()));
     }
     if before.default_key_type != after.default_key_type {
         let v = after.default_key_type.map(|k| k.name().into());

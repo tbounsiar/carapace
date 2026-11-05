@@ -8,6 +8,10 @@ Open **Settings** at the bottom of the sidebar. Changes apply right away; there 
 
 **System** (default) follows the light or dark setting of the operating system; **Light** and **Dark** force one. The sun / moon / monitor button in the header switches the theme too.
 
+## Language
+
+**System** (default) shows Carapace in French when the operating system language is French, in English otherwise; **English** and **Français** force one. The change applies at once, without a restart. Native file dialogs follow the operating system language.
+
 ## Default key type
 
 **Ed25519** (default) or **RSA 4096**: the type preselected when you [generate a key](ssh-keys.md#generate-a-key). You can still change it in the dialog.

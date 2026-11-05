@@ -2,6 +2,7 @@ import { inject, Service, signal, type WritableSignal } from '@angular/core';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { notifyError } from '../../shared/save-error';
 import { type AppPreferences, type AppPreferencesPatch, AppSettings } from '../ipc/app-settings';
+import { isLanguagePreference, type LanguagePreference, LanguageService } from '../i18n/language';
 import type { KeyType } from '../ipc/keys';
 import { isThemeMode, readCachedTheme, type ThemeMode, ThemeService } from '../theme/theme';
 
@@ -45,6 +46,7 @@ type Field = keyof AppPreferences;
 
 const VALID: { readonly [K in Field]: (value: unknown) => value is AppPreferences[K] } = {
   theme: isThemeMode,
+  language: isLanguagePreference,
   defaultKeyType: isKeyType,
   terminalFontSize: isFontSize,
   keyFolder: (value): value is string | null => value === null || isKeyFolder(value),
@@ -91,6 +93,14 @@ export function readLegacy(): AppPreferencesPatch {
   return values;
 }
 
+/** A language this build does not know (a newer version wrote it) reads as `system`. */
+function normalize<T extends AppPreferencesPatch>(values: T): T {
+  if (values.language === undefined || isLanguagePreference(values.language)) {
+    return values;
+  }
+  return { ...values, language: 'system' } as T;
+}
+
 function markImported(): void {
   try {
     const store = storage();
@@ -110,11 +120,13 @@ function markImported(): void {
 @Service()
 export class Settings {
   private readonly themeService = inject(ThemeService);
+  private readonly languageService = inject(LanguageService);
   private readonly ipc = inject(AppSettings);
   private readonly alerts = inject(TuiNotificationService);
   private readonly legacy = readLegacy();
 
   readonly theme = this.themeService.mode;
+  readonly language = this.languageService.preference;
   readonly defaultKeyType = signal<KeyType>(this.legacy.defaultKeyType ?? DEFAULT_KEY_TYPE);
   readonly terminalFontSize = signal<number>(this.legacy.terminalFontSize ?? DEFAULT_FONT_SIZE);
   /** Custom folder of the last successful generation; null is the managed keys folder. */
@@ -122,6 +134,7 @@ export class Settings {
 
   private readonly fields: { readonly [K in Field]: WritableSignal<AppPreferences[K]> } = {
     theme: this.themeService.mode,
+    language: this.languageService.preference,
     defaultKeyType: this.defaultKeyType,
     terminalFontSize: this.terminalFontSize,
     keyFolder: this.keyFolder,
@@ -164,6 +177,7 @@ export class Settings {
     if (loaded === null) {
       return;
     }
+    loaded = normalize(loaded);
     for (const field of Object.keys(this.fields) as Field[]) {
       if (this.touched.has(field) || !VALID[field](loaded[field])) {
         continue;
@@ -178,6 +192,12 @@ export class Settings {
   setTheme(mode: ThemeMode): void {
     if (isThemeMode(mode)) {
       this.write('theme', mode);
+    }
+  }
+
+  setLanguage(preference: LanguagePreference): void {
+    if (isLanguagePreference(preference)) {
+      this.write('language', preference);
     }
   }
 
@@ -222,7 +242,7 @@ export class Settings {
       let failed = false;
       let failure: unknown;
       try {
-        const saved: AppPreferencesPatch = (await this.ipc.update(sent)) ?? {};
+        const saved: AppPreferencesPatch = normalize((await this.ipc.update(sent)) ?? {});
         this.confirmed = { ...this.confirmed, ...sent };
         for (const field of Object.keys(this.fields) as Field[]) {
           if (VALID[field](saved[field])) {
@@ -253,6 +273,8 @@ export class Settings {
   private show<K extends Field>(field: K, value: AppPreferences[K]): void {
     if (field === 'theme') {
       this.themeService.apply(value as ThemeMode);
+    } else if (field === 'language') {
+      this.languageService.apply(value as LanguagePreference);
     } else {
       this.fields[field].set(value);
     }
@@ -261,6 +283,7 @@ export class Settings {
   private snapshot(): AppPreferences {
     return {
       theme: this.themeService.mode(),
+      language: this.languageService.preference(),
       defaultKeyType: this.defaultKeyType(),
       terminalFontSize: this.terminalFontSize(),
       keyFolder: this.keyFolder(),

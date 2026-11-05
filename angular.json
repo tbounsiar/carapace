@@ -93,7 +93,8 @@
           "options": {
             "setupFiles": [
               "src/test-setup.ts"
-            ]
+            ],
+            "providersFile": "src/test-providers.ts"
           }
         },
         "lint": {

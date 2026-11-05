@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { TranslocoPipe } from '@jsverse/transloco';
 import {
   TuiDialogService,
   TuiError,
@@ -20,6 +21,12 @@ import {
   Analytics,
   type AnalyticsCategory,
 } from '../../../core/ipc/analytics';
+import {
+  type AppLanguage,
+  LANGUAGE_NAMES,
+  type LanguagePreference,
+  LanguageService,
+} from '../../../core/i18n/language';
 import type { KeyType } from '../../../core/ipc/keys';
 import { FONT_SIZE_MAX, FONT_SIZE_MIN, Settings } from '../../../core/settings/settings';
 import type { ThemeMode } from '../../../core/theme/theme';
@@ -38,10 +45,12 @@ import { DataSettings } from '../data-settings/data-settings';
 import { ExternalEditorSettings } from '../external-editor-settings/external-editor-settings';
 
 const THEME_OPTIONS: readonly { value: ThemeMode; label: string; icon: string }[] = [
-  { value: 'system', label: 'System', icon: '@tui.monitor' },
-  { value: 'light', label: 'Light', icon: '@tui.sun' },
-  { value: 'dark', label: 'Dark', icon: '@tui.moon' },
+  { value: 'system', label: 'settings.theme.system', icon: '@tui.monitor' },
+  { value: 'light', label: 'settings.theme.light', icon: '@tui.sun' },
+  { value: 'dark', label: 'settings.theme.dark', icon: '@tui.moon' },
 ];
+
+const LANGUAGE_VALUES: readonly LanguagePreference[] = ['system', 'en', 'fr'];
 
 const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
   { value: 'ed25519', label: 'Ed25519' },
@@ -64,6 +73,7 @@ const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
     TuiSlider,
     TuiSwitch,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-settings-page',
   styleUrl: './settings-page.scss',
@@ -71,12 +81,22 @@ const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
 })
 export class SettingsPage {
   private readonly settings = inject(Settings);
+  private readonly language = inject(LanguageService);
   private readonly analytics = inject(Analytics);
   private readonly alerts = inject(TuiNotificationService);
   private readonly dialogs = inject(TuiDialogService);
 
   protected readonly themeOptions = THEME_OPTIONS;
   protected readonly keyTypeOptions = KEY_TYPE_OPTIONS;
+  /** `lang` of each option: English and Français in their own language, System in the UI's. */
+  protected readonly languageOptions = computed(() =>
+    LANGUAGE_VALUES.map((value) => ({
+      value,
+      lang: (value === 'system' ? this.language.active() : value) satisfies AppLanguage,
+      name: value === 'system' ? null : LANGUAGE_NAMES[value],
+    })),
+  );
+  protected readonly systemLanguageName = computed(() => LANGUAGE_NAMES[this.language.system()]);
   protected readonly fontSizeMin = FONT_SIZE_MIN;
   protected readonly fontSizeMax = FONT_SIZE_MAX;
 
@@ -88,6 +108,10 @@ export class SettingsPage {
   protected readonly themeControl = new FormControl<ThemeMode>(this.settings.theme(), {
     nonNullable: true,
   });
+  protected readonly languageControl = new FormControl<LanguagePreference>(
+    this.settings.language(),
+    { nonNullable: true },
+  );
   protected readonly keyTypeControl = new FormControl<KeyType>(this.settings.defaultKeyType(), {
     nonNullable: true,
   });
@@ -95,6 +119,7 @@ export class SettingsPage {
     nonNullable: true,
   });
   protected readonly themeIndex = signal(0);
+  protected readonly languageIndex = signal(0);
   protected readonly keyTypeIndex = signal(0);
 
   protected readonly analyticsState = this.analytics.current;
@@ -140,6 +165,11 @@ export class SettingsPage {
       this.themeIndex.set(THEME_OPTIONS.findIndex((o) => o.value === theme));
     });
     effect(() => {
+      const language = this.settings.language();
+      this.languageControl.setValue(language, { emitEvent: false });
+      this.languageIndex.set(LANGUAGE_VALUES.indexOf(language));
+    });
+    effect(() => {
       const type = this.settings.defaultKeyType();
       this.keyTypeControl.setValue(type, { emitEvent: false });
       this.keyTypeIndex.set(KEY_TYPE_OPTIONS.findIndex((o) => o.value === type));
@@ -148,6 +178,9 @@ export class SettingsPage {
     this.themeControl.valueChanges
       .pipe(takeUntilDestroyed())
       .subscribe((mode) => this.settings.setTheme(mode));
+    this.languageControl.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((language) => this.settings.setLanguage(language));
     this.keyTypeControl.valueChanges
       .pipe(takeUntilDestroyed())
       .subscribe((type) => this.settings.setDefaultKeyType(type));
