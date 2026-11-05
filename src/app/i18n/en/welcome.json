@@ -1,1 +1,31 @@
-{}
+{
+  "loadError": "Hosts could not be loaded",
+  "retry": "Try again",
+  "title": "Home",
+  "noHosts": "No hosts yet",
+  "empty": {
+    "title": "Nothing here yet",
+    "text": "Group hosts in a project to share variables between them, or add a host directly."
+  },
+  "newProject": "New project",
+  "addHost": "Add host",
+  "newHost": "New host",
+  "newCollection": "New collection",
+  "importFile": "Import from a file",
+  "actions": "Home actions",
+  "search": "Search hosts and projects",
+  "noMatch": {
+    "title": "No host or project matches “{query}”",
+    "text": "Search looks at host names, addresses and collection names.",
+    "clear": "Clear search"
+  },
+  "noneConnected": {
+    "title": "No connected hosts",
+    "text": "Connect a host from its card or the sidebar.",
+    "showAll": "Show all"
+  },
+  "projects": "Projects",
+  "connections": "{count, plural, one {# open connection} other {# open connections}}",
+  "export": "Export…",
+  "import": "Import…"
+}

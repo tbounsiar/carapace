@@ -1,1 +1,29 @@
-{}
+{
+  "stats": {
+    "hosts": "{count, plural, one {# host} other {# hosts}}",
+    "noHosts": "No hosts yet",
+    "collections": "{count, plural, one {# collection} other {# collections}}",
+    "connected": "{count} connected",
+    "projects": "{count, plural, one {# project} other {# projects}}"
+  },
+  "count": "{visible} of {total, plural, one {# host} other {# hosts}}",
+  "card": {
+    "actions": "Actions",
+    "actionsFor": "Actions for {name}",
+    "terminal": "Terminal",
+    "openTerminal": "Open terminal on {name}",
+    "files": "Files",
+    "browseFiles": "Browse files on {name}",
+    "connect": "Connect",
+    "connectHost": "Connect {name}",
+    "missing": "Missing: {names}",
+    "move": "Move to…",
+    "disconnect": "Disconnect"
+  },
+  "toolbar": {
+    "search": "Search hosts",
+    "show": "Show",
+    "all": "All",
+    "connected": "Connected"
+  }
+}

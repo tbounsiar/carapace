@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { TestBed } from '@angular/core/testing';
 import type { FormGroup } from '@angular/forms';
 import { provideTaiga } from '@taiga-ui/core';
@@ -105,5 +106,14 @@ describe('CredentialDialog', () => {
     const { el } = await setup();
     expect(byId(el, 'credential-test-note')).toBeNull();
     expect(byId(el, 'credential-submit').textContent?.trim()).toBe('Connect');
+  });
+
+  it('renders in French', async () => {
+    const { fixture, el } = await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    expect(el.textContent).toContain('Enregistrer dans le trousseau du système');
+    expect(el.querySelector('label[tuiLabel]')?.textContent).toContain('Mot de passe');
+    expect(byId(el, 'credential-submit').textContent).toContain('Connecter');
   });
 });

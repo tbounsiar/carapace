@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
@@ -165,5 +166,16 @@ describe('host key dialogs', () => {
       await settle();
       expect(await result).toBe(true);
     });
+  });
+
+  it('warns in French with the host in mono', async () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    void prompter.ask(unknown);
+    await settle();
+    const host = dialog('app-host-key-dialog');
+    expect(host.textContent).toContain('L’authenticité de');
+    expect(host.querySelector('[tuiNotification] .mono')?.textContent).toBe('web.example:2222');
+    expect(button('app-host-key-dialog', 'Refuser')).toBeTruthy();
+    expect(button('app-host-key-dialog', 'Accepter et se connecter')).toBeTruthy();
   });
 });

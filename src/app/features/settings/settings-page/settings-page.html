@@ -1,7 +1,7 @@
 <header tuiHeader class="header">
   <hgroup tuiTitle>
-    <h1 id="settings-title" data-testid="settings-title">Settings</h1>
-    <p tuiSubtitle>Preferences of this app on this computer. Changes apply right away.</p>
+    <h1 id="settings-title" data-testid="settings-title">{{ 'settings.title' | transloco }}</h1>
+    <p tuiSubtitle>{{ 'settings.subtitle' | transloco }}</p>
   </hgroup>
 </header>
 
@@ -44,7 +44,7 @@
   </fieldset>
 
   <fieldset class="group">
-    <legend class="legend">Default key type</legend>
+    <legend class="legend">{{ 'settings.keyType.title' | transloco }}</legend>
     <tui-segmented size="s" [(activeItemIndex)]="keyTypeIndex">
       @for (option of keyTypeOptions; track option.value) {
         <label [attr.data-testid]="'settings-key-type-' + option.value">
@@ -58,11 +58,13 @@
         </label>
       }
     </tui-segmented>
-    <p class="note">Preselected when you generate a key. Ed25519 is recommended.</p>
+    <p class="note">{{ 'settings.keyType.note' | transloco }}</p>
   </fieldset>
 
   <fieldset class="group">
-    <legend class="legend" id="settings-font-size-label">Terminal font size</legend>
+    <legend class="legend" id="settings-font-size-label">
+      {{ 'settings.fontSize.title' | transloco }}
+    </legend>
     <div class="size">
       <input
         tuiSlider
@@ -75,21 +77,21 @@
         [min]="fontSizeMin"
         [max]="fontSizeMax"
         [step]="1"
-        [attr.aria-valuetext]="fontSize() + ' pixels'"
+        [attr.aria-valuetext]="'settings.fontSize.valueText' | transloco: { size: fontSize() }"
         [formControl]="fontSizeControl"
       />
       <output class="value" data-testid="settings-font-size-value">{{ fontSize() }} px</output>
     </div>
     <p class="preview" aria-hidden="true" [style.font-size.px]="fontSize()">user@host:~$ ls -la</p>
     <p class="note" id="settings-font-size-hint">
-      From {{ fontSizeMin }} to {{ fontSizeMax }} px. Open terminals update immediately.
+      {{ 'settings.fontSize.note' | transloco: { min: fontSizeMin, max: fontSizeMax } }}
     </p>
   </fieldset>
 
   <app-external-editor-settings />
 
   <fieldset class="group">
-    <legend class="legend">Privacy</legend>
+    <legend class="legend">{{ 'settings.privacy.title' | transloco }}</legend>
     @if (doNotTrack()) {
       <div
         tuiNotification
@@ -99,7 +101,7 @@
         id="settings-analytics-dnt"
         data-testid="settings-analytics-dnt"
       >
-        Off because DO_NOT_TRACK is set on this computer. Nothing is sent.
+        {{ 'settings.privacy.doNotTrack' | transloco }}
       </div>
     }
     @for (category of categories; track category.id) {
@@ -113,14 +115,14 @@
           [formControl]="controls[category.id]"
         />
         <span tuiTitle>
-          {{ category.title }}
+          {{ category.title | transloco }}
           @if (!analyticsError()) {
             <span
               tuiSubtitle
               [id]="'settings-analytics-' + category.id + '-note'"
               [attr.data-testid]="'settings-analytics-' + category.id + '-note'"
             >
-              {{ category.note }}
+              {{ category.note | transloco }}
             </span>
           }
         </span>
@@ -130,14 +132,14 @@
       <tui-error
         id="settings-analytics-error"
         data-testid="settings-analytics-error"
-        [error]="readError"
+        [error]="'settings.privacy.readError' | transloco"
       />
     } @else {
       <p class="note" id="settings-analytics-common" data-testid="settings-analytics-common">
-        <strong>{{ commonLead }}</strong> {{ commonText }}
+        <strong>{{ commonLead | transloco }}</strong> {{ commonText | transloco }}
       </p>
       <p class="note" data-testid="settings-analytics-never">
-        <strong>{{ neverLead }}</strong> {{ neverText }}
+        <strong>{{ neverLead | transloco }}</strong> {{ neverText | transloco }}
       </p>
     }
     <div class="links">
@@ -146,7 +148,7 @@
         type="button"
         iconEnd="@tui.external-link"
         data-testid="settings-privacy-link"
-        [textContent]="'How analytics work'"
+        [textContent]="'analytics.howItWorks' | transloco"
         (click)="openPolicy()"
       ></button>
       <button
@@ -154,7 +156,7 @@
         type="button"
         data-testid="settings-analytics-events"
         [disabled]="!analyticsState()"
-        [textContent]="'View recent events'"
+        [textContent]="'settings.privacy.events' | transloco"
         (click)="showEvents()"
       ></button>
     </div>
@@ -166,7 +168,7 @@
         icon=""
         data-testid="settings-analytics-unavailable"
       >
-        This build does not send usage data. Changes are still saved.
+        {{ 'settings.privacy.unavailable' | transloco }}
       </div>
     }
     @if (unsaved()) {
@@ -177,7 +179,7 @@
         role="status"
         data-testid="settings-analytics-unsaved"
       >
-        {{ unsavedText }}
+        {{ unsavedText | transloco }}
       </div>
     }
   </fieldset>

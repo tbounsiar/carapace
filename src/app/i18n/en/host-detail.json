@@ -1,1 +1,39 @@
-{}
+{
+  "connect": "Connect",
+  "disconnect": "Disconnect",
+  "status": "Status",
+  "auth": "Authentication",
+  "askedWhenConnecting": "asked when connecting",
+  "missing": "Missing variables: {names}",
+  "forget": {
+    "password": "Forget saved password",
+    "passphrase": "Forget saved passphrase"
+  },
+  "forgotten": {
+    "title": "Saved secret forgotten",
+    "password": "The password saved for this host was removed.",
+    "passphrase": "The passphrase saved for this host was removed."
+  },
+  "notForgotten": "Saved secret not forgotten",
+  "notFound": {
+    "title": "Host not found",
+    "text": "It may have been deleted. Pick another host in the sidebar.",
+    "home": "Go to Home"
+  },
+  "tabs": {
+    "title": "Open tabs",
+    "modified": "Modified",
+    "aria": {
+      "plain": "{label} — {status}",
+      "modified": "{label} — {status}, modified",
+      "readOnly": "{label} — {status}, read-only",
+      "modifiedReadOnly": "{label} — {status}, modified, read-only"
+    },
+    "empty": {
+      "title": "No open tabs",
+      "text": "Open a terminal or the files of this host. It connects first if needed."
+    },
+    "newTerminal": "New terminal",
+    "files": "Files"
+  }
+}

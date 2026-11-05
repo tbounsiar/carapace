@@ -1,1 +1,61 @@
-{}
+{
+  "categories": {
+    "launch": {
+      "title": "Launch count",
+      "note": "One event when Carapace starts."
+    },
+    "features": {
+      "title": "Feature usage",
+      "note": "Terminals, files, transfers, keys and variables used; setup sizes as ranges."
+    },
+    "connections": {
+      "title": "Connection results",
+      "note": "Whether connections and tests succeed: auth type, error code, time as a range."
+    },
+    "crashes": {
+      "title": "Crash reports",
+      "note": "If Carapace crashes: crash type, app area and, in its own code, the source line. No messages or paths."
+    }
+  },
+  "common": {
+    "lead": "Sent with every event:",
+    "text": "app version, OS and version, language, and a random ID that changes at each launch. Country and region are derived from the connection; the IP is not kept."
+  },
+  "never": {
+    "lead": "Never sent:",
+    "text": "host names, addresses, usernames, file names, keys, passwords or anything you type."
+  },
+  "unsavedDenial": "Off for this session. The setting could not be saved; Carapace will try again.",
+  "linkNotOpened": "Link not opened",
+  "notSaved": "Setting not saved",
+  "howItWorks": "How analytics work",
+  "consent": {
+    "title": "Anonymous usage data",
+    "intro": "Carapace sends anonymous usage data to help decide what to improve. Nothing is sent before you save. Turn off anything you don't want to share, here or any time in Settings.",
+    "reask": "What Carapace can send has changed. Check what is marked New.",
+    "new": "New",
+    "save": "Save choices"
+  },
+  "events": {
+    "keyless": "This build does not send usage data. These are the events it would send.",
+    "readError": "Could not read the events. Restart the app.",
+    "systemTitle": "Sent with every event",
+    "appVersion": "App version",
+    "os": "OS",
+    "language": "Language",
+    "sdkVersion": "SDK version",
+    "sessionId": "Session ID",
+    "sessionNote": "Random, new at each launch, not linked to you.",
+    "countryNote": "The country and region are not sent: the analytics service derives them from the connection.",
+    "sessionTitle": "This session (kept in memory, cleared when you quit)",
+    "empty": "Nothing sent in this session.",
+    "doNotTrack": "DO_NOT_TRACK is set on this computer.",
+    "allOff": "Usage data is off.",
+    "time": "Time",
+    "event": "Event",
+    "properties": "Properties",
+    "previousLaunch": "Previous launch",
+    "none": "None",
+    "crashNote": "Crash reports carry the app version and OS but not the language, and use their own random ID so they cannot be linked to the other events in this list."
+  }
+}

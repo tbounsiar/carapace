@@ -2,6 +2,8 @@ import { of } from 'rxjs';
 import type { TuiNotificationService } from '@taiga-ui/core';
 import { IpcError } from '../core/ipc/ipc-error';
 import { errorText, notifyError } from './save-error';
+import { TranslocoService } from '@jsverse/transloco';
+import { TestBed } from '@angular/core/testing';
 
 describe('errorText', () => {
   it('says what happened, then what to do', () => {
@@ -46,6 +48,16 @@ describe('errorText', () => {
         label: 'Not saved',
         appearance: 'negative',
       },
+    );
+  });
+
+  it('writes its own texts in French, the backend message as is', () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    expect(errorText(new IpcError('busy', 'the host is busy'))).toBe(
+      'The host is busy. Patientez un instant, puis réessayez.',
+    );
+    expect(errorText(null)).toBe(
+      'Une erreur inattendue s’est produite. Réessayez. Redémarrez l’application si le problème persiste.',
     );
   });
 });

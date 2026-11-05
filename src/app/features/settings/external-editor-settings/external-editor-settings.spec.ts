@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import { provideTaiga, TuiNotificationService, TuiRoot } from '@taiga-ui/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { of } from 'rxjs';
 import type { ExternalEditorSetting } from '../../../core/ipc/external-edits';
 import { ExternalEditorSettings } from './external-editor-settings';
@@ -75,6 +76,16 @@ describe('ExternalEditorSettings', () => {
     expect(description.textContent).toContain('Scripts and programs are never run');
     expect(radio('settings-ext-system').getAttribute('aria-describedby')).toBe(description.id);
     expect(radio('settings-ext-custom').getAttribute('aria-describedby')).toBe(description.id);
+  });
+
+  it('follows a switch to French', async () => {
+    const { byId, stable } = await render();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await stable();
+    expect(byId('settings-ext-system')!.textContent?.trim()).toBe('Application du système');
+    expect(byId('settings-ext-description')!.textContent).toContain(
+      'Les scripts et programmes ne sont jamais exécutés',
+    );
   });
 
   it('switches to Custom app with no app chosen yet, then picks one with Browse', async () => {

@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
 import { fakeConfig, host } from '../../../core/ipc/config.fixture';
 import { KeyStore } from '../../../core/ipc/key-store';
@@ -49,6 +50,16 @@ describe('DataSettings', () => {
     button('settings-import').click();
     expect(actions.exportData).toHaveBeenCalledWith();
     expect(actions.importData).toHaveBeenCalled();
+  });
+
+  it('follows a switch to French', async () => {
+    config.nodes.set([host('h1', 'vps')]);
+    await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    expect(fixture.nativeElement.textContent).toContain('ne sont jamais inclus');
+    expect(button('settings-export').textContent?.trim()).toBe('Exporter…');
+    expect(button('settings-import').textContent?.trim()).toBe('Importer…');
   });
 
   it('disables Export when there is nothing to export, never Import', async () => {

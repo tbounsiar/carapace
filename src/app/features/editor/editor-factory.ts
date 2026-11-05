@@ -25,6 +25,8 @@ export interface CodeEditorOptions {
   readonly wrap: boolean;
   /** Accessible name of the text area, "Contents of nginx.conf". */
   readonly label: string;
+  /** CodeMirror phrase translations, keyed by its English phrase. */
+  readonly phrases?: Readonly<Record<string, string>>;
   readonly onChange: (stats: EditorStats) => void;
   readonly onSave: () => void;
   readonly onToggleWrap: () => void;
@@ -41,6 +43,7 @@ export interface CodeEditor {
   setLanguage(language: LanguageId): void;
   setReadOnly(readOnly: boolean): void;
   setWrap(wrap: boolean): void;
+  setTexts(label: string, phrases: Readonly<Record<string, string>>): void;
   attach(container: HTMLElement): void;
   detach(): void;
   focus(): void;

@@ -18,6 +18,7 @@ import {
   ReactiveFormsModule,
   type ValidationErrors,
 } from '@angular/forms';
+import { TranslocoPipe, TranslocoService, translate } from '@jsverse/transloco';
 import { TuiAutoFocus, TuiValidationError } from '@taiga-ui/cdk';
 import {
   TuiButton,
@@ -54,11 +55,10 @@ import {
   passphraseValidator,
 } from '../key-validators';
 import { ErrorLink } from '../../../shared/error-link';
+import { mono, type Part, translateParts } from '../../host-test/host-test-view';
 
 export const FOLDER_FALLBACK = '~/.carapace/keys';
 export const CHECK_DELAY_MS = 400;
-export const FOLDER_WARNING =
-  'Other users can open this folder. The private key file stays readable only by you, but they may be able to replace or delete it.';
 
 export function samePath(a: string, b: string): boolean {
   const norm = (p: string): string => p.trim().replace(/[\\/]+$/, '');
@@ -80,17 +80,17 @@ export function locationProblem(err: unknown, fileName: string): LocationProblem
     case 'not_found':
       return {
         field: 'folder',
-        message: 'This folder does not exist. Create it, or choose another one.',
+        message: translate('keys.keygen.folderMissing'),
       };
     case 'permission_denied':
       return {
         field: 'folder',
-        message: 'Carapace cannot write to this folder. Choose another one.',
+        message: translate('keys.keygen.folderDenied'),
       };
     case 'already_exists':
       return {
         field: 'fileName',
-        message: `${fileName} or ${fileName}.pub already exists in this folder.`,
+        message: translate('keys.keygen.fileExists', { file: fileName }),
       };
     case 'invalid_input':
       // One code covers several folder problems (link, file, relative path); the backend
@@ -127,6 +127,7 @@ interface LocationCheck {
     TuiSegmented,
     TuiTextfield,
     TuiTooltip,
+    TranslocoPipe,
   ],
   selector: 'app-keygen-dialog',
   styleUrl: './keygen-dialog.scss',
@@ -138,6 +139,7 @@ export class KeygenDialog {
   private readonly picker = inject(KeyFilePicker);
   private readonly alerts = inject(TuiNotificationService);
   private readonly injector = inject(Injector);
+  private readonly transloco = inject(TranslocoService);
   protected readonly context = injectContext<TuiDialogContext<KeyView, void>>();
 
   protected readonly saving = signal(false);
@@ -193,12 +195,12 @@ export class KeygenDialog {
   protected readonly warning = computed(() => {
     const check = this.check();
     const folder = this.folder().trim();
-    return check?.result?.warning &&
+    return (
+      !!check?.result?.warning &&
       check.folder === folder &&
       check.fileName === this.fileName() &&
       !this.isDefaultFolder(folder)
-      ? FOLDER_WARNING
-      : null;
+    );
   });
 
   constructor() {
@@ -244,6 +246,11 @@ export class KeygenDialog {
     });
   }
 
+  protected savedAs(): Part[] {
+    const file = this.fileName();
+    return translateParts('keys.keygen.savedAs', { file: mono(file), pub: mono(`${file}.pub`) });
+  }
+
   protected checkNow(): void {
     void this.runCheck(true);
   }
@@ -254,7 +261,7 @@ export class KeygenDialog {
     try {
       picked = await this.picker.pickFolder(folder.value.trim() || null);
     } catch (err) {
-      notifyError(this.alerts, err, 'Folder picker not opened');
+      notifyError(this.alerts, err, this.transloco.translate('keys.keygen.pickerFailed'));
       return;
     }
     if (picked === null) {
@@ -307,7 +314,7 @@ export class KeygenDialog {
         this.checkedKey = JSON.stringify([folder, v.fileName]);
         this.applyCheck({ folder, fileName: v.fileName, result: null, problem });
       } else {
-        notifyError(this.alerts, err, 'Key not generated');
+        notifyError(this.alerts, err, this.transloco.translate('keys.keygen.notGenerated'));
       }
     } finally {
       this.saving.set(false);

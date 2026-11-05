@@ -49,25 +49,37 @@ export function visibleEntries(entries: readonly FileEntry[], showHidden: boolea
   return showHidden ? [...entries] : entries.filter((e) => !e.hidden);
 }
 
-const UNITS = ['KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB'];
+const UNITS = {
+  en: ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB'],
+  fr: ['o', 'Ko', 'Mo', 'Go', 'To', 'Po', 'Eo'],
+} as const;
 
-export function formatSize(bytes: number | null): string {
+/** Binary multiples in both languages; French uses the units French systems show (Ko, Mo...). */
+export function formatSize(bytes: number | null, locale = 'en-US'): string {
   if (bytes === null) return '';
-  if (bytes < 1024) return `${bytes} B`;
+  const french = locale.startsWith('fr');
+  const units = french ? UNITS.fr : UNITS.en;
   let value = bytes;
-  let unit = -1;
-  while (value >= 1024 && unit < UNITS.length - 1) {
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
     value /= 1024;
     unit++;
   }
-  const digits = value < 10 ? 1 : 0;
-  return `${value.toFixed(digits)} ${UNITS[unit]}`;
+  const digits = unit > 0 && value < 10 ? 1 : 0;
+  const number = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    useGrouping: false,
+  }).format(value);
+  return `${number}${french ? ' ' : ' '}${units[unit]}`;
 }
 
-const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' });
-
-export function formatModified(seconds: number | null): string {
-  return seconds === null ? '' : dateFormat.format(new Date(seconds * 1000));
+export function formatModified(seconds: number | null, locale = 'en-US'): string {
+  return seconds === null
+    ? ''
+    : new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' }).format(
+        new Date(seconds * 1000),
+      );
 }
 
 export const KIND_ICONS: Record<FileKind, string> = {

@@ -1,4 +1,5 @@
 import { inject, Service } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { ConfigService } from '../../core/ipc/config';
 import type { Host } from '../../core/ipc/config.models';
@@ -24,6 +25,7 @@ export class HostConnector {
   private readonly credentials = inject(CredentialPrompter);
   private readonly config = inject(ConfigService);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly transloco = inject(TranslocoService);
 
   async connect(target: ConnectionTarget): Promise<void> {
     const handlers: ConnectHandlers = {
@@ -42,7 +44,13 @@ export class HostConnector {
         if (!prompt) {
           if (!(err instanceof IpcError && err.code === 'host_key_changed')) {
             const missing = err instanceof IpcError && err.code === 'missing_variables';
-            notifyError(this.alerts, err, missing ? 'Missing variables' : 'Connection failed');
+            notifyError(
+              this.alerts,
+              err,
+              this.transloco.translate(
+                missing ? 'hostConnection.missingVariables' : 'hostConnection.connectionFailed',
+              ),
+            );
           }
           return;
         }
@@ -58,7 +66,7 @@ export class HostConnector {
     try {
       await this.ssh.disconnect(connectionId);
     } catch (err) {
-      notifyError(this.alerts, err, 'Disconnect failed');
+      notifyError(this.alerts, err, this.transloco.translate('hostConnection.disconnectFailed'));
     }
   }
 
@@ -76,15 +84,22 @@ export class HostConnector {
       }
       const { address } = await this.subjects(target, host);
       const error =
-        err.code === 'auth_failed' ? 'The server rejected the password. Try again.' : null;
-      return { label: 'Password', data: { kind: 'password', subject: address, error } };
+        err.code === 'auth_failed'
+          ? this.transloco.translate('credentialDialog.error.rejected')
+          : null;
+      const label = this.transloco.translate('credentialDialog.title.password');
+      return { label, data: { kind: 'password', subject: address, error } };
     }
     if (err.code !== 'secret_required' && err.code !== 'invalid_passphrase') {
       return null;
     }
     const { keyPath } = await this.subjects(target, host);
-    const error = err.code === 'invalid_passphrase' ? 'Wrong passphrase. Try again.' : null;
-    return { label: 'Key passphrase', data: { kind: 'passphrase', subject: keyPath, error } };
+    const error =
+      err.code === 'invalid_passphrase'
+        ? this.transloco.translate('credentialDialog.error.wrongPassphrase')
+        : null;
+    const label = this.transloco.translate('credentialDialog.title.passphrase');
+    return { label, data: { kind: 'passphrase', subject: keyPath, error } };
   }
 
   /** What the secret unlocks, resolved by the backend; the templates if that fails. */
@@ -104,14 +119,14 @@ export class HostConnector {
       if (await this.prompter.confirmReplace(event)) {
         await this.ssh.replaceHostKey(connectionId, event.fingerprint);
         this.alerts
-          .open('The stored key was replaced. Connect again to continue.', {
-            label: 'Host key replaced',
+          .open(this.transloco.translate('hostConnection.keyReplacedText'), {
+            label: this.transloco.translate('hostConnection.keyReplaced'),
             appearance: 'warning',
           })
           .subscribe();
       }
     } catch (err) {
-      notifyError(this.alerts, err, 'Host key not replaced');
+      notifyError(this.alerts, err, this.transloco.translate('hostConnection.keyNotReplaced'));
     }
   }
 }

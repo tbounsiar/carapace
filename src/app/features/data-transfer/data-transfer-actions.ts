@@ -1,5 +1,6 @@
 import { inject, Service, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslocoService } from '@jsverse/transloco';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { defer, firstValueFrom, of } from 'rxjs';
@@ -19,7 +20,7 @@ import { deleteLines } from '../external-editor/edited-view';
 import { Workspace } from '../workspace/workspace';
 import type { ExportDialogData } from './export-dialog/export-dialog';
 import type { ImportDialogData, ImportStart } from './import-dialog/import-dialog';
-import { exportCountsText, PICKER_BUSY } from './import-view';
+import { exportCountsText, PICKER_BUSY, type Translate } from './import-view';
 
 /** Export and import flows (spec `import-export.md`); every entry point goes through here. */
 @Service()
@@ -33,6 +34,8 @@ export class DataTransferActions {
   private readonly scope = inject(CurrentScope);
   private readonly workspace = inject(Workspace);
   private readonly edited = inject(EditedFiles);
+  private readonly transloco = inject(TranslocoService);
+  private readonly t: Translate = (key, params) => this.transloco.translate(key, params);
 
   private readonly _importing = signal(false);
   /** The open picker or the file check started by an Import button. */
@@ -44,7 +47,7 @@ export class DataTransferActions {
     const allowClose = defer(() => of(!busy()));
     const result = await firstValueFrom(
       this.dialogs.open<ExportResult | undefined>(new PolymorpheusComponent(ExportDialog), {
-        label: 'Export data',
+        label: this.t('dataTransfer.export.title'),
         size: 'm',
         closable: allowClose,
         dismissible: allowClose,
@@ -54,8 +57,8 @@ export class DataTransferActions {
     );
     if (result) {
       this.alerts
-        .open(exportCountsText(result.counts), {
-          label: `Exported to ${result.fileName}`,
+        .open(exportCountsText(this.t, result.counts), {
+          label: this.t('dataTransfer.export.toast', { file: result.fileName }),
           appearance: 'positive',
         })
         .subscribe();
@@ -85,7 +88,7 @@ export class DataTransferActions {
       return preview ? { kind: 'preview', preview } : null;
     } catch (err) {
       if (err instanceof IpcError && err.code === 'busy') {
-        this.alerts.open(PICKER_BUSY, { appearance: 'warning' }).subscribe();
+        this.alerts.open(this.t(PICKER_BUSY), { appearance: 'warning' }).subscribe();
         return null;
       }
       return { kind: 'error', error: err };
@@ -109,7 +112,7 @@ export class DataTransferActions {
     };
     const route = await firstValueFrom(
       this.dialogs.open<readonly string[] | undefined>(new PolymorpheusComponent(ImportDialog), {
-        label: 'Import data',
+        label: this.t('dataTransfer.import.title'),
         size: 'm',
         closable: allowClose,
         dismissible: allowClose,
@@ -132,12 +135,11 @@ export class DataTransferActions {
     const tabs = this.workspace.tabs().filter((t) => ids.has(t.hostId));
     let text = '';
     if (tabs.length) {
-      const count = tabs.length === 1 ? '1 open tab' : `${tabs.length} open tabs`;
       const modified = tabs.filter((t) => t.modified()).map((t) => t.label);
-      const lost = modified.length
-        ? ` Unsaved changes in ${modified.join(', ')} will be lost.`
-        : '';
-      text = ` ${count} will be closed.${lost}`;
+      text = ` ${this.t('dataTransfer.workspace.tabs', { count: tabs.length })}`;
+      if (modified.length) {
+        text += ` ${this.t('dataTransfer.workspace.unsaved', { names: modified.join(', ') })}`;
+      }
     }
     return text + deleteLines(this.edited.files().filter((f) => ids.has(f.hostId)));
   }
@@ -146,7 +148,7 @@ export class DataTransferActions {
     try {
       await this.config.load();
     } catch (err) {
-      notifyError(this.alerts, err, 'Data not reloaded');
+      notifyError(this.alerts, err, this.t('dataTransfer.reloadError'));
     }
     if (this.keys.loaded()) {
       await this.keys.load().catch(() => undefined);

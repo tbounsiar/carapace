@@ -1,2 +1,4 @@
 <span>{{ context.data.text }}</span>
-<button tuiLink type="button" data-testid="move-undo" (click)="undo()">Undo</button>
+<button tuiLink type="button" data-testid="move-undo" (click)="undo()">
+  {{ 'projectTree.move.undo' | transloco }}
+</button>

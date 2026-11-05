@@ -1,1 +1,51 @@
-{}
+{
+  "view": {
+    "upload": "Envoi",
+    "download": "Téléchargement",
+    "queued": "En file d'attente",
+    "waiting": "En attente d'une décision",
+    "done": "{skipped, plural, =0 {Terminé} one {Terminé · # ignoré} other {Terminé · # ignorés}}",
+    "cancelled": "{skipped, plural, =0 {Annulé} one {Annulé · # ignoré} other {Annulé · # ignorés}}",
+    "failed": "Échec : {message}",
+    "unexpected": "Erreur inattendue",
+    "bytesOf": "{done} sur {total}",
+    "filesOf": "{done} fichiers sur {total}"
+  },
+  "panel": {
+    "toggle": "Transferts",
+    "status": "État des transferts",
+    "running": "{count, plural, other {# en cours}}",
+    "waiting": "{count, plural, other {# en attente}}",
+    "queued": "{count, plural, other {# en file}}",
+    "done": "{count, plural, one {# terminé} other {# terminés}}",
+    "failed": "{count, plural, other {# en échec}}",
+    "clear": "Effacer les terminés",
+    "list": "Transferts",
+    "progress": "Progression de {name}",
+    "cancel": "Annuler {name}",
+    "empty": "Aucun transfert pour l'instant. Sélectionnez des fichiers et utilisez Envoyer ou Télécharger, ou faites-les glisser vers l'autre volet."
+  },
+  "conflict": {
+    "title": "Le fichier existe déjà",
+    "exists": "{name} existe déjà dans le dossier de destination.",
+    "destination": "Destination",
+    "existing": "Existant",
+    "incoming": "Nouveau",
+    "unknown": "Inconnu",
+    "applyToAll": "Appliquer à tous les conflits restants de ce transfert",
+    "overwrite": "Écraser",
+    "skip": "Ignorer",
+    "keepBoth": "Garder les deux"
+  },
+  "queue": {
+    "unavailable": "Transferts indisponibles",
+    "notStarted": "Transfert non démarré",
+    "notCancelled": "Transfert non annulé",
+    "notCleared": "Transferts terminés non effacés",
+    "answerNotSent": "Réponse au conflit non envoyée",
+    "failedOneTitle": "Échec du transfert",
+    "failedOne": "{name} : {reason}",
+    "failedManyTitle": "{count, plural, one {# transfert en échec} other {# transferts en échec}}",
+    "failedMany": "{count, plural, one {{names} et # autre.} other {{names} et # autres.}}"
+  }
+}

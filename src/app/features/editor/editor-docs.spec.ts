@@ -174,7 +174,7 @@ describe('EditorDocs', () => {
       expectedTarget: null,
     });
     expect(doc.modified()).toBe(false);
-    expect(doc.savedAt()).toMatch(/^\d\d:\d\d$/);
+    expect(doc.savedAt()).toBeInstanceOf(Date);
     editor.type('again\n');
     await doc.save();
     expect(files.write).toHaveBeenLastCalledWith(

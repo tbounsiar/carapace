@@ -1,4 +1,5 @@
 import { Component, computed, inject, resource } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@taiga-ui/core';
 import { TuiBlockStatus, TuiList } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
+import { LanguageService } from '../../../core/i18n/language';
 import { Analytics, type AnalyticsState } from '../../../core/ipc/analytics';
 
 export interface EventRow {
@@ -21,16 +23,15 @@ export interface EventRow {
 }
 
 /**
- * Local clock time. `DatePipe` is avoided on purpose: it pulls `formatDate` into the initial bundle
- * through the shared common chunk.
+ * Local clock time in `locale`. `DatePipe` is avoided on purpose: it pulls `formatDate` into the
+ * initial bundle through the shared common chunk.
  */
-export function localTime(iso: string): string {
+export function localTime(iso: string, locale: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
     return iso;
   }
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  return new Intl.DateTimeFormat(locale, { timeStyle: 'medium' }).format(date);
 }
 
 @Component({
@@ -44,6 +45,7 @@ export function localTime(iso: string): string {
     TuiScrollbar,
     TuiTable,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-analytics-events-dialog',
   styleUrl: './analytics-events-dialog.scss',
@@ -51,6 +53,7 @@ export function localTime(iso: string): string {
 })
 export class AnalyticsEventsDialog {
   private readonly analytics = inject(Analytics);
+  private readonly language = inject(LanguageService);
   protected readonly context = injectContext<TuiDialogContext<void, AnalyticsState>>();
   protected readonly state = this.context.data;
   protected readonly allOff = !Object.values(this.state.categories).some(Boolean);
@@ -60,8 +63,9 @@ export class AnalyticsEventsDialog {
 
   protected readonly rows = computed<readonly EventRow[]>(() => {
     const value = this.recent.hasValue() ? this.recent.value() : null;
+    const locale = this.language.locale();
     return (value?.events ?? []).map((event) => ({
-      time: localTime(event.time),
+      time: localTime(event.time, locale),
       name: event.name,
       props: Object.entries(event.props).map(([key, v]) => `${key}=${String(v)}`),
       previousLaunch: event.previousLaunch === true,

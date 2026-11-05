@@ -1,3 +1,5 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { collection, host, project } from '../../core/ipc/config.fixture';
 import type { VariableView } from '../../core/ipc/config.models';
 import { crossScopeWarning, moveDestination, moveTargets } from './move-rules';
@@ -18,6 +20,9 @@ const PROJECTS = [
 const GLOBALS = [plain('user')];
 
 describe('move-rules', () => {
+  // The global `translate` behind `uiText` needs the service to exist.
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   it('lists Home then projects by name, with the current parent marked', () => {
     const groups = moveTargets(NODES, PROJECTS, api);
     expect(groups.map((g) => g.label)).toEqual(['Home', 'Payments', 'Shop']);
@@ -77,5 +82,23 @@ describe('move-rules', () => {
     expect(moveDestination(NODES, PROJECTS, { projectId: null, parentId: null }, true)).toBe(
       'Home (top level)',
     );
+  });
+
+  it('writes the warning and the destination in French', () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    const toHome = crossScopeWarning(NODES, PROJECTS, GLOBALS, NODES[0], {
+      projectId: null,
+      parentId: null,
+    });
+    expect(toHome?.title).toBe('Sortie du projet');
+    expect(toHome?.body).toContain('L’hôte de Backend n’utilisera que les variables globales.');
+    expect(toHome?.missing).toBe('Non défini dans Accueil : db_host.');
+    expect(moveDestination(NODES, PROJECTS, { projectId: null, parentId: null }, true)).toBe(
+      'Accueil (racine)',
+    );
+    expect(moveTargets(NODES, PROJECTS, api)[0].targets.map((t) => t.path.join('/'))).toEqual([
+      'Home',
+      'Home/Lab',
+    ]);
   });
 });

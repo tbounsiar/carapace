@@ -1,3 +1,4 @@
+import { LanguageService } from '../../../core/i18n/language';
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -189,6 +190,16 @@ describe('FilePane', () => {
     expect(fixture.componentInstance.paths).toEqual(['/home/u']);
     expect(byId('entry-notes.txt')!.textContent).toContain('100 B');
     expect(byId('entry-notes.txt')!.textContent).toContain('rw-r--r--');
+  });
+
+  it('follows a switch to French, sizes included', async () => {
+    await setup();
+    TestBed.inject(LanguageService).apply('fr');
+    await settle();
+    expect(byId('entry-notes.txt')!.textContent).toContain('100\u00a0o');
+    expect(byId('pane-refresh')!.getAttribute('aria-label')).toBe('Actualiser');
+    expect(el().querySelector('thead')!.textContent).toContain('Taille');
+    TestBed.inject(LanguageService).apply('en');
   });
 
   it('shows hidden entries with the toggle', async () => {

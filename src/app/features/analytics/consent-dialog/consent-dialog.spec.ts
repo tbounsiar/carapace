@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { provideTaiga } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import {
@@ -149,5 +150,16 @@ describe('ConsentDialog', () => {
     expect(link.parentElement).toBe(byId('consent-never'));
     link.click();
     expect(openPrivacyPage).toHaveBeenCalledTimes(1);
+  });
+
+  it('follows a switch to French', async () => {
+    await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    expect(byId('consent-crashes-note')?.textContent?.trim()).toBe(
+      'Si Carapace plante\u00a0: type de plantage, partie de l’application et, dans son propre code, la ligne source. Aucun message ni chemin.',
+    );
+    expect(byId('consent-never')?.textContent).toContain('Jamais envoyé\u00a0:');
+    expect(byId('consent-save')?.textContent?.trim()).toBe('Enregistrer les choix');
   });
 });

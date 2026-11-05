@@ -123,6 +123,13 @@ function utf8Bytes(text: string): number {
   return bytes;
 }
 
+function texts(label: string, phrases: Readonly<Record<string, string>>): Extension {
+  return [
+    EditorView.contentAttributes.of({ 'aria-label': label }),
+    EditorState.phrases.of(phrases),
+  ];
+}
+
 class Snapshot implements EditorSnapshot {
   constructor(readonly doc: Text) {}
 
@@ -136,6 +143,7 @@ class CodeMirrorEditor implements CodeEditor {
   private readonly readOnly = new Compartment();
   private readonly wrap = new Compartment();
   private readonly attributes = new Compartment();
+  private readonly texts = new Compartment();
   private readonly view: EditorView;
   private saved: Text;
   private bytes: number;
@@ -162,7 +170,7 @@ class CodeMirrorEditor implements CodeEditor {
         keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         syntaxHighlighting(highlight),
         theme,
-        EditorView.contentAttributes.of({ 'aria-label': options.label }),
+        this.texts.of(texts(options.label, options.phrases ?? {})),
         this.attributes.of(EditorView.editorAttributes.of({ 'data-language': options.language })),
         this.language.of(LANGUAGES[options.language]()),
         this.readOnly.of(EditorState.readOnly.of(options.readOnly)),
@@ -220,6 +228,10 @@ class CodeMirrorEditor implements CodeEditor {
     this.view.dispatch({
       effects: this.wrap.reconfigure(wrap ? EditorView.lineWrapping : []),
     });
+  }
+
+  setTexts(label: string, phrases: Readonly<Record<string, string>>): void {
+    this.view.dispatch({ effects: this.texts.reconfigure(texts(label, phrases)) });
   }
 
   attach(container: HTMLElement): void {

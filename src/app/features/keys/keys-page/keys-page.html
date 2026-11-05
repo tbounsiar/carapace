@@ -1,9 +1,8 @@
 <header tuiHeader class="header">
   <hgroup tuiTitle>
-    <h1 data-testid="keys-title">SSH keys</h1>
+    <h1 data-testid="keys-title">{{ 'keys.page.title' | transloco }}</h1>
     <p tuiSubtitle>
-      Generate or register private keys, then deploy their public key to a host. Private keys never
-      leave this machine.
+      {{ 'keys.page.subtitle' | transloco }}
     </p>
   </hgroup>
   @if (keys().length) {
@@ -16,7 +15,7 @@
         data-testid="keys-generate"
         (click)="actions.generate()"
       >
-        Generate key
+        {{ 'keys.page.generate' | transloco }}
       </button>
       <button
         tuiButton
@@ -27,22 +26,22 @@
         data-testid="keys-import"
         (click)="actions.import()"
       >
-        Import key
+        {{ 'keys.page.import' | transloco }}
       </button>
     </div>
   }
 </header>
 
 @if (keys().length) {
-  <table tuiTable size="s" class="table" aria-label="SSH keys">
+  <table tuiTable size="s" class="table" [attr.aria-label]="'keys.page.title' | transloco">
     <thead tuiThead>
       <tr>
-        <th tuiTh>Name</th>
-        <th tuiTh class="col-type">Type</th>
-        <th tuiTh>Fingerprint</th>
-        <th tuiTh>Comment</th>
-        <th tuiTh>Status</th>
-        <th tuiTh class="col-menu" aria-label="Actions"></th>
+        <th tuiTh>{{ 'keys.page.columns.name' | transloco }}</th>
+        <th tuiTh class="col-type">{{ 'keys.page.columns.type' | transloco }}</th>
+        <th tuiTh>{{ 'keys.page.columns.fingerprint' | transloco }}</th>
+        <th tuiTh>{{ 'keys.page.columns.comment' | transloco }}</th>
+        <th tuiTh>{{ 'keys.page.columns.status' | transloco }}</th>
+        <th tuiTh class="col-menu" [attr.aria-label]="'keys.page.columns.actions' | transloco"></th>
       </tr>
     </thead>
     <tbody tuiTbody>
@@ -73,7 +72,7 @@
                   appearance="info"
                   [attr.data-testid]="'key-badge-encrypted-' + key.name"
                 >
-                  Encrypted
+                  {{ 'keys.page.badges.encrypted' | transloco }}
                 </span>
               }
               @if (key.hasPassphrase) {
@@ -83,7 +82,7 @@
                   appearance="positive"
                   [attr.data-testid]="'key-badge-saved-' + key.name"
                 >
-                  Passphrase saved
+                  {{ 'keys.page.badges.passphraseSaved' | transloco }}
                 </span>
               }
               @if (key.origin === 'imported') {
@@ -95,7 +94,7 @@
                   [attr.data-testid]="'key-badge-external-' + key.name"
                   [tuiHint]="key.path"
                 >
-                  External
+                  {{ 'keys.page.badges.external' | transloco }}
                 </span>
               } @else if (!key.managed) {
                 <span
@@ -106,7 +105,7 @@
                   [attr.data-testid]="'key-badge-folder-' + key.name"
                   [tuiHint]="key.path"
                 >
-                  Custom folder
+                  {{ 'keys.page.badges.customFolder' | transloco }}
                 </span>
               }
               @if (key.warning) {
@@ -129,14 +128,14 @@
               size="xs"
               iconStart="@tui.ellipsis"
               type="button"
-              [attr.aria-label]="'Actions for ' + key.name"
+              [attr.aria-label]="'keys.page.rowMenu' | transloco: { name: key.name }"
               [attr.data-testid]="'key-menu-' + key.name"
               [tuiDropdown]="menu"
               tuiDropdownAlign="end"
               [tuiDropdownOpen]="openMenu() === key.id"
               (tuiDropdownOpenChange)="setMenu(key, $event)"
             >
-              Actions
+              {{ 'keys.page.columns.actions' | transloco }}
             </button>
             <ng-template #menu let-close>
               <tui-data-list size="s">
@@ -147,7 +146,7 @@
                   data-testid="key-copy"
                   (click)="close(); actions.copyPublicKey(key)"
                 >
-                  Copy public key
+                  {{ 'keys.page.menu.copy' | transloco }}
                 </button>
                 <button
                   tuiOption
@@ -156,7 +155,7 @@
                   data-testid="key-deploy"
                   (click)="close(); actions.deploy(key)"
                 >
-                  Deploy to host...
+                  {{ 'keys.page.menu.deploy' | transloco }}
                 </button>
                 <button
                   tuiOption
@@ -165,7 +164,7 @@
                   data-testid="key-rename"
                   (click)="close(); actions.rename(key)"
                 >
-                  Rename
+                  {{ 'common.rename' | transloco }}
                 </button>
                 @if (key.hasPassphrase) {
                   <button
@@ -175,7 +174,7 @@
                     data-testid="key-forget"
                     (click)="close(); actions.forgetPassphrase(key)"
                   >
-                    Forget passphrase
+                    {{ 'keys.page.menu.forget' | transloco }}
                   </button>
                 }
                 <hr />
@@ -186,7 +185,7 @@
                   data-testid="key-delete"
                   (click)="close(); actions.remove(key)"
                 >
-                  Delete
+                  {{ 'common.delete' | transloco }}
                 </button>
               </tui-data-list>
             </ng-template>
@@ -200,7 +199,7 @@
 } @else if (loadError(); as message) {
   <tui-block-status size="m" data-testid="keys-error">
     <span tuiAvatar="@tui.triangle-alert" size="l" appearance="negative" tuiSlot="top"></span>
-    <h2>SSH keys could not be loaded</h2>
+    <h2>{{ 'keys.page.loadError' | transloco }}</h2>
     <p>{{ message }}</p>
     <button
       tuiButton
@@ -210,14 +209,14 @@
       data-testid="keys-retry"
       (click)="reload()"
     >
-      Try again
+      {{ 'keys.page.retry' | transloco }}
     </button>
   </tui-block-status>
 } @else {
   <tui-block-status size="m" data-testid="keys-empty">
     <span tuiAvatar="@tui.key-round" size="l" tuiSlot="top"></span>
-    <h2>No SSH keys yet</h2>
-    <p>Generate a new Ed25519 key, or register a private key you already have.</p>
+    <h2>{{ 'keys.page.empty.title' | transloco }}</h2>
+    <p>{{ 'keys.page.empty.text' | transloco }}</p>
     <button
       tuiButton
       size="s"
@@ -226,7 +225,7 @@
       data-testid="keys-generate"
       (click)="actions.generate()"
     >
-      Generate key
+      {{ 'keys.page.generate' | transloco }}
     </button>
     <button
       tuiButton
@@ -237,7 +236,7 @@
       data-testid="keys-import"
       (click)="actions.import()"
     >
-      Import key
+      {{ 'keys.page.import' | transloco }}
     </button>
   </tui-block-status>
 }

@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { provideTaiga } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import { IpcError } from '../../../core/ipc/ipc-error';
@@ -54,6 +55,17 @@ describe('NameDialog', () => {
     expect(el.querySelector('input')!.value).toBe('prod');
   });
 
+  it('renders in French after a language switch', async () => {
+    const { el, submit } = await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await submit();
+    expect(el.querySelector('label')?.textContent?.trim()).toBe('Nom');
+    expect(el.textContent).toContain('«\u202fNom\u202f» est obligatoire');
+    expect(el.querySelector('[data-testid="dialog-save"]')?.textContent?.trim()).toBe(
+      'Enregistrer',
+    );
+  });
+
   it('rejects an empty name', async () => {
     const { el, submit } = await setup();
     await submit();
@@ -91,6 +103,7 @@ describe('NameDialog', () => {
     save.mockRejectedValueOnce(new IpcError('already_exists', 'exists'));
     const { el, submit } = await setup('', {
       noun: 'file or folder',
+      conflictMessage: 'A file or folder with this name already exists',
       validator: validator as never,
       conflictCode: 'already_exists',
       trim: false,

@@ -1,16 +1,19 @@
 import { inject, Service } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { TuiDialogService } from '@taiga-ui/core';
 import { confirmDestructive } from '../../shared/destructive-confirm/confirm-destructive';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import type { FileEntry, FileSide } from '../../core/ipc/files';
 import { NameDialog, type NameDialogData } from '../project-tree/name-dialog/name-dialog';
+import { escapeHtml } from '../../shared/path-breaks';
 import { fileNameValidator } from './file-path';
 
 @Service()
 export class FileDialogs {
   private readonly dialogs = inject(TuiDialogService);
+  private readonly transloco = inject(TranslocoService);
 
-  /** Opens the name dialog; `save` runs inside it, so name conflicts show on the field. */
+  /** Opens the name dialog (Taiga renders `label` as HTML); `save` runs inside it, so name conflicts show on the field. */
   askName(
     label: string,
     side: FileSide,
@@ -22,7 +25,8 @@ export class FileDialogs {
         label,
         size: 's',
         data: {
-          noun: 'file or folder',
+          noun: this.transloco.translate('files.dialogs.noun'),
+          conflictMessage: this.transloco.translate('files.dialogs.nameConflict'),
           initial,
           save,
           validator: fileNameValidator(side),
@@ -35,12 +39,16 @@ export class FileDialogs {
 
   confirmDelete(entry: FileEntry): Promise<boolean> {
     const dir = entry.kind === 'dir';
-    return confirmDestructive(this.dialogs, `Delete ${dir ? 'folder' : 'file'} "${entry.name}"?`, {
-      content: dir
-        ? 'The folder and everything inside it will be deleted. This cannot be undone.'
-        : 'The file will be deleted. This cannot be undone.',
-      yes: 'Delete',
-      no: 'Cancel',
-    });
+    const t = (key: string, params?: Record<string, unknown>) =>
+      this.transloco.translate(`files.dialogs.${key}`, params);
+    return confirmDestructive(
+      this.dialogs,
+      t(dir ? 'deleteFolderTitle' : 'deleteFileTitle', { name: escapeHtml(entry.name) }),
+      {
+        content: t(dir ? 'deleteFolderContent' : 'deleteFileContent'),
+        yes: this.transloco.translate('common.delete'),
+        no: this.transloco.translate('common.cancel'),
+      },
+    );
   }
 }

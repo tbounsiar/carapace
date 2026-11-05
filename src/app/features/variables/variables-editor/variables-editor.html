@@ -1,12 +1,22 @@
 <form class="editor" [formGroup]="form" (ngSubmit)="save()">
   <div class="scroll">
-    <table tuiTable size="s" class="table" aria-label="Variables">
+    <table tuiTable size="s" class="table" [attr.aria-label]="'variables.editor.table' | transloco">
       <thead tuiThead>
         <tr>
-          <th tuiTh class="col-name">Name</th>
-          <th tuiTh class="col-kind">Type</th>
-          <th tuiTh>Value</th>
-          <th tuiTh class="col-remove" aria-label="Remove"></th>
+          <th tuiTh class="col-name">
+            <span class="head" tuiHintOverflow>{{ 'variables.editor.name' | transloco }}</span>
+          </th>
+          <th tuiTh class="col-kind">
+            <span class="head" tuiHintOverflow>{{ 'variables.editor.type' | transloco }}</span>
+          </th>
+          <th tuiTh>
+            <span class="head" tuiHintOverflow>{{ 'variables.editor.value' | transloco }}</span>
+          </th>
+          <th
+            tuiTh
+            class="col-remove"
+            [attr.aria-label]="'variables.editor.remove' | transloco"
+          ></th>
         </tr>
       </thead>
       <tbody tuiTbody formArrayName="rows">
@@ -18,10 +28,10 @@
                   tuiInput
                   class="cell-input mono"
                   formControlName="name"
-                  placeholder="name"
+                  [placeholder]="'variables.editor.namePlaceholder' | transloco"
                   autocomplete="off"
                   spellcheck="false"
-                  [attr.aria-label]="'Name of variable ' + (i + 1)"
+                  [attr.aria-label]="'variables.editor.nameOf' | transloco: { index: i + 1 }"
                   [attr.data-testid]="'var-name-' + i"
                   (input)="revalidateNames()"
                 />
@@ -34,7 +44,7 @@
                   class="cell-input"
                   formControlName="kind"
                   autocomplete="off"
-                  [attr.aria-label]="'Type of variable ' + (i + 1)"
+                  [attr.aria-label]="'variables.editor.typeOf' | transloco: { index: i + 1 }"
                   [attr.data-testid]="'var-kind-' + i"
                 />
                 <tui-data-list *tuiDropdown size="s">
@@ -60,16 +70,25 @@
                     type="password"
                     autocomplete="off"
                     formControlName="value"
-                    [placeholder]="row.hasValue ? 'Set. Type to replace' : 'Not set'"
-                    [attr.aria-label]="'Secret value of variable ' + (i + 1)"
+                    [placeholder]="
+                      (row.hasValue ? 'variables.editor.setReplace' : 'variables.editor.notSet')
+                        | transloco
+                    "
+                    [attr.aria-label]="'variables.editor.secretOf' | transloco: { index: i + 1 }"
                     [attr.data-testid]="'var-value-' + i"
                   />
                   <tui-icon
                     role="img"
                     [icon]="row.hasValue ? '@tui.lock' : '@tui.lock-open'"
-                    [attr.aria-label]="row.hasValue ? 'Set' : 'Not set'"
+                    [attr.aria-label]="
+                      (row.hasValue ? 'variables.editor.set' : 'variables.editor.notSet')
+                        | transloco
+                    "
                     [attr.data-testid]="'var-status-' + i"
-                    [tuiHint]="row.hasValue ? 'Set' : 'Not set'"
+                    [tuiHint]="
+                      (row.hasValue ? 'variables.editor.set' : 'variables.editor.notSet')
+                        | transloco
+                    "
                   />
                 </tui-textfield>
               } @else {
@@ -78,10 +97,10 @@
                     tuiInput
                     class="cell-input mono"
                     formControlName="value"
-                    placeholder="value"
+                    [placeholder]="'variables.editor.valuePlaceholder' | transloco"
                     autocomplete="off"
                     spellcheck="false"
-                    [attr.aria-label]="'Value of variable ' + (i + 1)"
+                    [attr.aria-label]="'variables.editor.valueOf' | transloco: { index: i + 1 }"
                     [attr.data-testid]="'var-value-' + i"
                   />
                 </tui-textfield>
@@ -94,19 +113,19 @@
                 size="xs"
                 iconStart="@tui.trash-2"
                 type="button"
-                tuiHint="Remove"
-                [attr.aria-label]="'Remove variable ' + (i + 1)"
+                [tuiHint]="'variables.editor.remove' | transloco"
+                [attr.aria-label]="'variables.editor.removeRow' | transloco: { index: i + 1 }"
                 [attr.data-testid]="'var-remove-' + i"
                 (click)="remove(i)"
               >
-                Remove
+                {{ 'variables.editor.remove' | transloco }}
               </button>
             </td>
           </tr>
         } @empty {
           <tr>
             <td tuiTd colspan="4" class="empty" data-testid="vars-empty">
-              No variables yet. Add one to use it in host fields as {{ example }}.
+              {{ 'variables.editor.empty' | transloco: { example } }}
             </td>
           </tr>
         }
@@ -126,8 +145,7 @@
 
   @if (droppedNames().length) {
     <div tuiNotification appearance="warning" size="s" data-testid="vars-rename-warning">
-      Renaming a secret drops its stored value: {{ droppedNames().join(', ') }}. Type the value
-      again or keep the old name.
+      {{ 'variables.editor.renameWarning' | transloco: { names: droppedNames().join(', ') } }}
     </div>
   }
 
@@ -142,7 +160,7 @@
       [disabled]="rowViews().length >= maxVariables"
       (click)="add()"
     >
-      Add variable
+      {{ 'variables.editor.add' | transloco }}
     </button>
     <span class="spacer"></span>
     <button
@@ -154,7 +172,7 @@
       [disabled]="!dirty() || saving()"
       (click)="cancel()"
     >
-      Cancel
+      {{ 'common.cancel' | transloco }}
     </button>
     <button
       tuiButton
@@ -164,7 +182,7 @@
       [disabled]="!dirty()"
       [loading]="saving()"
     >
-      Save
+      {{ 'common.save' | transloco }}
     </button>
   </div>
 </form>

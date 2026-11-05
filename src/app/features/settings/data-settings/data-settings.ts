@@ -1,4 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiButtonLoading } from '@taiga-ui/kit';
 import { ConfigService } from '../../../core/ipc/config';
@@ -7,7 +8,7 @@ import { DataTransferActions } from '../../data-transfer/data-transfer-actions';
 
 /** The "Data" group of the Settings page: export and import entry points. */
 @Component({
-  imports: [TuiButton, TuiButtonLoading],
+  imports: [TranslocoPipe, TuiButton, TuiButtonLoading],
   selector: 'app-data-settings',
   templateUrl: './data-settings.html',
   styleUrl: './data-settings.scss',

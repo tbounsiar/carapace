@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
+import { LanguageService } from '../../../core/i18n/language';
 import { ConfigService } from '../../../core/ipc/config';
 import { fakeConfig, host, project } from '../../../core/ipc/config.fixture';
 import { EditedFiles } from '../../../core/ipc/edited-files';
@@ -9,6 +10,7 @@ import type { EditedFile } from '../../../core/ipc/external-edits';
 import { editedFile } from '../../../core/ipc/external-edits.fixture';
 import { SshService } from '../../../core/ipc/ssh';
 import { EditedActions } from '../edited-actions';
+import { clockTime, dayTime } from '../edited-view';
 import { EditedFilesPage } from './edited-files-page';
 
 @Component({
@@ -139,12 +141,29 @@ describe('EditedFilesPage', () => {
     expect(second.querySelector('.location > .path')?.textContent).toBe('db-1:/srv/app.env');
     expect(byId('edited-action', second)?.textContent).toContain('Retry');
     const third = row('edited-row-vps-backup.sh');
-    expect(byId('edited-state', third)?.textContent).toContain('Not uploaded (from 3 Nov 23:10)');
+    expect(byId('edited-state', third)?.textContent).toContain(
+      `Not uploaded (from ${dayTime(new Date(2026, 10, 3, 23, 10).getTime())})`,
+    );
     expect(byId('edited-action', third)?.textContent).toContain('Upload');
     const last = row('edited-row-db-1-logo.png');
-    expect(byId('edited-state', last)?.textContent).toContain('Uploaded 14:02');
+    expect(byId('edited-state', last)?.textContent).toContain(
+      `Uploaded ${clockTime(new Date(2026, 10, 4, 14, 2).getTime())}`,
+    );
     expect(byId('edited-action', last)).toBeNull();
     expect(byId('edited-state', last)?.closest('td')?.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('follows a switch to French', async () => {
+    const { fixture, byId, row } = await render([synced, recovered]);
+    TestBed.inject(LanguageService).apply('fr');
+    await fixture.whenStable();
+    expect(byId('edited-title')?.textContent).toContain('Fichiers édités');
+    const recoveredRow = row('edited-row-vps-backup.sh');
+    expect(byId('edited-state', recoveredRow)?.textContent).toContain(
+      `Non envoyé (du ${dayTime(new Date(2026, 10, 3, 23, 10).getTime(), 'fr-FR')})`,
+    );
+    expect(byId('edited-action', recoveredRow)?.textContent).toContain('Envoyer');
+    TestBed.inject(LanguageService).apply('en');
   });
 
   it('keeps the actions column narrow when no row has a row action', async () => {

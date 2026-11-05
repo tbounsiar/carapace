@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { FormGroup } from '@angular/forms';
@@ -171,5 +172,13 @@ describe('KeyImportDialog', () => {
     expect(c['path'].touched).toBe(true);
     expect(c['name'].value).toBe('id_work');
     expect(document.activeElement).toBe(byId(el, 'keyimport-name'));
+  });
+
+  it('renders in French', async () => {
+    const { fixture, el } = await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await settle(fixture);
+    expect(el.textContent).toContain('Chemin de la clé privée');
+    expect(byId(el, 'keyimport-submit').textContent).toContain('Importer');
   });
 });

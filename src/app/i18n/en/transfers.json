@@ -1,1 +1,51 @@
-{}
+{
+  "view": {
+    "upload": "Upload",
+    "download": "Download",
+    "queued": "Queued",
+    "waiting": "Waiting for a decision",
+    "done": "{skipped, plural, =0 {Done} other {Done · # skipped}}",
+    "cancelled": "{skipped, plural, =0 {Cancelled} other {Cancelled · # skipped}}",
+    "failed": "Failed: {message}",
+    "unexpected": "Unexpected error",
+    "bytesOf": "{done} of {total}",
+    "filesOf": "{done} of {total} files"
+  },
+  "panel": {
+    "toggle": "Transfers",
+    "status": "Transfer status",
+    "running": "{count, plural, other {# running}}",
+    "waiting": "{count, plural, other {# waiting}}",
+    "queued": "{count, plural, other {# queued}}",
+    "done": "{count, plural, other {# done}}",
+    "failed": "{count, plural, other {# failed}}",
+    "clear": "Clear finished",
+    "list": "Transfers",
+    "progress": "Progress of {name}",
+    "cancel": "Cancel {name}",
+    "empty": "No transfers yet. Select files and use Upload or Download, or drag them to the other pane."
+  },
+  "conflict": {
+    "title": "File already exists",
+    "exists": "{name} already exists in the destination folder.",
+    "destination": "Destination",
+    "existing": "Existing",
+    "incoming": "Incoming",
+    "unknown": "Unknown",
+    "applyToAll": "Apply to all remaining conflicts in this transfer",
+    "overwrite": "Overwrite",
+    "skip": "Skip",
+    "keepBoth": "Keep both"
+  },
+  "queue": {
+    "unavailable": "Transfers unavailable",
+    "notStarted": "Transfer not started",
+    "notCancelled": "Transfer not cancelled",
+    "notCleared": "Finished transfers not cleared",
+    "answerNotSent": "Conflict answer not sent",
+    "failedOneTitle": "Transfer failed",
+    "failedOne": "{name}: {reason}",
+    "failedManyTitle": "{count, plural, one {1 transfer failed} other {# transfers failed}}",
+    "failedMany": "{count, plural, other {{names} and # more.}}"
+  }
+}

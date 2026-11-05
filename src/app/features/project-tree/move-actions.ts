@@ -13,17 +13,22 @@ import { crossScopeWarning, moveDestination } from './move-rules';
 import { ancestors, canMoveInto, sameContainer, type Container } from './node-tree';
 import { escapeHtml } from '../../shared/path-breaks';
 import { errorText, notifyError } from '../../shared/save-error';
+import { uiText } from '../../shared/ui-text';
 
 const UNDO_DELAY = 5000;
 
 function failureLabel(node: ConfigNode): string {
-  return node.kind === 'host' ? 'Host not moved' : 'Collection not moved';
+  return uiText(
+    node.kind === 'host' ? 'projectTree.move.hostFailed' : 'projectTree.move.collectionFailed',
+  );
 }
 
 /** "A host named "ui" already exists in Payments. Rename one of them first." */
 export function conflictText(err: IpcError): string {
   const raw = err.message.trim().replace(/[.!]$/, '');
-  return `${raw.charAt(0).toUpperCase()}${raw.slice(1)}. Rename one of them first.`;
+  return uiText('projectTree.move.renameFirst', {
+    message: `${raw.charAt(0).toUpperCase()}${raw.slice(1)}`,
+  });
 }
 
 /** Moves of hosts and collections: the Move to… dialog, drops in the sidebar and Undo. */
@@ -38,7 +43,7 @@ export class MoveActions {
     const { MoveDialog } = await import('./move-dialog/move-dialog');
     this.dialogs
       .open<void>(new PolymorpheusComponent(MoveDialog), {
-        label: `Move “${node.name}”`,
+        label: uiText('projectTree.move.title', { name: node.name }),
         size: 'm',
         data: {
           node,
@@ -73,8 +78,8 @@ export class MoveActions {
           data: {
             // TUI_CONFIRM renders its content as HTML; names come from the user or a data file.
             content: escapeHtml([warning.body, warning.missing].filter(Boolean).join(' ')),
-            yes: 'Move',
-            no: 'Cancel',
+            yes: uiText('projectTree.moveDialog.move'),
+            no: uiText('common.cancel'),
           },
         }),
         { defaultValue: false },
@@ -101,7 +106,11 @@ export class MoveActions {
         target,
         result.scopeChanged,
       );
-      const text = `Moved “${node.name}” to ${to}`;
+      const text = uiText('projectTree.move.moved', {
+        name: node.name,
+        destination: to,
+        kind: node.kind,
+      });
       if (result.scopeChanged) {
         this.alerts.open(text, { appearance: 'positive' }).subscribe();
       } else {
@@ -138,7 +147,7 @@ export class MoveActions {
     try {
       await this.config.moveNode(node.id, from.projectId, from.parentId);
       this.reveal(node.id);
-      this.alerts.open('Move undone', { appearance: 'info' }).subscribe();
+      this.alerts.open(uiText('projectTree.move.undone'), { appearance: 'info' }).subscribe();
     } catch (err) {
       notifyError(this.alerts, err, failureLabel(node));
     }

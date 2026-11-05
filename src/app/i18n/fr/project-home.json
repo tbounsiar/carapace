@@ -1,1 +1,38 @@
-{}
+{
+  "notFound": {
+    "title": "Projet introuvable",
+    "text": "Il a peut-être été supprimé.",
+    "home": "Aller à l’accueil"
+  },
+  "placeholderTitle": "Projet",
+  "newHost": "Nouvel hôte",
+  "actions": "Actions du projet",
+  "tabs": "Projet",
+  "hosts": "Hôtes",
+  "variables": "Variables",
+  "loadError": "Impossible de charger les hôtes",
+  "retry": "Réessayer",
+  "menu": {
+    "newCollection": "Nouvelle collection",
+    "export": "Exporter le projet…"
+  },
+  "empty": {
+    "title": "Ce projet est vide",
+    "text": "Ajoutez des hôtes ici ou créez des collections pour les regrouper.",
+    "newCollection": "Nouvelle collection"
+  },
+  "noHosts": {
+    "title": "Aucun hôte pour l’instant",
+    "text": "Ajoutez un hôte à la racine ou dans l’une des collections."
+  },
+  "noMatch": {
+    "title": "Aucun hôte ne correspond à « {query} »",
+    "text": "La recherche porte sur les noms d’hôtes, les adresses et les noms de collections.",
+    "clear": "Effacer la recherche"
+  },
+  "noneConnected": {
+    "title": "Aucun hôte connecté",
+    "text": "Connectez un hôte depuis sa carte ou la barre latérale.",
+    "showAll": "Tout afficher"
+  }
+}

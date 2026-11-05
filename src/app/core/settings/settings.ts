@@ -1,6 +1,7 @@
 import { inject, Service, signal, type WritableSignal } from '@angular/core';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { notifyError } from '../../shared/save-error';
+import { uiText } from '../../shared/ui-text';
 import { type AppPreferences, type AppPreferencesPatch, AppSettings } from '../ipc/app-settings';
 import { isLanguagePreference, type LanguagePreference, LanguageService } from '../i18n/language';
 import type { KeyType } from '../ipc/keys';
@@ -260,7 +261,7 @@ export class Settings {
         }
       }
       if (failed) {
-        notifyError(this.alerts, failure, 'Setting not saved');
+        notifyError(this.alerts, failure, uiText('common.error.settingNotSaved'));
       }
     }
     this.writing = false;

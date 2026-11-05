@@ -1,6 +1,6 @@
 @if (!state.available) {
   <p class="text note" data-testid="analytics-events-keyless">
-    This build does not send usage data. These are the events it would send.
+    {{ 'analytics.events.keyless' | transloco }}
   </p>
 }
 
@@ -8,42 +8,44 @@
   <tui-loader size="m" />
 } @else if (recent.error()) {
   <div tuiNotification appearance="negative" size="s" data-testid="analytics-events-error">
-    Could not read the events. Restart the app.
+    {{ 'analytics.events.readError' | transloco }}
   </div>
 } @else if (recent.hasValue()) {
   <section class="group" aria-labelledby="analytics-system-title">
-    <h3 tuiTitle="s" id="analytics-system-title">Sent with every event</h3>
+    <h3 tuiTitle="s" id="analytics-system-title">
+      {{ 'analytics.events.systemTitle' | transloco }}
+    </h3>
     <dl tuiList="m" compact data-testid="analytics-system">
-      <dt>App version</dt>
+      <dt>{{ 'analytics.events.appVersion' | transloco }}</dt>
       <dd class="mono">{{ recent.value().system.appVersion }}</dd>
-      <dt>OS</dt>
+      <dt>{{ 'analytics.events.os' | transloco }}</dt>
       <dd class="mono">{{ recent.value().system.os }} {{ recent.value().system.osVersion }}</dd>
-      <dt>Language</dt>
+      <dt>{{ 'analytics.events.language' | transloco }}</dt>
       <dd class="mono">{{ recent.value().system.locale }}</dd>
-      <dt>SDK version</dt>
+      <dt>{{ 'analytics.events.sdkVersion' | transloco }}</dt>
       <dd class="mono">{{ recent.value().system.sdkVersion }}</dd>
-      <dt>Session ID</dt>
+      <dt>{{ 'analytics.events.sessionId' | transloco }}</dt>
       <dd>
         <span class="mono session">{{ recent.value().system.sessionId }}</span>
-        <span class="note session-note">Random, new at each launch, not linked to you.</span>
+        <span class="note session-note">{{ 'analytics.events.sessionNote' | transloco }}</span>
       </dd>
     </dl>
     <p class="text note" data-testid="analytics-country-note">
-      The country and region are not sent: the analytics service derives them from the connection.
+      {{ 'analytics.events.countryNote' | transloco }}
     </p>
   </section>
 
   <section class="group" aria-labelledby="analytics-session-title">
     <h3 tuiTitle="s" id="analytics-session-title">
-      This session (kept in memory, cleared when you quit)
+      {{ 'analytics.events.sessionTitle' | transloco }}
     </h3>
     @if (rows().length === 0) {
       <tui-block-status size="m" data-testid="analytics-events-empty">
-        <h4>Nothing sent in this session.</h4>
+        <h4>{{ 'analytics.events.empty' | transloco }}</h4>
         @if (state.doNotTrack) {
-          <span>DO_NOT_TRACK is set on this computer.</span>
+          <span>{{ 'analytics.events.doNotTrack' | transloco }}</span>
         } @else if (allOff) {
-          <span>Usage data is off.</span>
+          <span>{{ 'analytics.events.allOff' | transloco }}</span>
         }
       </tui-block-status>
     } @else {
@@ -51,9 +53,9 @@
         <table tuiTable size="s" class="table" aria-labelledby="analytics-session-title">
           <thead>
             <tr>
-              <th tuiTh class="col-time">Time</th>
-              <th tuiTh>Event</th>
-              <th tuiTh>Properties</th>
+              <th tuiTh class="col-time">{{ 'analytics.events.time' | transloco }}</th>
+              <th tuiTh>{{ 'analytics.events.event' | transloco }}</th>
+              <th tuiTh>{{ 'analytics.events.properties' | transloco }}</th>
             </tr>
           </thead>
           <tbody tuiTbody>
@@ -62,7 +64,9 @@
                 <td tuiTd>
                   {{ row.time }}
                   @if (row.previousLaunch) {
-                    <span class="note previous">Previous launch</span>
+                    <span class="note previous">{{
+                      'analytics.events.previousLaunch' | transloco
+                    }}</span>
                   }
                 </td>
                 <td tuiTd>
@@ -72,7 +76,7 @@
                   @for (prop of row.props; track $index) {
                     <div class="mono">{{ prop }}</div>
                   } @empty {
-                    <span class="note">None</span>
+                    <span class="note">{{ 'analytics.events.none' | transloco }}</span>
                   }
                 </td>
               </tr>
@@ -82,8 +86,7 @@
       </tui-scrollbar>
       @if (hasCrash()) {
         <p class="text note" data-testid="analytics-crash-note">
-          Crash reports carry the app version and OS but not the language, and use their own random
-          ID so they cannot be linked to the other events in this list.
+          {{ 'analytics.events.crashNote' | transloco }}
         </p>
       }
     }
@@ -100,6 +103,6 @@
     data-testid="analytics-events-close"
     (click)="context.completeWith()"
   >
-    Close
+    {{ 'common.close' | transloco }}
   </button>
 </footer>

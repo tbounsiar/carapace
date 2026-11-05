@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import type { FormGroup } from '@angular/forms';
+import { TranslocoService } from '@jsverse/transloco';
 import { provideTaiga, TuiNotificationService } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import { of } from 'rxjs';
@@ -85,6 +86,18 @@ describe('ExportDialog', () => {
     );
     expect(byId('export-secrets-note')!.textContent).toContain('Not included');
     expect(byId('export-project-select')).toBeNull();
+  });
+
+  it('follows a switch to French', async () => {
+    await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await settle();
+    expect(byId('export-scope-all')!.textContent).toContain(
+      '2 projets, 3 hôtes, 2 variables, 1 clé SSH',
+    );
+    expect(byId('export-scope-home')!.textContent).toContain('1 variable globale');
+    expect(byId('export-secrets-note')!.textContent).toContain('Non inclus');
+    expect(byId('export-submit')!.textContent?.trim()).toBe('Exporter…');
   });
 
   it('exports everything and completes with the result', async () => {

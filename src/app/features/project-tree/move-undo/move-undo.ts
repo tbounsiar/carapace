@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { type TuiPortalContext } from '@taiga-ui/cdk';
 import { TuiLink, type TuiNotificationOptions } from '@taiga-ui/core';
 import { injectContext } from '@taiga-ui/polymorpheus';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 export interface MoveUndoData {
   readonly text: string;
@@ -10,7 +11,7 @@ export interface MoveUndoData {
 
 /** Toast content of a move within a scope, with its Undo action. */
 @Component({
-  imports: [TuiLink],
+  imports: [TranslocoPipe, TuiLink],
   selector: 'app-move-undo',
   templateUrl: './move-undo.html',
   styleUrl: './move-undo.scss',

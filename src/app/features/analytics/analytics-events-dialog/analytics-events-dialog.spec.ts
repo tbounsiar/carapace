@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import { Analytics, type AnalyticsRecent, type AnalyticsState } from '../../../core/ipc/analytics';
+import { LanguageService } from '../../../core/i18n/language';
 import { AnalyticsEventsDialog, localTime } from './analytics-events-dialog';
 
 const SYSTEM = {
@@ -48,7 +49,7 @@ describe('AnalyticsEventsDialog', () => {
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
     const byId = (id: string) => el.querySelector<HTMLElement>(`[data-testid="${id}"]`);
-    return { el, byId, completeWith };
+    return { el, byId, completeWith, fixture };
   }
 
   it('shows the system properties and the events, newest first', async () => {
@@ -78,7 +79,7 @@ describe('AnalyticsEventsDialog', () => {
     expect(byId('analytics-event-0')?.dataset['event']).toBe('connect_succeeded');
     expect(byId('analytics-event-0')?.textContent).toContain('auth=key');
     expect(byId('analytics-event-0')?.textContent).toContain('duration=1-3s');
-    expect(byId('analytics-event-0')?.textContent).toMatch(/\d\d:\d\d:\d\d/);
+    expect(byId('analytics-event-0')?.textContent).toMatch(/\d{1,2}:\d\d:\d\d/);
     expect(byId('analytics-event-1')?.dataset['event']).toBe('app_started');
     expect(byId('analytics-event-2')?.dataset['event']).toBe('session_started');
     expect(byId('analytics-event-2')?.querySelectorAll('td')[2].textContent?.trim()).toBe('None');
@@ -180,10 +181,11 @@ describe('AnalyticsEventsDialog', () => {
     expect(byId('analytics-events-empty')?.textContent).not.toContain('Usage data is off.');
   });
 
-  it('formats times on the local clock and keeps an unreadable one as is', () => {
+  it('formats times on the local clock in the locale and keeps an unreadable one as is', () => {
     const date = new Date(2026, 10, 3, 9, 5, 7);
-    expect(localTime(date.toISOString())).toBe('09:05:07');
-    expect(localTime('not a date')).toBe('not a date');
+    expect(localTime(date.toISOString(), 'en-US')).toMatch(/^9:05:07\sAM$/);
+    expect(localTime(date.toISOString(), 'fr-FR')).toBe('09:05:07');
+    expect(localTime('not a date', 'en-US')).toBe('not a date');
   });
 
   it('shows an error when the events cannot be read, and closes', async () => {
@@ -193,5 +195,22 @@ describe('AnalyticsEventsDialog', () => {
     expect(byId('analytics-events-error')).not.toBeNull();
     byId('analytics-events-close')!.click();
     expect(completeWith).toHaveBeenCalled();
+  });
+
+  it('follows a switch to French, times included', async () => {
+    const { byId, fixture } = await setup(stateOf(ON), () =>
+      Promise.resolve<AnalyticsRecent>({
+        system: SYSTEM,
+        events: [{ time: '2026-11-03T14:02:11Z', name: 'app_started', props: {} }],
+      }),
+    );
+    TestBed.inject(LanguageService).apply('fr');
+    await fixture.whenStable();
+    expect(byId('analytics-system')?.textContent).toContain('Version de l’application');
+    const cells = byId('analytics-event-0')!.querySelectorAll('td');
+    expect(cells[0].textContent?.trim()).toMatch(/^\d\d:\d\d:\d\d$/);
+    expect(cells[2].textContent?.trim()).toBe('Aucune');
+    expect(byId('analytics-events-close')?.textContent?.trim()).toBe('Fermer');
+    TestBed.inject(LanguageService).apply('system');
   });
 });

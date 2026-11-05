@@ -12,6 +12,7 @@ import { HostLauncher } from '../host-connection/host-launcher';
 import type { TabStatus } from './tab-status';
 import { Workspace, type WorkspaceTab } from './workspace';
 import { WorkspaceActions } from './workspace-actions';
+import { TranslocoService } from '@jsverse/transloco';
 
 @Component({ template: '' })
 class Blank {}
@@ -200,5 +201,13 @@ describe('WorkspaceActions', () => {
       'Save your changes first',
     );
     expect(actions.menu(terminal('h1')).some((e) => e.id === 'tab-menu-external')).toBe(false);
+  });
+
+  it('builds the tab menu in French', () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    const tab = terminal('h1');
+    const labels = actions.menu(tab).map((e) => e.label);
+    expect(labels).toContain('Fermer les onglets de vps');
+    expect(labels).toContain('Fermer');
   });
 });

@@ -1,1 +1,8 @@
-{}
+{
+  "missingVariables": "Missing variables",
+  "connectionFailed": "Connection failed",
+  "disconnectFailed": "Disconnect failed",
+  "keyReplaced": "Host key replaced",
+  "keyReplacedText": "The stored key was replaced. Connect again to continue.",
+  "keyNotReplaced": "Host key not replaced"
+}

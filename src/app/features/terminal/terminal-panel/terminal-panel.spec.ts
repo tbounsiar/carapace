@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiNotificationService } from '@taiga-ui/core';
@@ -124,6 +125,19 @@ describe('TerminalPanel', () => {
     expect(connector.connect).toHaveBeenCalledWith(WEB);
     expect(ipc.open).toHaveBeenCalledTimes(2);
     expect(byId('terminal-ended')).toBeNull();
+  });
+
+  it('shows the ended banner in French', async () => {
+    const tab = await opened();
+    await setup(tab);
+    emits[0]({ kind: 'closed', reason: 'exited' });
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await settle();
+    expect(byId('terminal-ended')?.textContent).toContain(
+      "Session terminée. Le shell s'est arrêté.",
+    );
+    expect(byId('terminal-reopen')?.textContent).toContain('Rouvrir');
+    TestBed.inject(TranslocoService).setActiveLang('en');
   });
 
   it('shows a lost connection as a warning', async () => {

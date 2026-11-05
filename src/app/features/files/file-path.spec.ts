@@ -1,5 +1,10 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import type { AbstractControl } from '@angular/forms';
 import { crumbs, fileNameValidator, upTarget } from './file-path';
+
+// The validator translates through Transloco's global service, created on first injection.
+beforeEach(() => TestBed.inject(TranslocoService));
 
 describe('crumbs', () => {
   it('splits a POSIX path', () => {

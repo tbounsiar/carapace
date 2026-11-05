@@ -8,7 +8,51 @@
   },
   "language": {
     "title": "Language",
-    "system": "System ({{name}})",
+    "system": "System ({name})",
     "note": "System follows the language of the operating system."
+  },
+  "title": "Settings",
+  "subtitle": "Preferences of this app on this computer. Changes apply right away.",
+  "notSaved": "Setting not saved",
+  "keyType": {
+    "title": "Default key type",
+    "note": "Preselected when you generate a key. Ed25519 is recommended."
+  },
+  "fontSize": {
+    "title": "Terminal font size",
+    "valueText": "{size} pixels",
+    "note": "From {min} to {max} px. Open terminals update immediately."
+  },
+  "privacy": {
+    "title": "Privacy",
+    "doNotTrack": "Off because DO_NOT_TRACK is set on this computer. Nothing is sent.",
+    "readError": "Could not read this setting. Restart the app.",
+    "events": "View recent events",
+    "eventsTitle": "Recent usage events",
+    "unavailable": "This build does not send usage data. Changes are still saved."
+  },
+  "data": {
+    "title": "Data",
+    "nothing": "Nothing to export yet.",
+    "note": "Export projects, hosts, collections and variables to a file, or import one. Passwords and other secrets are never included. App settings are not included.",
+    "export": "Export…",
+    "import": "Import…"
+  },
+  "externalEditor": {
+    "title": "External editor",
+    "system": "System default",
+    "custom": "Custom app",
+    "customNote": "Files open with this app; the file is its only argument.",
+    "systemNote": "Files open with the app your system uses for their type. Scripts and programs are never run: pick a custom app to edit them.",
+    "placeholder": "No app chosen",
+    "appLabel": "Editor app",
+    "browse": "Browse…",
+    "clear": "Clear",
+    "pickHint": "Pick the editor's program file. Until then, files open with the system default app.",
+    "copyNote": "While you edit, a copy of the file is stored on this computer and deleted when you stop editing.",
+    "notice": "Show a notice before opening a file outside Carapace",
+    "notAnEditor": "This program runs scripts or commands; it is not an editor. Pick your editor's program file.",
+    "notRead": "Setting not read",
+    "pickerError": "File picker not opened"
   }
 }

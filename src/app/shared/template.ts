@@ -1,4 +1,5 @@
 import type { HostInput, Project, VariableView } from '../core/ipc/config.models';
+import { uiText } from './ui-text';
 
 export const VARIABLE_NAME = /^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/;
 export const TEMPLATE_MAX = 1024;
@@ -112,7 +113,7 @@ export function resolveTemplate(template: string, layers: VariableLayers): Resol
     if (!variable) {
       missing.push(segment.ref);
     } else if (variable.kind === 'secret') {
-      errors.push(`secret variable ${segment.ref} used in a non-secret field`);
+      errors.push(uiText('common.template.secretInPlain', { name: segment.ref }));
     } else {
       value += variable.value ?? '';
     }
@@ -133,46 +134,46 @@ export function previewHost(host: HostInput, layers: VariableLayers): HostPrevie
   const plain = (template: string): string => {
     const invalid = invalidReference(template);
     if (invalid) {
-      errors.push(`invalid variable reference "${invalid}"`);
+      errors.push(uiText('common.template.invalidReference', { ref: invalid }));
     }
     const result = resolveTemplate(template, layers);
     result.missing.forEach((name) => missing.add(name));
     errors.push(...result.errors);
     return result.value;
   };
-  const secret = (label: string, template: string | null): void => {
+  const secret = (field: 'password' | 'passphrase', template: string | null): void => {
     if (template === null) {
       return;
     }
     const name = secretReferenceName(template);
     if (!name) {
-      errors.push(`${label} must be a single \${name} reference`);
+      errors.push(uiText(`common.template.${field}Single`, { ref: '${name}' }));
       return;
     }
     const variable = lookupVariable(layers, name);
     if (!variable) {
       missing.add(name);
     } else if (variable.kind !== 'secret') {
-      errors.push(`plain variable ${name} used in a secret field`);
+      errors.push(uiText('common.template.plainInSecret', { name }));
     }
   };
 
   const hostname = plain(host.hostname);
   if (hasReferences(host.port) && !secretReferenceName(host.port)) {
-    errors.push('port must be digits or a single ${name} reference');
+    errors.push(uiText('common.template.portReference', { ref: '${name}' }));
   }
   const port = plain(host.port);
   const username = plain(host.username);
   if (host.auth.kind === 'key') {
     plain(host.auth.keyPath);
-    secret('Passphrase', host.auth.passphrase);
+    secret('passphrase', host.auth.passphrase);
   } else if (host.auth.kind === 'password') {
-    secret('Password', host.auth.password);
+    secret('password', host.auth.password);
   }
   if (missing.size === 0 && !errors.length) {
     const n = Number(port);
     if (!/^\d+$/.test(port) || n < 1 || n > 65535) {
-      errors.push(`port "${port}" is not between 1 and 65535`);
+      errors.push(uiText('common.template.portRange', { port }));
     }
   }
   return { address: `${username}@${hostname}:${port}`, missing: [...missing], errors };

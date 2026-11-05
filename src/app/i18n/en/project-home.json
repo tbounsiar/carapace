@@ -1,1 +1,38 @@
-{}
+{
+  "notFound": {
+    "title": "Project not found",
+    "text": "It may have been deleted.",
+    "home": "Go to Home"
+  },
+  "placeholderTitle": "Project",
+  "newHost": "New host",
+  "actions": "Project actions",
+  "tabs": "Project",
+  "hosts": "Hosts",
+  "variables": "Variables",
+  "loadError": "Hosts could not be loaded",
+  "retry": "Try again",
+  "menu": {
+    "newCollection": "New collection",
+    "export": "Export project…"
+  },
+  "empty": {
+    "title": "This project is empty",
+    "text": "Add hosts here, or create collections to group them.",
+    "newCollection": "New collection"
+  },
+  "noHosts": {
+    "title": "No hosts yet",
+    "text": "Add a host at the top level or in one of the collections."
+  },
+  "noMatch": {
+    "title": "No host matches “{query}”",
+    "text": "Search looks at host names, addresses and collection names.",
+    "clear": "Clear search"
+  },
+  "noneConnected": {
+    "title": "No connected hosts",
+    "text": "Connect a host from its card or the sidebar.",
+    "showAll": "Show all"
+  }
+}

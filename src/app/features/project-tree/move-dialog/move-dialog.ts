@@ -15,10 +15,12 @@ import {
 import { TuiButtonLoading } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
 import type { ConfigNode } from '../../../core/ipc/config.models';
 import { crossScopeWarning, moveTargets, type MoveTarget } from '../move-rules';
 import { sameContainer, type Container } from '../node-tree';
+import { uiText } from '../../../shared/ui-text';
 
 export interface MoveDialogData {
   readonly node: ConfigNode;
@@ -39,6 +41,7 @@ export interface MoveDialogData {
     TuiNotification,
     TuiTextfield,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-move-dialog',
   templateUrl: './move-dialog.html',
@@ -60,12 +63,14 @@ export class MoveDialog {
     return moveTargets(this.config.nodes(), this.config.projects(), this.node)
       .map((group) => ({
         ...group,
-        targets: group.targets.filter((t) => this.text(t).toLowerCase().includes(needle)),
+        targets: group.targets.filter((t) => t.text.toLowerCase().includes(needle)),
       }))
       .filter((group) => group.targets.length > 0);
   });
 
-  protected readonly empty = computed(() => `No location matches “${this.filter().trim()}”.`);
+  protected readonly empty = computed(() =>
+    uiText('projectTree.moveDialog.noMatch', { query: this.filter().trim() }),
+  );
 
   protected readonly warning = computed(() => {
     const target = this.chosen();
@@ -79,10 +84,6 @@ export class MoveDialog {
         )
       : null;
   });
-
-  protected text(target: MoveTarget): string {
-    return target.path.length === 1 ? `${target.path[0]} (top level)` : target.path.join(' / ');
-  }
 
   protected testId(target: MoveTarget): string {
     return `move-target-${target.path.join('/')}`;

@@ -4,6 +4,7 @@ import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { ThemeService } from '../../../core/theme/theme';
 import { ThemeMenu } from './theme-menu';
+import { TranslocoService } from '@jsverse/transloco';
 
 @Component({
   imports: [ThemeMenu, TuiRoot],
@@ -81,5 +82,15 @@ describe('ThemeMenu', () => {
     expect(TestBed.inject(ThemeService).mode()).toBe('system');
     expect(byId('theme-toggle')?.getAttribute('aria-label')).toBe('Theme: System');
     expect(document.body.textContent).toContain('Setting not saved');
+  });
+
+  it('reads in French', async () => {
+    const fixture = TestBed.createComponent(Host);
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    expect(byId('theme-toggle')?.getAttribute('aria-label')).toBe('Thème : Système');
+    byId('theme-toggle')!.click();
+    await fixture.whenStable();
+    expect(byId('theme-dark')?.textContent?.trim()).toBe('Sombre');
   });
 });

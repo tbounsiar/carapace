@@ -1,3 +1,5 @@
+import { TranslocoService } from '@jsverse/transloco';
+import { trackLanguage } from '../../../shared/ui-text';
 import { Component, signal, viewChild } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiNotificationService, TuiRoot } from '@taiga-ui/core';
@@ -171,6 +173,19 @@ describe('VariablesEditor', () => {
     await type('var-name-1', 'password');
     await save();
     expect(setVariables).toHaveBeenCalledOnce();
+  });
+
+  it('lists the errors in French after a language switch', async () => {
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    await click('vars-add');
+    await save();
+    transloco.setActiveLang('fr');
+    await settle();
+    expect(byId('vars-errors')?.textContent).toContain(
+      'Ligne 3, nom\u00a0: Le nom est obligatoire',
+    );
+    expect(byId('vars-add')?.textContent?.trim()).toBe('Ajouter une variable');
   });
 
   it('requires a name on new rows', async () => {

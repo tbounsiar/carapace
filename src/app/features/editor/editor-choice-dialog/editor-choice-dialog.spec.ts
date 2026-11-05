@@ -1,3 +1,5 @@
+import { ApplicationRef } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
@@ -36,6 +38,16 @@ describe('EditorChoiceDialog', () => {
     expect(completeWith).toHaveBeenCalledWith('discard');
     button('unsaved-cancel')?.click();
     expect(completeWith).toHaveBeenCalledWith('cancel');
+  });
+
+  it('reads in French', async () => {
+    const { el, button } = await render({ kind: 'deleted', name: 'nginx.conf', host: 'vps' });
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(el.textContent).toContain("nginx.conf n'existe plus sur vps.");
+    expect(button('conflict-edit-save-anyway')?.textContent).toContain('Enregistrer quand même');
+    expect(button('conflict-edit-cancel')?.textContent).toContain('Annuler');
+    TestBed.inject(TranslocoService).setActiveLang('en');
   });
 
   it('warns about a server change with Cancel focused', async () => {

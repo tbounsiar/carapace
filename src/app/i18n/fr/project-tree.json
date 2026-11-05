@@ -1,1 +1,129 @@
-{}
+{
+  "topLevel": "{scope} (racine)",
+  "counts": {
+    "collections": "{count, plural, one {# collection} other {# collections}}",
+    "hosts": "{count, plural, one {# hôte} other {# hôtes}}",
+    "both": "{collections, plural, one {# collection} other {# collections}} et {hosts, plural, one {# hôte} other {# hôtes}}"
+  },
+  "validation": {
+    "required": "« {label} » est obligatoire",
+    "maxLength": "« {label} » doit contenir au plus {max} caractères",
+    "noWhitespace": "« {label} » ne doit pas contenir d’espace",
+    "hostnameChars": "Le nom d’hôte ne peut contenir que des lettres, des chiffres, « . », « - » et « : »",
+    "portRequired": "Le port est obligatoire",
+    "portRange": "Le port doit être compris entre 1 et 65535",
+    "invalidReference": "« {reference} » n’est pas une référence de variable valide ; écrivez $$ pour obtenir un $ littéral",
+    "portTemplate": "Le port doit être composé de chiffres ou d’une seule variable comme {example}",
+    "secretReference": "« {label} » doit être une référence à une variable secrète, comme {example}",
+    "keyPathRequired": "Le chemin de la clé est obligatoire",
+    "networkPath": "Les chemins réseau ne sont pas pris en charge",
+    "publicKey": "Ceci est une clé publique. Choisissez le fichier sans .pub.",
+    "absolutePath": "Utilisez un chemin absolu ou un chemin commençant par ~/"
+  },
+  "nameDialog": {
+    "name": "Nom"
+  },
+  "hostDialog": {
+    "location": "Dans : {location}",
+    "note": "Les champs acceptent des variables comme {example} ; écrivez {escape} pour obtenir un {dollar} littéral.",
+    "fields": {
+      "name": "Nom",
+      "hostname": "Nom d’hôte",
+      "port": "Port",
+      "username": "Nom d’utilisateur",
+      "keyPath": "Chemin de la clé",
+      "password": "Mot de passe",
+      "passphrase": "Phrase secrète"
+    },
+    "authentication": "Authentification",
+    "pickKey": "Choisir une clé enregistrée",
+    "noKeys": "Aucune clé enregistrée pour l’instant",
+    "browseKey": "Choisir un fichier de clé",
+    "noKeysList": "Aucune clé enregistrée. Ajoutez-en une dans Clés SSH.",
+    "notRegistered": "Absente des clés SSH. Enregistrez-la pour mémoriser sa phrase secrète et la déployer.",
+    "register": "Enregistrer cette clé",
+    "ask": "Demander à la connexion",
+    "passphraseHint": "Uniquement pour une clé chiffrée. Choisissez une variable secrète (définie dans les variables du projet ou les variables globales) ou saisissez-la quand elle est demandée.",
+    "passwordHint": "Choisissez une variable secrète (définie dans les variables du projet ou les variables globales) ou saisissez-le à la connexion.",
+    "missing": "Variables manquantes : {names}",
+    "resolves": "Adresse résolue : {address}",
+    "blocker": {
+      "projectGone": "Ce projet n’existe plus.",
+      "missing": "Définissez les variables manquantes pour tester la connexion.",
+      "invalid": "Corrigez les champs signalés pour tester la connexion."
+    },
+    "test": "Tester la connexion",
+    "cancelTest": "Annuler le test",
+    "pickerFailed": "Sélecteur de fichier non ouvert",
+    "importKey": "Importer la clé",
+    "keyRegistered": "Clé enregistrée",
+    "replace": {
+      "label": "Remplacer le modèle ?",
+      "content": "Le chemin de la clé utilise {refs}. Le remplacer par ce fichier ? L’hôte ne suivra plus la variable.",
+      "yes": "Remplacer",
+      "no": "Garder le modèle"
+    }
+  },
+  "moveDialog": {
+    "filter": "Filtrer les emplacements",
+    "locations": "Emplacements",
+    "noMatch": "Aucun emplacement ne correspond à « {query} ».",
+    "current": "(emplacement actuel)",
+    "move": "Déplacer"
+  },
+  "move": {
+    "title": "Déplacer « {name} »",
+    "moved": "{kind, select, collection {« {name} » déplacée vers {destination}} other {« {name} » déplacé vers {destination}}}",
+    "undone": "Déplacement annulé",
+    "undo": "Annuler",
+    "hostFailed": "Hôte non déplacé",
+    "collectionFailed": "Collection non déplacée",
+    "renameFirst": "{message}. Renommez d’abord l’un des deux.",
+    "warning": {
+      "title": {
+        "out": "Sortie du projet",
+        "other": "Déplacement vers un autre projet",
+        "into": "Déplacement dans un projet"
+      },
+      "question": {
+        "out": "Sortir du projet ?",
+        "other": "Déplacer vers un autre projet ?",
+        "into": "Déplacer dans un projet ?"
+      },
+      "hostToProject": "{name} utilisera les variables de {project}. Ses connexions ouvertes sont fermées et ses mots de passe enregistrés sont oubliés.",
+      "hostToHome": "{name} n’utilisera que les variables globales. Ses connexions ouvertes sont fermées et ses mots de passe enregistrés sont oubliés.",
+      "collectionToProject": "{count, plural, =0 {Les hôtes de {name} utiliseront les variables de {project}. Leurs connexions ouvertes sont fermées et leurs mots de passe enregistrés sont oubliés.} one {L’hôte de {name} utilisera les variables de {project}. Ses connexions ouvertes sont fermées et ses mots de passe enregistrés sont oubliés.} other {Les # hôtes de {name} utiliseront les variables de {project}. Leurs connexions ouvertes sont fermées et leurs mots de passe enregistrés sont oubliés.}}",
+      "collectionToHome": "{count, plural, =0 {Les hôtes de {name} n’utiliseront que les variables globales. Leurs connexions ouvertes sont fermées et leurs mots de passe enregistrés sont oubliés.} one {L’hôte de {name} n’utilisera que les variables globales. Ses connexions ouvertes sont fermées et ses mots de passe enregistrés sont oubliés.} other {Les # hôtes de {name} n’utiliseront que les variables globales. Leurs connexions ouvertes sont fermées et leurs mots de passe enregistrés sont oubliés.}}",
+      "missing": "Non défini dans {scope} : {names}."
+    }
+  },
+  "actions": {
+    "newProject": "Nouveau projet",
+    "renameProject": "Renommer le projet",
+    "newCollection": "Nouvelle collection",
+    "renameCollection": "Renommer la collection",
+    "newHost": "Nouvel hôte",
+    "editHost": "Modifier l’hôte",
+    "collectionPlaceholder": "Backend",
+    "collectionConflict": "Une collection portant ce nom existe déjà ici.",
+    "deleteProject": {
+      "label": "Supprimer le projet ?",
+      "full": "« {name} » contient {content}. Tout son contenu sera supprimé, avec ses variables et ses mots de passe enregistrés. Les connexions ouvertes sont fermées. Cette action est irréversible.",
+      "empty": "« {name} » est vide. Il sera supprimé avec ses variables. Cette action est irréversible.",
+      "failed": "Projet non supprimé"
+    },
+    "deleteCollection": {
+      "label": "Supprimer la collection ?",
+      "full": "« {name} » contient {content}. Tout sera supprimé, avec les mots de passe enregistrés. Les connexions ouvertes vers ces hôtes sont fermées. Cette action est irréversible. Pour garder les hôtes, déplacez-les d’abord.",
+      "empty": "« {name} » est vide.",
+      "failed": "Collection non supprimée"
+    },
+    "deleteHost": {
+      "label": "Supprimer l’hôte ?",
+      "content": "« {name} » et ses mots de passe enregistrés seront supprimés. Les connexions ouvertes vers cet hôte sont fermées.",
+      "failed": "Hôte non supprimé"
+    },
+    "tabs": "{count, plural, one {# onglet ouvert sera fermé.} other {# onglets ouverts seront fermés.}}",
+    "unsaved": "Les modifications non enregistrées de {names} seront perdues."
+  }
+}

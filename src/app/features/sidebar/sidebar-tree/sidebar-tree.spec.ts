@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -340,6 +341,14 @@ describe('SidebarTree', () => {
       expect(filter.query()).toBe('');
       expect(filter.fieldFocus()).toBe(before + 1);
       expect(byId('tree-collection-Lab')).not.toBeNull();
+    });
+
+    it('renders in French after a language switch', async () => {
+      TestBed.inject(TranslocoService).setActiveLang('fr');
+      filter.set('zzz');
+      await settle();
+      expect(byId('sidebar-no-match')?.textContent).toContain('Aucun hôte ne correspond à « zzz »');
+      expect(byId('sidebar-clear-filter')?.textContent?.trim()).toBe('Effacer le filtre');
     });
 
     it('moves between the field and the first row', async () => {

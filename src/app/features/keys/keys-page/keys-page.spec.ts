@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiNotificationService, TuiRoot } from '@taiga-ui/core';
@@ -143,5 +144,13 @@ describe('KeysPage', () => {
     await click('key-menu-id_ed25519');
     await click('key-forget');
     expect(actions.forgetPassphrase).toHaveBeenCalledWith(saved);
+  });
+
+  it('renders in French', async () => {
+    await setup([]);
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await settle();
+    expect(byId('keys-empty')?.textContent).toContain('Aucune clé SSH pour l’instant');
+    expect(byId('keys-generate')?.textContent).toContain('Générer une clé');
   });
 });

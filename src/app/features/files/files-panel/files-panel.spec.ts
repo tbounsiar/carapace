@@ -1,3 +1,4 @@
+import { LanguageService } from '../../../core/i18n/language';
 import { signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiNotificationService } from '@taiga-ui/core';
@@ -203,5 +204,16 @@ describe('FilesPanel', () => {
   it('shows the transfer panel below the panes', async () => {
     await setup();
     expect(el().querySelector('[data-testid="transfer-panel"]')).toBeTruthy();
+  });
+
+  it('shows the remote placeholder in French', async () => {
+    await setup();
+    TestBed.inject(LanguageService).apply('fr');
+    await settle();
+    expect(pane('remote').textContent).toContain('Non connecté');
+    expect(pane('remote').querySelector('[data-testid="pane-connect"]')!.textContent).toContain(
+      'Connecter',
+    );
+    TestBed.inject(LanguageService).apply('en');
   });
 });

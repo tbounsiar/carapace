@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { FormGroup } from '@angular/forms';
@@ -67,7 +68,7 @@ describe('KeyDeployDialog', () => {
     const fixture = TestBed.createComponent(KeyDeployDialog);
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    return { el, dialog: fixture.componentInstance as unknown as DialogApi };
+    return { fixture, el, dialog: fixture.componentInstance as unknown as DialogApi };
   }
 
   beforeEach(() => vi.clearAllMocks());
@@ -111,5 +112,15 @@ describe('KeyDeployDialog', () => {
     await dialog.submit();
     expect(deploy).toHaveBeenCalledWith('h2', false);
     expect(completeWith).not.toHaveBeenCalled();
+  });
+
+  it('renders in French with the key name and file styled', async () => {
+    const { fixture, el } = await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    const note = el.querySelector('p.note')!;
+    expect(note.textContent).toContain('Ajoute la clé publique de');
+    expect(note.querySelector('strong')?.textContent).toBe('main');
+    expect(note.querySelector('.mono')?.textContent).toBe('~/.ssh/authorized_keys');
   });
 });

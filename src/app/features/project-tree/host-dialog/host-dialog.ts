@@ -45,6 +45,7 @@ import {
 import { type TuiStringHandler } from '@taiga-ui/cdk';
 import { TuiElasticContainer, TuiForm } from '@taiga-ui/layout';
 import { injectContext, PolymorpheusComponent } from '@taiga-ui/polymorpheus';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
 import type { AuthMethod, Host, HostInput } from '../../../core/ipc/config.models';
@@ -79,6 +80,8 @@ import {
   templated,
 } from '../validators';
 import { ErrorLink } from '../../../shared/error-link';
+import { uiText } from '../../../shared/ui-text';
+import { monoParts } from '../text-parts';
 
 export interface HostDialogData {
   /** Scope of the host: null is Home (global variables only). */
@@ -96,6 +99,11 @@ export type AuthKind = AuthMethod['kind'];
 /** Case-insensitive for Windows paths, which contain a backslash. */
 export function sameKeyPath(a: string, b: string): boolean {
   return a.includes('\\') || b.includes('\\') ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/** The translated label of a field, for its validation messages. */
+function field(name: string): () => string {
+  return () => uiText(`projectTree.hostDialog.fields.${name}`);
 }
 
 function reference(value: string | null): string | null {
@@ -129,6 +137,7 @@ function reference(value: string | null): string | null {
     TuiTextfield,
     TuiTitle,
     TuiTooltip,
+    TranslocoPipe,
   ],
   selector: 'app-host-dialog',
   styleUrl: './host-dialog.scss',
@@ -145,7 +154,9 @@ export class HostDialog {
   protected readonly context = injectContext<TuiDialogContext<void, HostDialogData>>();
 
   protected readonly authKinds: readonly AuthKind[] = ['password', 'key', 'agent'];
-  protected readonly example = '${host}';
+  protected readonly note = computed(() =>
+    monoParts('projectTree.hostDialog.note', { example: '${host}', escape: '$$', dollar: '$' }),
+  );
 
   protected readonly saving = signal(false);
   protected readonly keys = this.keyStore.keys;
@@ -159,22 +170,22 @@ export class HostDialog {
   private readonly initialAuth = this.initial?.auth;
   private readonly fb = inject(NonNullableFormBuilder);
   protected readonly form = this.fb.group({
-    name: [this.initial?.name ?? '', nameValidator('Name', 100)],
-    hostname: [this.initial?.hostname ?? '', templated('Hostname', hostnameValidator(253))],
+    name: [this.initial?.name ?? '', nameValidator(field('name'), 100)],
+    hostname: [this.initial?.hostname ?? '', templated(field('hostname'), hostnameValidator(253))],
     port: [this.initial?.port ?? '22', portTemplateValidator],
     username: [
       this.initial?.username ?? '',
-      templated('Username', noWhitespaceValidator('Username', 64)),
+      templated(field('username'), noWhitespaceValidator(field('username'), 64)),
     ],
     authKind: [(this.initialAuth?.kind ?? 'password') as AuthKind],
     keyPath: [this.initialAuth?.kind === 'key' ? this.initialAuth.keyPath : ''],
     password: this.fb.control<string | null>(
       this.initialAuth?.kind === 'password' ? this.initialAuth.password : null,
-      secretReferenceValidator('Password'),
+      secretReferenceValidator(field('password')),
     ),
     passphrase: this.fb.control<string | null>(
       this.initialAuth?.kind === 'key' ? this.initialAuth.passphrase : null,
-      secretReferenceValidator('Passphrase'),
+      secretReferenceValidator(field('passphrase')),
     ),
   });
 
@@ -190,7 +201,7 @@ export class HostDialog {
     return id ? this.config.findProject(id) : null;
   });
   protected readonly askLabel: TuiStringHandler<string | null> = (value) =>
-    value || 'Ask when connecting';
+    value || uiText('projectTree.hostDialog.ask');
 
   /** Secret variables of both levels, plus the current references so a stale one stays visible. */
   protected readonly secretReferences = computed(() => {
@@ -229,17 +240,26 @@ export class HostDialog {
     this.value();
     const preview = this.preview();
     if (!preview) {
-      return 'This project no longer exists.';
+      return uiText('projectTree.hostDialog.blocker.projectGone');
     }
     if (preview.missing.length) {
-      return 'Define the missing variables to test the connection.';
+      return uiText('projectTree.hostDialog.blocker.missing');
     }
     const { hostname, port, username, keyPath } = this.form.controls;
     const fields = this.isKey() ? [hostname, port, username, keyPath] : [hostname, port, username];
     if (preview.errors.length || fields.some((field) => field.invalid)) {
-      return 'Fix the highlighted fields to test the connection.';
+      return uiText('projectTree.hostDialog.blocker.invalid');
     }
     return null;
+  });
+
+  protected readonly pickHint = computed(() =>
+    this.keys().length ? 'projectTree.hostDialog.pickKey' : 'projectTree.hostDialog.noKeys',
+  );
+
+  protected readonly resolves = computed(() => {
+    const address = this.preview()?.address ?? '';
+    return monoParts('projectTree.hostDialog.resolves', { address });
   });
 
   protected readonly testView = signal<HostTestView | null>(null);
@@ -257,7 +277,7 @@ export class HostDialog {
     this.keyStore.ensureLoaded().catch(() => undefined);
     effect(() => {
       const keyPath = this.form.controls.keyPath;
-      keyPath.setValidators(this.isKey() ? templated('Key path', keyPathValidator) : []);
+      keyPath.setValidators(this.isKey() ? templated(field('keyPath'), keyPathValidator) : []);
       keyPath.updateValueAndValidity();
     });
     effect(() => {
@@ -331,7 +351,7 @@ export class HostDialog {
     try {
       picked = await this.picker.pickFile(current && !hasReferences(current) ? current : null);
     } catch (err) {
-      notifyError(this.alerts, err, 'File picker not opened');
+      notifyError(this.alerts, err, uiText('projectTree.hostDialog.pickerFailed'));
       return;
     }
     if (picked === null || !(await this.replaceKeyPath(picked))) {
@@ -350,14 +370,19 @@ export class HostDialog {
     const { KeyImportDialog } = await import('../../keys/key-import-dialog/key-import-dialog');
     const key = await firstValueFrom(
       this.dialogs.open<KeyView>(new PolymorpheusComponent(KeyImportDialog), {
-        label: 'Import key',
+        label: uiText('projectTree.hostDialog.importKey'),
         size: 'm',
         data: { path },
       }),
       { defaultValue: null },
     );
     if (key) {
-      this.alerts.open(key.name, { label: 'Key registered', appearance: 'positive' }).subscribe();
+      this.alerts
+        .open(key.name, {
+          label: uiText('projectTree.hostDialog.keyRegistered'),
+          appearance: 'positive',
+        })
+        .subscribe();
       this.browsedPath.set(null);
     }
     this.focusLater(this.keyPathInput());
@@ -370,14 +395,14 @@ export class HostDialog {
     if (refs.length) {
       const code = (text: string): string => `<code>${escapeHtml(text)}</code>`;
       const data: TuiConfirmData = {
-        content: `Key path uses ${refs.map(code).join(', ')}. Replace it with this file? The host will no longer follow the variable.<br /><code>${pathHtml(path)}</code>`,
-        yes: 'Replace',
-        no: 'Keep template',
+        content: `${uiText('projectTree.hostDialog.replace.content', { refs: refs.map(code).join(', ') })}<br /><code>${pathHtml(path)}</code>`,
+        yes: uiText('projectTree.hostDialog.replace.yes'),
+        no: uiText('projectTree.hostDialog.replace.no'),
         appearance: 'primary',
       };
       const replace = await firstValueFrom(
         this.dialogs.open<boolean>(TUI_CONFIRM, {
-          label: 'Replace the template?',
+          label: uiText('projectTree.hostDialog.replace.label'),
           size: 's',
           data,
         }),

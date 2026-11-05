@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiTitle } from '@taiga-ui/core';
 import { TuiSkeleton, TuiTabs } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiHeader } from '@taiga-ui/layout';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
 import { SshService } from '../../../core/ipc/ssh';
 import { connectedCounts } from '../../../shared/connection-status';
@@ -27,6 +28,7 @@ import { errorText } from '../../../shared/save-error';
     TuiSkeleton,
     TuiTabs,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-project-home',
   templateUrl: './project-home.html',

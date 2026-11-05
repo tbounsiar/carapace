@@ -1,5 +1,6 @@
 import { computed, inject, Injector, Service, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
+import { TranslocoService } from '@jsverse/transloco';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { defer, filter, firstValueFrom, of } from 'rxjs';
@@ -19,6 +20,7 @@ export class ConsentPrompter {
   private readonly alerts = inject(TuiNotificationService);
   private readonly theme = inject(ThemeService);
   private readonly injector = inject(Injector);
+  private readonly transloco = inject(TranslocoService);
   private started = false;
 
   private readonly ready = computed(() => this.config.loaded() && this.dialogs.none());
@@ -60,7 +62,7 @@ export class ConsentPrompter {
     });
     const chosen = await firstValueFrom(
       this.dialogs.open<AnalyticsChoices>(new PolymorpheusComponent(ConsentDialog), {
-        label: 'Anonymous usage data',
+        label: this.transloco.translate('analytics.consent.title'),
         size: 'm',
         closable: false,
         dismissible: dismiss,
@@ -76,12 +78,15 @@ export class ConsentPrompter {
       await this.analytics.setChoices(saving);
     } catch (err) {
       if (!unsavedDenial(this.analytics.current())) {
-        notifyError(this.alerts, err, 'Setting not saved');
+        notifyError(this.alerts, err, this.transloco.translate('analytics.notSaved'));
       }
     }
     if (unsavedDenial(this.analytics.current())) {
       this.alerts
-        .open(UNSAVED_DENIAL, { label: 'Setting not saved', appearance: 'warning' })
+        .open(this.transloco.translate(UNSAVED_DENIAL), {
+          label: this.transloco.translate('analytics.notSaved'),
+          appearance: 'warning',
+        })
         .subscribe();
     }
   }

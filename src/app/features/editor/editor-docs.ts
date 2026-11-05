@@ -1,5 +1,7 @@
 import { computed, inject, Service, signal } from '@angular/core';
+import { translate } from '@jsverse/transloco';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
+import { LanguageService } from '../../core/i18n/language';
 import { ConfigService } from '../../core/ipc/config';
 import type { Host } from '../../core/ipc/config.models';
 import { connectionId, connectionTarget, hostTarget } from '../../core/ipc/connection';
@@ -31,9 +33,33 @@ function baseName(path: string): string {
   return path.split('/').filter(Boolean).at(-1) ?? path;
 }
 
-function clock(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+const t = (key: string, params?: Record<string, unknown>): string =>
+  translate(`editor.docs.${key}`, params);
+
+/** CodeMirror's own texts (search panel, go to line), keyed by its English phrases. */
+export function editorPhrases(): Record<string, string> {
+  const s = (key: string) => translate(`editor.search.${key}`);
+  return {
+    Find: s('find'),
+    Replace: s('replace'),
+    next: s('next'),
+    previous: s('previous'),
+    all: s('all'),
+    'match case': s('matchCase'),
+    regexp: s('regexp'),
+    'by word': s('byWord'),
+    replace: s('replaceOne'),
+    'replace all': s('replaceAll'),
+    close: s('close'),
+    'current match': s('currentMatch'),
+    'on line': s('onLine'),
+    'replaced $ matches': s('replacedMatches'),
+    'replaced match on line $': s('replacedOnLine'),
+    'Go to line': s('goToLine'),
+    go: s('go'),
+    'Selection deleted': s('selectionDeleted'),
+    'Control character': s('controlCharacter'),
+  };
 }
 
 /** A mixed file is saved with LF; the status line says so. */
@@ -59,7 +85,7 @@ export class EditorDoc {
   readonly readOnly = signal(false);
   readonly language = signal<LanguageId>('plain');
   readonly wrap = signal(false);
-  readonly savedAt = signal<string | null>(null);
+  readonly savedAt = signal<Date | null>(null);
   readonly error = signal<string | null>(null);
   readonly stats = signal<EditorStats>(EMPTY_STATS);
   readonly lineEnding = signal<LineEnding>('lf');
@@ -101,7 +127,7 @@ export class EditorDoc {
   }
 
   hostName(): string {
-    return this.deps.config.findHost(this.hostId)?.host.name ?? 'the host';
+    return this.deps.config.findHost(this.hostId)?.host.name ?? t('theHost');
   }
 
   /** Resolves null on success, else what to tell the user. */
@@ -127,13 +153,14 @@ export class EditorDoc {
         language,
         readOnly: !file.writable,
         wrap: false,
-        label: `Contents of ${this.name}`,
+        label: t('contents', { name: this.name }),
+        phrases: editorPhrases(),
         onChange: (stats) => this.stats.set(stats),
         onSave: () => void this.save(),
         onToggleWrap: () => this.toggleWrap(),
       });
     } catch {
-      return 'The editor could not be loaded. Try again.';
+      return t('loadFailed');
     }
     if (this.destroyed) {
       this.editor.destroy();
@@ -189,10 +216,10 @@ export class EditorDoc {
       return;
     }
     if (this.modified()) {
-      const discard = await confirmDestructive(this.deps.dialogs, 'Reload from server?', {
-        content: `Discard your changes to ${this.name} and reload it from ${this.hostName()}?`,
-        yes: 'Reload',
-        no: 'Cancel',
+      const discard = await confirmDestructive(this.deps.dialogs, t('reloadTitle'), {
+        content: t('reloadContent', { name: this.name, host: this.hostName() }),
+        yes: t('reloadYes'),
+        no: translate('common.cancel'),
       });
       if (!discard) {
         return;
@@ -201,6 +228,11 @@ export class EditorDoc {
     if (await this.ensureConnected()) {
       await this.fetch();
     }
+  }
+
+  /** Puts the editor's own texts in the current language. */
+  relabel(): void {
+    this.editor?.setTexts(t('contents', { name: this.name }), editorPhrases());
   }
 
   async reconnect(): Promise<void> {
@@ -232,7 +264,7 @@ export class EditorDoc {
       this.error.set(null);
       return true;
     } catch (err) {
-      notifyError(this.deps.alerts, err, 'File not reloaded');
+      notifyError(this.deps.alerts, err, t('notReloaded'));
       return false;
     } finally {
       this.phase.set('ready');
@@ -259,7 +291,7 @@ export class EditorDoc {
       });
       this.version = saved.version;
       editor.markSaved(snapshot);
-      this.savedAt.set(clock(new Date()));
+      this.savedAt.set(new Date());
       return true;
     } catch (err) {
       this.phase.set('ready');
@@ -267,7 +299,7 @@ export class EditorDoc {
         return this.resolveConflict(err);
       }
       this.partial.set(err instanceof IpcError && err.code === 'partial_write');
-      this.error.set(`Not saved: ${errorText(err)}`);
+      this.error.set(t('notSaved', { reason: errorText(err) }));
       return false;
     } finally {
       if (this.phase() === 'saving') {
@@ -315,11 +347,11 @@ export class EditorDoc {
     if (err instanceof IpcError) {
       switch (err.code) {
         case 'too_large':
-          return `${this.name} is too large to edit here (max 5 MiB). Download it instead.`;
+          return t('tooLarge', { name: this.name });
         case 'not_text':
-          return `${this.name} isn’t UTF-8 text. Only text files can be edited here.`;
+          return t('notText', { name: this.name });
         case 'permission_denied':
-          return `You don’t have permission to read ${this.name} on ${this.hostName()}.`;
+          return t('permissionDenied', { name: this.name, host: this.hostName() });
       }
     }
     return errorText(err);
@@ -331,6 +363,7 @@ export class EditorDoc {
 export class EditorDocs {
   private readonly workspace = inject(Workspace);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly language = inject(LanguageService);
   private readonly deps: Deps = {
     files: inject(EditorFiles),
     ssh: inject(SshService),
@@ -351,9 +384,7 @@ export class EditorDocs {
     }
     const name = baseName(path);
     if (size !== null && size > MAX_EDIT_BYTES) {
-      this.fail(
-        `${name} is too large to edit here (${formatSize(size)}, max 5 MiB). Download it instead.`,
-      );
+      this.fail(t('tooLargeSize', { name, size: formatSize(size, this.language.locale()) }));
       return;
     }
     const doc = new EditorDoc(this.deps, host.id, path);
@@ -388,6 +419,6 @@ export class EditorDocs {
   }
 
   private fail(message: string): void {
-    this.alerts.open(message, { label: 'File not opened', appearance: 'negative' }).subscribe();
+    this.alerts.open(message, { label: t('notOpened'), appearance: 'negative' }).subscribe();
   }
 }

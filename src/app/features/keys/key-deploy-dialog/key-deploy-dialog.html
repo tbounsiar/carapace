@@ -1,13 +1,23 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
   <p class="note">
-    Appends the public key of <strong>{{ key.name }}</strong> to
-    <span class="mono">~/.ssh/authorized_keys</span> on the host. You connect first, as usual.
+    @for (part of intro(); track $index) {
+      @if (part.strong) {
+        <strong [textContent]="part.text"></strong>
+      } @else {
+        <span [class.mono]="part.mono" [textContent]="part.text"></span>
+      }
+    }
   </p>
 
   <tui-textfield tuiChevron [stringify]="stringify" [tuiTextfieldCleaner]="false">
-    <label tuiLabel>Host</label>
-    <input tuiSelect placeholder="Pick a host" formControlName="hostId" data-testid="deploy-host" />
-    <tui-data-list *tuiDropdown size="s" emptyContent="No hosts yet">
+    <label tuiLabel>{{ 'keys.deploy.host' | transloco }}</label>
+    <input
+      tuiSelect
+      [placeholder]="'keys.deploy.pickHost' | transloco"
+      formControlName="hostId"
+      data-testid="deploy-host"
+    />
+    <tui-data-list *tuiDropdown size="s" [emptyContent]="'keys.deploy.noHosts' | transloco">
       @for (group of groups(); track group.project?.id ?? null) {
         <tui-opt-group [label]="group.label">
           @for (host of group.hosts; track host.id) {
@@ -28,17 +38,24 @@
 
   <label class="check">
     <input tuiCheckbox type="checkbox" formControlName="useKey" data-testid="deploy-use" />
-    Use this key for the host
+    {{ 'keys.deploy.useKey' | transloco }}
   </label>
   <p class="note">
-    Sets the host's authentication to this key (<span class="mono">{{ key.path }}</span
-    >).
+    @for (part of useKeyNote(); track $index) {
+      @if (part.strong) {
+        <strong [textContent]="part.text"></strong>
+      } @else {
+        <span [class.mono]="part.mono" [textContent]="part.text"></span>
+      }
+    }
   </p>
 
   <footer>
     <button tuiButton appearance="secondary" type="button" (click)="context.$implicit.complete()">
-      Cancel
+      {{ 'common.cancel' | transloco }}
     </button>
-    <button tuiButton type="submit" data-testid="deploy-submit" [loading]="busy()">Deploy</button>
+    <button tuiButton type="submit" data-testid="deploy-submit" [loading]="busy()">
+      {{ 'keys.deploy.submit' | transloco }}
+    </button>
   </footer>
 </form>

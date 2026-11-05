@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
@@ -29,6 +30,15 @@ describe('ExternalNoticeDialog', () => {
     expect(byId('ext-notice-continue').hasAttribute('tuiAutoFocus')).toBe(true);
     byId('ext-notice-continue').click();
     expect(completeWith).toHaveBeenCalledWith({ dontShow: false });
+  });
+
+  it('reads in French', async () => {
+    const { fixture, el, byId } = await render();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    expect(el.textContent).toContain('Carapace télécharge une copie du fichier sur cet ordinateur');
+    expect(byId('ext-notice-continue').textContent).toContain('Continuer');
+    TestBed.inject(TranslocoService).setActiveLang('en');
   });
 
   it('answers dontShow when ticked, and nothing on Cancel', async () => {

@@ -1,3 +1,5 @@
+import { TranslocoService } from '@jsverse/transloco';
+import { TestBed } from '@angular/core/testing';
 import { FormControl, type ValidatorFn } from '@angular/forms';
 import {
   baseName,
@@ -15,6 +17,8 @@ const ok = (validator: ValidatorFn, value: string): boolean =>
   validator(new FormControl(value)) === null;
 
 describe('key validators', () => {
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   it('requires unique key names up to 64 characters, ignoring case', () => {
     const v = keyNameValidator(() => ['Work', 'id_ed25519']);
     expect(ok(v, 'main')).toBe(true);

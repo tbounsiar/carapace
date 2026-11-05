@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal, type WritableSignal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { TuiAutoFocus, type TuiStringHandler } from '@taiga-ui/cdk';
 import {
@@ -28,8 +29,8 @@ import {
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { KeyStore } from '../../../core/ipc/key-store';
 import { errorText } from '../../../shared/save-error';
-import { byName, plural } from '../../project-tree/node-tree';
-import { PICKER_BUSY } from '../import-view';
+import { byName } from '../../project-tree/node-tree';
+import { PICKER_BUSY, type Translate } from '../import-view';
 
 export interface ExportDialogData {
   readonly preset: DataScope;
@@ -39,10 +40,10 @@ export interface ExportDialogData {
 
 type ScopeKind = DataScope['kind'];
 
-function parts(list: readonly [number, string][]): string {
+function parts(t: Translate, list: readonly [number, string][]): string {
   return list
     .filter(([n]) => n > 0)
-    .map(([n, noun]) => plural(n, noun))
+    .map(([count, key]) => t(`dataTransfer.count.${key}`, { count }))
     .join(', ');
 }
 
@@ -65,6 +66,7 @@ function parts(list: readonly [number, string][]): string {
     TuiSelect,
     TuiTextfield,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-export-dialog',
   templateUrl: './export-dialog.html',
@@ -75,6 +77,13 @@ export class ExportDialog {
   private readonly config = inject(ConfigService);
   private readonly keys = inject(KeyStore);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly transloco = inject(TranslocoService);
+  /** Read in computeds so they follow a language switch once its translations are loaded. */
+  private readonly translation = toSignal(this.transloco.selectTranslation());
+  private readonly t: Translate = (key, params) => {
+    this.translation();
+    return this.transloco.translate(key, params);
+  };
   protected readonly context =
     injectContext<TuiDialogContext<ExportResult | undefined, ExportDialogData>>();
   protected readonly busy = this.context.data.busy;
@@ -103,21 +112,21 @@ export class ExportDialog {
     const variables =
       this.config.variables().length + projects.reduce((n, p) => n + p.variables.length, 0);
     return (
-      parts([
+      parts(this.t, [
         [projects.length, 'project'],
         [this.config.hosts().length, 'host'],
         [variables, 'variable'],
-        [this.keys.keys().length, 'SSH key'],
-      ]) || 'Projects, Home, global variables, SSH keys'
+        [this.keys.keys().length, 'key'],
+      ]) || this.t('dataTransfer.export.allNote')
     );
   });
   protected readonly homeNote = computed(
     () =>
-      parts([
+      parts(this.t, [
         [this.config.hosts().filter((h) => h.projectId === null).length, 'host'],
-        [this.config.variables().length, 'global variable'],
-        [this.keys.keys().length, 'SSH key'],
-      ]) || 'Hosts outside projects, global variables, SSH keys',
+        [this.config.variables().length, 'globalVariable'],
+        [this.keys.keys().length, 'key'],
+      ]) || this.t('dataTransfer.export.homeNote'),
   );
 
   protected readonly stringify: TuiStringHandler<string | null> = (id) =>
@@ -156,7 +165,7 @@ export class ExportDialog {
       }
     } catch (err) {
       if (err instanceof IpcError && err.code === 'busy') {
-        this.alerts.open(PICKER_BUSY, { appearance: 'warning' }).subscribe();
+        this.alerts.open(this.t(PICKER_BUSY), { appearance: 'warning' }).subscribe();
       } else {
         this.error.set(errorText(err));
       }

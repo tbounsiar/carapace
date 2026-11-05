@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiButton, TuiDataList, TuiDropdown, TuiIcon, TuiTitle } from '@taiga-ui/core';
 import { TuiButtonLoading, TuiSkeleton, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiCardLarge, TuiHeader } from '@taiga-ui/layout';
@@ -21,7 +22,7 @@ import { HostGroups } from '../../dashboard/host-groups/host-groups';
 import { HostsToolbar } from '../../dashboard/hosts-toolbar/hosts-toolbar';
 import { DataTransferActions } from '../../data-transfer/data-transfer-actions';
 import { HostLauncher } from '../../host-connection/host-launcher';
-import { byName, countNodes, HOME, plural, scopeTree } from '../../project-tree/node-tree';
+import { byName, countNodes, HOME, scopeTree } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { errorText } from '../../../shared/save-error';
 
@@ -44,6 +45,7 @@ const HOME_ROOT = { projectId: null, parentId: null };
     TuiSkeleton,
     TuiStatus,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-welcome',
   styleUrl: './welcome.scss',
@@ -99,7 +101,6 @@ export class Welcome {
           project,
           connected,
           summary: projectSummary(count, connected),
-          connections: connected ? plural(connected, 'open connection') : null,
         };
       })
       .filter((card) => projectMatches(card.project, this.filter(), card.connected));

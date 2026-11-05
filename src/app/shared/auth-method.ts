@@ -1,7 +1,19 @@
 import type { AuthMethod } from '../core/ipc/config.models';
+import { uiText } from './ui-text';
 
-export const AUTH_LABELS: Record<AuthMethod['kind'], string> = {
-  password: 'Password',
-  key: 'Private key file',
-  agent: 'SSH agent',
+export function authLabel(kind: AuthMethod['kind']): string {
+  return uiText(`common.auth.${kind}`);
+}
+
+/** Read in the active language at each access. */
+export const AUTH_LABELS: Readonly<Record<AuthMethod['kind'], string>> = {
+  get password() {
+    return authLabel('password');
+  },
+  get key() {
+    return authLabel('key');
+  },
+  get agent() {
+    return authLabel('agent');
+  },
 };

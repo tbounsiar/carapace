@@ -1,1 +1,127 @@
-{}
+{
+  "page": {
+    "title": "Clés SSH",
+    "subtitle": "Générez ou enregistrez des clés privées, puis déployez leur clé publique sur un hôte. Les clés privées ne quittent jamais cet ordinateur.",
+    "generate": "Générer une clé",
+    "import": "Importer une clé",
+    "columns": {
+      "name": "Nom",
+      "type": "Type",
+      "fingerprint": "Empreinte",
+      "comment": "Commentaire",
+      "status": "État",
+      "actions": "Actions"
+    },
+    "badges": {
+      "encrypted": "Chiffrée",
+      "passphraseSaved": "Phrase secrète enregistrée",
+      "external": "Externe",
+      "customFolder": "Dossier personnalisé"
+    },
+    "rowMenu": "Actions pour {name}",
+    "menu": {
+      "copy": "Copier la clé publique",
+      "deploy": "Déployer sur un hôte…",
+      "forget": "Oublier la phrase secrète"
+    },
+    "loadError": "Impossible de charger les clés SSH",
+    "retry": "Réessayer",
+    "unavailable": "Clés indisponibles",
+    "empty": {
+      "title": "Aucune clé SSH pour l’instant",
+      "text": "Générez une nouvelle clé Ed25519 ou enregistrez une clé privée que vous possédez déjà."
+    }
+  },
+  "actions": {
+    "renameTitle": "Renommer la clé",
+    "copied": "Clé publique copiée",
+    "copyFailed": "Échec de la copie",
+    "noClipboard": "Le presse-papiers n’est pas disponible.",
+    "forgotten": "Phrase secrète oubliée",
+    "forgottenText": "La phrase secrète de {name} n’est plus enregistrée.",
+    "notForgotten": "Phrase secrète non oubliée",
+    "deleteTitle": "Supprimer la clé « {name} » ?",
+    "notDeleted": "Clé non supprimée",
+    "deleteConflict": "Le fichier à cet emplacement ne contient plus cette clé. Rien n’a été supprimé.",
+    "deployTitle": "Déployer la clé publique",
+    "deployFailed": "Échec du déploiement",
+    "hostGone": "L’hôte n’existe plus.",
+    "restricted": "Clé restreinte",
+    "restrictedText": "Clé présente avec des restrictions (options) sur {host} ; non modifiée. Modifiez authorized_keys à la main pour autoriser les connexions normales.",
+    "deployed": "Clé déployée",
+    "deployedText": "Clé ajoutée à authorized_keys sur {host}",
+    "nothingToDo": "Rien à faire",
+    "presentText": "Clé déjà présente sur {host}",
+    "hostNotUpdated": "Hôte non mis à jour"
+  },
+  "fields": {
+    "name": "Nom",
+    "passphraseOptional": "Phrase secrète (facultative)",
+    "rememberPassphrase": "Enregistrer la phrase secrète dans le trousseau du système"
+  },
+  "delete": {
+    "text": "La clé est retirée de la liste et toute phrase secrète enregistrée est oubliée.",
+    "deleteFiles": "Supprimer aussi les fichiers de la clé",
+    "pubFile": "et {file}.pub.",
+    "managedNote": "Les serveurs qui font confiance à cette clé ne seront plus accessibles avec elle.",
+    "sharedNote": "D’autres outils utilisent peut-être cette clé.",
+    "importedNote": "Le fichier reste où il est : il a été importé, pas généré ici."
+  },
+  "deploy": {
+    "intro": "Ajoute la clé publique de {name} à {file} sur l’hôte. Vous vous connectez d’abord, comme d’habitude.",
+    "host": "Hôte",
+    "pickHost": "Choisissez un hôte",
+    "noHosts": "Aucun hôte pour l’instant",
+    "useKey": "Utiliser cette clé pour l’hôte",
+    "useKeyNote": "Définit l’authentification de l’hôte sur cette clé ({path}).",
+    "submit": "Déployer"
+  },
+  "keygen": {
+    "type": "Type",
+    "typeNote": "Ed25519 est recommandé. RSA 4096 est plus lent, pour les serveurs sans Ed25519.",
+    "folder": "Dossier",
+    "resetFolder": "Utiliser le dossier par défaut",
+    "chooseFolder": "Choisir un dossier",
+    "fileName": "Nom du fichier",
+    "fileNameHint": "Lettres, chiffres, « . », « _ » et « - ». La clé publique reçoit le suffixe .pub.",
+    "savedAs": "Enregistrée sous {file} et {pub} dans ce dossier.",
+    "folderWarning": "D’autres utilisateurs peuvent ouvrir ce dossier. Le fichier de clé privée reste lisible par vous seul, mais ils pourraient le remplacer ou le supprimer.",
+    "comment": "Commentaire",
+    "confirm": "Confirmer la phrase secrète",
+    "rsaSlow": "La génération d’une clé RSA prend quelques secondes.",
+    "submit": "Générer",
+    "folderMissing": "Ce dossier n’existe pas. Créez-le ou choisissez-en un autre.",
+    "folderDenied": "Carapace ne peut pas écrire dans ce dossier. Choisissez-en un autre.",
+    "fileExists": "{file} ou {file}.pub existe déjà dans ce dossier.",
+    "pickerFailed": "Sélecteur de dossier non ouvert",
+    "notGenerated": "Clé non générée"
+  },
+  "import": {
+    "path": "Chemin de la clé privée",
+    "chooseFile": "Choisir un fichier de clé",
+    "pathHint": "Une clé privée OpenSSH. Le fichier n’est pas copié : il reste où il est et est seulement enregistré.",
+    "passphraseNote": "Nécessaire uniquement pour enregistrer la phrase secrète d’une clé chiffrée.",
+    "submit": "Importer",
+    "pickerFailed": "Sélecteur de fichier non ouvert",
+    "notImported": "Clé non importée",
+    "wrongPassphrase": "Phrase secrète incorrecte"
+  },
+  "validation": {
+    "nameRequired": "Le nom est obligatoire",
+    "nameMax": "Le nom doit comporter au plus {max} caractères",
+    "nameTaken": "Une clé porte déjà ce nom",
+    "fileNameRequired": "Le nom du fichier est obligatoire",
+    "fileNameMax": "Le nom du fichier doit comporter au plus {max} caractères",
+    "fileNameDot": "Le nom du fichier ne doit pas commencer par « . »",
+    "fileNameChars": "Le nom du fichier ne peut contenir que des lettres, des chiffres, « . », « _ » et « - »",
+    "commentMax": "Le commentaire doit comporter au plus {max} caractères",
+    "commentLine": "Le commentaire doit tenir sur une seule ligne",
+    "passphraseMax": "La phrase secrète doit comporter au plus {max} caractères",
+    "mismatch": "Les phrases secrètes ne correspondent pas",
+    "pathRequired": "Le chemin est obligatoire",
+    "networkPath": "Les chemins réseau ne sont pas pris en charge",
+    "pathAbsolute": "Utilisez un chemin absolu ou commençant par ~/",
+    "folderRequired": "Choisissez un dossier pour la clé.",
+    "folderAbsolute": "Utilisez un chemin complet ou commençant par ~/."
+  }
+}

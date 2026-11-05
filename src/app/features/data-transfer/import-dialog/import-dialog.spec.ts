@@ -3,6 +3,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import { of } from 'rxjs';
+import { LanguageService } from '../../../core/i18n/language';
 import { DataTransferIpc, type ImportPreview } from '../../../core/ipc/data-transfer';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { plan, preview, result, row } from '../import.fixture';
@@ -93,6 +94,21 @@ describe('ImportDialog', () => {
       expect(byId('import-warning-connections')).toBeNull();
       expect(byId('import-warning-secrets')).toBeNull();
       expect(text('import-submit')).toBe('Import');
+    });
+
+    it('follows a switch to French', async () => {
+      await setup();
+      TestBed.inject(LanguageService).apply('fr');
+      await settle();
+      expect(text('import-file-meta')).toContain('Projet « Payments » · exporté le 5 nov. 2026');
+      expect(text('import-strategy-replace')).toContain('Rendre Payments identique au fichier');
+      expect(text('import-strategy-duplicate')).toContain('Garder les deux');
+      expect(text('import-table')).toContain('Ce qui change');
+      expect(text('import-row-host')).toBe('Hôtes 4 9 7');
+      expect(text('import-item-host-api-1')).toContain('Mis à jour');
+      expect(text('import-needs-secret')).toContain('root_pw (globale) — utilisée par 1 hôte');
+      expect(text('import-submit')).toBe('Importer');
+      TestBed.inject(LanguageService).apply('system');
     });
 
     it('switches the table and warnings to Replace at once', async () => {

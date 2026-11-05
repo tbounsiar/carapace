@@ -1,1 +1,8 @@
-{}
+{
+  "missingVariables": "Variables manquantes",
+  "connectionFailed": "Échec de la connexion",
+  "disconnectFailed": "Échec de la déconnexion",
+  "keyReplaced": "Clé d’hôte remplacée",
+  "keyReplacedText": "La clé enregistrée a été remplacée. Connectez-vous de nouveau pour continuer.",
+  "keyNotReplaced": "Clé d’hôte non remplacée"
+}

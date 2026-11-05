@@ -1,1 +1,31 @@
-{}
+{
+  "loadError": "Impossible de charger les hôtes",
+  "retry": "Réessayer",
+  "title": "Accueil",
+  "noHosts": "Aucun hôte pour l’instant",
+  "empty": {
+    "title": "Rien ici pour l’instant",
+    "text": "Regroupez des hôtes dans un projet pour qu’ils partagent des variables, ou ajoutez directement un hôte."
+  },
+  "newProject": "Nouveau projet",
+  "addHost": "Ajouter un hôte",
+  "newHost": "Nouvel hôte",
+  "newCollection": "Nouvelle collection",
+  "importFile": "Importer depuis un fichier",
+  "actions": "Actions de l’accueil",
+  "search": "Rechercher des hôtes et des projets",
+  "noMatch": {
+    "title": "Aucun hôte ni projet ne correspond à « {query} »",
+    "text": "La recherche porte sur les noms d’hôtes, les adresses et les noms de collections.",
+    "clear": "Effacer la recherche"
+  },
+  "noneConnected": {
+    "title": "Aucun hôte connecté",
+    "text": "Connectez un hôte depuis sa carte ou la barre latérale.",
+    "showAll": "Tout afficher"
+  },
+  "projects": "Projets",
+  "connections": "{count, plural, one {# connexion ouverte} other {# connexions ouvertes}}",
+  "export": "Exporter…",
+  "import": "Importer…"
+}

@@ -1,4 +1,5 @@
 import { inject, Service } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
@@ -34,16 +35,27 @@ export class KeyActions {
   private readonly connector = inject(HostConnector);
   private readonly dialogs = inject(TuiDialogService);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly transloco = inject(TranslocoService);
+
+  private t(key: string, params?: Record<string, string>): string {
+    return this.transloco.translate(`keys.${key}`, params);
+  }
 
   generate(): void {
     this.dialogs
-      .open<KeyView>(new PolymorpheusComponent(KeygenDialog), { label: 'Generate key', size: 'm' })
+      .open<KeyView>(new PolymorpheusComponent(KeygenDialog), {
+        label: this.t('page.generate'),
+        size: 'm',
+      })
       .subscribe();
   }
 
   import(): void {
     this.dialogs
-      .open<KeyView>(new PolymorpheusComponent(KeyImportDialog), { label: 'Import key', size: 'm' })
+      .open<KeyView>(new PolymorpheusComponent(KeyImportDialog), {
+        label: this.t('page.import'),
+        size: 'm',
+      })
       .subscribe();
   }
 
@@ -51,13 +63,14 @@ export class KeyActions {
     const names = (): string[] => this.store.keys().map((k) => k.name);
     this.dialogs
       .open<void>(new PolymorpheusComponent(NameDialog), {
-        label: 'Rename key',
+        label: this.t('actions.renameTitle'),
         size: 's',
         data: {
           noun: 'key',
           initial: key.name,
           validator: keyNameValidator(names, key.name),
           conflictCode: 'already_exists',
+          conflictMessage: this.t('validation.nameTaken'),
           save: (name) => this.store.rename(key.id, name),
         } satisfies NameDialogData,
       })
@@ -68,11 +81,14 @@ export class KeyActions {
     try {
       await navigator.clipboard.writeText(key.publicKey);
       this.alerts
-        .open(key.name, { label: 'Public key copied', appearance: 'positive' })
+        .open(key.name, { label: this.t('actions.copied'), appearance: 'positive' })
         .subscribe();
     } catch {
       this.alerts
-        .open('The clipboard is not available.', { label: 'Copy failed', appearance: 'negative' })
+        .open(this.t('actions.noClipboard'), {
+          label: this.t('actions.copyFailed'),
+          appearance: 'negative',
+        })
         .subscribe();
     }
   }
@@ -81,13 +97,13 @@ export class KeyActions {
     try {
       await this.store.forgetPassphrase(key.id);
       this.alerts
-        .open(`The passphrase of ${key.name} is no longer saved.`, {
-          label: 'Passphrase forgotten',
+        .open(this.t('actions.forgottenText', { name: key.name }), {
+          label: this.t('actions.forgotten'),
           appearance: 'positive',
         })
         .subscribe();
     } catch (err) {
-      notifyError(this.alerts, err, 'Passphrase not forgotten');
+      notifyError(this.alerts, err, this.t('actions.notForgotten'));
     }
   }
 
@@ -96,7 +112,7 @@ export class KeyActions {
     const decision = await firstValueFrom(
       this.dialogs.open<KeyDeleteDecision>(new PolymorpheusComponent(KeyDeleteDialog), {
         // Taiga renders a dialog label as HTML.
-        label: `Delete key "${escapeHtml(key.name)}"?`,
+        label: this.t('actions.deleteTitle', { name: escapeHtml(key.name) }),
         size: 's',
         data: { key } satisfies KeyDeleteDialogData,
       }),
@@ -111,14 +127,14 @@ export class KeyActions {
     } catch (err) {
       if (err instanceof IpcError && err.code === 'conflict') {
         this.alerts
-          .open('The file at this path no longer holds this key. Nothing was deleted.', {
-            label: 'Key not deleted',
+          .open(this.t('actions.deleteConflict'), {
+            label: this.t('actions.notDeleted'),
             appearance: 'negative',
           })
           .subscribe();
         return false;
       }
-      notifyError(this.alerts, err, 'Key not deleted');
+      notifyError(this.alerts, err, this.t('actions.notDeleted'));
       return false;
     }
   }
@@ -126,7 +142,7 @@ export class KeyActions {
   deploy(key: KeyView): void {
     this.dialogs
       .open<void>(new PolymorpheusComponent(KeyDeployDialog), {
-        label: 'Deploy public key',
+        label: this.t('actions.deployTitle'),
         size: 's',
         data: {
           key,
@@ -141,7 +157,10 @@ export class KeyActions {
     const location = this.config.findHost(hostId);
     if (!location) {
       this.alerts
-        .open('The host no longer exists.', { label: 'Deploy failed', appearance: 'negative' })
+        .open(this.t('actions.hostGone'), {
+          label: this.t('actions.deployFailed'),
+          appearance: 'negative',
+        })
         .subscribe();
       return false;
     }
@@ -158,28 +177,25 @@ export class KeyActions {
     try {
       result = await this.store.deploy(target.connectionId, key.id);
     } catch (err) {
-      notifyError(this.alerts, err, 'Deploy failed');
+      notifyError(this.alerts, err, this.t('actions.deployFailed'));
       return false;
     }
     if (result.restricted) {
       // Only lines with options (command=, restrict...) hold the key: it cannot log in normally.
       this.alerts
-        .open(
-          `Key present with restrictions (options) on ${label}; not changed. Edit authorized_keys by hand to allow normal logins.`,
-          { label: 'Key restricted', appearance: 'warning' },
-        )
+        .open(this.t('actions.restrictedText', { host: label }), {
+          label: this.t('actions.restricted'),
+          appearance: 'warning',
+        })
         .subscribe();
       return true;
     }
     const added = result.added;
     this.alerts
-      .open(
-        added ? `Key added to authorized_keys on ${label}` : `Key already present on ${label}`,
-        {
-          label: added ? 'Key deployed' : 'Nothing to do',
-          appearance: added ? 'positive' : 'info',
-        },
-      )
+      .open(this.t(added ? 'actions.deployedText' : 'actions.presentText', { host: label }), {
+        label: this.t(added ? 'actions.deployed' : 'actions.nothingToDo'),
+        appearance: added ? 'positive' : 'info',
+      })
       .subscribe();
     if (useKey) {
       await this.useKeyFor(hostId, key);
@@ -202,7 +218,7 @@ export class KeyActions {
         auth: { kind: 'key', keyPath: key.path, passphrase: null },
       });
     } catch (err) {
-      notifyError(this.alerts, err, 'Host not updated');
+      notifyError(this.alerts, err, this.t('actions.hostNotUpdated'));
     }
   }
 }

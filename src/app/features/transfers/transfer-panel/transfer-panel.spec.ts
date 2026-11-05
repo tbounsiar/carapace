@@ -1,3 +1,4 @@
+import { LanguageService } from '../../../core/i18n/language';
 import { computed, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
@@ -83,6 +84,20 @@ describe('TransferPanel', () => {
     expect(tree.textContent).toContain('C:\\in');
     expect(tree.querySelector('tui-icon')!.getAttribute('aria-label')).toBe('Download');
     expect(byId('transfer-state-later.txt')!.textContent).toContain('Queued');
+  });
+
+  it('follows a switch to French, sizes included', async () => {
+    await setup([
+      job('big.iso', { state: 'running', totalBytes: 4096, doneBytes: 1536 }),
+      job('a.txt', { state: 'done', skipped: 2 }),
+    ]);
+    TestBed.inject(LanguageService).apply('fr');
+    await settle();
+    expect(byId('transfer-state-big.iso')!.textContent).toContain('1,5\u00a0Ko sur 4,0\u00a0Ko');
+    expect(byId('transfer-state-a.txt')!.textContent).toContain('Terminé · 2 ignorés');
+    expect(byId('transfer-done')!.textContent).toContain('1 terminé');
+    expect(byId('transfer-toggle')!.textContent).toContain('Transferts');
+    TestBed.inject(LanguageService).apply('en');
   });
 
   it('announces finished jobs through a status region', async () => {

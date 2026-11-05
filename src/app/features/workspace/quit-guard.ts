@@ -5,6 +5,7 @@ import { AppEvents } from '../../core/ipc/app-events';
 import { ConfigService } from '../../core/ipc/config';
 import { type EditedFile, ExternalEditsIpc } from '../../core/ipc/external-edits';
 import { confirmDestructive } from '../../shared/destructive-confirm/confirm-destructive';
+import { uiText } from '../../shared/ui-text';
 import { notUploadedNames } from '../external-editor/edited-view';
 import { unsavedNames } from './tab-titles';
 import { Workspace } from './workspace';
@@ -67,17 +68,27 @@ export class QuitGuard {
         await this.events.quit();
         return;
       }
-      const hostName = (id: string) => this.config.findHost(id)?.host.name ?? 'Unknown host';
+      const hostName = (id: string) =>
+        this.config.findHost(id)?.host.name ?? uiText('workspace.tab.unknownHost');
       const lines = [
-        modified.length ? `Unsaved in Carapace: ${unsavedNames(modified, hostName)}` : '',
+        modified.length
+          ? uiText('workspace.unsaved.quitUnsaved', { names: unsavedNames(modified, hostName) })
+          : '',
         pending.length
-          ? `Not uploaded from your editor: ${notUploadedNames(pending, hostName)}`
+          ? uiText('workspace.unsaved.quitNotUploaded', {
+              names: notUploadedNames(pending, hostName),
+            })
           : '',
       ].filter(Boolean);
       const quit = await confirmDestructive(
         this.dialogs,
-        'Quit with unsaved changes?',
-        { content: lines.join(' '), lines, yes: 'Quit without saving', no: 'Cancel' },
+        uiText('workspace.unsaved.quitTitle'),
+        {
+          content: lines.join(' '),
+          lines,
+          yes: uiText('workspace.unsaved.quitYes'),
+          no: uiText('common.cancel'),
+        },
         'm',
       );
       if (quit) {

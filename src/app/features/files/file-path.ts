@@ -1,4 +1,5 @@
 import type { AbstractControl, ValidationErrors, ValidatorFn } from '@angular/forms';
+import { translate } from '@jsverse/transloco';
 import { TuiValidationError } from '@taiga-ui/cdk';
 import type { FileSide } from '../../core/ipc/files';
 
@@ -57,14 +58,16 @@ export function fileNameValidator(side: FileSide): ValidatorFn {
     const fail = (message: string): ValidationErrors => ({
       invalid: new TuiValidationError(message),
     });
-    if (value.length === 0) return fail('Name is required');
-    if (value === '.' || value === '..') return fail('This name is reserved');
+    if (value.length === 0) return fail(translate('files.name.required'));
+    if (value === '.' || value === '..') return fail(translate('files.name.reserved'));
     if (separator.test(value)) {
-      return fail(side === 'local' ? 'Name must not contain / or \\' : 'Name must not contain /');
+      return fail(
+        translate(side === 'local' ? 'files.name.noSlashOrBackslash' : 'files.name.noSlash'),
+      );
     }
-    if (hasControl(value)) return fail('Name must not contain control characters');
+    if (hasControl(value)) return fail(translate('files.name.noControl'));
     if (new TextEncoder().encode(value).length > MAX_NAME_BYTES) {
-      return fail(`Name must be at most ${MAX_NAME_BYTES} bytes`);
+      return fail(translate('files.name.tooLong', { max: MAX_NAME_BYTES }));
     }
     return null;
   };

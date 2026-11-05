@@ -6,6 +6,7 @@ import type { Host } from '../../core/ipc/config.models';
 import { hostTarget } from '../../core/ipc/connection';
 import { SshService } from '../../core/ipc/ssh';
 import { confirmDestructive } from '../../shared/destructive-confirm/confirm-destructive';
+import { uiText } from '../../shared/ui-text';
 import { askEditorChoice } from '../editor/editor-choice';
 import { HostConnector } from '../host-connection/host-connector';
 import { HostLauncher } from '../host-connection/host-launcher';
@@ -33,7 +34,8 @@ export class WorkspaceActions {
   private readonly launcher = inject(HostLauncher);
   private readonly router = inject(Router);
 
-  hostName = (hostId: string): string => this.config.findHost(hostId)?.host.name ?? 'Unknown host';
+  hostName = (hostId: string): string =>
+    this.config.findHost(hostId)?.host.name ?? uiText('workspace.tab.unknownHost');
 
   /** Resolves true when the tab was closed; a modified editor asks Save / Don't save / Cancel. */
   async close(tab: WorkspaceTab): Promise<boolean> {
@@ -66,11 +68,17 @@ export class WorkspaceActions {
     }
     const modified = tabs.filter((t) => t.modified());
     if (modified.length) {
-      const confirmed = await confirmDestructive(this.dialogs, 'Close tabs with unsaved changes?', {
-        content: `Unsaved changes in ${unsavedNames(modified, this.hostName)}.`,
-        yes: 'Close without saving',
-        no: 'Cancel',
-      });
+      const confirmed = await confirmDestructive(
+        this.dialogs,
+        uiText('workspace.unsaved.closeTitle'),
+        {
+          content: uiText('workspace.unsaved.closeContent', {
+            names: unsavedNames(modified, this.hostName),
+          }),
+          yes: uiText('workspace.unsaved.closeYes'),
+          no: uiText('common.cancel'),
+        },
+      );
       if (!confirmed) {
         return false;
       }
@@ -101,47 +109,52 @@ export class WorkspaceActions {
     const host = this.config.findHost(tab.hostId)?.host;
     if (!host) {
       return [
-        { id: 'tab-menu-close', label: 'Close', icon: '@tui.x', run: () => void this.close(tab) },
+        {
+          id: 'tab-menu-close',
+          label: uiText('common.close'),
+          icon: '@tui.x',
+          run: () => void this.close(tab),
+        },
       ];
     }
     const connected = this.ssh.stateOf(hostTarget(host).connectionId) === 'connected';
     return [
       {
         id: 'tab-menu-new-terminal',
-        label: 'New terminal',
+        label: uiText('workspace.menu.newTerminal'),
         icon: '@tui.square-terminal',
         run: () => void this.launcher.newTerminal(host),
       },
       {
         id: 'tab-menu-files',
-        label: 'Open files',
+        label: uiText('workspace.menu.openFiles'),
         icon: '@tui.folder-open',
         run: () => void this.launcher.openFiles(host),
       },
       ...this.externalEntry(tab, host),
       {
         id: 'tab-menu-close',
-        label: 'Close',
+        label: uiText('common.close'),
         icon: '@tui.x',
         separated: true,
         run: () => void this.close(tab),
       },
       {
         id: 'tab-menu-close-others',
-        label: 'Close other tabs',
+        label: uiText('workspace.menu.closeOthers'),
         icon: '@tui.copy-x',
         run: () => void this.closeOthers(tab),
       },
       {
         id: 'tab-menu-close-host',
-        label: `Close tabs of ${host.name}`,
+        label: uiText('workspace.menu.closeHost', { host: host.name }),
         icon: '@tui.square-x',
         run: () => void this.closeHost(host.id),
       },
       this.connectionEntry(host, connected),
       {
         id: 'tab-menu-host',
-        label: 'Go to host page',
+        label: uiText('workspace.menu.hostPage'),
         icon: '@tui.server',
         run: () => void this.launcher.open(host),
       },
@@ -157,9 +170,9 @@ export class WorkspaceActions {
     return [
       {
         id: 'tab-menu-external',
-        label: 'Open in external editor',
+        label: uiText('workspace.menu.openExternal'),
         icon: '@tui.external-link',
-        disabledReason: tab.modified() ? 'Save your changes first' : undefined,
+        disabledReason: tab.modified() ? uiText('workspace.menu.saveFirst') : undefined,
         run: () => void this.launcher.openExternal(host, path, null),
       },
     ];
@@ -170,14 +183,14 @@ export class WorkspaceActions {
     return connected
       ? {
           id: 'tab-menu-disconnect',
-          label: `Disconnect ${host.name}`,
+          label: uiText('workspace.menu.disconnect', { host: host.name }),
           icon: '@tui.unplug',
           separated: true,
           run: () => void this.connector.disconnect(target.connectionId),
         }
       : {
           id: 'tab-menu-connect',
-          label: `Connect ${host.name}`,
+          label: uiText('workspace.menu.connect', { host: host.name }),
           icon: '@tui.plug',
           separated: true,
           run: () => void this.connector.connect(target),

@@ -1,5 +1,7 @@
 import type { Collection, ConfigNode, Host, Project } from '../../core/ipc/config.models';
+import { uiText } from '../../shared/ui-text';
 
+/** Home's name in test ids and data; `scopeLabel` is the one shown. */
 export const HOME = 'Home';
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
@@ -111,30 +113,33 @@ export function countNodes(list: readonly ConfigNode[]): Counts {
   return { collections: list.length - hosts, hosts };
 }
 
-export function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
-}
-
-/** "2 collections and 12 hosts"; a part with 0 is left out; extra parts come last. */
-export function countText(counts: Counts): string {
-  const parts = [
-    counts.collections ? plural(counts.collections, 'collection') : '',
-    counts.hosts ? plural(counts.hosts, 'host') : '',
-  ].filter(Boolean);
-  return parts.join(' and ');
+/** "2 collections and 12 hosts"; a part with 0 is left out. */
+export function countText({ collections, hosts }: Counts): string {
+  if (collections && hosts) {
+    return uiText('projectTree.counts.both', { collections, hosts });
+  }
+  if (collections) {
+    return uiText('projectTree.counts.collections', { count: collections });
+  }
+  return hosts ? uiText('projectTree.counts.hosts', { count: hosts }) : '';
 }
 
 export function scopeName(projects: readonly Project[], projectId: string | null): string {
   return projectId ? (projects.find((p) => p.id === projectId)?.name ?? '') : HOME;
 }
 
-/** Scope name then collection names: `['Payments', 'Backend']`, `['Home']`. */
+/** The scope name as shown: Home in the interface language. */
+export function scopeLabel(projects: readonly Project[], projectId: string | null): string {
+  return projectId ? scopeName(projects, projectId) : uiText('common.home');
+}
+
+/** Scope label then collection names: `['Payments', 'Backend']`, `['Home']`. */
 export function containerPath(
   nodes: readonly ConfigNode[],
   projects: readonly Project[],
   container: Container,
 ): string[] {
-  const names = [scopeName(projects, container.projectId)];
+  const names = [scopeLabel(projects, container.projectId)];
   if (container.parentId) {
     names.push(...ancestors(nodes, container.parentId).map((c) => c.name));
     const parent = nodes.find((n) => n.id === container.parentId);

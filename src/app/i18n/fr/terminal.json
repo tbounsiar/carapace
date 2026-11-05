@@ -1,1 +1,19 @@
-{}
+{
+  "panel": {
+    "lost": "Connexion perdue.",
+    "ended": "Session terminée.",
+    "endedWith": "Session terminée. {reason}",
+    "reasons": {
+      "exited": "Le shell s'est arrêté.",
+      "closed": "Le terminal a été fermé.",
+      "connectionLost": "La connexion a été perdue."
+    },
+    "reopen": "Rouvrir"
+  },
+  "sessions": {
+    "loadFailed": "Le composant terminal n'a pas pu être chargé. Redémarrez l'application et réessayez.",
+    "notOpened": "Terminal non ouvert",
+    "notClosed": "Terminal non fermé",
+    "inputLost": "Saisie du terminal perdue"
+  }
+}

@@ -1,9 +1,9 @@
-<p>The key is removed from the list and any saved passphrase is forgotten.</p>
+<p>{{ 'keys.delete.text' | transloco }}</p>
 @if (generated) {
   <label tuiLabel>
     <input tuiCheckbox type="checkbox" data-testid="key-delete-files" [formControl]="deleteFiles" />
     <span tuiTitle>
-      Also delete the key files
+      {{ 'keys.delete.deleteFiles' | transloco }}
       <span tuiSubtitle>
         <span class="mono path" data-testid="key-delete-path" [attr.title]="key.path">
           @for (part of parts; track $index) {
@@ -11,11 +11,11 @@
           }
         </span>
         <span>
-          and {{ fileName }}.pub.
+          {{ 'keys.delete.pubFile' | transloco: { file: fileName } }}
           @if (key.managed) {
-            Servers that trust this key can no longer be reached with it.
+            {{ 'keys.delete.managedNote' | transloco }}
           } @else {
-            Other tools may use this key.
+            {{ 'keys.delete.sharedNote' | transloco }}
           }
         </span>
       </span>
@@ -23,7 +23,7 @@
   </label>
 } @else {
   <p class="note">
-    The file stays where it is: it was imported, not generated here.
+    {{ 'keys.delete.importedNote' | transloco }}
     <span class="mono path" data-testid="key-delete-path" [attr.title]="key.path">
       @for (part of parts; track $index) {
         <span class="part" [textContent]="part"></span><wbr />
@@ -40,9 +40,9 @@
     type="button"
     (click)="context.$implicit.complete()"
   >
-    Cancel
+    {{ 'common.cancel' | transloco }}
   </button>
   <button tuiButton size="m" appearance="primary-destructive" type="button" (click)="confirm()">
-    Delete
+    {{ 'common.delete' | transloco }}
   </button>
 </footer>

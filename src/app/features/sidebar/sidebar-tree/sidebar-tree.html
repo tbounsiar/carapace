@@ -2,7 +2,7 @@
   <tui-loader class="loader" />
 } @else if (loadError(); as message) {
   <tui-block-status size="m" data-testid="projects-error">
-    <h2>Hosts could not be loaded</h2>
+    <h2>{{ 'sidebar.loadError' | transloco }}</h2>
     <p>{{ message }}</p>
     <button
       tuiButton
@@ -13,14 +13,13 @@
       data-testid="projects-retry"
       (click)="reload()"
     >
-      Try again
+      {{ 'sidebar.retry' | transloco }}
     </button>
   </tui-block-status>
 } @else if (empty()) {
   <tui-block-status size="m" class="aside-block" data-testid="sidebar-empty">
     <p tuiSubtitle>
-      {{ isHome() ? 'Nothing here yet.' : 'No hosts yet.' }}
-      {{ isHome() ? 'Use + for a collection or a project.' : 'Use + for a collection.' }}
+      {{ (isHome() ? 'sidebar.empty.home' : 'sidebar.empty.project') | transloco }}
     </p>
     <button
       tuiButton
@@ -31,14 +30,19 @@
       data-testid="sidebar-empty-new-host"
       (click)="addHostAtRoot()"
     >
-      New host
+      {{ 'sidebar.newHost' | transloco }}
     </button>
   </tui-block-status>
 } @else if (filter.noMatch()) {
   <tui-block-status size="m" class="aside-block" data-testid="sidebar-no-match">
     <p tuiTitle>
-      No host matches
-      <span tuiSubtitle tuiHintOverflow class="query">“{{ filter.query().trim() }}”</span>
+      {{ 'sidebar.noMatch' | transloco }}
+      <span
+        tuiSubtitle
+        tuiHintOverflow
+        class="query"
+        [textContent]="'sidebar.query' | transloco: { query: filter.query().trim() }"
+      ></span>
     </p>
     <button
       tuiButton
@@ -48,7 +52,7 @@
       data-testid="sidebar-clear-filter"
       (click)="clearFilter()"
     >
-      Clear filter
+      {{ 'sidebar.clearFilter' | transloco }}
     </button>
   </tui-block-status>
 } @else {
@@ -59,7 +63,7 @@
       <hr />
     }
     <div class="section" data-testid="projects-section">
-      <span class="heading">Projects</span>
+      <span class="heading" tuiHintOverflow>{{ 'sidebar.projects' | transloco }}</span>
       @for (row of projectRows(); track row.key) {
         @let project = row.project;
         @let key = row.key;
@@ -102,12 +106,12 @@
               iconStart="@tui.arrow-right"
               type="button"
               tabindex="-1"
-              tuiHint="Open"
-              [attr.aria-label]="'Open ' + project.name"
+              [tuiHint]="'sidebar.open' | transloco"
+              [attr.aria-label]="'sidebar.openProject' | transloco: { name: project.name }"
               [attr.data-testid]="'open-project-' + project.name"
               (click)="enterProject(project)"
             >
-              Open
+              {{ 'sidebar.open' | transloco }}
             </button>
             <ng-container
               *ngTemplateOutlet="menuButton; context: { key, name: project.name, kind: 'project' }"
@@ -123,7 +127,7 @@
           data-testid="projects-new"
           (click)="createProject()"
         >
-          New project
+          <span class="label" tuiHintOverflow>{{ 'sidebar.newProject' | transloco }}</span>
         </button>
       }
     </div>
@@ -173,7 +177,7 @@
                     [attr.data-testid]="'empty-add-' + item.collection.name"
                     (click)="addHost(inside(item.collection))"
                   >
-                    Add host
+                    <span class="label" tuiHintOverflow>{{ 'sidebar.addHost' | transloco }}</span>
                   </button>
                 }
               </div>
@@ -237,7 +241,7 @@
         </a>
         <span class="actions">
           @let connected = isConnected(host);
-          @let action = connected ? 'Disconnect' : 'Connect';
+          @let action = (connected ? 'sidebar.disconnect' : 'sidebar.connect') | transloco;
           <button
             tuiIconButton
             appearance="flat-grayscale"
@@ -247,7 +251,10 @@
             [iconStart]="connected ? '@tui.unplug' : '@tui.plug'"
             [tuiHint]="action"
             [disabled]="!connected && state.busy"
-            [attr.aria-label]="action + ' ' + host.name"
+            [attr.aria-label]="
+              (connected ? 'sidebar.disconnectHost' : 'sidebar.connectHost')
+                | transloco: { name: host.name }
+            "
             [attr.data-testid]="(connected ? 'disconnect-host-' : 'connect-host-') + host.name"
             (click)="connected ? disconnect(host) : connect(host)"
           >
@@ -278,11 +285,11 @@
       type="button"
       tabindex="-1"
       [attr.aria-expanded]="menuKey() === key"
-      [attr.aria-label]="'Actions for ' + name"
+      [attr.aria-label]="'sidebar.actionsFor' | transloco: { name }"
       [attr.data-testid]="'menu-' + kind + '-' + name"
       (click)="toggleMenu($event, key)"
     >
-      Actions
+      {{ 'sidebar.actions' | transloco }}
     </button>
   </span>
 </ng-template>

@@ -1,6 +1,6 @@
 <form tuiForm="m" data-testid="export-dialog" [formGroup]="form" (ngSubmit)="submit()">
   <fieldset class="scopes">
-    <legend class="legend">What to export</legend>
+    <legend class="legend">{{ 'dataTransfer.export.legend' | transloco }}</legend>
     <div tuiGroup orientation="vertical" class="group" [collapsed]="true">
       <label tuiBlock="s" data-testid="export-scope-all">
         <input
@@ -12,7 +12,7 @@
           [tuiAutoFocus]="scope() === 'all'"
         />
         <span tuiTitle>
-          Everything
+          {{ 'dataTransfer.export.all' | transloco }}
           <span tuiSubtitle>{{ allNote() }}</span>
         </span>
       </label>
@@ -26,7 +26,7 @@
           [tuiAutoFocus]="scope() === 'home'"
         />
         <span tuiTitle>
-          Home
+          {{ 'dataTransfer.export.home' | transloco }}
           <span tuiSubtitle>{{ homeNote() }}</span>
         </span>
       </label>
@@ -46,9 +46,14 @@
           <input tuiRadio size="s" type="radio" disabled />
         }
         <span tuiTitle>
-          A project
+          {{ 'dataTransfer.export.project' | transloco }}
           <span tuiSubtitle>
-            {{ projects().length ? 'One project with its variables' : 'No projects yet' }}
+            {{
+              (projects().length
+                ? 'dataTransfer.export.projectNote'
+                : 'dataTransfer.export.noProjects'
+              ) | transloco
+            }}
           </span>
         </span>
       </label>
@@ -63,7 +68,7 @@
       [tuiTextfieldCleaner]="false"
       [tuiDropdownMaxHeight]="320"
     >
-      <label tuiLabel>Project</label>
+      <label tuiLabel>{{ 'dataTransfer.export.projectLabel' | transloco }}</label>
       <input tuiSelect formControlName="projectId" data-testid="export-project-select" />
       <tui-data-list *tuiDropdown size="s">
         @for (project of projects(); track project.id) {
@@ -88,25 +93,21 @@
         formControlName="includeShared"
         data-testid="export-include-shared"
       />
-      Include the global variables and SSH keys its hosts use
+      {{ 'dataTransfer.export.includeShared' | transloco }}
     </label>
   }
 
   <div tuiNotification appearance="info" size="s" data-testid="export-secrets-note">
     <div tuiTitle>
-      Not included
-      <div tuiSubtitle>
-        Passwords, passphrases and secret variable values, saved passwords and key files. Secret
-        variables are exported by name: set their values after importing. The file lists your hosts
-        and user names; share it only with people who may see them.
-      </div>
+      {{ 'dataTransfer.export.notIncluded' | transloco }}
+      <div tuiSubtitle>{{ 'dataTransfer.export.notIncludedText' | transloco }}</div>
     </div>
   </div>
 
   @if (error(); as message) {
     <div tuiNotification appearance="negative" size="s" role="alert" data-testid="export-error">
       <div tuiTitle>
-        File not saved
+        {{ 'dataTransfer.export.error' | transloco }}
         <div tuiSubtitle>{{ message }}</div>
       </div>
     </div>
@@ -121,7 +122,7 @@
       [disabled]="busy()"
       (click)="cancel()"
     >
-      Cancel
+      {{ 'common.cancel' | transloco }}
     </button>
     <button
       tuiButton
@@ -130,7 +131,7 @@
       [disabled]="!canSubmit()"
       [loading]="busy()"
     >
-      Export…
+      {{ 'dataTransfer.export.submit' | transloco }}
     </button>
   </footer>
 </form>

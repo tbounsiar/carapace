@@ -1,4 +1,5 @@
 import { computed, inject, Service, signal } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { TuiNotificationService } from '@taiga-ui/core';
 import type { FileSide } from '../../core/ipc/files';
 import { IpcError } from '../../core/ipc/ipc-error';
@@ -57,6 +58,7 @@ export class TransferQueue {
   private readonly ipc = inject(TransferIpc);
   private readonly prompter = inject(ConflictPrompter);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly transloco = inject(TranslocoService);
 
   private readonly _transfers = signal<readonly TransferView[]>([]);
   private readonly _revisions = signal<ReadonlyMap<string, number>>(new Map());
@@ -88,7 +90,7 @@ export class TransferQueue {
       this._transfers.set([...merged, ...this._transfers().filter((t) => !known.has(t.id))]);
     } catch (err) {
       this.started = false;
-      notifyError(this.alerts, err, 'Transfers unavailable');
+      notifyError(this.alerts, err, this.t('unavailable'));
     } finally {
       this.removedBeforeSnapshot = null;
     }
@@ -113,7 +115,7 @@ export class TransferQueue {
         conflict,
       });
     } catch (err) {
-      notifyError(this.alerts, err, 'Transfer not started');
+      notifyError(this.alerts, err, this.t('notStarted'));
     }
   }
 
@@ -122,7 +124,7 @@ export class TransferQueue {
       await this.ipc.cancel(jobId);
     } catch (err) {
       if (!(err instanceof IpcError && err.code === 'not_found')) {
-        notifyError(this.alerts, err, 'Transfer not cancelled');
+        notifyError(this.alerts, err, this.t('notCancelled'));
       }
     }
   }
@@ -131,7 +133,7 @@ export class TransferQueue {
     try {
       await this.ipc.clearFinished();
     } catch (err) {
-      notifyError(this.alerts, err, 'Finished transfers not cleared');
+      notifyError(this.alerts, err, this.t('notCleared'));
     }
   }
 
@@ -201,7 +203,7 @@ export class TransferQueue {
       );
     } catch (err) {
       if (!(err instanceof IpcError && err.code === 'not_found')) {
-        notifyError(this.alerts, err, 'Conflict answer not sent');
+        notifyError(this.alerts, err, this.t('answerNotSent'));
       }
     }
   }
@@ -211,6 +213,10 @@ export class TransferQueue {
     this.failureTimer ??= setTimeout(() => this.flushFailures(), FAILURE_WINDOW_MS);
   }
 
+  private t(key: string, params?: Record<string, unknown>): string {
+    return this.transloco.translate(`transfers.queue.${key}`, params);
+  }
+
   private flushFailures(): void {
     const failed = this.failures;
     this.failures = [];
@@ -218,8 +224,8 @@ export class TransferQueue {
     if (failed.length <= MAX_SEPARATE_FAILURES) {
       for (const job of failed) {
         this.alerts
-          .open(`${job.name}: ${errorText(job.error)}`, {
-            label: 'Transfer failed',
+          .open(this.t('failedOne', { name: job.name, reason: errorText(job.error) }), {
+            label: this.t('failedOneTitle'),
             appearance: 'negative',
           })
           .subscribe();
@@ -229,10 +235,10 @@ export class TransferQueue {
     const names = failed.slice(0, MAX_SEPARATE_FAILURES).map((j) => j.name);
     const rest = failed.length - names.length;
     const reasons = [...new Set(failed.map((j) => errorText(j.error)))];
-    const reason = reasons.length === 1 ? ` ${reasons[0]}` : '';
+    const list = this.t('failedMany', { names: names.join(', '), count: rest });
     this.alerts
-      .open(`${names.join(', ')} and ${rest} more.${reason}`, {
-        label: `${failed.length} transfers failed`,
+      .open(reasons.length === 1 ? `${list} ${reasons[0]}` : list, {
+        label: this.t('failedManyTitle', { count: failed.length }),
         appearance: 'negative',
       })
       .subscribe();

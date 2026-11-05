@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { FormGroup } from '@angular/forms';
@@ -11,7 +12,7 @@ import { KEY } from '../../../core/ipc/keys.fixture';
 import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
 import type { KeyLocation } from '../../../core/ipc/keys';
 import { Settings } from '../../../core/settings/settings';
-import { FOLDER_WARNING, KeygenDialog, locationProblem, samePath } from './keygen-dialog';
+import { KeygenDialog, locationProblem, samePath } from './keygen-dialog';
 
 interface DialogApi {
   form: FormGroup;
@@ -393,7 +394,9 @@ describe('KeygenDialog', () => {
       checkLocation.mockResolvedValue({ dir: '/srv/shared', isDefault: false, warning: 'shared' });
       const { fixture, el } = await setup();
       await settle(fixture);
-      expect(byId(el, 'keygen-folder-warning').textContent).toContain(FOLDER_WARNING);
+      expect(byId(el, 'keygen-folder-warning').textContent).toContain(
+        'Other users can open this folder. The private key file stays readable only by you, but they may be able to replace or delete it.',
+      );
       checkLocation.mockResolvedValue({ dir: '/k', isDefault: true, warning: 'shared' });
       byId<HTMLButtonElement>(el, 'keygen-folder-reset').click();
       await settle(fixture);
@@ -419,5 +422,13 @@ describe('KeygenDialog', () => {
       expect(setKeyFolder).toHaveBeenCalledWith('/srv/keys2');
       expect(completeWith).toHaveBeenCalledWith(KEY);
     });
+  });
+
+  it('renders in French', async () => {
+    const { fixture, el } = await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    expect(el.textContent).toContain('Ed25519 est recommandé');
+    expect(byId(el, 'keygen-submit').textContent).toContain('Générer');
   });
 });

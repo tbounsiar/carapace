@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { inject, Service, signal, type Signal } from '@angular/core';
 import { TuiNotificationService } from '@taiga-ui/core';
 import type { EffectiveTheme } from '../../core/theme/theme';
@@ -58,6 +59,7 @@ export class TerminalSessions {
   private readonly ipc = inject(TerminalIpc);
   private readonly factory = inject(XtermFactory);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly transloco = inject(TranslocoService);
 
   private readonly _tabs = signal<Readonly<Record<string, readonly Session[]>>>({});
   private readonly counters = new Map<string, number>();
@@ -67,6 +69,10 @@ export class TerminalSessions {
     fontFamily: 'monospace',
     fontSize: DEFAULT_FONT_SIZE,
   };
+
+  private t(key: string): string {
+    return this.transloco.translate(`terminal.sessions.${key}`);
+  }
 
   tabs(connectionId: string): readonly TerminalTab[] {
     return this._tabs()[connectionId] ?? [];
@@ -78,8 +84,8 @@ export class TerminalSessions {
       view = await this.factory.create(this.appearance);
     } catch {
       this.alerts
-        .open('The terminal component could not be loaded. Restart the app and try again.', {
-          label: 'Terminal not opened',
+        .open(this.t('loadFailed'), {
+          label: this.t('notOpened'),
           appearance: 'negative',
         })
         .subscribe();
@@ -135,7 +141,7 @@ export class TerminalSessions {
         await this.ipc.close(terminalId);
       } catch (err) {
         if (!(err instanceof IpcError && err.code === 'not_found')) {
-          notifyError(this.alerts, err, 'Terminal not closed');
+          notifyError(this.alerts, err, this.t('notClosed'));
         }
       }
     }
@@ -199,7 +205,7 @@ export class TerminalSessions {
     } catch (err) {
       if (!run.cancelled) {
         session.run = null;
-        notifyError(this.alerts, err, 'Terminal not opened');
+        notifyError(this.alerts, err, this.t('notOpened'));
       }
       return false;
     }
@@ -256,7 +262,7 @@ export class TerminalSessions {
         await call(run.terminalId);
       } catch (err) {
         if (session.run === run) {
-          notifyError(this.alerts, err, 'Terminal input lost');
+          notifyError(this.alerts, err, this.t('inputLost'));
         }
       }
     });

@@ -1,6 +1,6 @@
 <div class="panes">
   <app-file-pane
-    label="Local"
+    [label]="'files.panel.local' | transloco"
     data-testid="pane-local"
     [source]="local"
     [startPath]="startPath('local')"
@@ -12,7 +12,7 @@
   />
   @if (connected()) {
     <app-file-pane
-      label="Remote"
+      [label]="'files.panel.remote' | transloco"
       data-testid="pane-remote"
       [source]="remote()"
       [startPath]="startPath('remote')"
@@ -30,8 +30,8 @@
     <section class="disconnected" data-testid="pane-remote">
       <tui-block-status size="m">
         <span tuiAvatar="@tui.unplug" size="l" tuiSlot="top"></span>
-        <h2>Not connected</h2>
-        <p>Connect to browse the files on this host.</p>
+        <h2>{{ 'files.panel.notConnected' | transloco }}</h2>
+        <p>{{ 'files.panel.connectHint' | transloco }}</p>
         <button
           tuiButton
           size="s"
@@ -41,7 +41,7 @@
           [loading]="busy()"
           (click)="connect()"
         >
-          Connect
+          {{ 'files.panel.connect' | transloco }}
         </button>
       </tui-block-status>
     </section>

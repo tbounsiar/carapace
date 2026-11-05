@@ -12,6 +12,8 @@ import { SidebarState } from '../../sidebar/sidebar-state';
 import { Workspace } from '../../workspace/workspace';
 import { WorkspaceActions } from '../../workspace/workspace-actions';
 import { LocationBar } from './location-bar';
+import { TranslocoService } from '@jsverse/transloco';
+import { trackLanguage } from '../../../shared/ui-text';
 
 @Component({
   imports: [LocationBar, TuiRoot],
@@ -140,5 +142,16 @@ describe('LocationBar', () => {
     byId('edited-menu')!.click();
     await settle();
     expect(byId('edited-stop-all')?.textContent).toContain('Stop all');
+  });
+
+  it('follows a switch to French', async () => {
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    await go('/keys');
+    transloco.setActiveLang('fr');
+    await settle();
+    expect(crumbs()).toEqual(['Accueil', 'Clés SSH']);
+    await go('/hosts/h1');
+    expect(byId('host-menu')?.getAttribute('aria-label')).toBe('Actions pour api-1');
   });
 });

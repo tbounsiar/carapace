@@ -24,6 +24,11 @@ const LOCALES: Readonly<Record<AppLanguage, string>> = {
   fr: 'fr-FR',
 };
 
+/** The `Intl` locale of an interface language; anything but French is English. */
+export function localeOf(language: string): string {
+  return LOCALES[language === 'fr' ? 'fr' : 'en'];
+}
+
 export function isLanguagePreference(value: unknown): value is LanguagePreference {
   return value === 'system' || value === 'en' || value === 'fr';
 }

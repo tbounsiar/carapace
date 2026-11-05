@@ -20,6 +20,7 @@ import {
 } from '@taiga-ui/core';
 import { TuiButtonLoading, TuiStatus } from '@taiga-ui/kit';
 import { TuiCardLarge, TuiHeader } from '@taiga-ui/layout';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Host } from '../../../core/ipc/config.models';
 import { hostTarget } from '../../../core/ipc/connection';
@@ -27,6 +28,7 @@ import { SshService } from '../../../core/ipc/ssh';
 import { AUTH_LABELS } from '../../../shared/auth-method';
 import { connectionStatus } from '../../../shared/connection-status';
 import { previewHost, variableLayers } from '../../../shared/template';
+import { uiText } from '../../../shared/ui-text';
 import { HostConnector } from '../../host-connection/host-connector';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { MoveLauncher } from '../../project-tree/move-launcher';
@@ -57,6 +59,7 @@ let cards = 0;
     TuiLoader,
     TuiStatus,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-host-card',
   styleUrl: './host-card.scss',
@@ -93,7 +96,7 @@ export class HostCard {
     const project = host.projectId ? this.config.findProject(host.projectId) : null;
     const preview = previewHost(host, variableLayers(this.config.variables(), project));
     return preview.missing.length
-      ? { ok: false, text: `Missing: ${preview.missing.join(', ')}` }
+      ? { ok: false, text: uiText('dashboard.card.missing', { names: preview.missing.join(', ') }) }
       : { ok: true, text: preview.address };
   });
 
@@ -102,13 +105,13 @@ export class HostCard {
     const entries: CardMenuEntry[] = [
       {
         id: 'menu-edit',
-        label: 'Edit',
+        label: uiText('common.edit'),
         icon: '@tui.pencil',
         run: () => this.actions.editHost(host, { sidebarFocus: false }),
       },
       {
         id: 'menu-move',
-        label: 'Move to…',
+        label: uiText('dashboard.card.move'),
         icon: '@tui.folder-input',
         run: () => void this.moves.openDialog(host),
       },
@@ -116,14 +119,14 @@ export class HostCard {
     if (this.connected()) {
       entries.push({
         id: 'menu-disconnect',
-        label: 'Disconnect',
+        label: uiText('dashboard.card.disconnect'),
         icon: '@tui.unplug',
         run: () => void this.connector.disconnect(this.target().connectionId),
       });
     }
     entries.push({
       id: 'menu-delete',
-      label: 'Delete',
+      label: uiText('common.delete'),
       icon: '@tui.trash',
       separated: true,
       run: () => void this.remove(host),

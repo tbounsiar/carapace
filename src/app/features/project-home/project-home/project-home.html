@@ -1,8 +1,10 @@
 @if (notFound()) {
   <tui-block-status size="m" data-testid="project-not-found">
-    <h2>Project not found</h2>
-    <p>It may have been deleted.</p>
-    <a tuiButton appearance="secondary" size="s" routerLink="/">Go to Home</a>
+    <h2>{{ 'projectHome.notFound.title' | transloco }}</h2>
+    <p>{{ 'projectHome.notFound.text' | transloco }}</p>
+    <a tuiButton appearance="secondary" size="s" routerLink="/">
+      {{ 'projectHome.notFound.home' | transloco }}
+    </a>
   </tui-block-status>
 } @else {
   @let current = project();
@@ -14,13 +16,13 @@
           class="ellipsis"
           data-testid="project-home-title"
           [tuiSkeleton]="!current"
-          [textContent]="current?.name ?? 'Project'"
+          [textContent]="current?.name ?? ('projectHome.placeholderTitle' | transloco)"
         ></h1>
         <p
           tuiSubtitle
           data-testid="project-home-stats"
           [tuiSkeleton]="!current"
-          [textContent]="current ? stats() : 'No hosts yet'"
+          [textContent]="current ? stats() : ('dashboard.stats.noHosts' | transloco)"
         ></p>
       </hgroup>
       <aside tuiAccessories class="accessories">
@@ -35,7 +37,7 @@
             [disabled]="!current"
             (click)="newHost()"
           >
-            New host
+            {{ 'projectHome.newHost' | transloco }}
           </button>
         }
         <button
@@ -45,20 +47,20 @@
           iconStart="@tui.ellipsis"
           type="button"
           tuiDropdownAlign="end"
-          aria-label="Project actions"
           data-testid="project-menu"
+          [attr.aria-label]="'projectHome.actions' | transloco"
           [disabled]="!current"
           [attr.aria-expanded]="menuOpen()"
           [tuiDropdown]="menu"
           [tuiDropdownOpen]="menuOpen()"
           (tuiDropdownOpenChange)="menuOpen.set($event)"
         >
-          Project actions
+          {{ 'projectHome.actions' | transloco }}
         </button>
       </aside>
     </header>
 
-    <tui-tabs aria-label="Project">
+    <tui-tabs [attr.aria-label]="'projectHome.tabs' | transloco">
       <a
         tuiTab
         routerLink="."
@@ -66,16 +68,16 @@
         data-testid="project-tab-hosts"
         [routerLinkActiveOptions]="{ exact: true }"
       >
-        Hosts
+        {{ 'projectHome.hosts' | transloco }}
       </a>
       <a tuiTab routerLink="variables" routerLinkActive data-testid="project-tab-variables">
-        Variables
+        {{ 'projectHome.variables' | transloco }}
       </a>
     </tui-tabs>
 
     @if (loadError(); as message) {
       <tui-block-status size="m" data-testid="dashboard-error">
-        <h2>Hosts could not be loaded</h2>
+        <h2>{{ 'projectHome.loadError' | transloco }}</h2>
         <p>{{ message }}</p>
         <button
           tuiButton
@@ -86,7 +88,7 @@
           data-testid="dashboard-retry"
           (click)="retry()"
         >
-          Try again
+          {{ 'projectHome.retry' | transloco }}
         </button>
       </tui-block-status>
     } @else {
@@ -96,7 +98,7 @@
 }
 
 <ng-template #menu>
-  <tui-data-list size="s" role="menu" aria-label="Project actions">
+  <tui-data-list size="s" role="menu" [attr.aria-label]="'projectHome.actions' | transloco">
     <!-- An empty project shows New collection in its empty state, the only one on the page. -->
     @if (!empty()) {
       <button
@@ -107,7 +109,7 @@
         data-testid="project-home-new-collection"
         (click)="newCollection()"
       >
-        New collection
+        {{ 'projectHome.menu.newCollection' | transloco }}
       </button>
     }
     <button
@@ -118,7 +120,7 @@
       data-testid="project-rename"
       (click)="rename()"
     >
-      Rename
+      {{ 'common.rename' | transloco }}
     </button>
     <button
       tuiOption
@@ -128,7 +130,7 @@
       data-testid="project-export"
       (click)="exportProject()"
     >
-      Export project…
+      {{ 'projectHome.menu.export' | transloco }}
     </button>
     <hr />
     <button
@@ -139,7 +141,7 @@
       data-testid="project-delete"
       (click)="remove()"
     >
-      Delete
+      {{ 'common.delete' | transloco }}
     </button>
   </tui-data-list>
 </ng-template>

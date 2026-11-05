@@ -1,15 +1,28 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input, viewChild } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { RouterLink } from '@angular/router';
 import { TuiButton, TuiDialogService, TuiTitle } from '@taiga-ui/core';
 import { TuiBlockStatus, TuiHeader } from '@taiga-ui/layout';
 import { ConfigService } from '../../../core/ipc/config';
 import type { VariableScope } from '../../../core/ipc/config.models';
 import { confirmDestructive } from '../../../shared/destructive-confirm/confirm-destructive';
+import { uiText } from '../../../shared/ui-text';
+import { monoParts } from '../../project-tree/text-parts';
 import type { LeaveGuarded } from '../unsaved-changes-guard';
 import { VariablesEditor } from '../variables-editor/variables-editor';
 
 @Component({
-  imports: [RouterLink, TuiBlockStatus, TuiButton, TuiHeader, TuiTitle, VariablesEditor],
+  imports: [
+    NgTemplateOutlet,
+    RouterLink,
+    TranslocoPipe,
+    TuiBlockStatus,
+    TuiButton,
+    TuiHeader,
+    TuiTitle,
+    VariablesEditor,
+  ],
   selector: 'app-variables-page',
   styleUrl: './variables-page.scss',
   templateUrl: './variables-page.html',
@@ -24,7 +37,12 @@ export class VariablesPage implements LeaveGuarded {
   readonly embedded = input(false);
 
   private readonly editor = viewChild(VariablesEditor);
-  protected readonly example = '${name}';
+  /** "Host fields use them as ${name}." and how the levels combine. */
+  protected readonly description = computed(() =>
+    monoParts(this.projectId() ? 'variables.page.projectWins' : 'variables.page.globalOverride', {
+      example: '${name}',
+    }),
+  );
 
   protected readonly project = computed(() => {
     const id = this.projectId();
@@ -50,10 +68,10 @@ export class VariablesPage implements LeaveGuarded {
     if (!this.editor()?.dirty()) {
       return true;
     }
-    return confirmDestructive(this.dialogs, 'Discard unsaved changes?', {
-      content: 'Your changes to these variables are not saved.',
-      yes: 'Discard',
-      no: 'Keep editing',
+    return confirmDestructive(this.dialogs, uiText('variables.page.discard.label'), {
+      content: uiText('variables.page.discard.content'),
+      yes: uiText('variables.page.discard.yes'),
+      no: uiText('variables.page.discard.no'),
     });
   }
 }

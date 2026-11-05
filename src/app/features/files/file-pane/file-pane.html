@@ -2,7 +2,7 @@
   <h3 class="title">{{ label() }}</h3>
   @if (selection.count(); as count) {
     <span tuiBadge size="s" appearance="neutral" data-testid="pane-selection-count">
-      {{ count }} selected
+      {{ 'files.pane.selected' | transloco: { count } }}
     </span>
   }
   <button
@@ -25,13 +25,13 @@
     size="xs"
     iconStart="@tui.arrow-up"
     type="button"
-    tuiHint="Up one level"
-    aria-label="Up one level"
+    [tuiHint]="'files.pane.upHint' | transloco"
+    [attr.aria-label]="'files.pane.upHint' | transloco"
     data-testid="pane-up"
     [disabled]="upPath() === null"
     (click)="up()"
   >
-    Up
+    {{ 'files.pane.up' | transloco }}
   </button>
   <button
     tuiIconButton
@@ -39,13 +39,13 @@
     size="xs"
     iconStart="@tui.refresh-cw"
     type="button"
-    tuiHint="Refresh"
-    aria-label="Refresh"
+    [tuiHint]="'files.pane.refresh' | transloco"
+    [attr.aria-label]="'files.pane.refresh' | transloco"
     data-testid="pane-refresh"
     [disabled]="path() === null"
     (click)="refresh()"
   >
-    Refresh
+    {{ 'files.pane.refresh' | transloco }}
   </button>
   <button
     tuiIconButton
@@ -53,27 +53,27 @@
     size="xs"
     iconStart="@tui.folder-plus"
     type="button"
-    tuiHint="New folder"
-    aria-label="New folder"
+    [tuiHint]="'files.pane.newFolder' | transloco"
+    [attr.aria-label]="'files.pane.newFolder' | transloco"
     data-testid="pane-mkdir"
     [disabled]="!canCreate()"
     (click)="mkdir()"
   >
-    New folder
+    {{ 'files.pane.newFolder' | transloco }}
   </button>
   <button
     tuiIconButton
     size="xs"
     type="button"
-    aria-label="Show hidden files"
+    [attr.aria-label]="'files.pane.showHidden' | transloco"
     data-testid="pane-hidden"
     [appearance]="showHidden() ? 'secondary' : 'flat-grayscale'"
     [iconStart]="showHidden() ? '@tui.eye' : '@tui.eye-off'"
-    [tuiHint]="showHidden() ? 'Hide hidden files' : 'Show hidden files'"
+    [tuiHint]="(showHidden() ? 'files.pane.hideHidden' : 'files.pane.showHidden') | transloco"
     [attr.aria-pressed]="showHidden()"
     (click)="toggleHidden()"
   >
-    Hidden files
+    {{ 'files.pane.hiddenFiles' | transloco }}
   </button>
 </div>
 
@@ -88,7 +88,7 @@
       [attr.aria-current]="$last ? 'location' : null"
       (click)="navigate(crumb.path)"
     >
-      {{ crumb.label }}
+      {{ crumb.path === '' ? ('files.pane.computer' | transloco) : crumb.label }}
     </button>
   }
 </tui-breadcrumbs>
@@ -113,22 +113,30 @@
       class="table"
       role="grid"
       aria-multiselectable="true"
-      [attr.aria-label]="label() + ' files'"
+      [attr.aria-label]="'files.pane.tableLabel' | transloco: { label: label() }"
       [sorter]="sorter()"
       [direction]="direction()"
       (sortChange)="onSort($event)"
     >
       <thead tuiThead>
         <tr>
-          <th tuiTh [sorter]="sorters.name" [requiredSort]="true">Name</th>
-          <th tuiTh class="col-size" [sorter]="sorters.size" [requiredSort]="true">Size</th>
+          <th tuiTh [sorter]="sorters.name" [requiredSort]="true">
+            {{ 'files.pane.name' | transloco }}
+          </th>
+          <th tuiTh class="col-size" [sorter]="sorters.size" [requiredSort]="true">
+            {{ 'files.pane.size' | transloco }}
+          </th>
           <th tuiTh class="col-modified" [sorter]="sorters.modified" [requiredSort]="true">
-            Modified
+            {{ 'files.pane.modified' | transloco }}
           </th>
           @if (showPermissions()) {
-            <th tuiTh class="col-permissions">Permissions</th>
+            <th tuiTh class="col-permissions">
+              <span tuiHintOverflow class="th-label">{{
+                'files.pane.permissions' | transloco
+              }}</span>
+            </th>
           }
-          <th tuiTh class="col-menu" aria-label="Actions"></th>
+          <th tuiTh class="col-menu" [attr.aria-label]="'files.pane.actions' | transloco"></th>
         </tr>
       </thead>
       <tbody tuiTbody>
@@ -191,14 +199,14 @@
                 iconStart="@tui.ellipsis"
                 type="button"
                 [tabIndex]="i === activeIndex() ? 0 : -1"
-                [attr.aria-label]="'Actions for ' + row.entry.name"
+                [attr.aria-label]="'files.pane.actionsFor' | transloco: { name: row.entry.name }"
                 [attr.data-testid]="'entry-menu-' + row.entry.name"
                 [tuiDropdown]="menu"
                 tuiDropdownAlign="end"
                 [tuiDropdownOpen]="openMenu() === row.entry.path"
                 (tuiDropdownOpenChange)="setMenu(row.entry, $event)"
               >
-                Actions
+                {{ 'files.pane.actions' | transloco }}
               </button>
               <ng-template #menu let-close>
                 <tui-data-list size="s">
@@ -209,10 +217,10 @@
                       iconStart="@tui.file-pen"
                       type="button"
                       data-testid="entry-edit"
-                      [appOptionReason]="tooLarge ? 'Too large to edit (max 5 MiB)' : null"
+                      [appOptionReason]="tooLarge ? ('files.pane.tooLargeEdit' | transloco) : null"
                       (click)="close(); edit.emit(row.entry)"
                     >
-                      <app-option-label>Edit</app-option-label>
+                      <app-option-label>{{ 'common.edit' | transloco }}</app-option-label>
                     </button>
                     @let external = isTooLargeExternal(row.entry);
                     <button
@@ -220,10 +228,14 @@
                       iconStart="@tui.external-link"
                       type="button"
                       data-testid="entry-external"
-                      [appOptionReason]="external ? 'Too large (max 1 GiB)' : null"
+                      [appOptionReason]="
+                        external ? ('files.pane.tooLargeExternal' | transloco) : null
+                      "
                       (click)="close(); openExternal.emit(row.entry)"
                     >
-                      <app-option-label>Open in external editor</app-option-label>
+                      <app-option-label>{{
+                        'files.pane.openExternal' | transloco
+                      }}</app-option-label>
                     </button>
                   }
                   <button
@@ -233,7 +245,7 @@
                     data-testid="entry-rename"
                     (click)="close(); rename(row.entry)"
                   >
-                    Rename
+                    {{ 'common.rename' | transloco }}
                   </button>
                   <hr />
                   <button
@@ -243,7 +255,7 @@
                     data-testid="entry-delete"
                     (click)="close(); remove(row.entry)"
                   >
-                    Delete
+                    {{ 'common.delete' | transloco }}
                   </button>
                 </tui-data-list>
               </ng-template>
@@ -254,9 +266,9 @@
             <tr>
               <td tuiTd class="empty" [attr.colspan]="columnCount()">
                 @if (hiddenCount()) {
-                  Only hidden items. Show hidden files to see them.
+                  {{ 'files.pane.onlyHidden' | transloco }}
                 } @else {
-                  This folder is empty. Drop files here from the other pane, or create a folder.
+                  {{ 'files.pane.empty' | transloco }}
                 }
               </td>
             </tr>

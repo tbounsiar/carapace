@@ -9,8 +9,8 @@
     tuiInput
     type="text"
     autocomplete="off"
-    placeholder="Filter hosts"
-    aria-label="Filter hosts"
+    [placeholder]="'sidebar.filter' | transloco"
+    [attr.aria-label]="'sidebar.filter' | transloco"
     aria-controls="sidebar-tree"
     aria-keyshortcuts="Control+K"
     data-testid="sidebar-filter"
@@ -31,17 +31,17 @@
     size="s"
     iconStart="@tui.plus"
     type="button"
-    tuiHint="New"
-    aria-label="New"
+    [tuiHint]="'sidebar.new' | transloco"
+    [attr.aria-label]="'sidebar.new' | transloco"
     data-testid="aside-new"
     [attr.aria-expanded]="newOpen()"
     [disabled]="!loaded()"
   >
-    New
+    {{ 'sidebar.new' | transloco }}
   </button>
 </span>
 <ng-template #menu>
-  <tui-data-list size="s" role="menu" aria-label="New">
+  <tui-data-list size="s" role="menu" [attr.aria-label]="'sidebar.new' | transloco">
     <button
       tuiOption
       type="button"
@@ -50,7 +50,7 @@
       data-testid="new-host"
       (click)="newHost()"
     >
-      New host
+      {{ 'sidebar.newHost' | transloco }}
     </button>
     <button
       tuiOption
@@ -60,7 +60,7 @@
       data-testid="new-collection"
       (click)="newCollection()"
     >
-      New collection
+      {{ 'sidebar.newCollection' | transloco }}
     </button>
     @if (isHome()) {
       <button
@@ -71,7 +71,7 @@
         data-testid="new-project"
         (click)="newProject()"
       >
-        New project
+        {{ 'sidebar.newProject' | transloco }}
       </button>
     }
   </tui-data-list>

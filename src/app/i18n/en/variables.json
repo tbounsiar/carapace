@@ -1,1 +1,57 @@
-{}
+{
+  "editor": {
+    "table": "Variables",
+    "name": "Name",
+    "type": "Type",
+    "value": "Value",
+    "remove": "Remove",
+    "namePlaceholder": "name",
+    "valuePlaceholder": "value",
+    "nameOf": "Name of variable {index}",
+    "typeOf": "Type of variable {index}",
+    "secretOf": "Secret value of variable {index}",
+    "valueOf": "Value of variable {index}",
+    "removeRow": "Remove variable {index}",
+    "setReplace": "Set. Type to replace",
+    "notSet": "Not set",
+    "set": "Set",
+    "kinds": {
+      "plain": "Plain",
+      "secret": "Secret"
+    },
+    "empty": "No variables yet. Add one to use it in host fields as {example}.",
+    "rowError": "Row {row}, {field}: {message}",
+    "fields": {
+      "name": "name",
+      "value": "value"
+    },
+    "renameWarning": "Renaming a secret drops its stored value: {names}. Type the value again or keep the old name.",
+    "add": "Add variable",
+    "saveFailed": "Variables not saved"
+  },
+  "validation": {
+    "nameRequired": "Name is required",
+    "namePattern": "Use letters, digits, \"_\", \".\" or \"-\", starting with a letter or \"_\" (max 64)",
+    "duplicate": "This name is already used in this scope",
+    "valueMax": "Value must be at most {max} characters",
+    "secretLabel": "Secret value"
+  },
+  "page": {
+    "notFound": {
+      "title": "Project not found",
+      "text": "It may have been deleted. Pick another project in the sidebar.",
+      "back": "Back to start"
+    },
+    "projectWins": "Host fields use them as {example}. Project variables win over global ones.",
+    "globalOverride": "Host fields use them as {example}. Projects can override them.",
+    "projectTitle": "{name}: variables",
+    "globalTitle": "Global variables",
+    "projectSection": "Project variables",
+    "discard": {
+      "label": "Discard unsaved changes?",
+      "content": "Your changes to these variables are not saved.",
+      "yes": "Discard",
+      "no": "Keep editing"
+    }
+  }
+}

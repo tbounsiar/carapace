@@ -1,39 +1,44 @@
 @if (notFound()) {
   <tui-block-status size="m" data-testid="vars-not-found">
-    <h2>Project not found</h2>
-    <p>It may have been deleted. Pick another project in the sidebar.</p>
-    <a tuiButton appearance="secondary" size="s" routerLink="/">Back to start</a>
+    <h2>{{ 'variables.page.notFound.title' | transloco }}</h2>
+    <p>{{ 'variables.page.notFound.text' | transloco }}</p>
+    <a tuiButton appearance="secondary" size="s" routerLink="/">
+      {{ 'variables.page.notFound.back' | transloco }}
+    </a>
   </tui-block-status>
 } @else if (scope(); as scope) {
   @if (embedded()) {
     <p tuiSubtitle class="description">
-      Host fields use them as <span class="mono">{{ example }}</span
-      >. Project variables win over global ones.
+      <ng-container *ngTemplateOutlet="parts" />
     </p>
   } @else {
     <header tuiHeader class="header">
       <hgroup tuiTitle>
         <h1 data-testid="vars-title">
           @if (project(); as project) {
-            {{ project.name }}: variables
+            {{ 'variables.page.projectTitle' | transloco: { name: project.name } }}
           } @else {
-            Global variables
+            {{ 'variables.page.globalTitle' | transloco }}
           }
         </h1>
         <p tuiSubtitle>
-          Host fields use them as <span class="mono">{{ example }}</span
-          >.
-          @if (project()) {
-            Project variables win over global ones.
-          } @else {
-            Projects can override them.
-          }
+          <ng-container *ngTemplateOutlet="parts" />
         </p>
       </hgroup>
     </header>
   }
 
-  <section [attr.aria-label]="project() ? 'Project variables' : 'Global variables'">
+  <section
+    [attr.aria-label]="
+      (project() ? 'variables.page.projectSection' : 'variables.page.globalTitle') | transloco
+    "
+  >
     <app-variables-editor [scope]="scope" [variables]="variables()" />
   </section>
 }
+
+<ng-template #parts>
+  @for (part of description(); track $index) {
+    <span [class.mono]="part.mono">{{ part.text }}</span>
+  }
+</ng-template>

@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TuiAutoFocus, TuiValidationError } from '@taiga-ui/cdk';
 import {
   TuiButton,
@@ -59,6 +60,7 @@ export interface KeyImportDialogData {
     TuiPassword,
     TuiTextfield,
     TuiTooltip,
+    TranslocoPipe,
   ],
   selector: 'app-key-import-dialog',
   styleUrl: './key-import-dialog.scss',
@@ -69,6 +71,7 @@ export class KeyImportDialog {
   private readonly alerts = inject(TuiNotificationService);
   private readonly picker = inject(KeyFilePicker);
   private readonly injector = inject(Injector);
+  private readonly transloco = inject(TranslocoService);
   protected readonly context =
     injectContext<TuiDialogContext<KeyView, KeyImportDialogData | undefined>>();
   private readonly initialPath = this.context.data?.path ?? '';
@@ -114,7 +117,7 @@ export class KeyImportDialog {
     try {
       picked = await this.picker.pickFile(path.value.trim() || null);
     } catch (err) {
-      notifyError(this.alerts, err, 'File picker not opened');
+      notifyError(this.alerts, err, this.transloco.translate('keys.import.pickerFailed'));
       return;
     }
     if (picked === null) {
@@ -161,7 +164,7 @@ export class KeyImportDialog {
   private handleError(err: unknown): void {
     const c = this.form.controls;
     if (!(err instanceof IpcError)) {
-      notifyError(this.alerts, err, 'Key not imported');
+      notifyError(this.alerts, err, this.transloco.translate('keys.import.notImported'));
       return;
     }
     const field =
@@ -171,10 +174,13 @@ export class KeyImportDialog {
           ? c.path
           : null;
     if (!field) {
-      notifyError(this.alerts, err, 'Key not imported');
+      notifyError(this.alerts, err, this.transloco.translate('keys.import.notImported'));
       return;
     }
-    const message = err.code === 'invalid_passphrase' ? 'Wrong passphrase' : err.message;
+    const message =
+      err.code === 'invalid_passphrase'
+        ? this.transloco.translate('keys.import.wrongPassphrase')
+        : err.message;
     field.setErrors({ invalid: new TuiValidationError(message) });
     field.markAsTouched();
   }

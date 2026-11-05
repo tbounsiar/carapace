@@ -9,8 +9,8 @@
           autocomplete="off"
           aria-keyshortcuts="Control+F"
           data-testid="hosts-search"
-          [placeholder]="placeholder()"
-          [attr.aria-label]="placeholder()"
+          [placeholder]="placeholder() ?? ('dashboard.toolbar.search' | transloco)"
+          [attr.aria-label]="placeholder() ?? ('dashboard.toolbar.search' | transloco)"
           [value]="query()"
           (input)="onInput($event)"
           (keydown)="onKeydown($event)"
@@ -21,7 +21,7 @@
       <tui-segmented
         size="s"
         role="radiogroup"
-        aria-label="Show"
+        [attr.aria-label]="'dashboard.toolbar.show' | transloco"
         [activeItemIndex]="connectedOnly() ? 1 : 0"
       >
         <label>
@@ -33,7 +33,7 @@
             [checked]="!connectedOnly()"
             (change)="connectedOnly.set(false)"
           />
-          All
+          {{ 'dashboard.toolbar.all' | transloco }}
         </label>
         <label>
           <input
@@ -44,7 +44,7 @@
             [checked]="connectedOnly()"
             (change)="connectedOnly.set(true)"
           />
-          Connected
+          {{ 'dashboard.toolbar.connected' | transloco }}
         </label>
       </tui-segmented>
       @if (count(); as count) {

@@ -6,7 +6,15 @@
     data-testid="terminal-ended"
     [appearance]="lost() ? 'warning' : 'neutral'"
   >
-    <span>{{ lost() ? 'Connection lost.' : 'Session ended. ' + endedReason() }}</span>
+    <span>
+      @if (lost()) {
+        {{ 'terminal.panel.lost' | transloco }}
+      } @else if (endedReason(); as reason) {
+        {{ 'terminal.panel.endedWith' | transloco: { reason: reason | transloco } }}
+      } @else {
+        {{ 'terminal.panel.ended' | transloco }}
+      }
+    </span>
     <button
       tuiButton
       appearance="secondary"
@@ -17,7 +25,7 @@
       [loading]="busy()"
       (click)="reopen()"
     >
-      Reopen
+      {{ 'terminal.panel.reopen' | transloco }}
     </button>
   </div>
 }

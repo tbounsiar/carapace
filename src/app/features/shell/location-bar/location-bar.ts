@@ -1,5 +1,6 @@
 import { Component, computed, inject, Injector, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiItem } from '@taiga-ui/cdk';
 import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiLink } from '@taiga-ui/core';
 import { TuiBreadcrumbs, TuiFade } from '@taiga-ui/kit';
@@ -7,19 +8,21 @@ import { ConfigService } from '../../../core/ipc/config';
 import { EditedFiles } from '../../../core/ipc/edited-files';
 import type { Collection, Host, Project } from '../../../core/ipc/config.models';
 import { CurrentScope } from '../../../shared/current-scope';
+import { uiText } from '../../../shared/ui-text';
 import { OptionLabel } from '../../../shared/option-reason/option-label';
 import { OptionReason } from '../../../shared/option-reason/option-reason';
 import { MoveLauncher } from '../../project-tree/move-launcher';
-import { ancestors, HOME } from '../../project-tree/node-tree';
+import { ancestors } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { SidebarState } from '../../sidebar/sidebar-state';
+import { tabLabel } from '../../workspace/tab-titles';
 import { WorkspaceActions } from '../../workspace/workspace-actions';
 
 const PAGES: Readonly<Record<string, string>> = {
-  '/variables': 'Global variables',
-  '/keys': 'SSH keys',
-  '/settings': 'Settings',
-  '/edited-files': 'Edited files',
+  '/variables': 'shell.pages.globalVariables',
+  '/keys': 'shell.pages.sshKeys',
+  '/settings': 'shell.pages.settings',
+  '/edited-files': 'shell.pages.editedFiles',
 };
 
 interface Crumb {
@@ -60,6 +63,7 @@ interface Location {
     OptionLabel,
     OptionReason,
     RouterLink,
+    TranslocoPipe,
     TuiBreadcrumbs,
     TuiButton,
     TuiDataList,
@@ -100,16 +104,22 @@ export class LocationBar {
       case 'project': {
         const project = this.config.findProject(route.projectId);
         if (!project) {
-          return { ...none, current: this.config.loaded() ? 'Project not found' : null };
+          return {
+            ...none,
+            current: this.config.loaded() ? uiText('shell.locationBar.projectNotFound') : null,
+          };
         }
         return route.variables
-          ? { ...none, project, current: 'Variables' }
+          ? { ...none, project, current: uiText('shell.locationBar.variables') }
           : { ...none, current: project.name };
       }
       case 'host': {
         const found = this.config.findHost(route.hostId);
         if (!found) {
-          return { ...none, current: this.config.loaded() ? 'Host not found' : null };
+          return {
+            ...none,
+            current: this.config.loaded() ? uiText('shell.locationBar.hostNotFound') : null,
+          };
         }
         return {
           ...none,
@@ -130,18 +140,27 @@ export class LocationBar {
           project: found.project,
           collections: ancestors(this.config.nodes(), found.host.id),
           hostCrumb: found.host,
-          current: tab.label,
+          current: tabLabel(tab),
         };
       }
-      default:
-        return { ...none, current: PAGES[route.path] ?? null };
+      default: {
+        const page = PAGES[route.path];
+        return { ...none, current: page ? uiText(page) : null };
+      }
     }
   });
 
   /** Home, the project, the collections, then the current page (the last one is not a link). */
   protected readonly crumbs = computed<Crumb[]>(() => {
     const { project, collections, current, hostCrumb } = this.location();
-    const list: Crumb[] = [{ id: 'crumb-home', text: HOME, link: ['/'], collection: null }];
+    const list: Crumb[] = [
+      {
+        id: 'crumb-home',
+        text: uiText('common.home'),
+        link: ['/'],
+        collection: null,
+      },
+    ];
     if (project) {
       list.push({
         id: 'crumb-project',
@@ -184,7 +203,7 @@ export class LocationBar {
     if (tab) {
       return {
         id: 'tab-page-menu',
-        name: tab.label,
+        name: tabLabel(tab),
         entries: this.workspace.menu(tab),
       };
     }
@@ -192,11 +211,11 @@ export class LocationBar {
     if (route.kind === 'other' && route.path === '/edited-files' && this.edited.count()) {
       return {
         id: 'edited-menu',
-        name: 'Edited files',
+        name: uiText('shell.pages.editedFiles'),
         entries: [
           {
             id: 'edited-stop-all',
-            label: 'Stop all',
+            label: uiText('shell.locationBar.stopAll'),
             icon: '@tui.x',
             run: () => void this.stopAllEdited(),
           },
@@ -211,13 +230,13 @@ export class LocationBar {
         entries: [
           {
             id: 'host-move',
-            label: 'Move to…',
+            label: uiText('shell.locationBar.moveTo'),
             icon: '@tui.folder-input',
             run: () => void this.moves.openDialog(host),
           },
           {
             id: 'host-delete',
-            label: 'Delete host',
+            label: uiText('shell.locationBar.deleteHost'),
             icon: '@tui.trash',
             separated: true,
             run: () => void this.actions.deleteHost(host),

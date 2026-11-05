@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
 import { TuiButton, TuiCheckbox, type TuiDialogContext, TuiLabel, TuiTitle } from '@taiga-ui/core';
 import { injectContext } from '@taiga-ui/polymorpheus';
@@ -15,7 +16,15 @@ export interface KeyDeleteDecision {
 }
 
 @Component({
-  imports: [ReactiveFormsModule, TuiAutoFocus, TuiButton, TuiCheckbox, TuiLabel, TuiTitle],
+  imports: [
+    ReactiveFormsModule,
+    TranslocoPipe,
+    TuiAutoFocus,
+    TuiButton,
+    TuiCheckbox,
+    TuiLabel,
+    TuiTitle,
+  ],
   selector: 'app-key-delete-dialog',
   styleUrl: './key-delete-dialog.scss',
   templateUrl: './key-delete-dialog.html',

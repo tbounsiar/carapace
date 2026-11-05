@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -243,5 +244,12 @@ describe('HostDetail', () => {
     await setup();
     expect(document.activeElement).toBe(byId('host-detail-title'));
     expect(TestBed.inject(Workspace).headingFocus()).toBe(false);
+  });
+
+  it('renders in French', async () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await setup();
+    expect(byId('host-connect')?.textContent).toContain('Connecter');
+    expect(el().textContent).toContain('Authentification');
   });
 });

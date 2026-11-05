@@ -36,13 +36,13 @@
     type="button"
     class="menu"
     [attr.data-testid]="menu.id"
-    [attr.aria-label]="'Actions for ' + menu.name"
+    [attr.aria-label]="'shell.locationBar.actionsFor' | transloco: { name: menu.name }"
     [tuiDropdown]="entries"
     tuiDropdownAlign="end"
     [tuiDropdownOpen]="menuOpen()"
     (tuiDropdownOpenChange)="menuOpen.set($event)"
   >
-    Actions
+    {{ 'shell.locationBar.actions' | transloco }}
   </button>
   <ng-template #entries>
     <tui-data-list size="s" role="menu">

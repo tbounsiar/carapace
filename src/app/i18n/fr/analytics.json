@@ -1,1 +1,61 @@
-{}
+{
+  "categories": {
+    "launch": {
+      "title": "Nombre de lancements",
+      "note": "Un événement au démarrage de Carapace."
+    },
+    "features": {
+      "title": "Utilisation des fonctionnalités",
+      "note": "Terminaux, fichiers, transferts, clés et variables utilisés ; tailles de la configuration par tranches."
+    },
+    "connections": {
+      "title": "Résultats des connexions",
+      "note": "Réussite ou échec des connexions et des tests : type d’authentification, code d’erreur, durée par tranche."
+    },
+    "crashes": {
+      "title": "Rapports de plantage",
+      "note": "Si Carapace plante : type de plantage, partie de l’application et, dans son propre code, la ligne source. Aucun message ni chemin."
+    }
+  },
+  "common": {
+    "lead": "Envoyé avec chaque événement :",
+    "text": "version de l’application, système d’exploitation et sa version, langue, et un identifiant aléatoire qui change à chaque lancement. Le pays et la région sont déduits de la connexion ; l’adresse IP n’est pas conservée."
+  },
+  "never": {
+    "lead": "Jamais envoyé :",
+    "text": "noms d’hôtes, adresses, noms d’utilisateur, noms de fichiers, clés, mots de passe, ni rien de ce que vous tapez."
+  },
+  "unsavedDenial": "Désactivé pour cette session. Le réglage n’a pas pu être enregistré ; Carapace réessaiera.",
+  "linkNotOpened": "Lien non ouvert",
+  "notSaved": "Réglage non enregistré",
+  "howItWorks": "Fonctionnement des données d’utilisation",
+  "consent": {
+    "title": "Données d’utilisation anonymes",
+    "intro": "Carapace envoie des données d’utilisation anonymes pour aider à décider quoi améliorer. Rien n’est envoyé avant que vous n’enregistriez. Désactivez ce que vous ne voulez pas partager, ici ou à tout moment dans Paramètres.",
+    "reask": "Ce que Carapace peut envoyer a changé. Vérifiez ce qui est marqué « Nouveau ».",
+    "new": "Nouveau",
+    "save": "Enregistrer les choix"
+  },
+  "events": {
+    "keyless": "Cette version n’envoie pas de données d’utilisation. Voici les événements qu’elle enverrait.",
+    "readError": "Impossible de lire les événements. Redémarrez l’application.",
+    "systemTitle": "Envoyé avec chaque événement",
+    "appVersion": "Version de l’application",
+    "os": "Système d’exploitation",
+    "language": "Langue",
+    "sdkVersion": "Version du SDK",
+    "sessionId": "ID de session",
+    "sessionNote": "Aléatoire, nouveau à chaque lancement, non lié à vous.",
+    "countryNote": "Le pays et la région ne sont pas envoyés : le service de statistiques les déduit de la connexion.",
+    "sessionTitle": "Cette session (gardée en mémoire, effacée quand vous quittez)",
+    "empty": "Rien n’a été envoyé pendant cette session.",
+    "doNotTrack": "DO_NOT_TRACK est défini sur cet ordinateur.",
+    "allOff": "Les données d’utilisation sont désactivées.",
+    "time": "Heure",
+    "event": "Événement",
+    "properties": "Propriétés",
+    "previousLaunch": "Lancement précédent",
+    "none": "Aucune",
+    "crashNote": "Les rapports de plantage contiennent la version de l’application et le système d’exploitation, mais pas la langue, et utilisent leur propre identifiant aléatoire : ils ne peuvent donc pas être reliés aux autres événements de cette liste."
+  }
+}

@@ -1,1 +1,39 @@
-{}
+{
+  "connect": "Connecter",
+  "disconnect": "Déconnecter",
+  "status": "État",
+  "auth": "Authentification",
+  "askedWhenConnecting": "demandé à la connexion",
+  "missing": "Variables manquantes : {names}",
+  "forget": {
+    "password": "Oublier le mot de passe enregistré",
+    "passphrase": "Oublier la phrase secrète enregistrée"
+  },
+  "forgotten": {
+    "title": "Secret enregistré oublié",
+    "password": "Le mot de passe enregistré pour cet hôte a été supprimé.",
+    "passphrase": "La phrase secrète enregistrée pour cet hôte a été supprimée."
+  },
+  "notForgotten": "Secret enregistré non oublié",
+  "notFound": {
+    "title": "Hôte introuvable",
+    "text": "Il a peut-être été supprimé. Choisissez un autre hôte dans la barre latérale.",
+    "home": "Aller à l’accueil"
+  },
+  "tabs": {
+    "title": "Onglets ouverts",
+    "modified": "Modifié",
+    "aria": {
+      "plain": "{label} — {status}",
+      "modified": "{label} — {status}, modifié",
+      "readOnly": "{label} — {status}, lecture seule",
+      "modifiedReadOnly": "{label} — {status}, modifié, lecture seule"
+    },
+    "empty": {
+      "title": "Aucun onglet ouvert",
+      "text": "Ouvrez un terminal ou les fichiers de cet hôte. La connexion s’établit d’abord si nécessaire."
+    },
+    "newTerminal": "Nouveau terminal",
+    "files": "Fichiers"
+  }
+}

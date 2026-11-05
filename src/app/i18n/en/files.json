@@ -1,1 +1,55 @@
-{}
+{
+  "panel": {
+    "local": "Local",
+    "remote": "Remote",
+    "notConnected": "Not connected",
+    "connectHint": "Connect to browse the files on this host.",
+    "connect": "Connect"
+  },
+  "pane": {
+    "selected": "{count, plural, other {# selected}}",
+    "upload": "Upload to remote",
+    "download": "Download to local",
+    "upHint": "Up one level",
+    "up": "Up",
+    "refresh": "Refresh",
+    "newFolder": "New folder",
+    "showHidden": "Show hidden files",
+    "hideHidden": "Hide hidden files",
+    "hiddenFiles": "Hidden files",
+    "computer": "Computer",
+    "tableLabel": "{label} files",
+    "name": "Name",
+    "size": "Size",
+    "modified": "Modified",
+    "permissions": "Permissions",
+    "actions": "Actions",
+    "actionsFor": "Actions for {name}",
+    "tooLargeEdit": "Too large to edit (max 5 MiB)",
+    "tooLargeExternal": "Too large (max 1 GiB)",
+    "openExternal": "Open in external editor",
+    "marker": "Open in an external editor · {state}",
+    "onlyHidden": "Only hidden items. Show hidden files to see them.",
+    "empty": "This folder is empty. Drop files here from the other pane, or create a folder.",
+    "renameTitle": "Rename \"{name}\"",
+    "folderNotDeleted": "Folder not deleted",
+    "fileNotDeleted": "File not deleted",
+    "folderNotOpened": "Folder not opened"
+  },
+  "dialogs": {
+    "noun": "file or folder",
+    "nameConflict": "A file or folder with this name already exists",
+    "deleteFolderTitle": "Delete folder \"{name}\"?",
+    "deleteFileTitle": "Delete file \"{name}\"?",
+    "deleteFolderContent": "The folder and everything inside it will be deleted. This cannot be undone.",
+    "deleteFileContent": "The file will be deleted. This cannot be undone."
+  },
+  "name": {
+    "required": "Name is required",
+    "reserved": "This name is reserved",
+    "noSlash": "Name must not contain /",
+    "noSlashOrBackslash": "Name must not contain / or \\",
+    "noControl": "Name must not contain control characters",
+    "tooLong": "Name must be at most {max} bytes"
+  }
+}

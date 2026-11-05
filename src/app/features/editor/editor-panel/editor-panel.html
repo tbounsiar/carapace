@@ -8,9 +8,9 @@
       iconStart="@tui.lock"
       tabindex="0"
       data-testid="editor-readonly"
-      tuiHint="You don’t have write permission on this file."
+      [tuiHint]="'editor.panel.readOnlyHint' | transloco"
     >
-      Read-only
+      {{ 'editor.panel.readOnly' | transloco }}
     </span>
   }
   <span class="spacer"></span>
@@ -20,13 +20,13 @@
     size="xs"
     iconStart="@tui.refresh-cw"
     type="button"
-    tuiHint="Reload from server"
-    aria-label="Reload from server"
+    [tuiHint]="'editor.panel.reload' | transloco"
+    [attr.aria-label]="'editor.panel.reload' | transloco"
     data-testid="editor-reload"
     [disabled]="loading() || saving()"
     (click)="reload()"
   >
-    Reload from server
+    {{ 'editor.panel.reload' | transloco }}
   </button>
   @if (!d.readOnly()) {
     <button
@@ -40,7 +40,7 @@
       [disabled]="loading() || !d.modified()"
       (click)="save()"
     >
-      Save
+      {{ 'common.save' | transloco }}
     </button>
   }
 </div>
@@ -54,10 +54,7 @@
     [attr.data-state]="banner"
     [appearance]="banner === 'lost' ? 'warning' : 'neutral'"
   >
-    <span>
-      {{ banner === 'lost' ? 'Connection lost.' : 'Disconnected.' }} Your changes are kept;
-      reconnect to save.
-    </span>
+    <span>{{ (banner === 'lost' ? 'editor.panel.lost' : 'editor.panel.ended') | transloco }}</span>
     <button
       tuiButton
       appearance="secondary"
@@ -68,7 +65,7 @@
       [loading]="d.reconnecting()"
       (click)="reconnect()"
     >
-      Reconnect
+      {{ 'editor.panel.reconnect' | transloco }}
     </button>
   </div>
 }
@@ -91,7 +88,7 @@
         data-testid="editor-save-again"
         (click)="save()"
       >
-        Save again
+        {{ 'editor.panel.saveAgain' | transloco }}
       </button>
     }
   </div>
@@ -104,15 +101,19 @@
 <footer class="status">
   <span class="path" data-testid="editor-path" [tuiHint]="location()">{{ location() }}</span>
   @if (d.target(); as target) {
-    <span class="path link" data-testid="editor-link" [tuiHint]="'Saves write ' + target">
-      Link to {{ target }}
+    <span
+      class="path link"
+      data-testid="editor-link"
+      [tuiHint]="'editor.panel.linkHint' | transloco: { target }"
+    >
+      {{ 'editor.panel.link' | transloco: { target } }}
     </span>
   }
   <span role="status" aria-live="polite" data-testid="editor-saved">
     @if (d.modified()) {
-      Modified
-    } @else if (d.savedAt(); as at) {
-      Saved {{ at }}
+      {{ 'editor.panel.modified' | transloco }}
+    } @else if (saved(); as text) {
+      {{ text }}
     }
   </span>
   <span data-testid="editor-position">{{ position() }}</span>
@@ -130,7 +131,7 @@
     tuiDropdownAlign="end"
     [disabled]="loading()"
     [tuiHint]="languageHint()"
-    [attr.aria-label]="'Language: ' + languageName()"
+    [attr.aria-label]="'editor.panel.languageAria' | transloco: { name: languageName() }"
     [tuiDropdown]="languageMenu"
     [tuiDropdownOpen]="languageOpen()"
     (tuiDropdownOpenChange)="onLanguageOpen($event)"
@@ -145,17 +146,17 @@
     type="button"
     data-testid="editor-wrap"
     aria-keyshortcuts="Alt+Z"
-    tuiHint="Wrap lines (Alt+Z)"
+    [tuiHint]="'editor.panel.wrapHint' | transloco"
     [disabled]="loading()"
     [attr.aria-pressed]="d.wrap()"
     (click)="toggleWrap()"
   >
-    Wrap
+    {{ 'editor.panel.wrap' | transloco }}
   </button>
 </footer>
 
 <ng-template #languageMenu>
-  <tui-data-list size="s" role="menu" aria-label="Language">
+  <tui-data-list size="s" role="menu" [attr.aria-label]="'editor.panel.language' | transloco">
     @for (language of languages; track language.id) {
       @let current = language.id === d.language();
       <button
@@ -167,7 +168,7 @@
         [attr.data-testid]="'editor-language-' + language.id"
         (click)="pick(language.id)"
       >
-        {{ language.label }}
+        {{ language.key ? (language.key | transloco) : language.label }}
       </button>
     }
   </tui-data-list>

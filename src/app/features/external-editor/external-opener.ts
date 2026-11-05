@@ -1,8 +1,10 @@
 import { inject, Service } from '@angular/core';
 import { Router } from '@angular/router';
+import { translate, TranslocoService } from '@jsverse/transloco';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
+import { LanguageService } from '../../core/i18n/language';
 import type { Host } from '../../core/ipc/config.models';
 import { hostTarget } from '../../core/ipc/connection';
 import { EditedFiles } from '../../core/ipc/edited-files';
@@ -15,8 +17,6 @@ import { errorText, notifyError } from '../../shared/save-error';
 import { tabKey, Workspace } from '../workspace/workspace';
 import { blockedTypeText } from './edited-view';
 import type { ExternalNoticeAnswer } from './external-notice-dialog/external-notice-dialog';
-
-const FAILED = 'File not opened';
 
 function baseName(path: string): string {
   return path.split('/').filter(Boolean).pop() ?? path;
@@ -35,12 +35,16 @@ function sizeOf(err: IpcError, listed: number | null): number | null {
 export function confirmLargeDownload(
   dialogs: TuiDialogService,
   size: number | null,
+  locale: string,
 ): Promise<boolean> {
-  const what = size === null ? 'this file' : formatSize(size);
-  return confirmDestructive(dialogs, `Download ${what}?`, {
-    content: 'The file is large. Each save in your editor uploads it again.',
-    yes: 'Download',
-    no: 'Cancel',
+  const t = (key: string, params?: Record<string, unknown>) =>
+    translate(`externalEditor.opener.${key}`, params);
+  const title =
+    size === null ? t('downloadFile') : t('downloadSize', { size: formatSize(size, locale) });
+  return confirmDestructive(dialogs, title, {
+    content: t('largeContent'),
+    yes: t('download'),
+    no: translate('common.cancel'),
     appearance: 'primary',
     yesTestId: 'ext-large-download',
     focusYes: true,
@@ -56,16 +60,26 @@ export class ExternalOpener {
   private readonly dialogs = inject(TuiDialogService);
   private readonly alerts = inject(TuiNotificationService);
   private readonly router = inject(Router);
+  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    return this.transloco.translate(`externalEditor.opener.${key}`, params);
+  }
+
+  private size(bytes: number): string {
+    return formatSize(bytes, this.language.locale());
+  }
 
   /** Resolves true when the editor was launched; `size` comes from the listing. */
   async open(host: Host, path: string, size: number | null): Promise<boolean> {
     const name = baseName(path);
     if (size !== null && size > MAX_EXTERNAL_BYTES) {
-      this.fail(`${name} is too large to edit (${formatSize(size)}, max 1 GiB).`);
+      this.fail(this.t('tooLargeSize', { name, size: this.size(size) }));
       return false;
     }
     if (this.workspace.byKey(tabKey('edit', host.id, path))?.modified()) {
-      this.fail(`Save or close ${name} in Carapace first.`);
+      this.fail(this.t('saveFirst', { name }));
       return false;
     }
     if (!this.store.findByPath(host.id, path) && !(await this.noticeAccepted())) {
@@ -112,7 +126,7 @@ export class ExternalOpener {
       await import('./external-notice-dialog/external-notice-dialog');
     const answer = await firstValueFrom(
       this.dialogs.open<ExternalNoticeAnswer>(new PolymorpheusComponent(ExternalNoticeDialog), {
-        label: 'Before you edit outside Carapace',
+        label: this.t('noticeTitle'),
         size: 'm',
       }),
       { defaultValue: null },
@@ -123,7 +137,7 @@ export class ExternalOpener {
     if (answer.dontShow && setting) {
       await this.ipc
         .setEditor({ ...setting, noticeSeen: true })
-        .catch((err: unknown) => notifyError(this.alerts, err, 'Setting not saved'));
+        .catch((err: unknown) => notifyError(this.alerts, err, this.t('settingNotSaved')));
     }
     return true;
   }
@@ -131,11 +145,11 @@ export class ExternalOpener {
   private confirmSensitive(name: string): Promise<boolean> {
     return confirmDestructive(
       this.dialogs,
-      'Copy a file that may hold secrets?',
+      this.t('sensitiveTitle'),
       {
-        content: `${name} may hold keys, passwords or tokens. While you edit it, a copy is stored in clear text on this computer (only your account can read it).`,
-        yes: 'Open anyway',
-        no: 'Cancel',
+        content: this.t('sensitiveContent', { name }),
+        yes: this.t('openAnyway'),
+        no: this.transloco.translate('common.cancel'),
         appearance: 'primary',
         yesTestId: 'ext-sensitive-confirm',
         warning: true,
@@ -145,7 +159,7 @@ export class ExternalOpener {
   }
 
   private confirmLarge(size: number | null): Promise<boolean> {
-    return confirmLargeDownload(this.dialogs, size);
+    return confirmLargeDownload(this.dialogs, size, this.language.locale());
   }
 
   private refused(err: unknown, name: string, host: string, size: number | null): void {
@@ -157,30 +171,26 @@ export class ExternalOpener {
       case 'too_large':
         this.fail(
           size === null
-            ? `${name} is too large to edit (max 1 GiB).`
-            : `${name} is too large to edit (${formatSize(size)}, max 1 GiB).`,
+            ? this.t('tooLarge', { name })
+            : this.t('tooLargeSize', { name, size: this.size(size) }),
         );
         return;
       case 'permission_denied':
-        this.fail(`You don't have permission to read ${name} on ${host}.`);
+        this.fail(this.t('permissionDenied', { name, host }));
         return;
       case 'blocked_type':
         this.failWithSettings(blockedTypeText(name));
         return;
       case 'app_not_found': {
         const app = err.message.split(': ').slice(1).join(': ').trim();
-        this.failWithSettings(
-          `The editor app was not found${app ? `: ${app}` : ''}. Choose it again in Settings.`,
-        );
+        this.failWithSettings(app ? this.t('appNotFoundNamed', { app }) : this.t('appNotFound'));
         return;
       }
       case 'app_not_editor':
-        this.failWithSettings(
-          'The editor app runs files instead of editing them. Choose an editor in Settings.',
-        );
+        this.failWithSettings(this.t('appNotEditor'));
         return;
       case 'app_failed':
-        this.fail('The editor app could not be started.');
+        this.fail(this.t('appFailed'));
         return;
       default:
         this.fail(errorText(err));
@@ -188,17 +198,17 @@ export class ExternalOpener {
   }
 
   private fail(message: string): void {
-    this.alerts.open(message, { label: FAILED, appearance: 'negative' }).subscribe();
+    this.alerts.open(message, { label: this.t('notOpened'), appearance: 'negative' }).subscribe();
   }
 
   private failWithSettings(text: string): void {
     this.alerts
       .open(new PolymorpheusComponent(AlertAction), {
-        label: FAILED,
+        label: this.t('notOpened'),
         appearance: 'negative',
         data: {
           text,
-          action: 'Settings',
+          action: this.t('settings'),
           testId: 'ext-open-settings',
           run: () => void this.router.navigate(['/settings']),
         } satisfies AlertActionData,

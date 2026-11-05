@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router, RouterOutlet, withComponentInputBinding } from '@angular/router';
@@ -6,6 +7,7 @@ import { of } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Project, VariableView } from '../../../core/ipc/config.models';
 import { unsavedChangesGuard } from '../unsaved-changes-guard';
+import { trackLanguage } from '../../../shared/ui-text';
 import { VariablesPage } from './variables-page';
 
 @Component({ template: '' })
@@ -108,6 +110,18 @@ describe('VariablesPage', () => {
     expect(byId('vars-title')?.textContent?.trim()).toBe('Global variables');
     expect(document.body.textContent).toContain('Projects can override them.');
     expect(value('var-name-0')).toBe('user');
+  });
+
+  it('renders in French after a language switch', async () => {
+    await go('/projects/p1/variables');
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    transloco.setActiveLang('fr');
+    await settle();
+    expect(byId('vars-title')?.textContent?.trim()).toBe('Shop\u00a0: variables');
+    expect(document.body.textContent).toContain(
+      'Les variables du projet l’emportent sur les variables globales.',
+    );
   });
 
   it('edits the project variables only', async () => {

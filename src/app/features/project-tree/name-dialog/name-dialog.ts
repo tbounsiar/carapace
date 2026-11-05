@@ -12,10 +12,12 @@ import {
 import { TuiButtonLoading } from '@taiga-ui/kit';
 import { TuiForm } from '@taiga-ui/layout';
 import { injectContext } from '@taiga-ui/polymorpheus';
+import { TranslocoPipe } from '@jsverse/transloco';
 import type { IpcErrorCode } from '../../../core/ipc/config.models';
 import { handleSaveError } from '../../../shared/save-error';
 import { nameValidator } from '../validators';
 import { ErrorLink } from '../../../shared/error-link';
+import { uiText } from '../../../shared/ui-text';
 
 export interface NameDialogData {
   readonly noun: string;
@@ -28,7 +30,7 @@ export interface NameDialogData {
   /** Defaults to true; file names keep surrounding spaces. */
   readonly trim?: boolean;
   readonly placeholder?: string;
-  /** Field error when the name is taken; defaults to "A {noun} with this name already exists". */
+  /** Field error when the name is taken; defaults to the shared message for `noun`. */
   readonly conflictMessage?: string;
 }
 
@@ -43,6 +45,7 @@ export interface NameDialogData {
     TuiForm,
     TuiInput,
     TuiTextfield,
+    TranslocoPipe,
   ],
   selector: 'app-name-dialog',
   templateUrl: './name-dialog.html',
@@ -53,7 +56,11 @@ export class NameDialog {
 
   protected readonly saving = signal(false);
   protected readonly form = inject(NonNullableFormBuilder).group({
-    name: [this.context.data.initial, this.context.data.validator ?? nameValidator('Name', 100)],
+    name: [
+      this.context.data.initial,
+      this.context.data.validator ??
+        nameValidator(() => uiText('projectTree.nameDialog.name'), 100),
+    ],
   });
 
   protected async submit(): Promise<void> {

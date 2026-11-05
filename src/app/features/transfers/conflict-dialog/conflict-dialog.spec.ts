@@ -1,3 +1,4 @@
+import { LanguageService } from '../../../core/i18n/language';
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
@@ -65,6 +66,20 @@ describe('ConflictDialog', () => {
     byId(id).click();
     await settle();
     expect(await result).toEqual({ decision, applyToAll: false });
+  });
+
+  it('reads in French with the name kept in its own element', async () => {
+    TestBed.inject(LanguageService).apply('fr');
+    const result = prompter.ask('report.pdf', conflict);
+    await settle();
+    const note = byId('conflict-name').parentElement!;
+    expect(note.textContent).toContain('report.pdf existe déjà dans le dossier de destination.');
+    expect(byId('conflict-incoming').textContent!.trim()).toBe('4,0\u00a0Ko');
+    expect(byId('conflict-rename').textContent).toContain('Garder les deux');
+    byId('conflict-skip').click();
+    await settle();
+    await result;
+    TestBed.inject(LanguageService).apply('en');
   });
 
   it('applies to all when the checkbox is ticked', async () => {

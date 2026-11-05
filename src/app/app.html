@@ -9,7 +9,11 @@
     <app-theme-menu />
   </header>
   <div class="body">
-    <aside aria-label="Hosts" [tuiNavigationAside]="true" [attr.tuiTheme]="effective()">
+    <aside
+      [attr.aria-label]="'shell.aside.label' | transloco"
+      [tuiNavigationAside]="true"
+      [attr.tuiTheme]="effective()"
+    >
       <header>
         <app-aside-header />
       </header>
@@ -24,7 +28,7 @@
             [attr.aria-label]="editedLabel()"
             [attr.aria-current]="page() === '/edited-files' ? 'page' : null"
           >
-            <span class="label">Edited files</span>
+            <span class="label">{{ 'shell.pages.editedFiles' | transloco }}</span>
             @if (edited.attention(); as attention) {
               <span
                 tuiBadge
@@ -48,7 +52,7 @@
           data-testid="global-variables"
           [attr.aria-current]="page() === '/variables' ? 'page' : null"
         >
-          Global variables
+          {{ 'shell.pages.globalVariables' | transloco }}
         </a>
         <a
           tuiAsideItem
@@ -57,7 +61,7 @@
           data-testid="ssh-keys"
           [attr.aria-current]="page() === '/keys' ? 'page' : null"
         >
-          SSH keys
+          {{ 'shell.pages.sshKeys' | transloco }}
         </a>
         <a
           tuiAsideItem
@@ -66,7 +70,7 @@
           data-testid="settings"
           [attr.aria-current]="page() === '/settings' ? 'page' : null"
         >
-          Settings
+          {{ 'shell.pages.settings' | transloco }}
         </a>
       </footer>
     </aside>

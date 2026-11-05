@@ -1,4 +1,5 @@
 import { DestroyRef, effect, inject, Service } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { type Subscription, take } from 'rxjs';
@@ -38,6 +39,7 @@ export class EditedAlerts {
   private readonly config = inject(ConfigService);
   private readonly actions = inject(EditedActions);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly transloco = inject(TranslocoService);
   private readonly batches = new Map<string, Batch>();
   /** Last failure code alerted per file: the same failure again stays inline only. */
   private readonly failures = new Map<string, string>();
@@ -52,6 +54,10 @@ export class EditedAlerts {
       this.store.files();
       this.prune();
     });
+  }
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    return this.transloco.translate(`externalEditor.alerts.${key}`, params);
   }
 
   start(): void {
@@ -107,15 +113,11 @@ export class EditedAlerts {
     if (!recovered.length) {
       return;
     }
-    const label =
-      recovered.length === 1
-        ? '1 edited file was not uploaded'
-        : `${recovered.length} edited files were not uploaded`;
     this.show(
       'recovered',
       recovered,
-      label,
-      'Carapace closed before the changes reached the server.',
+      this.t('recoveredTitle', { count: recovered.length }),
+      this.t('recoveredText'),
       'warning',
       0,
       () => this.actions.review(recovered.length === 1 ? recovered[0].id : null),
@@ -151,8 +153,10 @@ export class EditedAlerts {
         this.show(
           batch.state,
           files,
-          one ? `${one.name} changed on ${host}` : `${files.length} files changed on ${host}`,
-          one ? 'Your last save was not uploaded.' : 'Your last saves were not uploaded.',
+          one
+            ? this.t('conflictOne', { name: one.name, host })
+            : this.t('conflictMany', { count: files.length, host }),
+          this.t(one ? 'conflictTextOne' : 'conflictTextMany'),
           'warning',
           0,
           review,
@@ -162,13 +166,15 @@ export class EditedAlerts {
         this.show(
           batch.state,
           files,
-          one ? `${one.name} not uploaded` : `${files.length} files not uploaded`,
+          one
+            ? this.t('failedOne', { name: one.name })
+            : this.t('failedMany', { count: files.length }),
           (one &&
             failureReason(
               this.store.find(one.id) ?? one,
               this.config.findHost(batch.hostId)?.host.name ?? null,
             )) ??
-            `The uploads to ${host} failed.`,
+            this.t('failedText', { host }),
           'negative',
           0,
           review,
@@ -179,9 +185,9 @@ export class EditedAlerts {
           batch.state,
           files,
           one
-            ? `Changes to ${one.name} are waiting for ${host}`
-            : `Changes to ${files.length} files are waiting for ${host}`,
-          'Reconnect to upload them.',
+            ? this.t('waitingOne', { name: one.name, host })
+            : this.t('waitingMany', { count: files.length, host }),
+          this.t('waitingText'),
           'neutral',
           undefined,
           review,
@@ -216,7 +222,7 @@ export class EditedAlerts {
         ...(autoClose === undefined ? {} : { autoClose }),
         data: {
           text,
-          action: 'Review',
+          action: this.t('review'),
           testId: 'edited-review',
           run: () => {
             close();

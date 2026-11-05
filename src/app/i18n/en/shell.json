@@ -1,1 +1,36 @@
-{}
+{
+  "aside": {
+    "label": "Hosts",
+    "editedLabel": "Edited files, {count, plural, one {# file} other {# files}}{attention, plural, =0 {} one {, # needs attention} other {, # need attention}}"
+  },
+  "pages": {
+    "globalVariables": "Global variables",
+    "sshKeys": "SSH keys",
+    "settings": "Settings",
+    "editedFiles": "Edited files"
+  },
+  "locationBar": {
+    "projectNotFound": "Project not found",
+    "hostNotFound": "Host not found",
+    "variables": "Variables",
+    "actions": "Actions",
+    "actionsFor": "Actions for {name}",
+    "stopAll": "Stop all",
+    "moveTo": "Move to…",
+    "deleteHost": "Delete host"
+  },
+  "projectSelect": {
+    "label": "Project: {name}",
+    "menu": "Projects",
+    "openConnections": "{count, plural, one {# open connection} other {# open connections}}",
+    "variables": "Project variables",
+    "newProject": "New project…"
+  },
+  "themeMenu": {
+    "hint": "Theme",
+    "label": "Theme: {mode}",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  }
+}

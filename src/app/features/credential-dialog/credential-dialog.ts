@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
 import {
   TuiButton,
@@ -42,6 +43,7 @@ export interface CredentialDialogData {
     TuiNotification,
     TuiPassword,
     TuiTextfield,
+    TranslocoPipe,
   ],
   selector: 'app-credential-dialog',
   styleUrl: './credential-dialog.scss',
@@ -51,9 +53,13 @@ export class CredentialDialog {
   protected readonly context = injectContext<TuiDialogContext<Credential, CredentialDialogData>>();
   protected readonly data = this.context.data;
   protected readonly forTest = this.data.forTest ?? false;
-  protected readonly label = this.data.kind === 'password' ? 'Password' : 'Passphrase';
+  protected readonly labelKey =
+    this.data.kind === 'password'
+      ? 'credentialDialog.field.password'
+      : 'credentialDialog.field.passphrase';
+  private readonly transloco = inject(TranslocoService);
   protected readonly form = inject(NonNullableFormBuilder).group({
-    secret: ['', secretValidator(this.label, true)],
+    secret: ['', secretValidator(this.transloco.translate(this.labelKey), true)],
     remember: [false],
   });
 

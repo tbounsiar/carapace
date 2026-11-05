@@ -12,7 +12,11 @@
             data-testid="host-detail-address"
             [class._problem]="!address.ok"
           >
-            {{ address.text }}
+            @if (address.missing; as names) {
+              {{ 'hostDetail.missing' | transloco: { names } }}
+            } @else {
+              {{ address.text }}
+            }
           </p>
         } @else {
           <p tuiSubtitle class="mono" data-testid="host-detail-address">
@@ -30,7 +34,7 @@
           data-testid="host-edit"
           (click)="edit()"
         >
-          Edit
+          {{ 'common.edit' | transloco }}
         </button>
         @if (connected()) {
           <button
@@ -42,7 +46,7 @@
             data-testid="host-disconnect"
             (click)="disconnect()"
           >
-            Disconnect
+            {{ 'hostDetail.disconnect' | transloco }}
           </button>
         } @else {
           <button
@@ -55,24 +59,26 @@
             [loading]="status().busy"
             (click)="connect()"
           >
-            Connect
+            {{ 'hostDetail.connect' | transloco }}
           </button>
         }
       </div>
     </header>
 
     <dl class="facts">
-      <dt>Status</dt>
+      <dt>{{ 'hostDetail.status' | transloco }}</dt>
       <dd>
         <span data-testid="host-detail-status" role="status" [tuiStatus]="status().color">
           {{ status().label }}
         </span>
       </dd>
-      <dt>Authentication</dt>
+      <dt>{{ 'hostDetail.auth' | transloco }}</dt>
       <dd data-testid="host-detail-auth">
         {{ authLabel() }}
         @if (authDetail(); as detail) {
           <span class="mono path">{{ detail }}</span>
+        } @else if (askedWhenConnecting()) {
+          <span class="mono path">{{ 'hostDetail.askedWhenConnecting' | transloco }}</span>
         }
         @if (secretLabel(); as kind) {
           <button
@@ -86,7 +92,7 @@
             [loading]="forgetting()"
             (click)="forgetSecrets()"
           >
-            Forget saved {{ kind }}
+            {{ 'hostDetail.forget.' + kind | transloco }}
           </button>
         }
       </dd>
@@ -95,8 +101,10 @@
   <app-host-tabs [host]="located.host" [connected]="connected()" />
 } @else {
   <tui-block-status size="m" data-testid="host-not-found">
-    <h2>Host not found</h2>
-    <p>It may have been deleted. Pick another host in the sidebar.</p>
-    <a tuiButton appearance="secondary" size="s" routerLink="/">Go to Home</a>
+    <h2>{{ 'hostDetail.notFound.title' | transloco }}</h2>
+    <p>{{ 'hostDetail.notFound.text' | transloco }}</p>
+    <a tuiButton appearance="secondary" size="s" routerLink="/">
+      {{ 'hostDetail.notFound.home' | transloco }}
+    </a>
   </tui-block-status>
 }

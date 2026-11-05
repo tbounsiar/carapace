@@ -1,3 +1,4 @@
+import type { TranslocoService } from '@jsverse/transloco';
 import type { TuiNotificationService } from '@taiga-ui/core';
 import {
   ANALYTICS_CATEGORIES,
@@ -10,39 +11,24 @@ import { notifyError } from '../../shared/save-error';
 
 export interface CategoryCopy {
   readonly id: AnalyticsCategory;
+  /** Translation keys. */
   readonly title: string;
   readonly note: string;
 }
 
 /** Same strings in the first-launch dialog and in Settings. */
-export const CATEGORY_COPY: readonly CategoryCopy[] = [
-  { id: 'launch', title: 'Launch count', note: 'One event when Carapace starts.' },
-  {
-    id: 'features',
-    title: 'Feature usage',
-    note: 'Terminals, files, transfers, keys and variables used; setup sizes as ranges.',
-  },
-  {
-    id: 'connections',
-    title: 'Connection results',
-    note: 'Whether connections and tests succeed: auth type, error code, time as a range.',
-  },
-  {
-    id: 'crashes',
-    title: 'Crash reports',
-    note: 'If Carapace crashes: crash type, app area and, in its own code, the source line. No messages or paths.',
-  },
-];
+export const CATEGORY_COPY: readonly CategoryCopy[] = ANALYTICS_CATEGORIES.map((id) => ({
+  id,
+  title: `analytics.categories.${id}.title`,
+  note: `analytics.categories.${id}.note`,
+}));
 
-export const COMMON_LEAD = 'Sent with every event:';
-export const COMMON_TEXT =
-  'app version, OS and version, language, and a random ID that changes at each launch. Country and region are derived from the connection; the IP is not kept.';
-export const NEVER_LEAD = 'Never sent:';
-export const NEVER_TEXT =
-  'host names, addresses, usernames, file names, keys, passwords or anything you type.';
+export const COMMON_LEAD = 'analytics.common.lead';
+export const COMMON_TEXT = 'analytics.common.text';
+export const NEVER_LEAD = 'analytics.never.lead';
+export const NEVER_TEXT = 'analytics.never.text';
 
-export const UNSAVED_DENIAL =
-  'Off for this session. The setting could not be saved; Carapace will try again.';
+export const UNSAVED_DENIAL = 'analytics.unsavedDenial';
 
 /** A refusal applies in memory only: the next launch could ask again until the file is written. */
 export function unsavedDenial(state: AnalyticsState | null): boolean {
@@ -70,6 +56,14 @@ export function initialChoices(state: AnalyticsState): AnalyticsChoices {
 }
 
 /** The policy opens in the system browser through the backend; the webview never navigates. */
-export function openPrivacyPage(analytics: Analytics, alerts: TuiNotificationService): void {
-  analytics.openPrivacyPage().catch((err: unknown) => notifyError(alerts, err, 'Link not opened'));
+export function openPrivacyPage(
+  analytics: Analytics,
+  alerts: TuiNotificationService,
+  transloco: TranslocoService,
+): void {
+  analytics
+    .openPrivacyPage()
+    .catch((err: unknown) =>
+      notifyError(alerts, err, transloco.translate('analytics.linkNotOpened')),
+    );
 }

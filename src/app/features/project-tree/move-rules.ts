@@ -1,13 +1,13 @@
 import type { ConfigNode, Project, VariableView } from '../../core/ipc/config.models';
 import { undefinedReferences } from '../../shared/template';
+import { uiText } from '../../shared/ui-text';
 import {
   byName,
   canMoveInto,
   containerPath,
-  HOME,
   hostsOf,
-  plural,
   sameContainer,
+  scopeLabel,
   scopeName,
   scopeTree,
   type Container,
@@ -16,8 +16,10 @@ import {
 
 export interface MoveTarget {
   readonly container: Container;
-  /** Scope name first: `['Payments', 'Backend']`. */
+  /** Scope name first: `['Payments', 'Backend']`; Home is `Home` whatever the language. */
   readonly path: readonly string[];
+  /** As shown: "Payments / Backend", "Accueil (racine)". */
+  readonly text: string;
   readonly current: boolean;
 }
 
@@ -34,11 +36,16 @@ export function moveTargets(
 ): MoveTargetGroup[] {
   const group = (projectId: string | null): MoveTargetGroup => {
     const name = scopeName(projects, projectId);
+    const label = scopeLabel(projects, projectId);
     const targets: MoveTarget[] = [];
     const add = (parentId: string | null, path: readonly string[]): void => {
       const container = { projectId, parentId };
       if (canMoveInto(nodes, node, container) && parentId !== node.id) {
-        targets.push({ container, path, current: sameContainer(container, node) });
+        const text =
+          path.length === 1
+            ? uiText('projectTree.topLevel', { scope: label })
+            : [label, ...path.slice(1)].join(' / ');
+        targets.push({ container, path, text, current: sameContainer(container, node) });
       }
     };
     const walk = (items: readonly TreeItem[], path: readonly string[]): void => {
@@ -52,7 +59,7 @@ export function moveTargets(
     };
     add(null, [name]);
     walk(scopeTree(nodes, projectId), [name]);
-    return { label: name, targets };
+    return { label, targets };
   };
   return [null, ...[...projects].sort(byName).map((p) => p.id)].map(group);
 }
@@ -79,30 +86,27 @@ export function crossScopeWarning(
     return null;
   }
   const hosts = hostsOf(nodes, node);
-  const subject =
-    node.kind === 'host' ? node.name : `The ${plural(hosts.length, 'host')} in ${node.name}`;
-  const their = node.kind === 'host' ? 'Its' : 'Their';
   const project = target.projectId ? projects.find((p) => p.id === target.projectId) : null;
-  const targetName = project?.name ?? HOME;
-  const rest = `${their} open connections are closed and ${their.toLowerCase()} saved passwords are forgotten.`;
-  const body = project
-    ? `${subject} will use the variables of ${project.name}. ${rest}`
-    : `${subject} will use global variables only. ${rest}`;
+  const key = `${node.kind === 'host' ? 'host' : 'collection'}To${project ? 'Project' : 'Home'}`;
+  const body = uiText(`projectTree.move.warning.${key}`, {
+    name: node.name,
+    project: project?.name,
+    count: hosts.length,
+  });
   const undefinedNames = undefinedReferences(hosts, globals, project ?? null);
   const missing = undefinedNames.length
-    ? `Not defined in ${targetName}: ${undefinedNames.join(', ')}.`
+    ? uiText('projectTree.move.warning.missing', {
+        scope: project?.name ?? uiText('common.home'),
+        names: undefinedNames.join(', '),
+      })
     : '';
-  if (!project) {
-    return {
-      title: 'Moving out of the project',
-      question: 'Move out of the project?',
-      body,
-      missing,
-    };
-  }
-  return node.projectId
-    ? { title: 'Moving to another project', question: 'Move to another project?', body, missing }
-    : { title: 'Moving into a project', question: 'Move into a project?', body, missing };
+  const direction = !project ? 'out' : node.projectId ? 'other' : 'into';
+  return {
+    title: uiText(`projectTree.move.warning.title.${direction}`),
+    question: uiText(`projectTree.move.warning.question.${direction}`),
+    body,
+    missing,
+  };
 }
 
 /**
@@ -117,7 +121,7 @@ export function moveDestination(
 ): string {
   const [scope, ...below] = containerPath(nodes, projects, target);
   if (!below.length) {
-    return `${scope} (top level)`;
+    return uiText('projectTree.topLevel', { scope });
   }
   return (crossScope ? [scope, ...below] : below).join(' / ');
 }

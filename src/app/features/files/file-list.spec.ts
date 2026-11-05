@@ -95,17 +95,29 @@ describe('formatSize', () => {
     expect(formatSize(300 * 1024 ** 3)).toBe('300 GiB');
     expect(formatSize(2 * 1024 ** 4)).toBe('2.0 TiB');
   });
+
+  it('uses French units and a decimal comma in French', () => {
+    expect(formatSize(1023, 'fr-FR')).toBe('1023\u00a0o');
+    expect(formatSize(1536, 'fr-FR')).toBe('1,5\u00a0Ko');
+    expect(formatSize(300 * 1024 ** 3, 'fr-FR')).toBe('300\u00a0Go');
+    expect(formatSize(2 * 1024 ** 4, 'fr-FR')).toBe('2,0\u00a0To');
+  });
 });
 
 describe('formatModified', () => {
   it('formats unix seconds as a short date and time', () => {
     const seconds = Date.UTC(2026, 0, 15, 9, 30) / 1000;
-    const expected = new Intl.DateTimeFormat(undefined, {
+    const expected = new Intl.DateTimeFormat('en-US', {
       dateStyle: 'short',
       timeStyle: 'short',
     }).format(new Date(seconds * 1000));
     expect(formatModified(seconds)).toBe(expected);
     expect(formatModified(null)).toBe('');
+    expect(formatModified(seconds, 'fr-FR')).toBe(
+      new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(
+        new Date(seconds * 1000),
+      ),
+    );
   });
 });
 

@@ -11,6 +11,7 @@ import { editedFile } from './core/ipc/external-edits.fixture';
 import { fakeConfig, project } from './core/ipc/config.fixture';
 import { SshService } from './core/ipc/ssh';
 import { ThemeService } from './core/theme/theme';
+import { TranslocoService } from '@jsverse/transloco';
 
 @Component({ template: '' })
 class Blank {}
@@ -120,5 +121,18 @@ describe('App', () => {
     store.reset([]);
     await fixture.whenStable();
     expect(byId('aside-edited-files')).toBeNull();
+  });
+
+  it('names the aside footer pages in French', async () => {
+    const fixture = await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    expect(byId('settings')?.textContent?.trim()).toBe('Paramètres');
+    expect(byId('ssh-keys')?.textContent?.trim()).toBe('Clés SSH');
+    TestBed.inject(EditedFiles).reset([editedFile('e1', 'h1', '/a')]);
+    await fixture.whenStable();
+    expect(byId('aside-edited-files')?.getAttribute('aria-label')).toBe(
+      'Fichiers édités, 1 fichier',
+    );
   });
 });

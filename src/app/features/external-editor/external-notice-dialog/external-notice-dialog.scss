@@ -6,8 +6,10 @@
   margin-block-start: 1rem;
 }
 
+/* French labels are longer: the row wraps instead of shrinking or ellipsising a button. */
 .buttons {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
   margin-block-start: 1.25rem;

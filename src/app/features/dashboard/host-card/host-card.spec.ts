@@ -1,6 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { TranslocoService } from '@jsverse/transloco';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
 import { fakeConfig, host, project } from '../../../core/ipc/config.fixture';
@@ -11,6 +12,7 @@ import { HostConnector } from '../../host-connection/host-connector';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { MoveLauncher } from '../../project-tree/move-launcher';
 import { ProjectActions } from '../../project-tree/project-actions';
+import { trackLanguage } from '../../../shared/ui-text';
 import { HostCard } from './host-card';
 
 const card = signal<Host>(host('h1', 'api', 'p1'));
@@ -78,6 +80,16 @@ describe('HostCard', () => {
     expect(byId('card-host-api')?.textContent).toContain('SSH agent');
     const article = byId('card-host-api')!;
     expect(article.getAttribute('aria-labelledby')).toBe(byId('card-open-api')!.id);
+  });
+
+  it('renders in French after a language switch', async () => {
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    transloco.setActiveLang('fr');
+    await settle();
+    expect(byId('card-status-api')?.textContent?.trim()).toBe('Non connecté');
+    expect(byId('card-connect-api')?.textContent?.trim()).toBe('Connecter');
+    expect(byId('card-connect-api')?.getAttribute('aria-label')).toBe('Connecter api');
   });
 
   it('names the missing variables in the address', async () => {

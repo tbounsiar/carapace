@@ -1,6 +1,6 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
   <tui-textfield>
-    <label tuiLabel>Name</label>
+    <label tuiLabel>{{ 'projectTree.nameDialog.name' | transloco }}</label>
     <input
       tuiAutoFocus
       tuiInput
@@ -18,8 +18,10 @@
       data-testid="dialog-cancel"
       (click)="context.$implicit.complete()"
     >
-      Cancel
+      {{ 'common.cancel' | transloco }}
     </button>
-    <button tuiButton type="submit" data-testid="dialog-save" [loading]="saving()">Save</button>
+    <button tuiButton type="submit" data-testid="dialog-save" [loading]="saving()">
+      {{ 'common.save' | transloco }}
+    </button>
   </footer>
 </form>

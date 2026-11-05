@@ -1,7 +1,8 @@
 import type { Host, Project, VariableView } from '../../core/ipc/config.models';
 import type { ConnectionState } from '../../core/ipc/ssh.models';
 import { previewHost, variableLayers } from '../../shared/template';
-import { plural, type TreeItem } from '../project-tree/node-tree';
+import { uiText } from '../../shared/ui-text';
+import { HOME, type TreeItem } from '../project-tree/node-tree';
 
 /** Hosts held directly by one container (the scope root or a collection), in sidebar order. */
 export interface HostGroup {
@@ -15,8 +16,16 @@ export interface HostGroup {
 
 export const ROOT_GROUP = 'root';
 
-/** One group per container holding hosts directly: the root first, then collections depth-first. */
-export function hostGroups(items: readonly TreeItem[], scopeName: string): HostGroup[] {
+/**
+ * One group per container holding hosts directly: the root first, then collections depth-first.
+ * `scopeName` goes into test ids as is; `home` shows it as Home in the interface language.
+ */
+export function hostGroups(
+  items: readonly TreeItem[],
+  scopeName: string,
+  home = scopeName === HOME,
+): HostGroup[] {
+  const scope = home ? uiText('common.home') : scopeName;
   const groups: HostGroup[] = [];
   const walk = (list: readonly TreeItem[], id: string, path: readonly string[]): void => {
     const hosts = list.flatMap((i) => (i.kind === 'host' ? [i.host] : []));
@@ -24,7 +33,7 @@ export function hostGroups(items: readonly TreeItem[], scopeName: string): HostG
       groups.push({
         id,
         path,
-        label: path.length ? path.join(' / ') : `${scopeName} (top level)`,
+        label: path.length ? path.join(' / ') : uiText('projectTree.topLevel', { scope }),
         testId: `host-group-${[scopeName, ...path].join('/')}`,
         hosts,
       });
@@ -115,23 +124,28 @@ export interface Stats {
 
 /** "12 hosts · 3 collections · 2 connected"; zero collections, connections or projects are left out. */
 export function statsText(stats: Stats): string {
+  const part = (key: string, count = 0): string =>
+    count ? uiText(`dashboard.stats.${key}`, { count }) : '';
   const parts = [
-    stats.hosts ? plural(stats.hosts, 'host') : 'No hosts yet',
-    stats.collections ? plural(stats.collections, 'collection') : '',
-    stats.connected ? `${stats.connected} connected` : '',
-    stats.projects ? plural(stats.projects, 'project') : '',
+    stats.hosts ? part('hosts', stats.hosts) : uiText('dashboard.stats.noHosts'),
+    part('collections', stats.collections),
+    part('connected', stats.connected),
+    part('projects', stats.projects),
   ];
   return parts.filter(Boolean).join(' · ');
 }
 
 /** "5 of 12 hosts". */
 export function countText(visible: number, total: number): string {
-  return `${visible} of ${plural(total, 'host')}`;
+  return uiText('dashboard.count', { visible, total });
 }
 
 /** "20 hosts · 2 connected" for a project card. */
 export function projectSummary(hosts: number, connected: number): string {
-  return [plural(hosts, 'host'), connected ? `${connected} connected` : '']
+  return [
+    uiText('dashboard.stats.hosts', { count: hosts }),
+    connected ? uiText('dashboard.stats.connected', { count: connected }) : '',
+  ]
     .filter(Boolean)
     .join(' · ');
 }

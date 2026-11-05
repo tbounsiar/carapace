@@ -1,6 +1,11 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { detectLanguage, HIGHLIGHT_LIMIT, initialLanguage, languageLabel } from './language';
 
 describe('detectLanguage', () => {
+  // The helpers translate through Transloco's global service, created on first injection.
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   it.each([
     ['/srv/app/Dockerfile', 'dockerfile'],
     ['/srv/app/Containerfile', 'dockerfile'],

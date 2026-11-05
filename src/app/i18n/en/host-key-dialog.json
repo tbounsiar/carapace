@@ -1,1 +1,19 @@
-{}
+{
+  "host": "Host",
+  "algorithm": "Algorithm",
+  "fingerprint": "Fingerprint",
+  "unknown": {
+    "title": "Unknown host key",
+    "warning": "The authenticity of {host} cannot be established. Compare the fingerprint with one obtained from the server administrator before connecting.",
+    "reject": "Reject",
+    "acceptConnect": "Accept and connect",
+    "acceptTest": "Accept and test"
+  },
+  "changed": {
+    "title": "Host key has changed",
+    "warning": "The key presented by {host} does not match the stored one. Someone may be intercepting the connection (man-in-the-middle), or the server was reinstalled. The connection was not made.",
+    "known": "Known",
+    "presented": "Presented",
+    "replace": "Replace stored key"
+  }
+}

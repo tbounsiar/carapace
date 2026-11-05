@@ -23,6 +23,7 @@ import {
 } from '@taiga-ui/core';
 import { TuiChevron, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiNavigation } from '@taiga-ui/layout';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Collection, ConfigNode, Host, Project } from '../../../core/ipc/config.models';
 import { hostTarget, type ConnectionTarget } from '../../../core/ipc/connection';
@@ -37,9 +38,10 @@ import { CurrentScope } from '../../../shared/current-scope';
 import { HostConnector } from '../../host-connection/host-connector';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { MoveLauncher } from '../../project-tree/move-launcher';
-import { ancestors, plural, type Container, type TreeItem } from '../../project-tree/node-tree';
+import { ancestors, type Container, type TreeItem } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { errorText, notifyError } from '../../../shared/save-error';
+import { uiText } from '../../../shared/ui-text';
 import { isTreeKey, treeKeyAction, type VisibleRow } from '../../project-tree/tree-keys';
 import { SIDEBAR_DRAG_PLACEHOLDER, SIDEBAR_DRAG_TYPE, SidebarDrag } from '../sidebar-drag';
 import { SidebarFilter } from '../sidebar-filter';
@@ -89,6 +91,7 @@ export function projectKey(projectId: string): string {
     TuiNavigation,
     TuiStatus,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-sidebar-tree',
   host: {
@@ -152,7 +155,7 @@ export class SidebarTree implements OnInit {
       return {
         project,
         key: projectKey(project.id),
-        connections: open ? plural(open, 'open connection') : null,
+        connections: open ? uiText('sidebar.openConnections', { count: open }) : null,
       };
     });
   });
@@ -219,20 +222,20 @@ export class SidebarTree implements OnInit {
     }
     const remove: MenuEntry = {
       id: 'menu-delete',
-      label: 'Delete',
+      label: uiText('common.delete'),
       icon: '@tui.trash',
       separated: true,
       run: () => this.remove(target),
     };
     const rename: MenuEntry = {
       id: 'menu-edit',
-      label: target.kind === 'host' ? 'Edit' : 'Rename',
+      label: uiText(target.kind === 'host' ? 'common.edit' : 'common.rename'),
       icon: '@tui.pencil',
       run: () => this.rename(target),
     };
     const move: MenuEntry = {
       id: 'menu-move',
-      label: 'Move to…',
+      label: uiText('sidebar.menu.move'),
       icon: '@tui.folder-input',
       run: () => this.move(target),
     };
@@ -242,13 +245,13 @@ export class SidebarTree implements OnInit {
         return [
           {
             id: 'menu-open',
-            label: 'Open project',
+            label: uiText('sidebar.menu.openProject'),
             icon: '@tui.arrow-right',
             run: () => this.enterProject(project),
           },
           {
             id: 'menu-variables',
-            label: 'Project variables',
+            label: uiText('sidebar.menu.variables'),
             icon: '@tui.variable',
             run: () => this.openVariables(project),
           },
@@ -261,13 +264,13 @@ export class SidebarTree implements OnInit {
         return [
           {
             id: 'menu-add',
-            label: 'New host here',
+            label: uiText('sidebar.menu.newHostHere'),
             icon: '@tui.server',
             run: () => this.addHost(inside),
           },
           {
             id: 'menu-add-collection',
-            label: 'New collection here',
+            label: uiText('sidebar.menu.newCollectionHere'),
             icon: '@tui.folder-plus',
             run: () => this.addCollection(inside),
           },
@@ -281,13 +284,13 @@ export class SidebarTree implements OnInit {
         const connection: MenuEntry = this.isConnected(host)
           ? {
               id: 'menu-disconnect',
-              label: 'Disconnect',
+              label: uiText('sidebar.disconnect'),
               icon: '@tui.unplug',
               run: () => this.disconnect(host),
             }
           : {
               id: 'menu-connect',
-              label: 'Connect',
+              label: uiText('sidebar.connect'),
               icon: '@tui.plug',
               disabled: this.status(host).busy,
               run: () => this.connect(host),
@@ -295,13 +298,13 @@ export class SidebarTree implements OnInit {
         return [
           {
             id: 'menu-new-terminal',
-            label: 'New terminal',
+            label: uiText('sidebar.menu.newTerminal'),
             icon: '@tui.square-terminal',
             run: () => void this.launcher.newTerminal(host),
           },
           {
             id: 'menu-open-files',
-            label: 'Open files',
+            label: uiText('sidebar.menu.openFiles'),
             icon: '@tui.folder-open',
             run: () => void this.launcher.openFiles(host),
           },
@@ -382,7 +385,7 @@ export class SidebarTree implements OnInit {
     void this.reload();
     this.ssh
       .loadConnections()
-      .catch((err: unknown) => notifyError(this.alerts, err, 'Connections not loaded'));
+      .catch((err: unknown) => notifyError(this.alerts, err, uiText('sidebar.connectionsFailed')));
   }
 
   protected async reload(): Promise<void> {
@@ -392,7 +395,7 @@ export class SidebarTree implements OnInit {
       this.scope.restore();
     } catch (err) {
       this.failure.set(errorText(err));
-      notifyError(this.alerts, err, 'Hosts not loaded');
+      notifyError(this.alerts, err, uiText('sidebar.hostsFailed'));
     }
   }
 

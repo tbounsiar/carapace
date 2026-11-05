@@ -1,4 +1,7 @@
+import { TestBed } from '@angular/core/testing';
 import { FormControl } from '@angular/forms';
+import { TranslocoService } from '@jsverse/transloco';
+import { trackLanguage } from '../../shared/ui-text';
 import {
   hostnameValidator,
   keyPathValidator,
@@ -9,12 +12,16 @@ import {
   secretReferenceValidator,
   secretValidator,
   templated,
+  validationMessage,
 } from './validators';
 
 const ok = (fn: (c: FormControl) => unknown, value: unknown): boolean =>
   fn(new FormControl(value)) === null;
 
 describe('form validators', () => {
+  // The global `translate` behind `uiText` needs the service to exist.
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   it('validates names between 1 and 100 characters', () => {
     const v = nameValidator('Name', 100);
     expect(ok(v, 'prod')).toBe(true);
@@ -78,9 +85,9 @@ describe('form validators', () => {
     expect(ok(keyPathValidator, '~/.ssh/id_ed25519')).toBe(true);
     expect(ok(keyPathValidator, ' ')).toBe(false);
     expect(ok(keyPathValidator, '/home/u/.ssh/id')).toBe(true);
-    expect(keyPathValidator(new FormControl('~/.ssh/id_work.PUB'))?.['invalid']?.message).toBe(
-      'This is a public key. Choose the file without .pub.',
-    );
+    expect(
+      validationMessage(keyPathValidator(new FormControl('~/.ssh/id_work.PUB'))?.['invalid']),
+    ).toBe('This is a public key. Choose the file without .pub.');
     expect(ok(keyPathValidator, 'C:\\Users\\u\\.ssh\\id')).toBe(true);
     expect(ok(keyPathValidator, 'id_ed25519')).toBe(false);
     expect(ok(keyPathValidator, '\\\\server\\share\\id')).toBe(false);
@@ -104,5 +111,14 @@ describe('form validators', () => {
     expect(ok(required, ' pass word ')).toBe(true);
     expect(ok(optional, 'x'.repeat(1280))).toBe(true);
     expect(ok(optional, 'x'.repeat(1281))).toBe(false);
+  });
+
+  it('names the field and follows the language', () => {
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    const error = nameValidator('Name', 100)(new FormControl(''))?.['invalid'];
+    expect(validationMessage(error)).toBe('Name is required');
+    transloco.setActiveLang('fr');
+    expect(validationMessage(error)).toBe('« Name » est obligatoire');
   });
 });

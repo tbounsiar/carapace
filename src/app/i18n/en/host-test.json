@@ -1,1 +1,90 @@
-{}
+{
+  "testing": "Testing {address}...",
+  "cancelled": "Test cancelled.",
+  "connectedAs": "Connected as {address}",
+  "duration": {
+    "ms": "{value} ms",
+    "s": "{value} s"
+  },
+  "auth": {
+    "agent": "SSH agent",
+    "password": "Password",
+    "passwordTyped": "Password (typed for this test)",
+    "passwordFrom": "Password from {ref}",
+    "passwordSaved": "Password saved in the keychain",
+    "key": "Private key file",
+    "keyTyped": "Private key file, passphrase typed for this test",
+    "keyFrom": "Private key file, passphrase from {ref}",
+    "keySaved": "Private key file, saved passphrase"
+  },
+  "origin": {
+    "passwordVariable": "The password came from {ref}.",
+    "passwordStored": "The password came from the keychain.",
+    "passphraseVariable": "The passphrase came from {ref}.",
+    "passphraseStored": "The passphrase came from the keychain."
+  },
+  "failure": {
+    "network": {
+      "title": "Could not reach {host}",
+      "detail": "{detail}Check the hostname, the port and your network."
+    },
+    "timeout": {
+      "title": "No answer from {host}",
+      "detail": "The server did not respond within 15 seconds. Check the hostname, the port, a VPN or a firewall."
+    },
+    "passwordRejected": {
+      "title": "The server rejected the password",
+      "detail": "Check the username, then the password or the secret variable it uses."
+    },
+    "keyRefused": {
+      "title": "The server refused the key",
+      "detail": "Check that its public key is in {file} of {user} on the server, or pick another key."
+    },
+    "agentRefused": {
+      "title": "The SSH agent offered no accepted key",
+      "detail": "{detail}Check that the agent is running and holds a key authorized on the server."
+    },
+    "wrongPassphrase": {
+      "title": "Wrong passphrase for {path}",
+      "detail": "Check the secret variable, or choose “Ask when connecting” and type it."
+    },
+    "hostKeyRejected": {
+      "title": "Host key not accepted",
+      "detail": "Test again and accept the key if the fingerprint matches the one from the server administrator."
+    },
+    "hostKeyChanged": {
+      "title": "Host key has changed",
+      "detail": "The server presents a different key than the one stored for {host}. Confirm it with the server administrator; to replace it, save the host and connect."
+    },
+    "hostKeyRevoked": {
+      "title": "Host key is revoked",
+      "detail": "The key presented by {host} is marked as revoked in known_hosts. Contact the server administrator."
+    },
+    "keyUnusable": {
+      "title": "Key file not usable",
+      "detail": "{detail}Check the key path."
+    },
+    "knownHostsUnreadable": {
+      "title": "Could not read known_hosts"
+    },
+    "keyUnreadable": {
+      "title": "Could not read {path}",
+      "detail": "{detail}Check the key path, or pick a registered key."
+    },
+    "keychain": {
+      "title": "System keychain unavailable",
+      "detail": "Unlock or enable it, or choose “Ask when connecting”."
+    },
+    "missingVariables": {
+      "title": "Missing variables",
+      "detail": "{detail}Define them in the global or project variables."
+    },
+    "busy": {
+      "title": "Too many tests are running",
+      "detail": "Wait for one to finish, then test again."
+    },
+    "failed": {
+      "title": "Test failed"
+    }
+  }
+}

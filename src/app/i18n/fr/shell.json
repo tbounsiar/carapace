@@ -1,1 +1,36 @@
-{}
+{
+  "aside": {
+    "label": "Hôtes",
+    "editedLabel": "Fichiers édités, {count, plural, one {# fichier} other {# fichiers}}{attention, plural, =0 {} one {, # demande votre attention} other {, # demandent votre attention}}"
+  },
+  "pages": {
+    "globalVariables": "Variables globales",
+    "sshKeys": "Clés SSH",
+    "settings": "Paramètres",
+    "editedFiles": "Fichiers édités"
+  },
+  "locationBar": {
+    "projectNotFound": "Projet introuvable",
+    "hostNotFound": "Hôte introuvable",
+    "variables": "Variables",
+    "actions": "Actions",
+    "actionsFor": "Actions pour {name}",
+    "stopAll": "Tout arrêter",
+    "moveTo": "Déplacer vers…",
+    "deleteHost": "Supprimer l’hôte"
+  },
+  "projectSelect": {
+    "label": "Projet : {name}",
+    "menu": "Projets",
+    "openConnections": "{count, plural, one {# connexion ouverte} other {# connexions ouvertes}}",
+    "variables": "Variables du projet",
+    "newProject": "Nouveau projet…"
+  },
+  "themeMenu": {
+    "hint": "Thème",
+    "label": "Thème : {mode}",
+    "system": "Système",
+    "light": "Clair",
+    "dark": "Sombre"
+  }
+}

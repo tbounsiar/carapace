@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
+import { trackLanguage } from '../../../shared/ui-text';
 import { provideTaiga } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
 import { ConfigService } from '../../../core/ipc/config';
@@ -42,6 +44,17 @@ describe('MoveDialog', () => {
     expect(current.disabled).toBe(true);
     expect(current.textContent).toContain('(current location)');
     expect((byId('move-submit') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('renders in French after a language switch', async () => {
+    const { fixture, byId } = await setup();
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    transloco.setActiveLang('fr');
+    await fixture.whenStable();
+    expect(byId('move-target-Home')?.textContent).toContain('Accueil (racine)');
+    expect(byId('move-target-Payments/Backend')?.textContent).toContain('(emplacement actuel)');
+    expect(byId('move-submit')?.textContent?.trim()).toBe('Déplacer');
   });
 
   it('filters locations and says when nothing matches', async () => {

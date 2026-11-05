@@ -1,1 +1,171 @@
-{}
+{
+  "pickerBusy": "Another file dialog is open. Close it first.",
+  "reloadError": "Data not reloaded",
+  "global": "global",
+  "and": "{head} and {last}",
+  "andMore": "{names} and {count} more",
+  "count": {
+    "project": "{count, plural, one {# project} other {# projects}}",
+    "collection": "{count, plural, one {# collection} other {# collections}}",
+    "host": "{count, plural, one {# host} other {# hosts}}",
+    "variable": "{count, plural, one {# variable} other {# variables}}",
+    "key": "{count, plural, one {# SSH key} other {# SSH keys}}",
+    "globalVariable": "{count, plural, one {# global variable} other {# global variables}}",
+    "secretValue": "{count, plural, one {# secret variable value} other {# secret variable values}}"
+  },
+  "kinds": {
+    "project": "Projects",
+    "collection": "Collections",
+    "host": "Hosts",
+    "variable": "Variables",
+    "key": "SSH keys"
+  },
+  "columns": {
+    "added": "New",
+    "updated": "Updated",
+    "unchanged": "Unchanged",
+    "skipped": "Skipped",
+    "removed": "Deleted",
+    "copied": "Copied"
+  },
+  "strategy": {
+    "merge": "Merge",
+    "replace": "Replace",
+    "duplicate": "Keep both"
+  },
+  "badge": {
+    "update": "Updated",
+    "copy": "Copied",
+    "rename": "Renamed",
+    "remove": "Deleted",
+    "skip": "Skipped"
+  },
+  "replaceNote": {
+    "project": "Make {name} exactly like the file",
+    "home": "Make Home and global variables exactly like the file",
+    "all": "Make all your data exactly like the file"
+  },
+  "scope": {
+    "project": "Project “{name}”",
+    "home": "Home",
+    "all": "Everything"
+  },
+  "summary": {
+    "added": "{list} added",
+    "copied": "{list} copied",
+    "updated": "{list} updated",
+    "removed": "{list} deleted",
+    "registered": "{list} registered",
+    "sentence": "{text}.",
+    "nothing": "Nothing changed.",
+    "undoneTitle": "Import undone",
+    "undoneText": "Your data is back as before the import.",
+    "completeTitle": "Import complete",
+    "disconnected": "Disconnected",
+    "secretsTitle": "Secrets to set",
+    "backup": "Backup:",
+    "undo": "Undo import",
+    "done": "Done",
+    "lostHint": "Restores your data as before the import. Deleted secret values cannot be restored.",
+    "undoError": "Could not undo the import. Your data before the import is in {name} in the Carapace folder.",
+    "openProjectVariables": "Open {name} variables",
+    "openGlobalVariables": "Open global variables",
+    "secretLine": "{name} ({scope}) — {count, plural, one {# host} other {# hosts}}"
+  },
+  "confirm": {
+    "deleted": "{list} will be deleted from this computer, with {form, select, ms {its} fs {its} other {their}} saved passwords.",
+    "secretsDeleted": "Secret values and saved passwords will be deleted from this computer.",
+    "connections": "{count, plural, one {# open connection is closed.} other {# open connections are closed.}}",
+    "backup": "A backup of your data is kept."
+  },
+  "deletedSecrets": {
+    "savedPasswords": "the saved passwords of {count, plural, one {# host} other {# hosts}}",
+    "replace": "Replace deletes {list} from this computer.",
+    "other": "This import deletes {list} from this computer."
+  },
+  "secretsSent": {
+    "line": "{host} will send {variable} to {to}",
+    "lineFrom": "{host} will send {variable} to {to} instead of {from}",
+    "more": "and {count} more"
+  },
+  "needsSecret": {
+    "line": "{name} ({scope}) — used by {count, plural, one {# host} other {# hosts}}"
+  },
+  "undefined": {
+    "part": "{name} (used by {count, plural, one {# host} other {# hosts}})",
+    "line": "Not defined anywhere: {list}."
+  },
+  "detail": {
+    "address": "Address: {from} → {to}",
+    "location": "Moves from {from} to {to}",
+    "name": "Renamed: {from} → {to}",
+    "value": "Value: {from} → {to}",
+    "auth": "Authentication: {from} → {to}",
+    "kind": "Kind: {from} → {to}",
+    "sameId": "Same id",
+    "sameName": "Same name as {kind, select, project {a project} collection {a collection} host {a host} variable {a variable} other {an SSH key}} here",
+    "keptSecret": "Kept as secret on this computer",
+    "becomesSecret": "Becomes secret, no value",
+    "variableExists": "Skipped: a variable with this name exists here",
+    "outsideHome": "Key file outside your home folder. Add it in SSH keys by hand.",
+    "outsideHomePath": "Key file outside your home folder: {path}. Add it in SSH keys by hand.",
+    "keyMissing": "Key file not found on this computer",
+    "keyMissingPath": "Key file not found on this computer: {path}",
+    "keyMismatch": "Key file does not match",
+    "keyMismatchAlgorithm": "Key file does not match ({algorithm})",
+    "deleted": "Deleted from this computer",
+    "redirects": "Changes the address of {count, plural, one {# host} other {# hosts}}: {names}"
+  },
+  "workspace": {
+    "tabs": "{count, plural, one {# open tab will be closed.} other {# open tabs will be closed.}}",
+    "unsaved": "Unsaved changes in {names} will be lost."
+  },
+  "export": {
+    "title": "Export data",
+    "toast": "Exported to {file}",
+    "empty": "Nothing in it yet",
+    "legend": "What to export",
+    "all": "Everything",
+    "allNote": "Projects, Home, global variables, SSH keys",
+    "home": "Home",
+    "homeNote": "Hosts outside projects, global variables, SSH keys",
+    "project": "A project",
+    "projectNote": "One project with its variables",
+    "noProjects": "No projects yet",
+    "projectLabel": "Project",
+    "includeShared": "Include the global variables and SSH keys its hosts use",
+    "notIncluded": "Not included",
+    "notIncludedText": "Passwords, passphrases and secret variable values, saved passwords and key files. Secret variables are exported by name: set their values after importing. The file lists your hosts and user names; share it only with people who may see them.",
+    "error": "File not saved",
+    "submit": "Export…"
+  },
+  "import": {
+    "title": "Import data",
+    "exported": "exported {date}",
+    "chooseAnother": "Choose another file",
+    "legend": "If an item already exists here",
+    "mergeNote": "Add new items, update matching ones, keep the rest",
+    "duplicateNote": "Import matching items as copies",
+    "blocking": "This import cannot be done with {strategy}: {reasons}.",
+    "nothing": "Nothing to import: this computer already has everything in the file.",
+    "caption": "What changes",
+    "item": "Item",
+    "details": "Details ({count})",
+    "more": "and {count} more",
+    "connectionsTitle": "{count, plural, one {# connected host is affected} other {# connected hosts are affected}}",
+    "tabsTitle": "Open tabs are affected",
+    "connectionsBody": "{names} {count, plural, one {is deleted or moved to another project. It is disconnected.} other {are deleted or moved to another project. They are disconnected.}}",
+    "secretsTitle": "Secrets to set after importing",
+    "variablesTitle": "Variables to define",
+    "askedWhenConnecting": "You will be asked for them when connecting until you set them in Variables.",
+    "refreshed": "Your data changed since this preview. The preview was updated.",
+    "secretsWarning": "Saved secrets will go to new servers",
+    "trust": "I trust these servers",
+    "backupNote": "A backup of your current data is saved first.",
+    "submit": "Import",
+    "submitReplace": "Replace…",
+    "expired": "This preview expired. Choose the file again.",
+    "confirmTitle": "Replace data?",
+    "confirmYes": "Replace"
+  }
+}

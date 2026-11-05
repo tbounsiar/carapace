@@ -7,7 +7,8 @@ import {
   ReactiveFormsModule,
 } from '@angular/forms';
 import { TuiTable } from '@taiga-ui/addon-table';
-import { type TuiStringHandler, TuiValidationError } from '@taiga-ui/cdk';
+import { type TuiStringHandler } from '@taiga-ui/cdk';
+import { TranslocoPipe } from '@jsverse/transloco';
 import {
   TuiButton,
   TuiDataList,
@@ -27,6 +28,8 @@ import type {
   VariableView,
 } from '../../../core/ipc/config.models';
 import { notifyError } from '../../../shared/save-error';
+import { uiText } from '../../../shared/ui-text';
+import { validationMessage } from '../../project-tree/validators';
 import {
   MAX_VARIABLES,
   variableNameValidator,
@@ -39,8 +42,6 @@ type Row = FormGroup<{
   /** The plain value, or a newly typed secret value (empty keeps the stored one). */
   value: FormControl<string>;
 }>;
-
-const KIND_LABELS: Record<VariableKind, string> = { plain: 'Plain', secret: 'Secret' };
 
 export function scopeKey(scope: VariableScope): string {
   return scope.kind === 'global' ? 'global' : `project:${scope.projectId}`;
@@ -60,6 +61,7 @@ export function scopeKey(scope: VariableScope): string {
     TuiSelect,
     TuiTable,
     TuiTextfield,
+    TranslocoPipe,
   ],
   selector: 'app-variables-editor',
   styleUrl: './variables-editor.scss',
@@ -76,7 +78,8 @@ export class VariablesEditor {
   protected readonly kinds: readonly VariableKind[] = ['plain', 'secret'];
   protected readonly maxVariables = MAX_VARIABLES;
   protected readonly example = '${name}';
-  protected readonly kindLabel: TuiStringHandler<VariableKind> = (kind) => KIND_LABELS[kind];
+  protected readonly kindLabel: TuiStringHandler<VariableKind> = (kind) =>
+    uiText(`variables.editor.kinds.${kind}`);
 
   protected readonly rows = this.fb.array<Row>([]);
   protected readonly form = this.fb.group({ rows: this.rows });
@@ -113,11 +116,17 @@ export class VariablesEditor {
     return this.rows.controls.flatMap((group, index) =>
       (['name', 'value'] as const).flatMap((field) => {
         const control = group.controls[field];
-        const error: unknown = control.errors?.['invalid'];
-        if (!control.touched || !(error instanceof TuiValidationError)) {
+        const message = control.touched ? validationMessage(control.errors?.['invalid']) : null;
+        if (message === null) {
           return [];
         }
-        return [`Row ${index + 1}, ${field}: ${String(error.message)}`];
+        return [
+          uiText('variables.editor.rowError', {
+            row: index + 1,
+            field: uiText(`variables.editor.fields.${field}`),
+            message,
+          }),
+        ];
       }),
     );
   });
@@ -172,7 +181,7 @@ export class VariablesEditor {
       const saved = await this.config.setVariables(this.scope(), inputs);
       this.reset(saved);
     } catch (err) {
-      notifyError(this.alerts, err, 'Variables not saved');
+      notifyError(this.alerts, err, uiText('variables.editor.saveFailed'));
       // The config may be stored even when a keychain write failed; show what was saved.
       await this.config.load().catch(() => undefined);
     } finally {

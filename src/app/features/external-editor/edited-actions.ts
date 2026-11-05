@@ -1,6 +1,8 @@
 import { inject, Service } from '@angular/core';
 import { Router } from '@angular/router';
+import { translate, TranslocoService } from '@jsverse/transloco';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
+import { LanguageService } from '../../core/i18n/language';
 import { ConfigService } from '../../core/ipc/config';
 import { hostTarget } from '../../core/ipc/connection';
 import { EditedFiles } from '../../core/ipc/edited-files';
@@ -16,15 +18,16 @@ import { confirmDestructive } from '../../shared/destructive-confirm/confirm-des
 import { askEditorChoice } from '../editor/editor-choice';
 import { HostConnector } from '../host-connection/host-connector';
 import { HostLauncher } from '../host-connection/host-launcher';
+import { escapeHtml } from '../../shared/path-breaks';
 import { notifyError } from '../../shared/save-error';
 import { blockedTypeText, hostName, nameList } from './edited-view';
 
 /** Why "Open in built-in editor" is unavailable for a file, or null when it is available. */
 export function builtInBlocker(file: EditedFile): string | null {
   if (file.notUploaded) {
-    return 'Upload or discard your changes first';
+    return translate('externalEditor.actions.uploadOrDiscard');
   }
-  return file.size > MAX_EDIT_BYTES ? 'Too large to edit (max 5 MiB)' : null;
+  return file.size > MAX_EDIT_BYTES ? translate('externalEditor.actions.tooLargeBuiltIn') : null;
 }
 
 /** Row and page actions of the Edited files page, also used by the alerts' Review. */
@@ -39,7 +42,13 @@ export class EditedActions {
   private readonly dialogs = inject(TuiDialogService);
   private readonly alerts = inject(TuiNotificationService);
   private readonly router = inject(Router);
+  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
   private resolving = new Set<string>();
+
+  private t(key: string, params?: Record<string, unknown>): string {
+    return this.transloco.translate(`externalEditor.actions.${key}`, params);
+  }
 
   private host(file: EditedFile) {
     return this.config.findHost(file.hostId)?.host ?? null;
@@ -69,7 +78,7 @@ export class EditedActions {
         await this.resolve(updated);
       }
     } catch (err) {
-      notifyError(this.alerts, err, `${file.name} not uploaded`);
+      notifyError(this.alerts, err, this.t('notUploaded', { name: file.name }));
     }
   }
 
@@ -110,22 +119,22 @@ export class EditedActions {
       if (err instanceof IpcError && err.code === 'blocked_type') {
         const text = blockedTypeText(file.name);
         this.alerts
-          .open(text, { label: `${file.name} not updated`, appearance: 'negative' })
+          .open(text, { label: this.t('notUpdated', { name: file.name }), appearance: 'negative' })
           .subscribe();
         return;
       }
       if (!(err instanceof IpcError && err.code === 'large_file')) {
-        notifyError(this.alerts, err, `${file.name} not updated`);
+        notifyError(this.alerts, err, this.t('notUpdated', { name: file.name }));
         return;
       }
       const { confirmLargeDownload } = await import('./external-opener');
-      if (!(await confirmLargeDownload(this.dialogs, file.size))) {
+      if (!(await confirmLargeDownload(this.dialogs, file.size, this.language.locale()))) {
         return;
       }
       try {
         this.store.upsert(await this.ipc.resolveConflict(file.id, choice, true));
       } catch (again) {
-        notifyError(this.alerts, again, `${file.name} not updated`);
+        notifyError(this.alerts, again, this.t('notUpdated', { name: file.name }));
       }
     }
   }
@@ -140,7 +149,7 @@ export class EditedActions {
     } catch (err) {
       // A save landed after the list was drawn: ask, then force.
       if (!(err instanceof IpcError && err.code === 'not_uploaded')) {
-        notifyError(this.alerts, err, 'Editing not stopped');
+        notifyError(this.alerts, err, this.t('notStopped'));
         return false;
       }
       if (!(await this.confirmStop(file))) {
@@ -149,7 +158,7 @@ export class EditedActions {
       try {
         await this.ipc.stop(file.id, true);
       } catch (again) {
-        notifyError(this.alerts, again, 'Editing not stopped');
+        notifyError(this.alerts, again, this.t('notStopped'));
         return false;
       }
     }
@@ -163,22 +172,25 @@ export class EditedActions {
       return;
     }
     const pending = files.filter((f) => f.notUploaded).map((f) => f.name);
-    const count = files.length === 1 ? '1 file' : `${files.length} files`;
     const content = pending.length
-      ? `Their local copies are deleted. Not uploaded: ${nameList(pending)}.`
-      : 'Their local copies are deleted.';
-    const confirmed = await confirmDestructive(this.dialogs, `Stop editing ${count}?`, {
-      content,
-      yes: 'Stop all',
-      no: 'Cancel',
-    });
+      ? this.t('stopAllPending', { names: nameList(pending) })
+      : this.t('stopAllContent');
+    const confirmed = await confirmDestructive(
+      this.dialogs,
+      this.t('stopAllTitle', { count: files.length }),
+      {
+        content,
+        yes: this.t('stopAll'),
+        no: this.transloco.translate('common.cancel'),
+      },
+    );
     if (!confirmed) {
       return;
     }
     try {
       await this.ipc.stopAll(true);
     } catch (err) {
-      notifyError(this.alerts, err, 'Editing not stopped');
+      notifyError(this.alerts, err, this.t('notStopped'));
     }
     this.store.reset(await this.ipc.list().catch(() => []));
   }
@@ -186,11 +198,11 @@ export class EditedActions {
   async discard(file: EditedFile): Promise<boolean> {
     const confirmed = await confirmDestructive(
       this.dialogs,
-      `Discard your changes to ${file.name}?`,
+      this.t('discardTitle', { name: escapeHtml(file.name) }),
       {
-        content: `They were never uploaded to ${this.hostName(file)}.`,
-        yes: 'Discard',
-        no: 'Cancel',
+        content: this.t('discardContent', { host: this.hostName(file) }),
+        yes: this.t('discard'),
+        no: this.transloco.translate('common.cancel'),
       },
     );
     if (!confirmed) {
@@ -199,7 +211,7 @@ export class EditedActions {
     try {
       await this.ipc.discardRecovered(file.id);
     } catch (err) {
-      notifyError(this.alerts, err, 'Changes not discarded');
+      notifyError(this.alerts, err, this.t('notDiscarded'));
       return false;
     }
     this.store.remove([file.id]);
@@ -210,7 +222,7 @@ export class EditedActions {
     try {
       await this.ipc.reveal(file.id);
     } catch (err) {
-      notifyError(this.alerts, err, 'Folder not opened');
+      notifyError(this.alerts, err, this.t('folderNotOpened'));
     }
   }
 
@@ -242,10 +254,10 @@ export class EditedActions {
   }
 
   private confirmStop(file: EditedFile): Promise<boolean> {
-    return confirmDestructive(this.dialogs, `Stop editing ${file.name}?`, {
-      content: `Your changes were not uploaded to ${this.hostName(file)} and will be deleted.`,
-      yes: 'Stop and delete changes',
-      no: 'Cancel',
+    return confirmDestructive(this.dialogs, this.t('stopTitle', { name: escapeHtml(file.name) }), {
+      content: this.t('stopContent', { host: this.hostName(file) }),
+      yes: this.t('stopAndDelete'),
+      no: this.transloco.translate('common.cancel'),
     });
   }
 }

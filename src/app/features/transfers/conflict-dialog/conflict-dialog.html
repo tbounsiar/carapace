@@ -1,20 +1,21 @@
 <div tuiNotification appearance="warning" size="s">
-  <span class="mono" data-testid="conflict-name">{{ name }}</span> already exists in the destination
-  folder.
+  @let parts = existsParts();
+  {{ parts[0] }}<span class="mono" data-testid="conflict-name">{{ name }}</span
+  >{{ parts[1] }}
 </div>
 
 <dl>
-  <dt>Destination</dt>
+  <dt>{{ 'transfers.conflict.destination' | transloco }}</dt>
   <dd class="mono" data-testid="conflict-path">{{ conflict.path }}</dd>
-  <dt>Existing</dt>
-  <dd data-testid="conflict-existing">{{ existing }}</dd>
-  <dt>Incoming</dt>
-  <dd data-testid="conflict-incoming">{{ incoming }}</dd>
+  <dt>{{ 'transfers.conflict.existing' | transloco }}</dt>
+  <dd data-testid="conflict-existing">{{ existing() }}</dd>
+  <dt>{{ 'transfers.conflict.incoming' | transloco }}</dt>
+  <dd data-testid="conflict-incoming">{{ incoming() }}</dd>
 </dl>
 
 <label class="all">
   <input tuiCheckbox type="checkbox" data-testid="conflict-all" [formControl]="applyToAll" />
-  Apply to all remaining conflicts in this transfer
+  {{ 'transfers.conflict.applyToAll' | transloco }}
 </label>
 
 <footer>
@@ -26,7 +27,7 @@
     data-testid="conflict-overwrite"
     (click)="answer('overwrite')"
   >
-    Overwrite
+    {{ 'transfers.conflict.overwrite' | transloco }}
   </button>
   <button
     tuiButton
@@ -36,7 +37,7 @@
     data-testid="conflict-skip"
     (click)="answer('skip')"
   >
-    Skip
+    {{ 'transfers.conflict.skip' | transloco }}
   </button>
   <button
     tuiButton
@@ -46,6 +47,6 @@
     data-testid="conflict-rename"
     (click)="answer('rename')"
   >
-    Keep both
+    {{ 'transfers.conflict.keepBoth' | transloco }}
   </button>
 </footer>

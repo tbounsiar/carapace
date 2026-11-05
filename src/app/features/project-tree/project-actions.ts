@@ -29,6 +29,9 @@ import {
   type Container,
 } from './node-tree';
 import { notifyError } from '../../shared/save-error';
+import { uiText } from '../../shared/ui-text';
+
+const T = 'projectTree.actions';
 
 /** `sidebarFocus: false` when the action comes from outside the sidebar, which keeps its own focus. */
 export interface HostActionOptions {
@@ -50,7 +53,7 @@ export class ProjectActions {
 
   createProject(): void {
     void this.openNameDialog({
-      label: 'New project',
+      label: uiText(`${T}.newProject`),
       noun: 'project',
       initial: '',
       save: async (name) => {
@@ -62,7 +65,7 @@ export class ProjectActions {
 
   renameProject(project: Project): void {
     void this.openNameDialog({
-      label: 'Rename project',
+      label: uiText(`${T}.renameProject`),
       noun: 'project',
       initial: project.name,
       save: (name) =>
@@ -74,15 +77,18 @@ export class ProjectActions {
   async deleteProject(project: Project): Promise<boolean> {
     const nodes = this.config.nodes().filter((n) => n.projectId === project.id);
     const content = nodes.length
-      ? `“${project.name}” contains ${countText(countNodes(nodes))}. Everything in it will be deleted, with its variables and saved passwords. Open connections are closed. This cannot be undone.`
-      : `“${project.name}” is empty. It will be deleted with its variables. This cannot be undone.`;
+      ? uiText(`${T}.deleteProject.full`, {
+          name: project.name,
+          content: countText(countNodes(nodes)),
+        })
+      : uiText(`${T}.deleteProject.empty`, { name: project.name });
     const inside = this.scope.projectId() === project.id;
     const ids = new Set(nodes.map((n) => n.id));
     const affected = await this.affected({ kind: 'project', id: project.id });
     const deleted = await this.confirmDelete(
-      'Delete project?',
+      uiText(`${T}.deleteProject.label`),
       content + this.tabLines(ids) + deleteLines(affected),
-      'Project not deleted',
+      uiText(`${T}.deleteProject.failed`),
       () => this.config.deleteProject(project.id),
     );
     if (deleted && inside) {
@@ -96,11 +102,11 @@ export class ProjectActions {
 
   addCollection(container: Container): void {
     void this.openNameDialog({
-      label: 'New collection',
+      label: uiText(`${T}.newCollection`),
       noun: 'collection',
       initial: '',
-      placeholder: 'Backend',
-      conflictMessage: 'A collection with this name already exists here.',
+      placeholder: uiText(`${T}.collectionPlaceholder`),
+      conflictMessage: uiText(`${T}.collectionConflict`),
       save: async (name) => {
         const created = await this.config.createCollection(
           container.projectId,
@@ -114,10 +120,10 @@ export class ProjectActions {
 
   renameCollection(collection: Collection): void {
     void this.openNameDialog({
-      label: 'Rename collection',
+      label: uiText(`${T}.renameCollection`),
       noun: 'collection',
       initial: collection.name,
-      conflictMessage: 'A collection with this name already exists here.',
+      conflictMessage: uiText(`${T}.collectionConflict`),
       save: async (name) => {
         if (name !== collection.name) {
           await this.config.renameCollection(collection.id, name);
@@ -131,15 +137,18 @@ export class ProjectActions {
   async deleteCollection(collection: Collection): Promise<boolean> {
     const inside = descendants(this.config.nodes(), collection.id);
     const content = inside.length
-      ? `“${collection.name}” contains ${countText(countNodes(inside))}. They will all be deleted, with their saved passwords. Open connections to these hosts are closed. This cannot be undone. To keep the hosts, move them out first.`
-      : `“${collection.name}” is empty.`;
+      ? uiText(`${T}.deleteCollection.full`, {
+          name: collection.name,
+          content: countText(countNodes(inside)),
+        })
+      : uiText(`${T}.deleteCollection.empty`, { name: collection.name });
     const next = this.focusAfterDelete(collection);
     const ids = new Set([collection.id, ...inside.map((n) => n.id)]);
     const affected = await this.affected({ kind: 'collection', id: collection.id });
     const deleted = await this.confirmDelete(
-      'Delete collection?',
+      uiText(`${T}.deleteCollection.label`),
       content + this.tabLines(ids) + deleteLines(affected),
-      'Collection not deleted',
+      uiText(`${T}.deleteCollection.failed`),
       async () => {
         await this.config.deleteCollection(collection.id);
       },
@@ -154,7 +163,7 @@ export class ProjectActions {
   }
 
   addHost(container: Container): void {
-    void this.openHostDialog('New host', container, null, async (input) => {
+    void this.openHostDialog(uiText(`${T}.newHost`), container, null, async (input) => {
       const host = await this.config.createHost(container.projectId, container.parentId, input);
       this.reveal(host, false);
       void this.router.navigate(['/hosts', host.id]);
@@ -165,7 +174,7 @@ export class ProjectActions {
   editHost(host: Host, { sidebarFocus = true }: HostActionOptions = {}): void {
     const { name, hostname, port, username, auth } = host;
     void this.openHostDialog(
-      'Edit host',
+      uiText(`${T}.editHost`),
       host,
       { name, hostname, port, username, auth },
       async (input) => {
@@ -184,11 +193,11 @@ export class ProjectActions {
     const next = this.focusAfterDelete(host);
     const affected = await this.affected({ kind: 'host', id: host.id });
     const deleted = await this.confirmDelete(
-      'Delete host?',
-      `“${host.name}” and its saved passwords will be deleted. Open connections to it are closed.` +
+      uiText(`${T}.deleteHost.label`),
+      uiText(`${T}.deleteHost.content`, { name: host.name }) +
         this.tabLines(new Set([host.id])) +
         deleteLines(affected),
-      'Host not deleted',
+      uiText(`${T}.deleteHost.failed`),
       () => this.config.deleteHost(host.id),
     );
     if (deleted) {
@@ -236,10 +245,11 @@ export class ProjectActions {
     if (!tabs.length) {
       return '';
     }
-    const count = tabs.length === 1 ? '1 open tab' : `${tabs.length} open tabs`;
     const modified = tabs.filter((t) => t.modified()).map((t) => t.label);
-    const lost = modified.length ? ` Unsaved changes in ${modified.join(', ')} will be lost.` : '';
-    return ` ${count} will be closed.${lost}`;
+    const lost = modified.length
+      ? ` ${uiText(`${T}.unsaved`, { names: modified.join(', ') })}`
+      : '';
+    return ` ${uiText(`${T}.tabs`, { count: tabs.length })}${lost}`;
   }
 
   private closeTabs(ids: ReadonlySet<string>): void {
@@ -269,8 +279,8 @@ export class ProjectActions {
   ): Promise<boolean> {
     const confirmed = await confirmDestructive(this.dialogs, label, {
       content,
-      yes: 'Delete',
-      no: 'Cancel',
+      yes: uiText('common.delete'),
+      no: uiText('common.cancel'),
     });
     if (!confirmed) {
       return false;

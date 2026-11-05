@@ -1,3 +1,5 @@
+import { TranslocoService } from '@jsverse/transloco';
+import { TestBed } from '@angular/core/testing';
 import type { AuthMethod, CommandErrorCode } from '../../core/ipc/config.models';
 import type { HostTestResult } from '../../core/ipc/host-test';
 import { IpcError } from '../../core/ipc/ipc-error';
@@ -31,6 +33,8 @@ function failure(
 }
 
 describe('host test copy', () => {
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   it('formats durations', () => {
     expect(duration(412.4)).toBe('412 ms');
     expect(duration(1000)).toBe('1.0 s');
@@ -171,5 +175,18 @@ describe('host test copy', () => {
       expect(other.detail).toBe('Denied. Check the permissions of the file or folder.');
       expect(failure('invalid_input', password, 'bad').title).toBe('Test failed');
     });
+  });
+
+  it('translates the copy and the durations into French', () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    document.documentElement.lang = 'fr';
+    try {
+      expect(duration(1500)).toBe('1,5 s');
+      const view = testingView(draft(key));
+      expect(join(view.title)).toBe('Test de carapace@127.0.0.1:2223 en cours…');
+      expect(view.title.find((p) => p.mono)?.text).toBe('carapace@127.0.0.1:2223');
+    } finally {
+      document.documentElement.lang = '';
+    }
   });
 });

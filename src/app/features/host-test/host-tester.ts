@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { inject, Service } from '@angular/core';
 import {
   HostTestService,
@@ -44,6 +45,7 @@ export class HostTester {
   private readonly ipc = inject(HostTestService);
   private readonly hostKeys = inject(HostKeyPrompter);
   private readonly credentials = inject(CredentialPrompter);
+  private readonly transloco = inject(TranslocoService);
 
   start(draft: HostTestDraft): HostTestRun {
     let aborted = false;
@@ -60,7 +62,11 @@ export class HostTester {
       }
     };
     const decide = (prompt: HostKeyPrompt): Promise<boolean> =>
-      timed(() => this.hostKeys.ask(prompt, { acceptLabel: 'Accept and test' }));
+      timed(() =>
+        this.hostKeys.ask(prompt, {
+          acceptLabel: this.transloco.translate('hostKeyDialog.unknown.acceptTest'),
+        }),
+      );
 
     const run = async (): Promise<HostTestOutcome> => {
       const startedAt = performance.now();
@@ -119,16 +125,18 @@ export class HostTester {
     const auth = draft.host.auth;
     const asked = err.code === 'secret_required';
     if (auth.kind === 'password' && (asked || (typed && err.code === 'auth_failed'))) {
-      const error = asked ? null : 'The server rejected the password. Try again.';
+      const error = asked ? null : this.transloco.translate('credentialDialog.error.rejected');
       return {
-        label: 'Password',
+        label: this.transloco.translate('credentialDialog.title.password'),
         data: { kind: 'password', subject: draft.address, error, forTest: true },
       };
     }
     if (auth.kind === 'key' && (asked || (typed && err.code === 'invalid_passphrase'))) {
-      const error = asked ? null : 'Wrong passphrase. Try again.';
+      const error = asked
+        ? null
+        : this.transloco.translate('credentialDialog.error.wrongPassphrase');
       return {
-        label: 'Key passphrase',
+        label: this.transloco.translate('credentialDialog.title.passphrase'),
         data: { kind: 'passphrase', subject: draft.keyPath, error, forTest: true },
       };
     }

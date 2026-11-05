@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { TestBed } from '@angular/core/testing';
 import { provideTaiga } from '@taiga-ui/core';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
@@ -75,5 +76,13 @@ describe('KeyDeleteDialog', () => {
     button(el, 'Cancel').click();
     expect(complete).toHaveBeenCalledOnce();
     expect(completeWith).not.toHaveBeenCalled();
+  });
+
+  it('renders in French', async () => {
+    const { fixture, el } = await setup(true);
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    expect(el.textContent).toContain('Supprimer aussi les fichiers de la clé');
+    expect(button(el, 'Annuler')).toBeTruthy();
   });
 });

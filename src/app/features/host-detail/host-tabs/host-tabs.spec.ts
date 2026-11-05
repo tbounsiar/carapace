@@ -1,3 +1,4 @@
+import { TranslocoService } from '@jsverse/transloco';
 import { signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
@@ -79,5 +80,12 @@ describe('HostTabs', () => {
     link.click();
     expect(activate).toHaveBeenCalledWith(edit);
     await fixture.whenStable();
+  });
+
+  it('renders in French', async () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await setup(false);
+    expect(byId('host-tabs-empty')?.textContent).toContain('Aucun onglet ouvert');
+    expect(byId('host-new-terminal')?.textContent).toContain('Nouveau terminal');
   });
 });

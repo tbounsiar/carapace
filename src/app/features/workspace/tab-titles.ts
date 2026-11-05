@@ -1,5 +1,21 @@
 import type { Host, Project } from '../../core/ipc/config.models';
+import { uiText } from '../../shared/ui-text';
+import { statusWord } from './tab-status';
 import type { WorkspaceTab } from './workspace';
+
+/** The number of a terminal tab, from its key `terminal:{hostId}:{n}`. */
+export function terminalNumber(tab: WorkspaceTab): string | null {
+  return tab.kind === 'terminal' ? (/:(\d+)$/.exec(tab.key)?.[1] ?? null) : null;
+}
+
+/** "Terminal 2" and "Files" in the active language; an editor tab is its file name. */
+export function tabLabel(tab: WorkspaceTab): string {
+  if (tab.kind === 'files') {
+    return uiText('workspace.tab.files');
+  }
+  const n = terminalNumber(tab);
+  return n === null ? tab.label : uiText('workspace.tab.terminal', { n });
+}
 
 export interface TabTitle {
   readonly host: string;
@@ -38,21 +54,29 @@ export function tabTitles(
   const titles = new Map<string, TabTitle>();
   for (const tab of tabs) {
     const host = byId.get(tab.hostId);
-    const hostName = host?.name ?? 'Unknown host';
+    const hostName = host?.name ?? uiText('workspace.tab.unknownHost');
     const repeated = (editorNames.get(`${tab.hostId}\n${tab.label}`) ?? 0) > 1;
     const parent = tab.path ? parentName(tab.path) : '';
-    const label = tab.kind === 'edit' && repeated && parent ? `${parent}/${tab.label}` : tab.label;
+    const label =
+      tab.kind === 'edit' && repeated && parent ? `${parent}/${tab.label}` : tabLabel(tab);
     const title = `${hostName} · ${label}`;
     let scoped = hostName;
     if (host && (nameCount.get(hostName) ?? 0) > 1) {
       const scope = host.projectId
-        ? (projects.find((p) => p.id === host.projectId)?.name ?? 'Unknown project')
-        : 'Home';
+        ? (projects.find((p) => p.id === host.projectId)?.name ??
+          uiText('workspace.tab.unknownProject'))
+        : uiText('common.home');
       scoped = `${hostName} (${scope})`;
     }
     const where = tab.path ? `, ${hostName}:${tab.path}` : '';
-    const hint = `${scoped} · ${label} — ${tab.status().word}${where}`;
-    const extra = `${tab.modified() ? ', modified' : ''}${tab.readOnly() ? ', read-only' : ''}`;
+    const hint = `${scoped} · ${label} — ${statusWord(tab.status())}${where}`;
+    const extra = [
+      tab.modified() ? uiText('workspace.tab.modified') : '',
+      tab.readOnly() ? uiText('workspace.tab.readOnly') : '',
+    ]
+      .filter(Boolean)
+      .map((part) => `, ${part}`)
+      .join('');
     titles.set(tab.id, { host: hostName, label, title, hint, aria: `${hint}${extra}` });
   }
   return titles;
@@ -65,5 +89,7 @@ export function unsavedNames(
 ): string {
   const names = tabs.map((t) => `${t.label} (${hostName(t.hostId)})`);
   const shown = names.slice(0, 5).join(', ');
-  return names.length > 5 ? `${shown} and ${names.length - 5} more` : shown;
+  return names.length > 5
+    ? uiText('workspace.unsaved.names', { shown, more: names.length - 5 })
+    : shown;
 }

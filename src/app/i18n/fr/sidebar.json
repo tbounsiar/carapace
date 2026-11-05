@@ -1,1 +1,38 @@
-{}
+{
+  "filter": "Filtrer les hôtes",
+  "new": "Nouveau",
+  "newHost": "Nouvel hôte",
+  "newCollection": "Nouvelle collection",
+  "newProject": "Nouveau projet",
+  "loadError": "Impossible de charger les hôtes",
+  "retry": "Réessayer",
+  "empty": {
+    "home": "Rien ici pour l’instant. Utilisez + pour une collection ou un projet.",
+    "project": "Aucun hôte pour l’instant. Utilisez + pour une collection."
+  },
+  "noMatch": "Aucun hôte ne correspond à",
+  "query": "« {query} »",
+  "clearFilter": "Effacer le filtre",
+  "projects": "Projets",
+  "open": "Ouvrir",
+  "openProject": "Ouvrir {name}",
+  "openConnections": "{count, plural, one {# connexion ouverte} other {# connexions ouvertes}}",
+  "addHost": "Ajouter un hôte",
+  "connect": "Connecter",
+  "disconnect": "Déconnecter",
+  "connectHost": "Connecter {name}",
+  "disconnectHost": "Déconnecter {name}",
+  "actions": "Actions",
+  "actionsFor": "Actions pour {name}",
+  "menu": {
+    "move": "Déplacer vers…",
+    "openProject": "Ouvrir le projet",
+    "variables": "Variables du projet",
+    "newHostHere": "Nouvel hôte ici",
+    "newCollectionHere": "Nouvelle collection ici",
+    "newTerminal": "Nouveau terminal",
+    "openFiles": "Ouvrir les fichiers"
+  },
+  "connectionsFailed": "Connexions non chargées",
+  "hostsFailed": "Hôtes non chargés"
+}

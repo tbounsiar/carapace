@@ -1,11 +1,10 @@
 <p class="text" data-testid="consent-intro">
-  Carapace sends anonymous usage data to help decide what to improve. Nothing is sent before you
-  save. Turn off anything you don't want to share, here or any time in Settings.
+  {{ 'analytics.consent.intro' | transloco }}
 </p>
 
 @if (reAsk()) {
   <p class="text" data-testid="consent-reask">
-    What Carapace can send has changed. Check what is marked New.
+    {{ 'analytics.consent.reask' | transloco }}
   </p>
 }
 
@@ -14,9 +13,11 @@
     <label tuiBlock="m">
       <span tuiTitle>
         <span>
-          {{ category.title }}
+          {{ category.title | transloco }}
           @if (isNew(category.id)) {
-            <span tuiBadge appearance="info" size="s">New</span>
+            <span tuiBadge appearance="info" size="s">{{
+              'analytics.consent.new' | transloco
+            }}</span>
           }
         </span>
         <span
@@ -24,7 +25,7 @@
           [id]="'consent-' + category.id + '-note'"
           [attr.data-testid]="'consent-' + category.id + '-note'"
         >
-          {{ category.note }}
+          {{ category.note | transloco }}
         </span>
       </span>
       <input
@@ -42,16 +43,16 @@
 </div>
 
 <p class="text" data-testid="consent-common">
-  <strong>{{ commonLead }}</strong> {{ commonText }}
+  <strong>{{ commonLead | transloco }}</strong> {{ commonText | transloco }}
 </p>
 <p class="text" data-testid="consent-never">
-  <strong>{{ neverLead }}</strong> {{ neverText }}
+  <strong>{{ neverLead | transloco }}</strong> {{ neverText | transloco }}
   <button
     tuiLink
     type="button"
     iconEnd="@tui.external-link"
     data-testid="consent-privacy-link"
-    [textContent]="'How analytics work'"
+    [textContent]="'analytics.howItWorks' | transloco"
     (click)="openPolicy()"
   ></button>
 </p>
@@ -65,6 +66,6 @@
     data-testid="consent-save"
     (click)="save()"
   >
-    Save choices
+    {{ 'analytics.consent.save' | transloco }}
   </button>
 </footer>

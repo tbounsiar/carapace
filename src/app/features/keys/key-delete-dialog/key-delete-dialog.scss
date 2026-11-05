@@ -33,6 +33,7 @@ p {
 
 footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.75rem;
   margin-block-start: 0.5rem;

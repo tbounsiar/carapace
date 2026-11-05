@@ -1,3 +1,5 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import type { AnalyticsChoices, AnalyticsState } from '../../core/ipc/analytics';
 import { CATEGORY_COPY, initialChoices } from './privacy-page';
 
@@ -22,13 +24,14 @@ const state = (
 
 describe('CATEGORY_COPY', () => {
   it('lists the four categories, crash reports last', () => {
-    expect(CATEGORY_COPY.map((c) => [c.id, c.title])).toEqual([
+    const transloco = TestBed.inject(TranslocoService);
+    expect(CATEGORY_COPY.map((c) => [c.id, transloco.translate(c.title)])).toEqual([
       ['launch', 'Launch count'],
       ['features', 'Feature usage'],
       ['connections', 'Connection results'],
       ['crashes', 'Crash reports'],
     ]);
-    expect(CATEGORY_COPY[3].note).toBe(
+    expect(transloco.translate(CATEGORY_COPY[3].note)).toBe(
       'If Carapace crashes: crash type, app area and, in its own code, the source line. No messages or paths.',
     );
   });

@@ -411,6 +411,10 @@ describe('SettingsPage', () => {
       expect(label(el, 'settings-language-system').textContent?.trim()).toBe('Système (English)');
       expect(label(el, 'settings-language-system').getAttribute('lang')).toBe('fr');
       expect(label(el, 'settings-language-en').textContent?.trim()).toBe('English');
+      expect(label(el, 'settings-title').textContent?.trim()).toBe('Paramètres');
+      expect(el.textContent).toContain('Taille de police du terminal');
+      expect(el.textContent).toContain('Nombre de lancements');
+      expect(label(el, 'settings-data').textContent?.trim()).toBe('Données');
     });
 
     it('names the system language as the OS reports it', async () => {

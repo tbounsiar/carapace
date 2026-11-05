@@ -2,6 +2,7 @@ import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
 import { collection, fakeConfig, host, project } from '../../../core/ipc/config.fixture';
 import { IpcError } from '../../../core/ipc/ipc-error';
@@ -92,6 +93,22 @@ describe('Welcome (Home page)', () => {
     expect(transfer.importData).toHaveBeenCalledOnce();
     expect(byId('home-title')).toBeNull();
     expect(byId('hosts-search')).toBeNull();
+  });
+
+  it('follows a switch to French', async () => {
+    states.set({ h3: 'connected' });
+    await setup();
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await settle();
+    expect(byId('home-title')?.textContent).toBe('Accueil');
+    expect(byId('home-new-host')?.textContent?.trim()).toBe('Nouvel hôte');
+    expect(byId('home-menu')?.getAttribute('aria-label')).toBe('Actions de l’accueil');
+    expect(byId<HTMLInputElement>('hosts-search')?.placeholder).toBe(
+      'Rechercher des hôtes et des projets',
+    );
+    expect(
+      byId('project-card-Payments')?.querySelector('[tuiStatus]')?.getAttribute('aria-label'),
+    ).toBe('1 connexion ouverte');
   });
 
   it('shows the header with stats and the Home actions', async () => {

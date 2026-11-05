@@ -1,6 +1,7 @@
 import { Component, input, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
+import { LanguageService } from '../../../core/i18n/language';
 import { ConfigService } from '../../../core/ipc/config';
 import { fakeConfig, host } from '../../../core/ipc/config.fixture';
 import type { EditorDoc } from '../editor-docs';
@@ -35,7 +36,7 @@ function fakeDoc() {
     readOnly: signal(false),
     language: signal<LanguageId>('nginx'),
     wrap: signal(false),
-    savedAt: signal<string | null>(null),
+    savedAt: signal<Date | null>(null),
     error: signal<string | null>(null),
     partial: signal(false),
     target: signal<string | null>(null),
@@ -55,6 +56,7 @@ function fakeDoc() {
     reconnect: vi.fn(() => Promise.resolve()),
     toggleWrap: vi.fn(),
     setLanguage: vi.fn((id: LanguageId) => doc.language.set(id)),
+    relabel: vi.fn(),
   };
   return doc;
 }
@@ -126,7 +128,8 @@ describe('EditorPanel', () => {
     doc.banner.set('lost');
     doc.error.set('Not saved: Disk full.');
     doc.partial.set(true);
-    doc.savedAt.set('14:02');
+    const at = new Date(2026, 10, 4, 14, 2);
+    doc.savedAt.set(at);
     doc.target.set('/srv/real.conf');
     await settle();
     expect(byId('editor-banner')?.textContent).toContain(
@@ -138,7 +141,9 @@ describe('EditorPanel', () => {
     expect(byId('editor-error')?.getAttribute('role')).toBe('alert');
     byId('editor-save-again')!.click();
     expect(doc.save).toHaveBeenCalled();
-    expect(byId('editor-saved')?.textContent).toContain('Saved 14:02');
+    expect(byId('editor-saved')?.textContent).toContain(
+      `Saved ${new Intl.DateTimeFormat('en-US', { timeStyle: 'short' }).format(at)}`,
+    );
     expect(byId('editor-link')?.textContent).toContain('Link to /srv/real.conf');
     doc.banner.set('ended');
     await settle();
@@ -163,5 +168,18 @@ describe('EditorPanel', () => {
     doc.language.set('plain');
     await settle();
     expect(byId('editor-language')?.textContent).toContain('Plain text');
+  });
+
+  it('follows a switch to French, sizes and CodeMirror texts included', async () => {
+    doc.stats.update((s) => ({ ...s, bytes: 1536, modified: true, selected: 4 }));
+    TestBed.inject(LanguageService).apply('fr');
+    await settle();
+    expect(byId('editor-position')?.textContent).toContain('Ligne 2, col. 9, 4 sélectionnés');
+    expect(byId('editor-size')?.textContent).toContain('1,5\u00a0Ko');
+    expect(byId('editor-saved')?.textContent?.trim()).toBe('Modifié');
+    expect(byId('editor-language')?.getAttribute('aria-label')).toBe('Langage\u00a0: nginx');
+    expect(byId('editor-reload')?.getAttribute('aria-label')).toBe('Recharger depuis le serveur');
+    expect(doc.relabel).toHaveBeenCalledTimes(2);
+    TestBed.inject(LanguageService).apply('en');
   });
 });

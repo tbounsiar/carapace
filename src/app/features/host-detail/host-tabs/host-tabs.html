@@ -1,7 +1,11 @@
-<section class="section" data-testid="host-tabs" aria-label="Open tabs">
+<section
+  class="section"
+  data-testid="host-tabs"
+  [attr.aria-label]="'hostDetail.tabs.title' | transloco"
+>
   @if (tabs().length) {
     <header tuiHeader="body-l">
-      <h2 tuiTitle>Open tabs</h2>
+      <h2 tuiTitle>{{ 'hostDetail.tabs.title' | transloco }}</h2>
       <div tuiAccessories>
         <ng-container [ngTemplateOutlet]="actions" />
       </div>
@@ -33,19 +37,19 @@
             ></span>
           }
         }
-        <span tuiTitle [class._ended]="status.kind === 'ended'">{{ tab.label }}</span>
+        <span tuiTitle [class._ended]="status.kind === 'ended'">{{ label(tab) }}</span>
         @if (tab.readOnly()) {
           <tui-icon icon="@tui.lock" class="secondary" />
         }
         @if (tab.modified()) {
-          <span class="secondary">Modified</span>
+          <span class="secondary">{{ 'hostDetail.tabs.modified' | transloco }}</span>
         }
       </a>
     }
   } @else {
     <tui-block-status size="m" data-testid="host-tabs-empty">
-      <h2>No open tabs</h2>
-      <p>Open a terminal or the files of this host. It connects first if needed.</p>
+      <h2>{{ 'hostDetail.tabs.empty.title' | transloco }}</h2>
+      <p>{{ 'hostDetail.tabs.empty.text' | transloco }}</p>
       <button
         tuiButton
         size="s"
@@ -55,7 +59,7 @@
         [appearance]="newAppearance()"
         (click)="newTerminal()"
       >
-        New terminal
+        {{ 'hostDetail.tabs.newTerminal' | transloco }}
       </button>
       <button
         tuiButton
@@ -66,7 +70,7 @@
         data-testid="host-open-files"
         (click)="openFiles()"
       >
-        Files
+        {{ 'hostDetail.tabs.files' | transloco }}
       </button>
     </tui-block-status>
   }
@@ -82,7 +86,7 @@
     [appearance]="newAppearance()"
     (click)="newTerminal()"
   >
-    New terminal
+    {{ 'hostDetail.tabs.newTerminal' | transloco }}
   </button>
   <button
     tuiButton
@@ -93,6 +97,6 @@
     data-testid="host-open-files"
     (click)="openFiles()"
   >
-    Files
+    {{ 'hostDetail.tabs.files' | transloco }}
   </button>
 </ng-template>

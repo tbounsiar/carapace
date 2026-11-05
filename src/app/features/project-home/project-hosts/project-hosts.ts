@@ -2,6 +2,7 @@ import { Component, computed, inject, input, linkedSignal, viewChild } from '@an
 import { TuiButton } from '@taiga-ui/core';
 import { TuiSkeleton } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiCardLarge } from '@taiga-ui/layout';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
 import { SshService } from '../../../core/ipc/ssh';
 import {
@@ -20,7 +21,15 @@ import { ProjectActions } from '../../project-tree/project-actions';
 
 /** The project dashboard's Hosts tab: hosts as cards grouped by collection, with search. */
 @Component({
-  imports: [HostGroups, HostsToolbar, TuiBlockStatus, TuiButton, TuiCardLarge, TuiSkeleton],
+  imports: [
+    HostGroups,
+    HostsToolbar,
+    TranslocoPipe,
+    TuiBlockStatus,
+    TuiButton,
+    TuiCardLarge,
+    TuiSkeleton,
+  ],
   selector: 'app-project-hosts',
   styleUrl: './project-hosts.scss',
   templateUrl: './project-hosts.html',
@@ -50,7 +59,7 @@ export class ProjectHosts {
   );
   protected readonly empty = computed(() => this.nodes().length === 0);
   private readonly groups = computed(() =>
-    hostGroups(scopeTree(this.nodes(), this.projectId()), this.project()?.name ?? ''),
+    hostGroups(scopeTree(this.nodes(), this.projectId()), this.project()?.name ?? '', false),
   );
   private readonly total = computed(() => countHosts(this.groups()));
   protected readonly noHosts = computed(() => !this.empty() && this.total() === 0);

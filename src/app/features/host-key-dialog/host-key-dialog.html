@@ -1,15 +1,15 @@
 <div tuiNotification appearance="warning" size="s" icon="@tui.shield-alert">
-  The authenticity of <span class="mono">{{ prompt.hostname }}:{{ prompt.port }}</span> cannot be
-  established. Compare the fingerprint with one obtained from the server administrator before
-  connecting.
+  @for (part of warning(); track $index) {
+    <span [class.mono]="part.mono" [textContent]="part.text"></span>
+  }
 </div>
 
 <dl>
-  <dt>Host</dt>
+  <dt>{{ 'hostKeyDialog.host' | transloco }}</dt>
   <dd class="mono" data-testid="host-key-host">{{ prompt.hostname }}:{{ prompt.port }}</dd>
-  <dt>Algorithm</dt>
+  <dt>{{ 'hostKeyDialog.algorithm' | transloco }}</dt>
   <dd class="mono">{{ prompt.algorithm }}</dd>
-  <dt>Fingerprint</dt>
+  <dt>{{ 'hostKeyDialog.fingerprint' | transloco }}</dt>
   <dd class="mono fingerprint" data-testid="fingerprint">{{ prompt.fingerprint }}</dd>
 </dl>
 
@@ -23,7 +23,7 @@
     data-testid="host-key-reject"
     (click)="context.completeWith(false)"
   >
-    Reject
+    {{ 'hostKeyDialog.unknown.reject' | transloco }}
   </button>
   <button
     tuiButton

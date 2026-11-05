@@ -7,6 +7,8 @@ import { fakeConfig, host, project } from '../../../core/ipc/config.fixture';
 import { SshService } from '../../../core/ipc/ssh';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { ProjectSelect } from './project-select';
+import { TranslocoService } from '@jsverse/transloco';
+import { trackLanguage } from '../../../shared/ui-text';
 
 @Component({
   imports: [ProjectSelect, TuiRoot],
@@ -97,5 +99,19 @@ describe('ProjectSelect', () => {
     expect(byId('project-option-variables')?.textContent?.trim()).toBe('Project variables');
     byId('project-option-variables')!.click();
     expect(navigate).toHaveBeenCalledWith(['/projects', 'p2', 'variables']);
+  });
+
+  it('reads Accueil in French', async () => {
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    transloco.setActiveLang('fr');
+    await settle();
+    expect(byId('project-select')?.getAttribute('aria-label')).toBe('Projet : Accueil');
+    byId('project-select')!.click();
+    await settle();
+    expect(byId('project-option-new')?.textContent?.trim()).toBe('Nouveau projet…');
+    expect(
+      byId('project-option-Payments')?.querySelector('[role="img"]')?.getAttribute('aria-label'),
+    ).toBe('1 connexion ouverte');
   });
 });

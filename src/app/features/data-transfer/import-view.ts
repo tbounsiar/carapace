@@ -9,29 +9,28 @@ import type {
   PlanRow,
   Strategy,
 } from '../../core/ipc/data-transfer';
-import { plural } from '../project-tree/node-tree';
 
-export const PICKER_BUSY = 'Another file dialog is open. Close it first.';
+/** `TranslocoService.translate`, passed in so these stay pure functions. */
+export type Translate = (key: string, params?: Record<string, unknown>) => string;
+
+export const PICKER_BUSY = 'dataTransfer.pickerBusy';
 
 type CountKey = 'added' | 'updated' | 'unchanged' | 'copied' | 'removed' | 'skipped';
 
 const KINDS: readonly ItemKind[] = ['project', 'collection', 'host', 'variable', 'key'];
 
-const ROW_LABELS: Readonly<Record<ItemKind, string>> = {
-  project: 'Projects',
-  collection: 'Collections',
-  host: 'Hosts',
-  variable: 'Variables',
-  key: 'SSH keys',
-};
+/** Grammatical gender of each noun in French; English ignores it. */
+const FEMININE: ReadonlySet<ItemKind> = new Set<ItemKind>(['collection', 'variable', 'key']);
 
-const NOUNS: Readonly<Record<ItemKind, string>> = {
-  project: 'project',
-  collection: 'collection',
-  host: 'host',
-  variable: 'variable',
-  key: 'SSH key',
-};
+/** `ms`, `mp`, `fs` or `fp`: how a French participle agrees with a list of counted nouns. */
+function agreement(kinds: readonly ItemKind[], total: number): string {
+  const gender = kinds.every((kind) => FEMININE.has(kind)) ? 'f' : 'm';
+  return gender + (total === 1 ? 's' : 'p');
+}
+
+export function countOf(t: Translate, kind: ItemKind, count: number): string {
+  return t(`dataTransfer.count.${kind}`, { count });
+}
 
 export const KIND_ICONS: Readonly<Record<ItemKind, string>> = {
   project: '@tui.folder-kanban',
@@ -41,31 +40,15 @@ export const KIND_ICONS: Readonly<Record<ItemKind, string>> = {
   key: '@tui.key-round',
 };
 
-const COLUMNS: Readonly<Record<Strategy, readonly { key: CountKey; label: string }[]>> = {
-  merge: [
-    { key: 'added', label: 'New' },
-    { key: 'updated', label: 'Updated' },
-    { key: 'unchanged', label: 'Unchanged' },
-    { key: 'skipped', label: 'Skipped' },
-  ],
-  replace: [
-    { key: 'added', label: 'New' },
-    { key: 'updated', label: 'Updated' },
-    { key: 'unchanged', label: 'Unchanged' },
-    { key: 'removed', label: 'Deleted' },
-  ],
-  duplicate: [
-    { key: 'added', label: 'New' },
-    { key: 'copied', label: 'Copied' },
-    { key: 'skipped', label: 'Skipped' },
-  ],
+const COLUMNS: Readonly<Record<Strategy, readonly CountKey[]>> = {
+  merge: ['added', 'updated', 'unchanged', 'skipped'],
+  replace: ['added', 'updated', 'unchanged', 'removed'],
+  duplicate: ['added', 'copied', 'skipped'],
 };
 
-export const STRATEGY_LABELS: Readonly<Record<Strategy, string>> = {
-  merge: 'Merge',
-  replace: 'Replace',
-  duplicate: 'Keep both',
-};
+export function strategyLabel(t: Translate, strategy: Strategy): string {
+  return t(`dataTransfer.strategy.${strategy}`);
+}
 
 export interface TableCell {
   readonly value: number;
@@ -87,20 +70,20 @@ export function nothingToImport(plan: ImportPlan): boolean {
 }
 
 /** Rows and columns whose counts are all 0 are left out. */
-export function tableView(plan: ImportPlan, strategy: Strategy): TableView {
+export function tableView(t: Translate, plan: ImportPlan, strategy: Strategy): TableView {
   const columns = COLUMNS[strategy];
   const rows = KINDS.map((kind) => rowOf(plan.rows, kind)).filter(
-    (row): row is PlanRow => !!row && columns.some((c) => row[c.key] > 0),
+    (row): row is PlanRow => !!row && columns.some((c) => row[c] > 0),
   );
-  const shown = columns.filter((c) => rows.some((row) => row[c.key] > 0));
+  const shown = columns.filter((c) => rows.some((row) => row[c] > 0));
   return {
-    columns: shown.map((c) => c.label),
+    columns: shown.map((c) => t(`dataTransfer.columns.${c}`)),
     rows: rows.map((row) => ({
       kind: row.kind,
-      label: ROW_LABELS[row.kind],
+      label: t(`dataTransfer.kinds.${row.kind}`),
       cells: shown.map((c) => ({
-        value: row[c.key],
-        negative: c.key === 'removed' && row[c.key] > 0,
+        value: row[c],
+        negative: c === 'removed' && row[c] > 0,
       })),
     })),
   };
@@ -115,42 +98,29 @@ export function hasDeletions(plan: ImportPlan): boolean {
   );
 }
 
-export function replaceSubtitle(scope: FileScope): string {
-  const part =
-    scope.kind === 'project'
-      ? scope.projectName
-      : scope.kind === 'home'
-        ? 'Home and global variables'
-        : 'all your data';
-  return `Make ${part} exactly like the file`;
-}
-
-export function scopeText(scope: FileScope): string {
+export function replaceSubtitle(t: Translate, scope: FileScope): string {
   return scope.kind === 'project'
-    ? `Project “${scope.projectName}”`
-    : scope.kind === 'home'
-      ? 'Home'
-      : 'Everything';
+    ? t('dataTransfer.replaceNote.project', { name: scope.projectName })
+    : t(`dataTransfer.replaceNote.${scope.kind}`);
 }
 
-const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
+export function scopeText(t: Translate, scope: FileScope): string {
+  return scope.kind === 'project'
+    ? t('dataTransfer.scope.project', { name: scope.projectName })
+    : t(`dataTransfer.scope.${scope.kind}`);
+}
 
-/** "Project “Payments” · exported 5 Nov 2026, 10:12 · Carapace 0.2.0"; missing parts left out. */
-export function fileMeta(file: {
-  scope: FileScope;
-  exportedAt: string | null;
-  appVersion: string | null;
-}): string {
-  const parts = [scopeText(file.scope)];
+/** "Project “Payments” · exported Nov 5, 2026, 10:12 AM · Carapace 0.2.0"; missing parts left out. */
+export function fileMeta(
+  t: Translate,
+  locale: string,
+  file: { scope: FileScope; exportedAt: string | null; appVersion: string | null },
+): string {
+  const parts = [scopeText(t, file.scope)];
   const date = file.exportedAt ? new Date(file.exportedAt) : null;
   if (date && !Number.isNaN(date.getTime())) {
-    parts.push(`exported ${DATE_FORMAT.format(date)}`);
+    const format = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' });
+    parts.push(t('dataTransfer.import.exported', { date: format.format(date) }));
   }
   if (file.appVersion) {
     parts.push(`Carapace ${file.appVersion}`);
@@ -159,118 +129,154 @@ export function fileMeta(file: {
 }
 
 /** "api-1, db-2 and 3 more". */
-export function listNames(names: readonly string[], max = 5): string {
+export function listNames(t: Translate, names: readonly string[], max = 5): string {
   if (names.length <= max) {
     return names.join(', ');
   }
-  return `${names.slice(0, max).join(', ')} and ${names.length - max} more`;
+  return t('dataTransfer.andMore', {
+    names: names.slice(0, max).join(', '),
+    count: names.length - max,
+  });
 }
 
 /** "a, b and c" */
-function joinAnd(parts: readonly string[]): string {
+function joinAnd(t: Translate, parts: readonly string[]): string {
   return parts.length <= 1
     ? (parts[0] ?? '')
-    : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+    : t('dataTransfer.and', { head: parts.slice(0, -1).join(', '), last: parts[parts.length - 1] });
 }
 
 const SENTENCE_KINDS: readonly ItemKind[] = ['host', 'collection', 'project', 'variable'];
 
-function countsOf(rows: readonly PlanRow[], key: CountKey, kinds = SENTENCE_KINDS): string[] {
-  return kinds
-    .map((kind) => [kind, rowOf(rows, kind)?.[key] ?? 0] as const)
-    .filter(([, n]) => n > 0)
-    .map(([kind, n]) => plural(n, NOUNS[kind]));
+interface Counted {
+  readonly list: string;
+  readonly form: string;
 }
 
-/** "4 hosts and 2 collections added, 9 hosts updated, 1 SSH key registered." */
-export function summarySentence(rows: readonly PlanRow[]): string {
-  const parts: string[] = [];
-  const push = (list: string[], verb: string) => {
-    if (list.length) {
-      parts.push(`${joinAnd(list)} ${verb}`);
-    }
+function countsOf(
+  t: Translate,
+  rows: readonly PlanRow[],
+  key: CountKey,
+  kinds = SENTENCE_KINDS,
+): Counted | null {
+  const found = kinds
+    .map((kind) => [kind, rowOf(rows, kind)?.[key] ?? 0] as const)
+    .filter(([, n]) => n > 0);
+  if (!found.length) {
+    return null;
+  }
+  const total = found.reduce((sum, [, n]) => sum + n, 0);
+  return {
+    list: joinAnd(
+      t,
+      found.map(([kind, n]) => countOf(t, kind, n)),
+    ),
+    form: agreement(
+      found.map(([kind]) => kind),
+      total,
+    ),
   };
-  push(countsOf(rows, 'added'), 'added');
-  push(countsOf(rows, 'copied'), 'copied');
-  push(countsOf(rows, 'updated'), 'updated');
-  push(countsOf(rows, 'removed'), 'deleted');
-  push(countsOf(rows, 'added', ['key']), 'registered');
-  push(countsOf(rows, 'updated', ['key']), 'updated');
+}
+
+type Verb = 'added' | 'copied' | 'updated' | 'removed' | 'registered';
+
+/** "4 hosts and 2 collections added, 9 hosts updated, 1 SSH key registered." */
+export function summarySentence(t: Translate, rows: readonly PlanRow[]): string {
+  const entries: [Counted | null, Verb][] = [
+    [countsOf(t, rows, 'added'), 'added'],
+    [countsOf(t, rows, 'copied'), 'copied'],
+    [countsOf(t, rows, 'updated'), 'updated'],
+    [countsOf(t, rows, 'removed'), 'removed'],
+    [countsOf(t, rows, 'added', ['key']), 'registered'],
+    [countsOf(t, rows, 'updated', ['key']), 'updated'],
+  ];
+  const parts = entries.flatMap(([counted, verb]) =>
+    counted ? [t(`dataTransfer.summary.${verb}`, { list: counted.list, form: counted.form })] : [],
+  );
   if (!parts.length) {
-    return 'Nothing changed.';
+    return t('dataTransfer.summary.nothing');
   }
   const text = parts.join(', ');
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+  return t('dataTransfer.summary.sentence', {
+    text: `${text.charAt(0).toUpperCase()}${text.slice(1)}`,
+  });
 }
 
 /** Body of the Replace confirm (I2); `extra` holds the workspace sentences. */
-export function replaceConfirmText(plan: ImportPlan, extra: string): string {
-  const deleted = countsOf(plan.rows, 'removed');
-  const total = SENTENCE_KINDS.reduce((n, kind) => n + (rowOf(plan.rows, kind)?.removed ?? 0), 0);
+export function replaceConfirmText(t: Translate, plan: ImportPlan, extra: string): string {
+  const deleted = countsOf(t, plan.rows, 'removed');
   const sentences: string[] = [];
-  if (deleted.length) {
-    const owner = total === 1 ? 'its' : 'their';
-    sentences.push(
-      `${joinAnd(deleted)} will be deleted from this computer, with ${owner} saved passwords.`,
-    );
+  if (deleted) {
+    sentences.push(t('dataTransfer.confirm.deleted', { list: deleted.list, form: deleted.form }));
   } else if (plan.secretValuesDeleted || plan.savedSecretHosts) {
-    sentences.push('Secret values and saved passwords will be deleted from this computer.');
+    sentences.push(t('dataTransfer.confirm.secretsDeleted'));
   }
   const connections = plan.affectedConnectedHosts.length;
   if (connections) {
-    sentences.push(
-      connections === 1
-        ? '1 open connection is closed.'
-        : `${connections} open connections are closed.`,
-    );
+    sentences.push(t('dataTransfer.confirm.connections', { count: connections }));
   }
-  sentences.push('A backup of your data is kept.');
+  sentences.push(t('dataTransfer.confirm.backup'));
   return sentences.join(' ') + extra;
 }
 
 /** "Replace deletes 3 secret variable values and the saved passwords of 12 hosts from this computer." */
-export function deletedSecretsText(plan: ImportPlan, strategy: Strategy): string | null {
+export function deletedSecretsText(
+  t: Translate,
+  plan: ImportPlan,
+  strategy: Strategy,
+): string | null {
   const values = plan.secretValuesDeleted;
   const hosts = plan.savedSecretHosts;
   if (!values && !hosts) {
     return null;
   }
   const parts = [
-    values ? plural(values, 'secret variable value') : '',
-    hosts ? `the saved passwords of ${plural(hosts, 'host')}` : '',
+    values ? t('dataTransfer.count.secretValue', { count: values }) : '',
+    hosts ? t('dataTransfer.deletedSecrets.savedPasswords', { count: hosts }) : '',
   ].filter(Boolean);
-  const subject = strategy === 'replace' ? 'Replace' : 'This import';
-  return `${subject} deletes ${joinAnd(parts)} from this computer.`;
+  const key = strategy === 'replace' ? 'replace' : 'other';
+  return t(`dataTransfer.deletedSecrets.${key}`, { list: joinAnd(t, parts) });
 }
 
 const SECRETS_SENT_MAX = 10;
 
 /** "api-1 will send db_pw to deploy@10.9.9.9:22 instead of old@host:22", at most 10 + "and N more". */
-export function secretsSentLines(list: ImportPlan['secretsSentTo']): string[] {
+export function secretsSentLines(t: Translate, list: ImportPlan['secretsSentTo']): string[] {
   const entries = list ?? [];
-  const lines = entries
-    .slice(0, SECRETS_SENT_MAX)
-    .map(
-      (e) => `${e.host} will send ${e.variable} to ${e.to}${e.from ? ` instead of ${e.from}` : ''}`,
-    );
+  const lines = entries.slice(0, SECRETS_SENT_MAX).map((e) =>
+    e.from
+      ? t('dataTransfer.secretsSent.lineFrom', {
+          host: e.host,
+          variable: e.variable,
+          to: e.to,
+          from: e.from,
+        })
+      : t('dataTransfer.secretsSent.line', { host: e.host, variable: e.variable, to: e.to }),
+  );
   if (entries.length > SECRETS_SENT_MAX) {
-    lines.push(`and ${entries.length - SECRETS_SENT_MAX} more`);
+    lines.push(t('dataTransfer.secretsSent.more', { count: entries.length - SECRETS_SENT_MAX }));
   }
   return lines;
 }
 
-export function secretScopeName(entry: NeedsSecret): string {
-  return entry.scope.kind === 'project' ? entry.scope.projectName : 'global';
+export function secretScopeName(t: Translate, entry: NeedsSecret): string {
+  return entry.scope.kind === 'project' ? entry.scope.projectName : t('dataTransfer.global');
 }
 
 /** "db_pw (Payments) — used by 4 hosts" */
-export function needsSecretLine(entry: NeedsSecret): string {
-  return `${entry.name} (${secretScopeName(entry)}) — used by ${plural(entry.hostCount, 'host')}`;
+export function needsSecretLine(t: Translate, entry: NeedsSecret): string {
+  return t('dataTransfer.needsSecret.line', {
+    name: entry.name,
+    scope: secretScopeName(t, entry),
+    count: entry.hostCount,
+  });
 }
 
-export function undefinedLine(list: ImportPlan['undefinedVariables']): string {
-  const parts = list.map((v) => `${v.name} (used by ${plural(v.hostCount, 'host')})`);
-  return `Not defined anywhere: ${parts.join(', ')}.`;
+export function undefinedLine(t: Translate, list: ImportPlan['undefinedVariables']): string {
+  const parts = list.map((v) =>
+    t('dataTransfer.undefined.part', { name: v.name, count: v.hostCount }),
+  );
+  return t('dataTransfer.undefined.line', { list: parts.join(', ') });
 }
 
 export interface DetailView {
@@ -282,12 +288,12 @@ export interface DetailView {
   readonly badge: { readonly label: string; readonly appearance: string };
 }
 
-const BADGES: Readonly<Record<PlanItem['action'], DetailView['badge']>> = {
-  update: { label: 'Updated', appearance: 'info' },
-  copy: { label: 'Copied', appearance: 'neutral' },
-  rename: { label: 'Renamed', appearance: 'neutral' },
-  remove: { label: 'Deleted', appearance: 'negative' },
-  skip: { label: 'Skipped', appearance: 'neutral' },
+const BADGE_APPEARANCES: Readonly<Record<PlanItem['action'], string>> = {
+  update: 'info',
+  copy: 'neutral',
+  rename: 'neutral',
+  remove: 'negative',
+  skip: 'neutral',
 };
 
 const ACTION_ORDER: readonly PlanItem['action'][] = ['update', 'copy', 'rename', 'remove', 'skip'];
@@ -296,70 +302,60 @@ function isKeyFileSkip(item: PlanItem): boolean {
   return item.reason === 'key_file_missing' || item.reason === 'key_file_mismatch';
 }
 
-export function detailLines(item: PlanItem): string[] {
+function gender(kind: ItemKind): string {
+  return FEMININE.has(kind) ? 'f' : 'm';
+}
+
+export function detailLines(t: Translate, item: PlanItem): string[] {
   const lines: string[] = [];
   for (const change of item.changes) {
-    switch (change.field) {
-      case 'address':
-        lines.push(`Address: ${change.from} → ${change.to}`);
-        break;
-      case 'location':
-        lines.push(`Moves from ${change.from} to ${change.to}`);
-        break;
-      case 'name':
-        lines.push(`Renamed: ${change.from} → ${change.to}`);
-        break;
-      case 'value':
-        lines.push(`Value: ${change.from} → ${change.to}`);
-        break;
-      case 'auth':
-        lines.push(`Authentication: ${change.from} → ${change.to}`);
-        break;
-      case 'kind':
-        lines.push(`Kind: ${change.from} → ${change.to}`);
-        break;
-    }
+    lines.push(t(`dataTransfer.detail.${change.field}`, { from: change.from, to: change.to }));
   }
   if (item.newName && item.newName !== item.name && !item.changes.some((c) => c.field === 'name')) {
-    lines.push(`Renamed: ${item.name} → ${item.newName}`);
+    lines.push(t('dataTransfer.detail.name', { from: item.name, to: item.newName }));
   }
+  const deleted = t('dataTransfer.detail.deleted', { gender: gender(item.kind) });
   switch (item.reason) {
     case 'same_id':
-      lines.push('Same id');
+      lines.push(t('dataTransfer.detail.sameId'));
       break;
     case 'same_name':
     case 'name_taken':
-      lines.push(`Same name as a ${NOUNS[item.kind]} here`);
+      lines.push(t('dataTransfer.detail.sameName', { kind: item.kind }));
       break;
     case 'kept_secret':
-      lines.push('Kept as secret on this computer');
+      lines.push(t('dataTransfer.detail.keptSecret'));
       break;
     case 'becomes_secret':
-      lines.push('Becomes secret, no value');
+      lines.push(t('dataTransfer.detail.becomesSecret'));
       break;
     case 'variable_exists':
-      lines.push('Skipped: a variable with this name exists here');
+      lines.push(t('dataTransfer.detail.variableExists'));
       break;
     case 'key_file_missing':
       if (item.detail === 'outside_home') {
         lines.push(
-          `Key file outside your home folder${item.path ? `: ${item.path}` : ''}. Add it in SSH keys by hand.`,
+          item.path
+            ? t('dataTransfer.detail.outsideHomePath', { path: item.path })
+            : t('dataTransfer.detail.outsideHome'),
         );
       } else {
         lines.push(
           item.path
-            ? `Key file not found on this computer: ${item.path}`
-            : 'Key file not found on this computer',
+            ? t('dataTransfer.detail.keyMissingPath', { path: item.path })
+            : t('dataTransfer.detail.keyMissing'),
         );
       }
       break;
     case 'key_file_mismatch':
       lines.push(
-        item.detail ? `Key file does not match (${item.detail})` : 'Key file does not match',
+        item.detail
+          ? t('dataTransfer.detail.keyMismatchAlgorithm', { algorithm: item.detail })
+          : t('dataTransfer.detail.keyMismatch'),
       );
       break;
     case 'not_in_file':
-      lines.push('Deleted from this computer');
+      lines.push(deleted);
       break;
     case 'redirects_hosts':
       break;
@@ -368,17 +364,20 @@ export function detailLines(item: PlanItem): string[] {
   }
   if (item.redirects?.length) {
     lines.push(
-      `Changes the address of ${plural(item.redirects.length, 'host')}: ${listNames(item.redirects)}`,
+      t('dataTransfer.detail.redirects', {
+        count: item.redirects.length,
+        names: listNames(t, item.redirects),
+      }),
     );
   }
   if (item.action === 'remove' && item.reason !== 'not_in_file') {
-    lines.push('Deleted from this computer');
+    lines.push(deleted);
   }
   return lines;
 }
 
 /** Updates, copies, renames, deletions, skips, then key files not found. */
-export function detailViews(items: readonly PlanItem[]): DetailView[] {
+export function detailViews(t: Translate, items: readonly PlanItem[]): DetailView[] {
   const rank = (item: PlanItem) =>
     isKeyFileSkip(item) ? ACTION_ORDER.length : ACTION_ORDER.indexOf(item.action);
   const sorted = items
@@ -398,8 +397,11 @@ export function detailViews(items: readonly PlanItem[]): DetailView[] {
       icon: KIND_ICONS[item.kind],
       name: item.name,
       location: item.location.join(' / '),
-      lines: detailLines(item),
-      badge: BADGES[item.action],
+      lines: detailLines(t, item),
+      badge: {
+        label: t(`dataTransfer.badge.${item.action}`, { gender: gender(item.kind) }),
+        appearance: BADGE_APPEARANCES[item.action],
+      },
     };
   });
 }
@@ -421,13 +423,14 @@ export function summaryItems(result: ImportResult): PlanItem[] {
 }
 
 /** "3 projects · 40 hosts · 25 variables" for the export toast. */
-export function exportCountsText(counts: DataCounts): string {
-  const parts = [
-    counts.projects ? plural(counts.projects, 'project') : '',
-    counts.collections ? plural(counts.collections, 'collection') : '',
-    counts.hosts ? plural(counts.hosts, 'host') : '',
-    counts.variables ? plural(counts.variables, 'variable') : '',
-    counts.keys ? plural(counts.keys, 'SSH key') : '',
-  ].filter(Boolean);
-  return parts.length ? parts.join(' · ') : 'Nothing in it yet';
+export function exportCountsText(t: Translate, counts: DataCounts): string {
+  const list: [ItemKind, number][] = [
+    ['project', counts.projects],
+    ['collection', counts.collections],
+    ['host', counts.hosts],
+    ['variable', counts.variables],
+    ['key', counts.keys],
+  ];
+  const parts = list.filter(([, n]) => n > 0).map(([kind, n]) => countOf(t, kind, n));
+  return parts.length ? parts.join(' · ') : t('dataTransfer.export.empty');
 }

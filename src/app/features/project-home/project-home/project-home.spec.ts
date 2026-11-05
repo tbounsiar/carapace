@@ -7,6 +7,7 @@ import {
   withComponentInputBinding,
   withRouterConfig,
 } from '@angular/router';
+import { TranslocoService } from '@jsverse/transloco';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
 import { collection, fakeConfig, host, project } from '../../../core/ipc/config.fixture';
@@ -15,6 +16,7 @@ import { SshService } from '../../../core/ipc/ssh';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { type LeaveGuarded, unsavedChangesGuard } from '../../variables/unsaved-changes-guard';
 import { DataTransferActions } from '../../data-transfer/data-transfer-actions';
+import { trackLanguage } from '../../../shared/ui-text';
 import { ProjectHome } from './project-home';
 
 @Component({
@@ -113,6 +115,16 @@ describe('ProjectHome', () => {
     expect(byId('project-home-stats')?.textContent).toBe('2 hosts · 1 collection · 1 connected');
     byId('project-home-new-host')!.click();
     expect(actions.addHost).toHaveBeenCalledWith({ projectId: 'p1', parentId: null });
+  });
+
+  it('renders in French after a language switch', async () => {
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    transloco.setActiveLang('fr');
+    await settle();
+    expect(byId('project-home-stats')?.textContent).toBe('2 hôtes · 1 collection');
+    expect(byId('project-home-new-host')?.textContent?.trim()).toBe('Nouvel hôte');
+    expect(byId('project-tab-hosts')?.textContent?.trim()).toBe('Hôtes');
   });
 
   it('runs New collection, Rename and Delete from the project menu', async () => {

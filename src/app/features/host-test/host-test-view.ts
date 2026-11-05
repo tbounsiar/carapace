@@ -1,12 +1,15 @@
+import { translate } from '@jsverse/transloco';
+import { localeOf } from '../../core/i18n/language';
 import type { HostTestResult } from '../../core/ipc/host-test';
 import type { IpcError } from '../../core/ipc/ipc-error';
 import { errorText, sentence } from '../../shared/save-error';
 import type { HostTestDraft, HostTestOutcome, SecretOrigin } from './host-tester';
 
-/** A piece of copy; `mono` for addresses, paths and references. */
+/** A piece of copy; `mono` for addresses, paths and references, `strong` for names. */
 export interface Part {
   readonly text: string;
   readonly mono?: boolean;
+  readonly strong?: boolean;
 }
 
 export type HostTestState = 'testing' | 'success' | 'failure' | 'cancelled';
@@ -19,21 +22,53 @@ export interface HostTestView {
 }
 
 const text = (value: string): Part => ({ text: value });
-const mono = (value: string): Part => ({ text: value, mono: true });
+export const mono = (value: string): Part => ({ text: value, mono: true });
+
+const MARK = '\u0001';
+
+/**
+ * Translates `key` and cuts it at the `parts` placeholders, so each one keeps its own style
+ * wherever the language puts it. `plain` placeholders are interpolated as text.
+ */
+export function translateParts(
+  key: string,
+  parts: Readonly<Record<string, Part>>,
+  plain: Readonly<Record<string, string>> = {},
+): Part[] {
+  const marked: Record<string, string> = { ...plain };
+  for (const name of Object.keys(parts)) {
+    marked[name] = `${MARK}${name}${MARK}`;
+  }
+  return translate<string>(key, marked)
+    .split(MARK)
+    .map((piece, i) => (i % 2 ? (parts[piece] ?? text(piece)) : text(piece)))
+    .filter((part) => part.text !== '');
+}
+
+const t = (key: string, params?: Record<string, string>): Part =>
+  text(translate<string>(`hostTest.${key}`, params));
+const f = (name: string): string => `hostTest.failure.${name}`;
 
 export function testingView(draft: HostTestDraft): HostTestView {
   return {
     state: 'testing',
     code: null,
-    title: [text('Testing '), mono(draft.address), text('...')],
+    title: translateParts('hostTest.testing', { address: mono(draft.address) }),
     detail: [],
   };
 }
 
+export function cancelledView(): HostTestView {
+  return { state: 'cancelled', code: null, title: [t('cancelled')], detail: [] };
+}
+
+/** Translated when read, so it never keeps the language active when the module loaded. */
 export const CANCELLED_VIEW: HostTestView = {
   state: 'cancelled',
   code: null,
-  title: [text('Test cancelled.')],
+  get title(): readonly Part[] {
+    return cancelledView().title;
+  },
   detail: [],
 };
 
@@ -43,12 +78,12 @@ export function outcomeView(outcome: HostTestOutcome, draft: HostTestDraft): Hos
     case 'aborted':
       return null;
     case 'cancelled':
-      return CANCELLED_VIEW;
+      return cancelledView();
     case 'success':
       return {
         state: 'success',
         code: null,
-        title: [text('Connected as '), mono(outcome.result.address)],
+        title: translateParts('hostTest.connectedAs', { address: mono(outcome.result.address) }),
         detail: [...authParts(outcome.result, draft), text(` · ${duration(outcome.durationMs)}`)],
       };
     case 'failure':
@@ -56,9 +91,22 @@ export function outcomeView(outcome: HostTestOutcome, draft: HostTestDraft): Hos
   }
 }
 
+/** The `Intl` locale of the interface language, which `LanguageService` writes to `<html lang>`. */
+function locale(): string {
+  return localeOf(document.documentElement.lang);
+}
+
 /** "N ms" under one second, else "N.N s". */
 export function duration(ms: number): string {
-  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
+  if (ms < 1000) {
+    const value = new Intl.NumberFormat(locale(), { maximumFractionDigits: 0 }).format(ms);
+    return translate<string>('hostTest.duration.ms', { value });
+  }
+  const value = new Intl.NumberFormat(locale(), {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(Math.round(ms / 100) / 10);
+  return translate<string>('hostTest.duration.s', { value });
 }
 
 function reference(draft: HostTestDraft): string {
@@ -70,25 +118,26 @@ function reference(draft: HostTestDraft): string {
 
 function authParts(result: HostTestResult, draft: HostTestDraft): Part[] {
   const source = result.secretSource;
+  const ref = { ref: mono(reference(draft)) };
   if (result.authKind === 'agent') {
-    return [text('SSH agent')];
+    return [t('auth.agent')];
   }
   if (result.authKind === 'password') {
     if (source === 'typed') {
-      return [text('Password (typed for this test)')];
+      return [t('auth.passwordTyped')];
     }
     if (source === 'variable') {
-      return [text('Password from '), mono(reference(draft))];
+      return translateParts('hostTest.auth.passwordFrom', ref);
     }
-    return [text(source ? 'Password saved in the keychain' : 'Password')];
+    return [t(source ? 'auth.passwordSaved' : 'auth.password')];
   }
   if (source === 'typed') {
-    return [text('Private key file, passphrase typed for this test')];
+    return [t('auth.keyTyped')];
   }
   if (source === 'variable') {
-    return [text('Private key file, passphrase from '), mono(reference(draft))];
+    return translateParts('hostTest.auth.keyFrom', ref);
   }
-  return [text(source ? 'Private key file, saved passphrase' : 'Private key file')];
+  return [t(source ? 'auth.keySaved' : 'auth.key')];
 }
 
 function split(address: string): { user: string; hostPort: string } {
@@ -102,9 +151,10 @@ function origin(
   draft: HostTestDraft,
 ): Part[] {
   if (from === 'variable') {
-    return [text(`The ${secret} came from `), mono(reference(draft)), text('. ')];
+    const ref = { ref: mono(reference(draft)) };
+    return [...translateParts(`hostTest.origin.${secret}Variable`, ref), text(' ')];
   }
-  return from === 'stored' ? [text(`The ${secret} came from the keychain. `)] : [];
+  return from === 'stored' ? [t(`origin.${secret}Stored`), text(' ')] : [];
 }
 
 function failure(code: string, title: Part[], detail: Part[]): HostTestView {
@@ -115,140 +165,96 @@ function failureView(err: IpcError, from: SecretOrigin, draft: HostTestDraft): H
   const { user, hostPort } = split(draft.address);
   const auth = draft.host.auth.kind;
   const detail = err.message.trim() ? `${sentence(err.message)} ` : '';
+  const host = { host: mono(hostPort) };
+  const path = { path: mono(draft.keyPath) };
   switch (err.code) {
     case 'network':
-      return failure(
-        err.code,
-        [text('Could not reach '), mono(hostPort)],
-        [text(`${detail}Check the hostname, the port and your network.`)],
-      );
+      return failure(err.code, translateParts(f('network.title'), host), [
+        t('failure.network.detail', { detail }),
+      ]);
     case 'timeout':
-      return failure(
-        err.code,
-        [text('No answer from '), mono(hostPort)],
-        [
-          text(
-            'The server did not respond within 15 seconds. Check the hostname, the port, a VPN or a firewall.',
-          ),
-        ],
-      );
+      return failure(err.code, translateParts(f('timeout.title'), host), [
+        t('failure.timeout.detail'),
+      ]);
     case 'auth_failed':
       if (auth === 'password') {
         return failure(
           err.code,
-          [text('The server rejected the password')],
-          [
-            ...origin('password', from, draft),
-            text('Check the username, then the password or the secret variable it uses.'),
-          ],
+          [t('failure.passwordRejected.title')],
+          [...origin('password', from, draft), t('failure.passwordRejected.detail')],
         );
       }
       if (auth === 'key') {
         return failure(
           err.code,
-          [text('The server refused the key')],
-          [
-            text('Check that its public key is in '),
-            mono('~/.ssh/authorized_keys'),
-            text(' of '),
-            mono(user),
-            text(' on the server, or pick another key.'),
-          ],
+          [t('failure.keyRefused.title')],
+          translateParts(f('keyRefused.detail'), {
+            file: mono('~/.ssh/authorized_keys'),
+            user: mono(user),
+          }),
         );
       }
       return failure(
         err.code,
-        [text('The SSH agent offered no accepted key')],
-        [
-          text(
-            `${detail}Check that the agent is running and holds a key authorized on the server.`,
-          ),
-        ],
+        [t('failure.agentRefused.title')],
+        [t('failure.agentRefused.detail', { detail })],
       );
     case 'invalid_passphrase':
       if (auth === 'key') {
-        return failure(
-          err.code,
-          [text('Wrong passphrase for '), mono(draft.keyPath)],
-          [
-            ...origin('passphrase', from, draft),
-            text('Check the secret variable, or choose “Ask when connecting” and type it.'),
-          ],
-        );
+        return failure(err.code, translateParts(f('wrongPassphrase.title'), path), [
+          ...origin('passphrase', from, draft),
+          t('failure.wrongPassphrase.detail'),
+        ]);
       }
       break;
     case 'host_key_rejected':
       return failure(
         err.code,
-        [text('Host key not accepted')],
-        [
-          text(
-            'Test again and accept the key if the fingerprint matches the one from the server administrator.',
-          ),
-        ],
+        [t('failure.hostKeyRejected.title')],
+        [t('failure.hostKeyRejected.detail')],
       );
     case 'host_key_changed':
       return failure(
         err.code,
-        [text('Host key has changed')],
-        [
-          text('The server presents a different key than the one stored for '),
-          mono(hostPort),
-          text(
-            '. Confirm it with the server administrator; to replace it, save the host and connect.',
-          ),
-        ],
+        [t('failure.hostKeyChanged.title')],
+        translateParts(f('hostKeyChanged.detail'), host),
       );
     case 'host_key_revoked':
       return failure(
         err.code,
-        [text('Host key is revoked')],
-        [
-          text('The key presented by '),
-          mono(hostPort),
-          text(' is marked as revoked in known_hosts. Contact the server administrator.'),
-        ],
+        [t('failure.hostKeyRevoked.title')],
+        translateParts(f('hostKeyRevoked.detail'), host),
       );
     case 'invalid_input':
       if (auth === 'key') {
         return failure(
           err.code,
-          [text('Key file not usable')],
-          [text(`${detail}Check the key path.`)],
+          [t('failure.keyUnusable.title')],
+          [t('failure.keyUnusable.detail', { detail })],
         );
       }
       break;
     case 'io':
     case 'not_found':
       if (/known_hosts/i.test(err.message)) {
-        return failure(err.code, [text('Could not read known_hosts')], [text(detail.trim())]);
+        return failure(err.code, [t('failure.knownHostsUnreadable.title')], [text(detail.trim())]);
       }
       if (auth === 'key') {
-        return failure(
-          err.code,
-          [text('Could not read '), mono(draft.keyPath)],
-          [text(`${detail}Check the key path, or pick a registered key.`)],
-        );
+        return failure(err.code, translateParts(f('keyUnreadable.title'), path), [
+          t('failure.keyUnreadable.detail', { detail }),
+        ]);
       }
       break;
     case 'keychain_unavailable':
-      return failure(
-        err.code,
-        [text('System keychain unavailable')],
-        [text('Unlock or enable it, or choose “Ask when connecting”.')],
-      );
+      return failure(err.code, [t('failure.keychain.title')], [t('failure.keychain.detail')]);
     case 'missing_variables':
       return failure(
         err.code,
-        [text('Missing variables')],
-        [text(`${detail}Define them in the global or project variables.`)],
+        [t('failure.missingVariables.title')],
+        [t('failure.missingVariables.detail', { detail })],
       );
     case 'busy':
-      return failure(
-        err.code,
-        [text('Too many tests are running')],
-        [text('Wait for one to finish, then test again.')],
-      );
+      return failure(err.code, [t('failure.busy.title')], [t('failure.busy.detail')]);
   }
-  return failure(err.code, [text('Test failed')], [text(errorText(err))]);
+  return failure(err.code, [t('failure.failed.title')], [text(errorText(err))]);
 }

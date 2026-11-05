@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiButton, TuiDataList, TuiDropdown } from '@taiga-ui/core';
 import { TuiChevron, TuiStatus } from '@taiga-ui/kit';
 import { ConfigService } from '../../../core/ipc/config';
@@ -7,12 +8,13 @@ import type { Project } from '../../../core/ipc/config.models';
 import { SshService } from '../../../core/ipc/ssh';
 import { connectedCounts } from '../../../shared/connection-status';
 import { CurrentScope } from '../../../shared/current-scope';
-import { byName, HOME, plural } from '../../project-tree/node-tree';
+import { uiText } from '../../../shared/ui-text';
+import { byName } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
 
 /** Header selector: where the user is (Home or a project), and the way to go elsewhere. */
 @Component({
-  imports: [TuiButton, TuiChevron, TuiDataList, TuiDropdown, TuiStatus],
+  imports: [TranslocoPipe, TuiButton, TuiChevron, TuiDataList, TuiDropdown, TuiStatus],
   selector: 'app-project-select',
   templateUrl: './project-select.html',
   styleUrl: './project-select.scss',
@@ -26,7 +28,7 @@ export class ProjectSelect {
 
   protected readonly open = signal(false);
   protected readonly current = this.scope.project;
-  protected readonly label = computed(() => this.current()?.name ?? HOME);
+  protected readonly label = computed(() => this.current()?.name ?? uiText('common.home'));
   protected readonly projects = computed(() => [...this.config.projects()].sort(byName));
   private readonly counts = computed(() => connectedCounts(this.config.hosts(), this.ssh.states()));
 
@@ -35,7 +37,7 @@ export class ProjectSelect {
   }
 
   protected connectionsLabel(project: Project): string {
-    return `${plural(this.connections(project), 'open connection')}`;
+    return uiText('shell.projectSelect.openConnections', { count: this.connections(project) });
   }
 
   protected isCurrent(project: Project | null): boolean {

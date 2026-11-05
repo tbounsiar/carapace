@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import {
   TuiButton,
   TuiError,
@@ -17,8 +18,7 @@ import { notifyError } from '../../../shared/save-error';
 
 type Mode = ExternalEditorSetting['mode'];
 
-const NOT_AN_EDITOR =
-  "This program runs scripts or commands; it is not an editor. Pick your editor's program file.";
+const NOT_AN_EDITOR = 'settings.externalEditor.notAnEditor';
 
 /** Settings > External editor (spec X10, R6): which app opens edited files, and the notice. */
 @Component({
@@ -32,6 +32,7 @@ const NOT_AN_EDITOR =
     TuiSegmented,
     TuiSwitch,
     TuiTextfield,
+    TranslocoPipe,
   ],
   selector: 'app-external-editor-settings',
   styleUrl: './external-editor-settings.scss',
@@ -40,10 +41,11 @@ const NOT_AN_EDITOR =
 export class ExternalEditorSettings {
   private readonly ipc = inject(ExternalEditsIpc);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly transloco = inject(TranslocoService);
 
   protected readonly setting = signal<ExternalEditorSetting | null>(null);
   protected readonly picking = signal(false);
-  /** A picked app refused by the backend, shown under the path field. */
+  /** Translation key of a picked app refused by the backend, shown under the path field. */
   protected readonly appError = signal<string | null>(null);
   protected readonly mode = new FormControl<Mode>(
     { value: 'system', disabled: true },
@@ -59,7 +61,9 @@ export class ExternalEditorSettings {
     this.ipc
       .getEditor()
       .then((setting) => this.show(setting))
-      .catch((err: unknown) => notifyError(this.alerts, err, 'Setting not read'));
+      .catch((err: unknown) =>
+        notifyError(this.alerts, err, this.transloco.translate('settings.externalEditor.notRead')),
+      );
     this.mode.valueChanges
       .pipe(takeUntilDestroyed())
       .subscribe((mode) => void this.update({ mode }));
@@ -80,7 +84,11 @@ export class ExternalEditorSettings {
         await this.update({ mode: 'custom', appPath: path });
       }
     } catch (err) {
-      notifyError(this.alerts, err, 'File picker not opened');
+      notifyError(
+        this.alerts,
+        err,
+        this.transloco.translate('settings.externalEditor.pickerError'),
+      );
     } finally {
       this.picking.set(false);
     }
@@ -102,7 +110,7 @@ export class ExternalEditorSettings {
       if (err instanceof IpcError && err.code === 'app_not_editor') {
         this.appError.set(NOT_AN_EDITOR);
       } else {
-        notifyError(this.alerts, err, 'Setting not saved');
+        notifyError(this.alerts, err, this.transloco.translate('settings.notSaved'));
       }
       this.show(current);
     }

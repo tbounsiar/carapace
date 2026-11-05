@@ -1,5 +1,6 @@
 import { Component, computed, inject, type WritableSignal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
 import {
   TuiButton,
@@ -43,6 +44,7 @@ export interface ConsentDialogData {
     TuiLink,
     TuiSwitch,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-consent-dialog',
   styleUrl: './consent-dialog.scss',
@@ -52,6 +54,7 @@ export interface ConsentDialogData {
 export class ConsentDialog {
   private readonly analytics = inject(Analytics);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly transloco = inject(TranslocoService);
   protected readonly context =
     injectContext<TuiDialogContext<AnalyticsChoices, ConsentDialogData>>();
 
@@ -81,6 +84,6 @@ export class ConsentDialog {
   }
 
   protected openPolicy(): void {
-    openPrivacyPage(this.analytics, this.alerts);
+    openPrivacyPage(this.analytics, this.alerts, this.transloco);
   }
 }

@@ -8,6 +8,7 @@ import {
   TuiTitle,
 } from '@taiga-ui/core';
 import { injectContext } from '@taiga-ui/polymorpheus';
+import { TranslocoPipe } from '@jsverse/transloco';
 
 /** The `external*` kinds are a file open in an external editor (spec X3). */
 export type EditorChoiceKind =
@@ -23,6 +24,7 @@ export interface EditorChoiceData {
 
 interface ChoiceButton {
   readonly choice: EditorChoice;
+  /** Translation keys. */
   readonly label: string;
   readonly appearance: string;
   readonly testId: string;
@@ -32,16 +34,16 @@ interface ChoiceButton {
 
 const BUTTONS: Readonly<Record<EditorChoiceKind, readonly ChoiceButton[]>> = {
   unsaved: [
-    { choice: 'cancel', label: 'Cancel', appearance: 'flat', testId: 'unsaved-cancel' },
+    { choice: 'cancel', label: 'common.cancel', appearance: 'flat', testId: 'unsaved-cancel' },
     {
       choice: 'discard',
-      label: "Don't save",
+      label: 'editor.choice.dontSave',
       appearance: 'flat-destructive',
       testId: 'unsaved-discard',
     },
     {
       choice: 'save',
-      label: 'Save',
+      label: 'common.save',
       appearance: 'primary',
       testId: 'unsaved-save',
       focus: true,
@@ -50,20 +52,20 @@ const BUTTONS: Readonly<Record<EditorChoiceKind, readonly ChoiceButton[]>> = {
   changed: [
     {
       choice: 'overwrite',
-      label: 'Overwrite',
+      label: 'editor.choice.overwrite',
       appearance: 'flat-destructive',
       testId: 'conflict-edit-overwrite',
     },
     {
       choice: 'reload',
-      label: 'Reload from server',
+      label: 'editor.choice.reload',
       appearance: 'flat-destructive',
       testId: 'conflict-edit-reload',
-      hint: 'Discards your changes',
+      hint: 'editor.choice.reloadHint',
     },
     {
       choice: 'cancel',
-      label: 'Cancel',
+      label: 'common.cancel',
       appearance: 'primary',
       testId: 'conflict-edit-cancel',
       focus: true,
@@ -73,14 +75,14 @@ const BUTTONS: Readonly<Record<EditorChoiceKind, readonly ChoiceButton[]>> = {
   retargeted: [
     {
       choice: 'reload',
-      label: 'Reload from server',
+      label: 'editor.choice.reload',
       appearance: 'flat-destructive',
       testId: 'conflict-edit-reload',
-      hint: 'Discards your changes',
+      hint: 'editor.choice.reloadHint',
     },
     {
       choice: 'cancel',
-      label: 'Keep editing',
+      label: 'editor.choice.keepEditing',
       appearance: 'primary',
       testId: 'conflict-edit-cancel',
       focus: true,
@@ -89,13 +91,13 @@ const BUTTONS: Readonly<Record<EditorChoiceKind, readonly ChoiceButton[]>> = {
   deleted: [
     {
       choice: 'saveAnyway',
-      label: 'Save anyway',
+      label: 'editor.choice.saveAnyway',
       appearance: 'flat-destructive',
       testId: 'conflict-edit-save-anyway',
     },
     {
       choice: 'cancel',
-      label: 'Cancel',
+      label: 'common.cancel',
       appearance: 'primary',
       testId: 'conflict-edit-cancel',
       focus: true,
@@ -104,20 +106,20 @@ const BUTTONS: Readonly<Record<EditorChoiceKind, readonly ChoiceButton[]>> = {
   externalChanged: [
     {
       choice: 'overwrite',
-      label: 'Overwrite server',
+      label: 'editor.choice.overwriteServer',
       appearance: 'flat-destructive',
       testId: 'conflict-ext-overwrite',
     },
     {
       choice: 'useServer',
-      label: 'Use server version',
+      label: 'editor.choice.useServer',
       appearance: 'flat-destructive',
       testId: 'conflict-ext-server',
-      hint: 'Replaces your local copy. Unsaved edits in your editor may be lost.',
+      hint: 'editor.choice.useServerHint',
     },
     {
       choice: 'cancel',
-      label: 'Keep my copy',
+      label: 'editor.choice.keepMine',
       appearance: 'primary',
       testId: 'conflict-ext-keep',
       focus: true,
@@ -126,19 +128,19 @@ const BUTTONS: Readonly<Record<EditorChoiceKind, readonly ChoiceButton[]>> = {
   externalDeleted: [
     {
       choice: 'overwrite',
-      label: 'Upload anyway',
+      label: 'editor.choice.uploadAnyway',
       appearance: 'flat-destructive',
       testId: 'conflict-ext-upload-anyway',
     },
     {
       choice: 'stop',
-      label: 'Stop editing',
+      label: 'editor.choice.stopEditing',
       appearance: 'flat-destructive',
       testId: 'conflict-ext-stop',
     },
     {
       choice: 'cancel',
-      label: 'Keep my copy',
+      label: 'editor.choice.keepMine',
       appearance: 'primary',
       testId: 'conflict-ext-keep',
       focus: true,
@@ -148,7 +150,7 @@ const BUTTONS: Readonly<Record<EditorChoiceKind, readonly ChoiceButton[]>> = {
 
 /** Three-way choices for an editor buffer; Taiga's confirm has two buttons only. */
 @Component({
-  imports: [TuiAutoFocus, TuiButton, TuiHint, TuiNotification, TuiTitle],
+  imports: [TranslocoPipe, TuiAutoFocus, TuiButton, TuiHint, TuiNotification, TuiTitle],
   selector: 'app-editor-choice-dialog',
   templateUrl: './editor-choice-dialog.html',
   styleUrl: './editor-choice-dialog.scss',

@@ -1,11 +1,12 @@
 <fieldset class="group">
-  <legend class="legend" data-testid="settings-data">Data</legend>
+  <legend class="legend" data-testid="settings-data">
+    {{ 'settings.data.title' | transloco }}
+  </legend>
   <p class="note">
     @if (nothingToExport()) {
-      Nothing to export yet.
+      {{ 'settings.data.nothing' | transloco }}
     } @else {
-      Export projects, hosts, collections and variables to a file, or import one. Passwords and
-      other secrets are never included. App settings are not included.
+      {{ 'settings.data.note' | transloco }}
     }
   </p>
   <div class="buttons">
@@ -19,7 +20,7 @@
       [disabled]="loading() || nothingToExport()"
       (click)="exportData()"
     >
-      Export…
+      {{ 'settings.data.export' | transloco }}
     </button>
     <button
       tuiButton
@@ -32,7 +33,7 @@
       [loading]="importing()"
       (click)="importData()"
     >
-      Import…
+      {{ 'settings.data.import' | transloco }}
     </button>
   </div>
 </fieldset>

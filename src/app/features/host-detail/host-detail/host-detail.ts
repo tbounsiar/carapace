@@ -11,6 +11,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TuiButton, TuiNotificationService, TuiTitle } from '@taiga-ui/core';
 import { TuiButtonLoading, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiCardLarge, TuiHeader } from '@taiga-ui/layout';
@@ -37,6 +38,7 @@ import { HostTabs } from '../host-tabs/host-tabs';
     TuiHeader,
     TuiStatus,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-host-detail',
   styleUrl: './host-detail.scss',
@@ -51,6 +53,7 @@ export class HostDetail {
   private readonly workspace = inject(Workspace);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
   private readonly alerts = inject(TuiNotificationService);
+  private readonly transloco = inject(TranslocoService);
 
   readonly hostId = input.required<string>();
 
@@ -83,15 +86,15 @@ export class HostDetail {
       return null;
     }
     if (r.missing.length) {
-      return { ok: false, text: `Missing variables: ${r.missing.join(', ')}` };
+      return { ok: false, missing: r.missing.join(', '), text: '' };
     }
     if (r.errors.length) {
-      return { ok: false, text: r.errors.join('; ') };
+      return { ok: false, missing: null, text: r.errors.join('; ') };
     }
     if (r.username === null || r.hostname === null || r.port === null) {
       return null;
     }
-    return { ok: true, text: `${r.username}@${r.hostname}:${r.port}` };
+    return { ok: true, missing: null, text: `${r.username}@${r.hostname}:${r.port}` };
   });
 
   protected readonly authLabel = computed(() => {
@@ -104,7 +107,12 @@ export class HostDetail {
     if (auth?.kind === 'key') {
       return auth.keyPath;
     }
-    return auth?.kind === 'password' ? (auth.password ?? 'asked when connecting') : null;
+    return auth?.kind === 'password' ? auth.password : null;
+  });
+
+  protected readonly askedWhenConnecting = computed(() => {
+    const auth = this.located()?.host.auth;
+    return auth?.kind === 'password' && !auth.password;
   });
 
   protected readonly secretLabel = computed(() => {
@@ -161,13 +169,13 @@ export class HostDetail {
     try {
       await this.secrets.forgetSaved(target.hostId);
       this.alerts
-        .open(`The ${this.secretLabel()} saved for this host was removed.`, {
-          label: 'Saved secret forgotten',
+        .open(this.transloco.translate(`hostDetail.forgotten.${this.secretLabel()}`), {
+          label: this.transloco.translate('hostDetail.forgotten.title'),
           appearance: 'positive',
         })
         .subscribe();
     } catch (err) {
-      notifyError(this.alerts, err, 'Saved secret not forgotten');
+      notifyError(this.alerts, err, this.transloco.translate('hostDetail.notForgotten'));
     } finally {
       this.forgetting.set(false);
     }

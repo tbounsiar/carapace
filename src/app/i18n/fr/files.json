@@ -1,1 +1,55 @@
-{}
+{
+  "panel": {
+    "local": "Local",
+    "remote": "Distant",
+    "notConnected": "Non connecté",
+    "connectHint": "Connectez-vous pour parcourir les fichiers de cet hôte.",
+    "connect": "Connecter"
+  },
+  "pane": {
+    "selected": "{count, plural, one {# sélectionné} other {# sélectionnés}}",
+    "upload": "Envoyer vers l'hôte distant",
+    "download": "Télécharger en local",
+    "upHint": "Remonter d'un niveau",
+    "up": "Remonter",
+    "refresh": "Actualiser",
+    "newFolder": "Nouveau dossier",
+    "showHidden": "Afficher les fichiers cachés",
+    "hideHidden": "Masquer les fichiers cachés",
+    "hiddenFiles": "Fichiers cachés",
+    "computer": "Ordinateur",
+    "tableLabel": "Fichiers : {label}",
+    "name": "Nom",
+    "size": "Taille",
+    "modified": "Modification",
+    "permissions": "Droits",
+    "actions": "Actions",
+    "actionsFor": "Actions pour {name}",
+    "tooLargeEdit": "Trop volumineux pour être modifié (max. 5 Mo)",
+    "tooLargeExternal": "Trop volumineux (max. 1 Go)",
+    "openExternal": "Ouvrir dans un éditeur externe",
+    "marker": "Ouvert dans un éditeur externe · {state}",
+    "onlyHidden": "Uniquement des éléments cachés. Affichez les fichiers cachés pour les voir.",
+    "empty": "Ce dossier est vide. Déposez-y des fichiers depuis l'autre volet, ou créez un dossier.",
+    "renameTitle": "Renommer « {name} »",
+    "folderNotDeleted": "Dossier non supprimé",
+    "fileNotDeleted": "Fichier non supprimé",
+    "folderNotOpened": "Dossier non ouvert"
+  },
+  "dialogs": {
+    "noun": "fichier ou dossier",
+    "nameConflict": "Un fichier ou un dossier portant ce nom existe déjà",
+    "deleteFolderTitle": "Supprimer le dossier « {name} » ?",
+    "deleteFileTitle": "Supprimer le fichier « {name} » ?",
+    "deleteFolderContent": "Le dossier et tout son contenu seront supprimés. Cette action est irréversible.",
+    "deleteFileContent": "Le fichier sera supprimé. Cette action est irréversible."
+  },
+  "name": {
+    "required": "Le nom est obligatoire",
+    "reserved": "Ce nom est réservé",
+    "noSlash": "Le nom ne doit pas contenir /",
+    "noSlashOrBackslash": "Le nom ne doit pas contenir / ni \\",
+    "noControl": "Le nom ne doit pas contenir de caractères de contrôle",
+    "tooLong": "Le nom doit faire au plus {max} octets"
+  }
+}

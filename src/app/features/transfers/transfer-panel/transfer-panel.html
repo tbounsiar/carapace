@@ -11,32 +11,32 @@
     [attr.aria-expanded]="expanded()"
     (click)="toggle()"
   >
-    Transfers
+    {{ 'transfers.panel.toggle' | transloco }}
   </button>
-  <span class="badges" role="status" aria-label="Transfer status">
+  <span class="badges" role="status" [attr.aria-label]="'transfers.panel.status' | transloco">
     @if (running()) {
       <span tuiBadge size="s" appearance="info" data-testid="transfer-running">
-        {{ running() }} running
+        {{ 'transfers.panel.running' | transloco: { count: running() } }}
       </span>
     }
     @if (waiting()) {
       <span tuiBadge size="s" appearance="warning" data-testid="transfer-waiting">
-        {{ waiting() }} waiting
+        {{ 'transfers.panel.waiting' | transloco: { count: waiting() } }}
       </span>
     }
     @if (queued()) {
       <span tuiBadge size="s" appearance="neutral" data-testid="transfer-queued">
-        {{ queued() }} queued
+        {{ 'transfers.panel.queued' | transloco: { count: queued() } }}
       </span>
     }
     @if (done()) {
       <span tuiBadge size="s" appearance="positive" data-testid="transfer-done">
-        {{ done() }} done
+        {{ 'transfers.panel.done' | transloco: { count: done() } }}
       </span>
     }
     @if (failed()) {
       <span tuiBadge size="s" appearance="negative" data-testid="transfer-failed">
-        {{ failed() }} failed
+        {{ 'transfers.panel.failed' | transloco: { count: failed() } }}
       </span>
     }
   </span>
@@ -51,12 +51,12 @@
     [disabled]="!canClear()"
     (click)="clear()"
   >
-    Clear finished
+    {{ 'transfers.panel.clear' | transloco }}
   </button>
 </div>
 
 <tui-expand [expanded]="expanded()">
-  <ul class="list" id="transfer-list" aria-label="Transfers">
+  <ul class="list" id="transfer-list" [attr.aria-label]="'transfers.panel.list' | transloco">
     @for (row of rows(); track row.job.id) {
       <li class="row" [attr.data-testid]="'transfer-' + row.job.name">
         <tui-icon
@@ -77,14 +77,14 @@
             [max]="progress.max"
             [value]="progress.value"
             [color]="row.color"
-            [attr.aria-label]="'Progress of ' + row.job.name"
+            [attr.aria-label]="'transfers.panel.progress' | transloco: { name: row.job.name }"
           ></progress>
         } @else {
           <progress
             tuiProgressBar
             size="xs"
             class="progress"
-            [attr.aria-label]="'Progress of ' + row.job.name"
+            [attr.aria-label]="'transfers.panel.progress' | transloco: { name: row.job.name }"
           ></progress>
         }
         <span
@@ -103,17 +103,17 @@
             size="xs"
             iconStart="@tui.x"
             type="button"
-            [attr.aria-label]="'Cancel ' + row.job.name"
+            [attr.aria-label]="'transfers.panel.cancel' | transloco: { name: row.job.name }"
             [attr.data-testid]="'transfer-cancel-' + row.job.name"
             (click)="cancel(row)"
           >
-            Cancel
+            {{ 'common.cancel' | transloco }}
           </button>
         }
       </li>
     } @empty {
       <li class="empty">
-        No transfers yet. Select files and use Upload or Download, or drag them to the other pane.
+        {{ 'transfers.panel.empty' | transloco }}
       </li>
     }
   </ul>

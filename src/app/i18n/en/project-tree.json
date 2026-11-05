@@ -1,1 +1,129 @@
-{}
+{
+  "topLevel": "{scope} (top level)",
+  "counts": {
+    "collections": "{count, plural, one {# collection} other {# collections}}",
+    "hosts": "{count, plural, one {# host} other {# hosts}}",
+    "both": "{collections, plural, one {# collection} other {# collections}} and {hosts, plural, one {# host} other {# hosts}}"
+  },
+  "validation": {
+    "required": "{label} is required",
+    "maxLength": "{label} must be at most {max} characters",
+    "noWhitespace": "{label} must not contain whitespace",
+    "hostnameChars": "Hostname may only contain letters, digits, \".\", \"-\" and \":\"",
+    "portRequired": "Port is required",
+    "portRange": "Port must be between 1 and 65535",
+    "invalidReference": "\"{reference}\" is not a valid variable reference; write $$ for a literal $",
+    "portTemplate": "Port must be digits or a single variable like {example}",
+    "secretReference": "{label} must be a secret variable reference like {example}",
+    "keyPathRequired": "Key path is required",
+    "networkPath": "Network paths are not supported",
+    "publicKey": "This is a public key. Choose the file without .pub.",
+    "absolutePath": "Use an absolute path or one starting with ~/"
+  },
+  "nameDialog": {
+    "name": "Name"
+  },
+  "hostDialog": {
+    "location": "In: {location}",
+    "note": "Fields accept variables such as {example}; write {escape} for a literal {dollar}.",
+    "fields": {
+      "name": "Name",
+      "hostname": "Hostname",
+      "port": "Port",
+      "username": "Username",
+      "keyPath": "Key path",
+      "password": "Password",
+      "passphrase": "Passphrase"
+    },
+    "authentication": "Authentication",
+    "pickKey": "Pick a registered key",
+    "noKeys": "No registered keys yet",
+    "browseKey": "Choose a key file",
+    "noKeysList": "No registered keys. Add one in SSH keys.",
+    "notRegistered": "Not in SSH keys. Register it to remember its passphrase and deploy it.",
+    "register": "Register this key",
+    "ask": "Ask when connecting",
+    "passphraseHint": "Only for an encrypted key. Pick a secret variable (defined in Project variables or Global variables) or be asked when needed.",
+    "passwordHint": "Pick a secret variable (defined in Project variables or Global variables) or be asked when connecting.",
+    "missing": "Missing: {names}",
+    "resolves": "Resolves to {address}",
+    "blocker": {
+      "projectGone": "This project no longer exists.",
+      "missing": "Define the missing variables to test the connection.",
+      "invalid": "Fix the highlighted fields to test the connection."
+    },
+    "test": "Test connection",
+    "cancelTest": "Cancel test",
+    "pickerFailed": "File picker not opened",
+    "importKey": "Import key",
+    "keyRegistered": "Key registered",
+    "replace": {
+      "label": "Replace the template?",
+      "content": "Key path uses {refs}. Replace it with this file? The host will no longer follow the variable.",
+      "yes": "Replace",
+      "no": "Keep template"
+    }
+  },
+  "moveDialog": {
+    "filter": "Filter locations",
+    "locations": "Locations",
+    "noMatch": "No location matches “{query}”.",
+    "current": "(current location)",
+    "move": "Move"
+  },
+  "move": {
+    "title": "Move “{name}”",
+    "moved": "Moved “{name}” to {destination}",
+    "undone": "Move undone",
+    "undo": "Undo",
+    "hostFailed": "Host not moved",
+    "collectionFailed": "Collection not moved",
+    "renameFirst": "{message}. Rename one of them first.",
+    "warning": {
+      "title": {
+        "out": "Moving out of the project",
+        "other": "Moving to another project",
+        "into": "Moving into a project"
+      },
+      "question": {
+        "out": "Move out of the project?",
+        "other": "Move to another project?",
+        "into": "Move into a project?"
+      },
+      "hostToProject": "{name} will use the variables of {project}. Its open connections are closed and its saved passwords are forgotten.",
+      "hostToHome": "{name} will use global variables only. Its open connections are closed and its saved passwords are forgotten.",
+      "collectionToProject": "{count, plural, one {The # host} other {The # hosts}} in {name} will use the variables of {project}. Their open connections are closed and their saved passwords are forgotten.",
+      "collectionToHome": "{count, plural, one {The # host} other {The # hosts}} in {name} will use global variables only. Their open connections are closed and their saved passwords are forgotten.",
+      "missing": "Not defined in {scope}: {names}."
+    }
+  },
+  "actions": {
+    "newProject": "New project",
+    "renameProject": "Rename project",
+    "newCollection": "New collection",
+    "renameCollection": "Rename collection",
+    "newHost": "New host",
+    "editHost": "Edit host",
+    "collectionPlaceholder": "Backend",
+    "collectionConflict": "A collection with this name already exists here.",
+    "deleteProject": {
+      "label": "Delete project?",
+      "full": "“{name}” contains {content}. Everything in it will be deleted, with its variables and saved passwords. Open connections are closed. This cannot be undone.",
+      "empty": "“{name}” is empty. It will be deleted with its variables. This cannot be undone.",
+      "failed": "Project not deleted"
+    },
+    "deleteCollection": {
+      "label": "Delete collection?",
+      "full": "“{name}” contains {content}. They will all be deleted, with their saved passwords. Open connections to these hosts are closed. This cannot be undone. To keep the hosts, move them out first.",
+      "empty": "“{name}” is empty.",
+      "failed": "Collection not deleted"
+    },
+    "deleteHost": {
+      "label": "Delete host?",
+      "content": "“{name}” and its saved passwords will be deleted. Open connections to it are closed.",
+      "failed": "Host not deleted"
+    },
+    "tabs": "{count, plural, one {# open tab} other {# open tabs}} will be closed.",
+    "unsaved": "Unsaved changes in {names} will be lost."
+  }
+}

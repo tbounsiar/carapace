@@ -4,21 +4,21 @@
       tuiAutoFocus
       tuiInput
       autocomplete="off"
-      placeholder="Filter locations"
-      aria-label="Filter locations"
+      [placeholder]="'projectTree.moveDialog.filter' | transloco"
+      [attr.aria-label]="'projectTree.moveDialog.filter' | transloco"
       data-testid="move-search"
       [formControl]="query"
     />
   </tui-textfield>
 
   <div class="list">
-    <tui-data-list size="s" aria-label="Locations">
+    <tui-data-list size="s" [attr.aria-label]="'projectTree.moveDialog.locations' | transloco">
       @if (!groups().length) {
         <p class="empty">{{ empty() }}</p>
       }
       @for (group of groups(); track group.label) {
         <tui-opt-group [label]="group.label">
-          @for (target of group.targets; track text(target)) {
+          @for (target of group.targets; track target.text) {
             <button
               tuiOption
               type="button"
@@ -29,9 +29,9 @@
               [attr.data-testid]="testId(target)"
               (click)="choose(target)"
             >
-              <span class="path">{{ text(target) }}</span>
+              <span class="path">{{ target.text }}</span>
               @if (target.current) {
-                <span class="current">(current location)</span>
+                <span class="current">{{ 'projectTree.moveDialog.current' | transloco }}</span>
               }
             </button>
           }
@@ -66,7 +66,7 @@
       data-testid="dialog-cancel"
       (click)="context.$implicit.complete()"
     >
-      Cancel
+      {{ 'common.cancel' | transloco }}
     </button>
     <button
       tuiButton
@@ -75,7 +75,7 @@
       [disabled]="!chosen()"
       [loading]="saving()"
     >
-      Move
+      {{ 'projectTree.moveDialog.move' | transloco }}
     </button>
   </footer>
 </form>

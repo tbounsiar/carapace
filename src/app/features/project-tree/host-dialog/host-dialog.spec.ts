@@ -4,6 +4,7 @@ import type { FormGroup } from '@angular/forms';
 import { provideTaiga, TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { TUI_CONFIRM } from '@taiga-ui/kit';
 import { POLYMORPHEUS_CONTEXT } from '@taiga-ui/polymorpheus';
+import { TranslocoService } from '@jsverse/transloco';
 import { type Observable, of } from 'rxjs';
 import { ConfigService } from '../../../core/ipc/config';
 import { KeyFilePicker } from '../../../core/ipc/key-file-picker';
@@ -13,6 +14,8 @@ import { key } from '../../../core/ipc/keys.fixture';
 import type { Host, HostInput, Project, VariableView } from '../../../core/ipc/config.models';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { HostTester, type HostTestOutcome, type HostTestRun } from '../../host-test/host-tester';
+import { trackLanguage } from '../../../shared/ui-text';
+import { validationMessage } from '../validators';
 import { HostDialog, type HostDialogData } from './host-dialog';
 
 const plain = (name: string, value: string): VariableView => ({
@@ -345,6 +348,17 @@ describe('HostDialog', () => {
       dialog.form.patchValue({ port: '2200' });
       await fixture.whenStable();
       expect(preview(el).trim()).toBe('Resolves to carapace@example.com:2200');
+    });
+
+    it('renders in French after a language switch', async () => {
+      const { fixture, el } = await setup(templated);
+      const transloco = TestBed.inject(TranslocoService);
+      trackLanguage(transloco);
+      transloco.setActiveLang('fr');
+      await fixture.whenStable();
+      expect(preview(el).trim()).toBe('Adresse résolue : carapace@127.0.0.1:2223');
+      expect(byId(el, 'host-location')?.textContent?.trim()).toBe('Dans : Shop / Backend');
+      expect(byId(el, 'host-test')?.textContent?.trim()).toBe('Tester la connexion');
     });
 
     it('reports a secret variable used in a plain field', async () => {
@@ -767,7 +781,7 @@ describe('HostDialog', () => {
 
     it('rejects a public key path', async () => {
       const { dialog } = await open('~/.ssh/id_work.pub');
-      expect(dialog.form.get('keyPath')!.errors?.['invalid']?.message).toBe(
+      expect(validationMessage(dialog.form.get('keyPath')!.errors?.['invalid'])).toBe(
         'This is a public key. Choose the file without .pub.',
       );
     });

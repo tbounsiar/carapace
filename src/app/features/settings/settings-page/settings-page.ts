@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { TranslocoPipe } from '@jsverse/transloco';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import {
   TuiDialogService,
   TuiError,
@@ -85,6 +85,7 @@ export class SettingsPage {
   private readonly analytics = inject(Analytics);
   private readonly alerts = inject(TuiNotificationService);
   private readonly dialogs = inject(TuiDialogService);
+  private readonly transloco = inject(TranslocoService);
 
   protected readonly themeOptions = THEME_OPTIONS;
   protected readonly keyTypeOptions = KEY_TYPE_OPTIONS;
@@ -124,7 +125,6 @@ export class SettingsPage {
 
   protected readonly analyticsState = this.analytics.current;
   protected readonly analyticsError = signal(false);
-  protected readonly readError = 'Could not read this setting. Restart the app.';
   protected readonly categories = CATEGORY_COPY;
   protected readonly commonLead = COMMON_LEAD;
   protected readonly commonText = COMMON_TEXT;
@@ -228,7 +228,7 @@ export class SettingsPage {
         await this.analytics.setCategory(next, value);
       } catch (err) {
         if (!unsavedDenial(this.analyticsState())) {
-          notifyError(this.alerts, err, 'Setting not saved');
+          notifyError(this.alerts, err, this.transloco.translate('settings.notSaved'));
         }
       }
     }
@@ -245,7 +245,7 @@ export class SettingsPage {
   }
 
   protected openPolicy(): void {
-    openPrivacyPage(this.analytics, this.alerts);
+    openPrivacyPage(this.analytics, this.alerts, this.transloco);
   }
 
   protected async showEvents(): Promise<void> {
@@ -257,7 +257,7 @@ export class SettingsPage {
       await import('../../analytics/analytics-events-dialog/analytics-events-dialog');
     this.dialogs
       .open(new PolymorpheusComponent(AnalyticsEventsDialog), {
-        label: 'Recent usage events',
+        label: this.transloco.translate('settings.privacy.eventsTitle'),
         size: 'm',
         data: state,
       })

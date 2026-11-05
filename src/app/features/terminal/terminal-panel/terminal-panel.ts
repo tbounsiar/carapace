@@ -9,6 +9,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiButton, TuiNotification } from '@taiga-ui/core';
 import { TuiButtonLoading } from '@taiga-ui/kit';
 import type { ConnectionTarget } from '../../../core/ipc/connection';
@@ -18,15 +19,9 @@ import { ThemeService } from '../../../core/theme/theme';
 import { HostConnector } from '../../host-connection/host-connector';
 import { type TerminalTab, TerminalSessions } from '../terminal-sessions';
 
-const ENDED_REASONS = {
-  exited: 'The shell exited.',
-  closed: 'The terminal was closed.',
-  connectionLost: 'The connection was lost.',
-} as const;
-
 /** One terminal of the workspace: its ended banner and the xterm view. */
 @Component({
-  imports: [TuiButton, TuiButtonLoading, TuiNotification],
+  imports: [TranslocoPipe, TuiButton, TuiButtonLoading, TuiNotification],
   selector: 'app-terminal-panel',
   styleUrl: './terminal-panel.scss',
   templateUrl: './terminal-panel.html',
@@ -52,9 +47,10 @@ export class TerminalPanel {
       this.tab().reason() === 'connectionLost' ||
       this.ssh.endReasons()[this.target().connectionId] === 'lost',
   );
+  /** Translation key of the end reason. */
   protected readonly endedReason = computed(() => {
     const reason = this.tab().reason();
-    return reason ? ENDED_REASONS[reason] : '';
+    return reason ? `terminal.panel.reasons.${reason}` : null;
   });
 
   constructor() {

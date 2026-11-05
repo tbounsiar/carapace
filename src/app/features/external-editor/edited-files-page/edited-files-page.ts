@@ -11,7 +11,9 @@ import {
   viewChild,
   viewChildren,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TuiTable } from '@taiga-ui/addon-table';
 import {
   TuiButton,
@@ -26,6 +28,7 @@ import {
 } from '@taiga-ui/core';
 import { TuiAvatar, TuiBadge, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiHeader } from '@taiga-ui/layout';
+import { LanguageService } from '../../../core/i18n/language';
 import { ConfigService } from '../../../core/ipc/config';
 import type { Host } from '../../../core/ipc/config.models';
 import { hostTarget } from '../../../core/ipc/connection';
@@ -45,8 +48,6 @@ import {
   type StateLook,
   uploadBlocker,
 } from '../edited-view';
-
-const NO_CHANGES = 'No changes to upload';
 
 interface Row {
   readonly file: EditedFile;
@@ -85,6 +86,7 @@ interface Row {
     TuiStatus,
     TuiTable,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-edited-files-page',
   styleUrl: './edited-files-page.scss',
@@ -97,6 +99,10 @@ export class EditedFilesPage {
   private readonly ssh = inject(SshService);
   private readonly injector = inject(Injector);
   protected readonly actions = inject(EditedActions);
+  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
+  /** Read by `rows` so its texts follow a language switch once its translations are loaded. */
+  private readonly translation = toSignal(this.transloco.selectTranslation());
 
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
   private readonly emptyHeading = viewChild<ElementRef<HTMLElement>>('emptyHeading');
@@ -105,8 +111,12 @@ export class EditedFilesPage {
   protected readonly loaded = this.store.loaded;
   protected readonly openMenu = signal<string | null>(null);
 
-  protected readonly rows = computed<Row[]>(() =>
-    this.store.files().map((file) => {
+  protected readonly rows = computed<Row[]>(() => {
+    this.translation();
+    const locale = this.language.locale();
+    const deleted = this.transloco.translate('externalEditor.page.deletedHost');
+    const noChanges = this.transloco.translate('externalEditor.page.noChanges');
+    return this.store.files().map((file) => {
       const host = this.config.findHost(file.hostId)?.host ?? null;
       const name = hostName(this.config, file.hostId);
       const connected = !!host && this.ssh.stateOf(hostTarget(host).connectionId) === 'connected';
@@ -116,18 +126,18 @@ export class EditedFilesPage {
         host,
         hostName: name,
         testId: `edited-row-${host?.name ?? 'deleted'}-${file.name}`,
-        location: `${hostLabel(this.config, file.hostId) ?? 'Deleted host'}:${file.remotePath}`,
-        look: stateLook(file),
+        location: `${hostLabel(this.config, file.hostId) ?? deleted}:${file.remotePath}`,
+        look: stateLook(file, locale),
         reason: file.state === 'failed' ? failureReason(file, host?.name ?? null) : null,
         action: blocked ? null : rowAction(file),
         blocked,
         uploadReason:
-          blocked ?? (file.state === 'synced' || file.state === 'opening' ? NO_CHANGES : null),
+          blocked ?? (file.state === 'synced' || file.state === 'opening' ? noChanges : null),
         builtInReason: blocked ?? builtInBlocker(file),
         connected,
       };
-    }),
-  );
+    });
+  });
 
   /** The actions column is wide only when a row shows a button next to its "…". */
   protected readonly hasRowAction = computed(() => this.rows().some((r) => r.action));

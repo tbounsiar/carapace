@@ -1,1 +1,90 @@
-{}
+{
+  "testing": "Test de {address} en cours…",
+  "cancelled": "Test annulé.",
+  "connectedAs": "Connecté en tant que {address}",
+  "duration": {
+    "ms": "{value} ms",
+    "s": "{value} s"
+  },
+  "auth": {
+    "agent": "Agent SSH",
+    "password": "Mot de passe",
+    "passwordTyped": "Mot de passe (saisi pour ce test)",
+    "passwordFrom": "Mot de passe issu de {ref}",
+    "passwordSaved": "Mot de passe enregistré dans le trousseau",
+    "key": "Fichier de clé privée",
+    "keyTyped": "Fichier de clé privée, phrase secrète saisie pour ce test",
+    "keyFrom": "Fichier de clé privée, phrase secrète issue de {ref}",
+    "keySaved": "Fichier de clé privée, phrase secrète enregistrée"
+  },
+  "origin": {
+    "passwordVariable": "Le mot de passe provient de {ref}.",
+    "passwordStored": "Le mot de passe provient du trousseau.",
+    "passphraseVariable": "La phrase secrète provient de {ref}.",
+    "passphraseStored": "La phrase secrète provient du trousseau."
+  },
+  "failure": {
+    "network": {
+      "title": "Impossible de joindre {host}",
+      "detail": "{detail}Vérifiez le nom d’hôte, le port et votre réseau."
+    },
+    "timeout": {
+      "title": "Aucune réponse de {host}",
+      "detail": "Le serveur n’a pas répondu dans les 15 secondes. Vérifiez le nom d’hôte, le port, un VPN ou un pare-feu."
+    },
+    "passwordRejected": {
+      "title": "Le serveur a refusé le mot de passe",
+      "detail": "Vérifiez le nom d’utilisateur, puis le mot de passe ou la variable secrète qu’il utilise."
+    },
+    "keyRefused": {
+      "title": "Le serveur a refusé la clé",
+      "detail": "Vérifiez que sa clé publique figure dans {file} de {user} sur le serveur, ou choisissez une autre clé."
+    },
+    "agentRefused": {
+      "title": "L’agent SSH n’a proposé aucune clé acceptée",
+      "detail": "{detail}Vérifiez que l’agent est lancé et qu’il détient une clé autorisée sur le serveur."
+    },
+    "wrongPassphrase": {
+      "title": "Phrase secrète incorrecte pour {path}",
+      "detail": "Vérifiez la variable secrète, ou choisissez « Demander à la connexion » et saisissez-la."
+    },
+    "hostKeyRejected": {
+      "title": "Clé d’hôte non acceptée",
+      "detail": "Testez de nouveau et acceptez la clé si l’empreinte correspond à celle fournie par l’administrateur du serveur."
+    },
+    "hostKeyChanged": {
+      "title": "La clé d’hôte a changé",
+      "detail": "Le serveur présente une clé différente de celle enregistrée pour {host}. Confirmez-la avec l’administrateur du serveur ; pour la remplacer, enregistrez l’hôte et connectez-vous."
+    },
+    "hostKeyRevoked": {
+      "title": "La clé d’hôte est révoquée",
+      "detail": "La clé présentée par {host} est marquée comme révoquée dans known_hosts. Contactez l’administrateur du serveur."
+    },
+    "keyUnusable": {
+      "title": "Fichier de clé inutilisable",
+      "detail": "{detail}Vérifiez le chemin de la clé."
+    },
+    "knownHostsUnreadable": {
+      "title": "Impossible de lire known_hosts"
+    },
+    "keyUnreadable": {
+      "title": "Impossible de lire {path}",
+      "detail": "{detail}Vérifiez le chemin de la clé, ou choisissez une clé enregistrée."
+    },
+    "keychain": {
+      "title": "Trousseau du système indisponible",
+      "detail": "Déverrouillez-le ou activez-le, ou choisissez « Demander à la connexion »."
+    },
+    "missingVariables": {
+      "title": "Variables manquantes",
+      "detail": "{detail}Définissez-les dans les variables globales ou du projet."
+    },
+    "busy": {
+      "title": "Trop de tests en cours",
+      "detail": "Attendez qu’un test se termine, puis testez de nouveau."
+    },
+    "failed": {
+      "title": "Échec du test"
+    }
+  }
+}

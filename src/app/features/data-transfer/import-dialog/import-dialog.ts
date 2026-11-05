@@ -13,6 +13,7 @@ import {
 import { NgTemplateOutlet } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TuiTable } from '@taiga-ui/addon-table';
 import { TuiAutoFocus } from '@taiga-ui/cdk';
 import {
@@ -43,6 +44,7 @@ import {
   type Strategy,
 } from '../../../core/ipc/data-transfer';
 import { IpcError } from '../../../core/ipc/ipc-error';
+import { LanguageService } from '../../../core/i18n/language';
 import { confirmDestructive } from '../../../shared/destructive-confirm/confirm-destructive';
 import {
   importApplyError,
@@ -60,14 +62,15 @@ import {
   PICKER_BUSY,
   replaceConfirmText,
   replaceSubtitle,
+  secretScopeName,
   secretsSentLines,
-  STRATEGY_LABELS,
+  strategyLabel,
   summaryItems,
   summarySentence,
   tableView,
+  type Translate,
   undefinedLine,
 } from '../import-view';
-import { plural } from '../../project-tree/node-tree';
 
 export type ImportStart =
   | { readonly kind: 'preview'; readonly preview: ImportPreview }
@@ -95,7 +98,6 @@ type View =
       readonly undoError: string | null;
     };
 
-const EXPIRED = 'This preview expired. Choose the file again.';
 const DETAILS_OPEN_MAX = 10;
 
 /** Result: route commands to open after closing (a "Secrets to set" link), or nothing. */
@@ -121,6 +123,7 @@ const DETAILS_OPEN_MAX = 10;
     TuiRadio,
     TuiTable,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-import-dialog',
   templateUrl: './import-dialog.html',
@@ -131,6 +134,14 @@ export class ImportDialog {
   private readonly dialogs = inject(TuiDialogService);
   private readonly alerts = inject(TuiNotificationService);
   private readonly injector = inject(Injector);
+  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
+  /** Read in computeds so they follow a language switch once its translations are loaded. */
+  private readonly translation = toSignal(this.transloco.selectTranslation());
+  private readonly t: Translate = (key, params) => {
+    this.translation();
+    return this.transloco.translate(key, params);
+  };
   protected readonly context =
     injectContext<TuiDialogContext<readonly string[] | undefined, ImportDialogData>>();
   private readonly data = this.context.data;
@@ -156,9 +167,6 @@ export class ImportDialog {
     initialValue: 'merge' as Strategy,
   });
   protected readonly strategies = STRATEGIES;
-  protected readonly labels = STRATEGY_LABELS;
-  protected readonly lostHint =
-    'Restores your data as before the import. Deleted secret values cannot be restored.';
 
   private readonly summaryHeading = viewChild<ElementRef<HTMLElement>>('summaryHeading');
 
@@ -169,15 +177,15 @@ export class ImportDialog {
   protected readonly plan = computed(() => this.preview()?.plans[this.strategy()] ?? null);
   protected readonly meta = computed(() => {
     const preview = this.preview();
-    return preview ? fileMeta(preview.file) : '';
+    return preview ? fileMeta(this.t, this.language.locale(), preview.file) : '';
   });
   protected readonly replaceNote = computed(() => {
     const preview = this.preview();
-    return preview ? replaceSubtitle(preview.file.scope) : '';
+    return preview ? replaceSubtitle(this.t, preview.file.scope) : '';
   });
   protected readonly table = computed(() => {
     const plan = this.plan();
-    return plan ? tableView(plan, this.strategy()) : null;
+    return plan ? tableView(this.t, plan, this.strategy()) : null;
   });
   protected readonly nothing = computed(() => {
     const plan = this.plan();
@@ -187,12 +195,15 @@ export class ImportDialog {
   protected readonly blockingText = computed(() => {
     const plan = this.plan();
     return plan?.blocking.length
-      ? `This import cannot be done with ${STRATEGY_LABELS[this.strategy()]}: ${plan.blocking.join('; ')}.`
+      ? this.t('dataTransfer.import.blocking', {
+          strategy: strategyLabel(this.t, this.strategy()),
+          reasons: plan.blocking.join('; '),
+        })
       : '';
   });
   protected readonly details = computed(() => {
     const plan = this.plan();
-    return plan ? detailViews(plan.items) : [];
+    return plan ? detailViews(this.t, plan.items) : [];
   });
   protected readonly moreItems = computed(() => this.plan()?.moreItems ?? 0);
   protected readonly detailsCount = computed(() => this.details().length + this.moreItems());
@@ -211,11 +222,14 @@ export class ImportDialog {
     }
     return {
       title: names.length
-        ? `${plural(names.length, 'connected host')} ${names.length === 1 ? 'is' : 'are'} affected`
-        : 'Open tabs are affected',
+        ? this.t('dataTransfer.import.connectionsTitle', { count: names.length })
+        : this.t('dataTransfer.import.tabsTitle'),
       body: [
         names.length
-          ? `${listNames(names)} ${names.length === 1 ? 'is' : 'are'} deleted or moved to another project. ${names.length === 1 ? 'It is' : 'They are'} disconnected.`
+          ? this.t('dataTransfer.import.connectionsBody', {
+              names: listNames(this.t, names),
+              count: names.length,
+            })
           : '',
         workspace,
       ]
@@ -225,20 +239,24 @@ export class ImportDialog {
   });
   protected readonly deletedSecrets = computed(() => {
     const plan = this.plan();
-    return plan ? deletedSecretsText(plan, this.strategy()) : null;
+    return plan ? deletedSecretsText(this.t, plan, this.strategy()) : null;
   });
   protected readonly secretLines = computed(() =>
-    (this.plan()?.needsSecret ?? []).map(needsSecretLine),
+    (this.plan()?.needsSecret ?? []).map((entry) => needsSecretLine(this.t, entry)),
   );
   protected readonly undefinedText = computed(() => {
     const list = this.plan()?.undefinedVariables ?? [];
-    return list.length ? undefinedLine(list) : null;
+    return list.length ? undefinedLine(this.t, list) : null;
   });
   protected readonly destructive = computed(
     () => this.strategy() === 'replace' && !!this.plan() && hasDeletions(this.plan()!),
   );
-  protected readonly submitLabel = computed(() => (this.destructive() ? 'Replace…' : 'Import'));
-  protected readonly secretsSent = computed(() => secretsSentLines(this.plan()?.secretsSentTo));
+  protected readonly submitLabel = computed(() =>
+    this.destructive() ? 'dataTransfer.import.submitReplace' : 'dataTransfer.import.submit',
+  );
+  protected readonly secretsSent = computed(() =>
+    secretsSentLines(this.t, this.plan()?.secretsSentTo),
+  );
   protected readonly canImport = computed(
     () =>
       !!this.plan() &&
@@ -256,10 +274,10 @@ export class ImportDialog {
     return {
       undone: view.undone,
       undoError: view.undoError,
-      sentence: summarySentence(result.rows),
-      details: detailViews(summaryItems(result)),
-      disconnected: listNames(result.disconnected, 20),
-      secrets: groupSecrets(result.needsSecret),
+      sentence: summarySentence(this.t, result.rows),
+      details: detailViews(this.t, summaryItems(result)),
+      disconnected: listNames(this.t, result.disconnected, 20),
+      secrets: groupSecrets(this.t, result.needsSecret),
       backupName: result.backupName,
       lostSecrets: result.secretValuesDeleted > 0,
     };
@@ -288,7 +306,7 @@ export class ImportDialog {
       }
     } catch (err) {
       if (err instanceof IpcError && err.code === 'busy') {
-        this.alerts.open(PICKER_BUSY, { appearance: 'warning' }).subscribe();
+        this.alerts.open(this.t(PICKER_BUSY), { appearance: 'warning' }).subscribe();
       } else {
         this.view.set({ kind: 'error', ...importFileError(err) });
       }
@@ -305,11 +323,15 @@ export class ImportDialog {
     }
     const strategy = this.strategy();
     if (this.destructive()) {
-      const confirmed = await confirmDestructive(this.dialogs, 'Replace data?', {
-        content: replaceConfirmText(plan, this.data.workspaceLines(plan)),
-        yes: 'Replace',
-        no: 'Cancel',
-      });
+      const confirmed = await confirmDestructive(
+        this.dialogs,
+        this.t('dataTransfer.import.confirmTitle'),
+        {
+          content: replaceConfirmText(this.t, plan, this.data.workspaceLines(plan)),
+          yes: this.t('dataTransfer.import.confirmYes'),
+          no: this.t('common.cancel'),
+        },
+      );
       if (!confirmed) {
         return;
       }
@@ -344,7 +366,7 @@ export class ImportDialog {
     } catch {
       this.view.set({
         ...view,
-        undoError: `Could not undo the import. Your data before the import is in ${view.result.backupName} in the Carapace folder.`,
+        undoError: 'dataTransfer.summary.undoError',
       });
     } finally {
       this.undoing.set(false);
@@ -378,7 +400,9 @@ export class ImportDialog {
   }
 
   private expiredOr(err: unknown): string {
-    return err instanceof IpcError && err.code === 'not_found' ? EXPIRED : importApplyError(err);
+    return err instanceof IpcError && err.code === 'not_found'
+      ? this.t('dataTransfer.import.expired')
+      : importApplyError(err);
   }
 
   private showPreview(preview: ImportPreview, keepStrategy = false): void {
@@ -420,7 +444,7 @@ export interface SecretGroup {
 }
 
 /** One link per scope, with the variables of that scope. */
-function groupSecrets(list: readonly NeedsSecret[]): SecretGroup[] {
+function groupSecrets(t: Translate, list: readonly NeedsSecret[]): SecretGroup[] {
   const groups = new Map<string, SecretGroup & { lines: string[] }>();
   for (const entry of list) {
     const projectId = entry.scope.kind === 'project' ? entry.scope.projectId : null;
@@ -430,12 +454,20 @@ function groupSecrets(list: readonly NeedsSecret[]): SecretGroup[] {
       group = {
         key,
         projectId,
-        link: projectId ? `Open ${key} variables` : 'Open global variables',
+        link: projectId
+          ? t('dataTransfer.summary.openProjectVariables', { name: key })
+          : t('dataTransfer.summary.openGlobalVariables'),
         lines: [],
       };
       groups.set(key, group);
     }
-    group.lines.push(`${entry.name} (${key}) — ${plural(entry.hostCount, 'host')}`);
+    group.lines.push(
+      t('dataTransfer.summary.secretLine', {
+        name: entry.name,
+        scope: secretScopeName(t, entry),
+        count: entry.hostCount,
+      }),
+    );
   }
   return [...groups.values()];
 }

@@ -1,4 +1,5 @@
 import type { ConnectionState } from '../core/ipc/ssh.models';
+import { uiText } from './ui-text';
 
 export interface ConnectionStatus {
   readonly label: string;
@@ -7,29 +8,25 @@ export interface ConnectionStatus {
   readonly loading: boolean;
 }
 
-const STATUSES: Record<ConnectionState, ConnectionStatus> = {
-  idle: { label: 'Not connected', color: 'var(--tui-status-neutral)', busy: false, loading: false },
-  connecting: { label: 'Connecting', color: 'var(--tui-status-info)', busy: true, loading: true },
+const STATUSES: Record<ConnectionState, Omit<ConnectionStatus, 'label'>> = {
+  idle: { color: 'var(--tui-status-neutral)', busy: false, loading: false },
+  connecting: { color: 'var(--tui-status-info)', busy: true, loading: true },
   authenticating: {
-    label: 'Authenticating',
     color: 'var(--tui-status-info)',
     busy: true,
     loading: true,
   },
   awaitingHostKey: {
-    label: 'Verify host key',
     color: 'var(--tui-status-warning)',
     busy: true,
     loading: false,
   },
   connected: {
-    label: 'Connected',
     color: 'var(--tui-status-positive)',
     busy: false,
     loading: false,
   },
   error: {
-    label: 'Connection failed',
     color: 'var(--tui-status-negative)',
     busy: false,
     loading: false,
@@ -37,7 +34,7 @@ const STATUSES: Record<ConnectionState, ConnectionStatus> = {
 };
 
 export function connectionStatus(state: ConnectionState): ConnectionStatus {
-  return STATUSES[state];
+  return { label: uiText(`common.connection.${state}`), ...STATUSES[state] };
 }
 
 /** Connected hosts per project id (`null` for Home). */

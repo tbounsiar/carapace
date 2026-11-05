@@ -94,3 +94,8 @@
   gap: 0.5rem;
   font: var(--tui-typography-body-s);
 }
+
+/* French labels are longer: the footer row wraps instead of overflowing. */
+[tuiForm] > footer {
+  flex-wrap: wrap;
+}

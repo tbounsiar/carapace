@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TuiTable } from '@taiga-ui/addon-table';
 import {
   TuiButton,
@@ -31,6 +32,7 @@ import { KeyActions } from '../key-actions';
     TuiLoader,
     TuiTable,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-keys-page',
   styleUrl: './keys-page.scss',
@@ -39,6 +41,7 @@ import { KeyActions } from '../key-actions';
 export class KeysPage {
   private readonly store = inject(KeyStore);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly transloco = inject(TranslocoService);
   protected readonly actions = inject(KeyActions);
 
   protected readonly keys = this.store.keys;
@@ -58,7 +61,7 @@ export class KeysPage {
       await this.store.load();
     } catch (err) {
       this.loadError.set(errorText(err));
-      notifyError(this.alerts, err, 'Keys unavailable');
+      notifyError(this.alerts, err, this.transloco.translate('keys.page.unavailable'));
     } finally {
       this.loading.set(false);
     }

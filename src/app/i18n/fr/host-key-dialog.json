@@ -1,1 +1,19 @@
-{}
+{
+  "host": "Hôte",
+  "algorithm": "Algorithme",
+  "fingerprint": "Empreinte",
+  "unknown": {
+    "title": "Clé d’hôte inconnue",
+    "warning": "L’authenticité de {host} ne peut pas être établie. Comparez l’empreinte avec celle obtenue auprès de l’administrateur du serveur avant de vous connecter.",
+    "reject": "Refuser",
+    "acceptConnect": "Accepter et se connecter",
+    "acceptTest": "Accepter et tester"
+  },
+  "changed": {
+    "title": "La clé d’hôte a changé",
+    "warning": "La clé présentée par {host} ne correspond pas à celle enregistrée. Quelqu’un intercepte peut-être la connexion (attaque de l’homme du milieu), ou le serveur a été réinstallé. La connexion n’a pas été établie.",
+    "known": "Clé connue",
+    "presented": "Clé présentée",
+    "replace": "Remplacer la clé enregistrée"
+  }
+}

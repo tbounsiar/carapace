@@ -1,21 +1,21 @@
 <div tuiNotification appearance="negative" size="m">
-  The key presented by <span class="mono">{{ event.hostname }}:{{ event.port }}</span> does not
-  match the stored one. Someone may be intercepting the connection (man-in-the-middle), or the
-  server was reinstalled. The connection was not made.
+  @for (part of warning(); track $index) {
+    <span [class.mono]="part.mono" [textContent]="part.text"></span>
+  }
 </div>
 
 <dl>
-  <dt>Host</dt>
+  <dt>{{ 'hostKeyDialog.host' | transloco }}</dt>
   <dd class="mono">{{ event.hostname }}:{{ event.port }}</dd>
-  <dt>Algorithm</dt>
+  <dt>{{ 'hostKeyDialog.algorithm' | transloco }}</dt>
   <dd class="mono">{{ event.algorithm }}</dd>
-  <dt>Known</dt>
+  <dt>{{ 'hostKeyDialog.changed.known' | transloco }}</dt>
   <dd data-testid="known">
     @for (fingerprint of event.knownFingerprints; track fingerprint) {
       <div class="mono fingerprint">{{ fingerprint }}</div>
     }
   </dd>
-  <dt>Presented</dt>
+  <dt>{{ 'hostKeyDialog.changed.presented' | transloco }}</dt>
   <dd class="mono fingerprint" data-testid="presented">{{ event.fingerprint }}</dd>
 </dl>
 
@@ -28,7 +28,7 @@
     data-testid="host-key-replace"
     (click)="context.completeWith(true)"
   >
-    Replace stored key
+    {{ 'hostKeyDialog.changed.replace' | transloco }}
   </button>
   <button
     tuiButton
@@ -38,6 +38,6 @@
     data-testid="host-key-close"
     (click)="context.completeWith(false)"
   >
-    Close
+    {{ 'common.close' | transloco }}
   </button>
 </footer>

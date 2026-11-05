@@ -8,7 +8,51 @@
   },
   "language": {
     "title": "Langue",
-    "system": "Système ({{name}})",
+    "system": "Système ({name})",
     "note": "Système suit la langue du système d'exploitation."
+  },
+  "title": "Paramètres",
+  "subtitle": "Préférences de cette application sur cet ordinateur. Les modifications s’appliquent immédiatement.",
+  "notSaved": "Réglage non enregistré",
+  "keyType": {
+    "title": "Type de clé par défaut",
+    "note": "Présélectionné quand vous générez une clé. Ed25519 est recommandé."
+  },
+  "fontSize": {
+    "title": "Taille de police du terminal",
+    "valueText": "{size} pixels",
+    "note": "De {min} à {max} px. Les terminaux ouverts se mettent à jour immédiatement."
+  },
+  "privacy": {
+    "title": "Confidentialité",
+    "doNotTrack": "Désactivé, car DO_NOT_TRACK est défini sur cet ordinateur. Rien n’est envoyé.",
+    "readError": "Impossible de lire ce réglage. Redémarrez l’application.",
+    "events": "Voir les événements récents",
+    "eventsTitle": "Événements d’utilisation récents",
+    "unavailable": "Cette version n’envoie pas de données d’utilisation. Les modifications sont tout de même enregistrées."
+  },
+  "data": {
+    "title": "Données",
+    "nothing": "Rien à exporter pour l’instant.",
+    "note": "Exportez les projets, hôtes, collections et variables dans un fichier, ou importez-en un. Les mots de passe et autres secrets ne sont jamais inclus. Les paramètres de l’application ne sont pas inclus.",
+    "export": "Exporter…",
+    "import": "Importer…"
+  },
+  "externalEditor": {
+    "title": "Éditeur externe",
+    "system": "Application du système",
+    "custom": "Application choisie",
+    "customNote": "Les fichiers s’ouvrent avec cette application ; le fichier est son seul argument.",
+    "systemNote": "Les fichiers s’ouvrent avec l’application que votre système utilise pour leur type. Les scripts et programmes ne sont jamais exécutés : choisissez une application pour les modifier.",
+    "placeholder": "Aucune application choisie",
+    "appLabel": "Application d’édition",
+    "browse": "Parcourir…",
+    "clear": "Effacer",
+    "pickHint": "Choisissez le fichier programme de l’éditeur. En attendant, les fichiers s’ouvrent avec l’application par défaut du système.",
+    "copyNote": "Pendant la modification, une copie du fichier est conservée sur cet ordinateur, puis supprimée quand vous arrêtez de le modifier.",
+    "notice": "Afficher un avertissement avant d’ouvrir un fichier hors de Carapace",
+    "notAnEditor": "Ce programme exécute des scripts ou des commandes ; ce n’est pas un éditeur. Choisissez le fichier programme de votre éditeur.",
+    "notRead": "Réglage non lu",
+    "pickerError": "Sélecteur de fichier non ouvert"
   }
 }

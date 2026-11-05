@@ -1,34 +1,33 @@
 @switch (data.kind) {
   @case ('unsaved') {
-    <p class="content">Your changes are lost if you don’t save them.</p>
+    <p class="content">{{ 'editor.choice.unsaved' | transloco }}</p>
   }
   @case ('changed') {
     <div tuiNotification appearance="warning" size="s" class="content">
-      {{ data.name }} was modified on {{ data.host }} after you opened it.
+      {{ 'editor.choice.changed' | transloco: { name: data.name, host: data.host } }}
     </div>
   }
   @case ('retargeted') {
     <div tuiNotification appearance="warning" size="s" class="content">
-      {{ data.name }} now points to another file on {{ data.host }}. Reload it to see what a save
-      would change.
+      {{ 'editor.choice.retargeted' | transloco: { name: data.name, host: data.host } }}
     </div>
   }
   @case ('externalChanged') {
     <div tuiNotification appearance="warning" size="s" class="content">
       <span tuiTitle>
-        {{ data.name }} was modified on {{ data.host }} after your last upload.
-        <span tuiSubtitle>Your local copy has changes that are not on the server.</span>
+        {{ 'editor.choice.externalChanged' | transloco: { name: data.name, host: data.host } }}
+        <span tuiSubtitle>{{ 'editor.choice.externalChangedDetail' | transloco }}</span>
       </span>
     </div>
   }
   @case ('externalDeleted') {
     <div tuiNotification appearance="warning" size="s" class="content">
-      {{ data.name }} no longer exists on {{ data.host }}.
+      {{ 'editor.choice.deleted' | transloco: { name: data.name, host: data.host } }}
     </div>
   }
   @case ('deleted') {
     <div tuiNotification appearance="warning" size="s" class="content">
-      {{ data.name }} no longer exists on {{ data.host }}.
+      {{ 'editor.choice.deleted' | transloco: { name: data.name, host: data.host } }}
     </div>
   }
 }
@@ -44,7 +43,7 @@
         [attr.data-testid]="button.testId"
         (click)="choose(button.choice)"
       >
-        {{ button.label }}
+        {{ button.label | transloco }}
       </button>
     } @else {
       <button
@@ -52,11 +51,11 @@
         size="m"
         type="button"
         [appearance]="button.appearance"
-        [tuiHint]="button.hint ?? null"
+        [tuiHint]="button.hint ? (button.hint | transloco) : null"
         [attr.data-testid]="button.testId"
         (click)="choose(button.choice)"
       >
-        {{ button.label }}
+        {{ button.label | transloco }}
       </button>
     }
   }

@@ -1,1 +1,19 @@
-{}
+{
+  "panel": {
+    "lost": "Connection lost.",
+    "ended": "Session ended.",
+    "endedWith": "Session ended. {reason}",
+    "reasons": {
+      "exited": "The shell exited.",
+      "closed": "The terminal was closed.",
+      "connectionLost": "The connection was lost."
+    },
+    "reopen": "Reopen"
+  },
+  "sessions": {
+    "loadFailed": "The terminal component could not be loaded. Restart the app and try again.",
+    "notOpened": "Terminal not opened",
+    "notClosed": "Terminal not closed",
+    "inputLost": "Terminal input lost"
+  }
+}

@@ -1,5 +1,5 @@
 <fieldset class="group">
-  <legend class="legend">External editor</legend>
+  <legend class="legend">{{ 'settings.externalEditor.title' | transloco }}</legend>
   <!-- Taiga's pill follows clicks only: the index is bound for values set from the backend. -->
   <tui-segmented size="s" [activeItemIndex]="setting()?.mode === 'custom' ? 1 : 0">
     <label data-testid="settings-ext-system">
@@ -10,7 +10,7 @@
         aria-describedby="settings-ext-description"
         [formControl]="mode"
       />
-      System default
+      {{ 'settings.externalEditor.system' | transloco }}
     </label>
     <label data-testid="settings-ext-custom">
       <input
@@ -20,15 +20,14 @@
         aria-describedby="settings-ext-description"
         [formControl]="mode"
       />
-      Custom app
+      {{ 'settings.externalEditor.custom' | transloco }}
     </label>
   </tui-segmented>
   <p class="note" id="settings-ext-description" data-testid="settings-ext-description">
     @if (setting()?.mode === 'custom') {
-      Files open with this app; the file is its only argument.
+      {{ 'settings.externalEditor.customNote' | transloco }}
     } @else {
-      Files open with the app your system uses for their type. Scripts and programs are never run:
-      pick a custom app to edit them.
+      {{ 'settings.externalEditor.systemNote' | transloco }}
     }
   </p>
   @if (setting()?.mode === 'custom') {
@@ -38,8 +37,8 @@
         <input
           tuiInput
           [readOnly]="true"
-          placeholder="No app chosen"
-          aria-label="Editor app"
+          [placeholder]="'settings.externalEditor.placeholder' | transloco"
+          [attr.aria-label]="'settings.externalEditor.appLabel' | transloco"
           data-testid="settings-ext-path"
           [attr.aria-invalid]="appError() ? true : null"
           [attr.aria-describedby]="appError() ? 'settings-ext-error' : null"
@@ -56,7 +55,7 @@
         [disabled]="picking()"
         (click)="browse()"
       >
-        Browse…
+        {{ 'settings.externalEditor.browse' | transloco }}
       </button>
       <button
         tuiButton
@@ -66,20 +65,24 @@
         data-testid="settings-ext-clear"
         (click)="clear()"
       >
-        Clear
+        {{ 'settings.externalEditor.clear' | transloco }}
       </button>
     </div>
     @if (appError(); as error) {
-      <tui-error id="settings-ext-error" data-testid="settings-ext-error" [error]="error" />
+      <tui-error
+        id="settings-ext-error"
+        data-testid="settings-ext-error"
+        [error]="error | transloco"
+      />
     }
     @if (!path) {
       <p class="note">
-        Pick the editor's program file. Until then, files open with the system default app.
+        {{ 'settings.externalEditor.pickHint' | transloco }}
       </p>
     }
   }
   <p class="note">
-    While you edit, a copy of the file is stored on this computer and deleted when you stop editing.
+    {{ 'settings.externalEditor.copyNote' | transloco }}
   </p>
   <label tuiLabel class="switch">
     <input
@@ -89,6 +92,6 @@
       data-testid="settings-ext-notice"
       [formControl]="notice"
     />
-    Show a notice before opening a file outside Carapace
+    {{ 'settings.externalEditor.notice' | transloco }}
   </label>
 </fieldset>

@@ -1,1 +1,57 @@
-{}
+{
+  "editor": {
+    "table": "Variables",
+    "name": "Nom",
+    "type": "Type",
+    "value": "Valeur",
+    "remove": "Supprimer",
+    "namePlaceholder": "nom",
+    "valuePlaceholder": "valeur",
+    "nameOf": "Nom de la variable {index}",
+    "typeOf": "Type de la variable {index}",
+    "secretOf": "Valeur secrète de la variable {index}",
+    "valueOf": "Valeur de la variable {index}",
+    "removeRow": "Supprimer la variable {index}",
+    "setReplace": "Définie. Saisissez une valeur pour la remplacer",
+    "notSet": "Non définie",
+    "set": "Définie",
+    "kinds": {
+      "plain": "Simple",
+      "secret": "Secrète"
+    },
+    "empty": "Aucune variable pour l’instant. Ajoutez-en une pour l’utiliser dans les champs d’hôte sous la forme {example}.",
+    "rowError": "Ligne {row}, {field} : {message}",
+    "fields": {
+      "name": "nom",
+      "value": "valeur"
+    },
+    "renameWarning": "Renommer une variable secrète supprime sa valeur enregistrée : {names}. Saisissez à nouveau la valeur ou gardez l’ancien nom.",
+    "add": "Ajouter une variable",
+    "saveFailed": "Variables non enregistrées"
+  },
+  "validation": {
+    "nameRequired": "Le nom est obligatoire",
+    "namePattern": "Utilisez des lettres, des chiffres, « _ », « . » ou « - », en commençant par une lettre ou « _ » (64 au maximum)",
+    "duplicate": "Ce nom est déjà utilisé dans cette portée",
+    "valueMax": "La valeur doit contenir au plus {max} caractères",
+    "secretLabel": "Valeur secrète"
+  },
+  "page": {
+    "notFound": {
+      "title": "Projet introuvable",
+      "text": "Il a peut-être été supprimé. Choisissez un autre projet dans la barre latérale.",
+      "back": "Retour au début"
+    },
+    "projectWins": "Les champs d’hôte les utilisent sous la forme {example}. Les variables du projet l’emportent sur les variables globales.",
+    "globalOverride": "Les champs d’hôte les utilisent sous la forme {example}. Les projets peuvent les redéfinir.",
+    "projectTitle": "{name} : variables",
+    "globalTitle": "Variables globales",
+    "projectSection": "Variables du projet",
+    "discard": {
+      "label": "Abandonner les modifications non enregistrées ?",
+      "content": "Vos modifications de ces variables ne sont pas enregistrées.",
+      "yes": "Abandonner",
+      "no": "Continuer à modifier"
+    }
+  }
+}

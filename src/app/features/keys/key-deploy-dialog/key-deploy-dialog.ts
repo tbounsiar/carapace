@@ -5,6 +5,7 @@ import {
   ReactiveFormsModule,
   type ValidationErrors,
 } from '@angular/forms';
+import { TranslocoPipe, translate } from '@jsverse/transloco';
 import { type TuiStringHandler, TuiValidationError } from '@taiga-ui/cdk';
 import {
   TuiButton,
@@ -21,7 +22,8 @@ import { ConfigService } from '../../../core/ipc/config';
 import type { ConfigNode, Host, Project } from '../../../core/ipc/config.models';
 import type { KeyView } from '../../../core/ipc/keys';
 import { ErrorLink } from '../../../shared/error-link';
-import { ancestors, byName, HOME } from '../../project-tree/node-tree';
+import { mono, type Part, translateParts } from '../../host-test/host-test-view';
+import { ancestors, byName } from '../../project-tree/node-tree';
 
 interface HostGroup {
   readonly label: string;
@@ -41,7 +43,9 @@ export function deployTargetLabel(nodes: readonly ConfigNode[], host: Host): str
 }
 
 function required(control: AbstractControl): ValidationErrors | null {
-  return control.value ? null : { invalid: new TuiValidationError('Pick a host') };
+  return control.value
+    ? null
+    : { invalid: new TuiValidationError(translate<string>('keys.deploy.pickHost')) };
 }
 
 @Component({
@@ -57,6 +61,7 @@ function required(control: AbstractControl): ValidationErrors | null {
     TuiForm,
     TuiSelect,
     TuiTextfield,
+    TranslocoPipe,
   ],
   selector: 'app-key-deploy-dialog',
   styleUrl: './key-deploy-dialog.scss',
@@ -80,7 +85,7 @@ export class KeyDeployDialog {
     const scopes: (Project | null)[] = [null, ...[...this.config.projects()].sort(byName)];
     return scopes
       .map((project) => ({
-        label: project?.name ?? HOME,
+        label: project?.name ?? translate<string>('common.home'),
         project,
         hosts: hosts.filter((h) => h.projectId === (project?.id ?? null)),
       }))
@@ -97,6 +102,17 @@ export class KeyDeployDialog {
   });
   protected readonly stringify: TuiStringHandler<string | null> = (id) =>
     (id && this.labels().get(id)) || '';
+
+  protected intro(): Part[] {
+    return translateParts('keys.deploy.intro', {
+      name: { text: this.key.name, strong: true },
+      file: mono('~/.ssh/authorized_keys'),
+    });
+  }
+
+  protected useKeyNote(): Part[] {
+    return translateParts('keys.deploy.useKeyNote', { path: mono(this.key.path) });
+  }
 
   protected label(host: Host): string {
     return this.labels().get(host.id) ?? host.name;

@@ -31,6 +31,14 @@
   inline-size: 2.5rem;
 }
 
+/* Spec: a header keeps one line and shows the full label in a hint when cut. */
+.head {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /*
  * Taiga's table appearance gives cell inputs a 100rem transparent bottom border inside an
  * overflow-hidden field. Focusing or scrolling to such an input scrolls the field, and the

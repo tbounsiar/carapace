@@ -1,7 +1,7 @@
 <tui-loader [overlay]="true" [loading]="saving()">
   <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
     <fieldset class="type">
-      <legend>Type</legend>
+      <legend>{{ 'keys.keygen.type' | transloco }}</legend>
       <tui-segmented size="s">
         <label data-testid="keygen-type-ed25519">
           <input type="radio" value="ed25519" formControlName="algorithm" />
@@ -12,11 +12,11 @@
           RSA 4096
         </label>
       </tui-segmented>
-      <p class="note">Ed25519 is recommended. RSA 4096 is slower, for servers without Ed25519.</p>
+      <p class="note">{{ 'keys.keygen.typeNote' | transloco }}</p>
     </fieldset>
 
     <tui-textfield>
-      <label tuiLabel>Name</label>
+      <label tuiLabel>{{ 'keys.fields.name' | transloco }}</label>
       <input
         tuiAutoFocus
         tuiInput
@@ -28,7 +28,7 @@
     <tui-error appErrorLink formControlName="name" />
 
     <tui-textfield [tuiTextfieldCleaner]="false">
-      <label tuiLabel>Folder</label>
+      <label tuiLabel>{{ 'keys.keygen.folder' | transloco }}</label>
       <input
         #folderInput
         tuiInput
@@ -45,8 +45,8 @@
           size="xs"
           iconStart="@tui.rotate-ccw"
           type="button"
-          aria-label="Use the default folder"
-          tuiHint="Use the default folder"
+          [attr.aria-label]="'keys.keygen.resetFolder' | transloco"
+          [tuiHint]="'keys.keygen.resetFolder' | transloco"
           data-testid="keygen-folder-reset"
           (click)="resetFolder()"
         ></button>
@@ -58,8 +58,8 @@
         size="xs"
         iconStart="@tui.folder-open"
         type="button"
-        aria-label="Choose a folder"
-        tuiHint="Choose a folder"
+        [attr.aria-label]="'keys.keygen.chooseFolder' | transloco"
+        [tuiHint]="'keys.keygen.chooseFolder' | transloco"
         data-testid="keygen-folder-browse"
         [disabled]="picking()"
         (click)="browseFolder()"
@@ -68,7 +68,7 @@
     <tui-error appErrorLink formControlName="folder" />
 
     <tui-textfield>
-      <label tuiLabel>File name</label>
+      <label tuiLabel>{{ 'keys.keygen.fileName' | transloco }}</label>
       <input
         tuiInput
         class="mono"
@@ -76,18 +76,17 @@
         formControlName="fileName"
         data-testid="keygen-file"
       />
-      <tui-icon
-        tuiTooltip="Letters, digits, '.', '_' and '-'. The public key gets a .pub suffix."
-      />
+      <tui-icon [tuiTooltip]="'keys.keygen.fileNameHint' | transloco" />
     </tui-textfield>
     <tui-error appErrorLink formControlName="fileName" />
     @if (!folderInvalid()) {
       <p class="note" data-testid="keygen-path">
-        Saved as <span class="mono">{{ fileName() }}</span> and
-        <span class="mono">{{ fileName() }}.pub</span> in this folder.
+        @for (part of savedAs(); track $index) {
+          <span [class.mono]="part.mono" [textContent]="part.text"></span>
+        }
       </p>
     }
-    @if (warning(); as text) {
+    @if (warning()) {
       <div
         tuiNotification
         appearance="warning"
@@ -95,12 +94,12 @@
         role="status"
         data-testid="keygen-folder-warning"
       >
-        {{ text }}
+        {{ 'keys.keygen.folderWarning' | transloco }}
       </div>
     }
 
     <tui-textfield>
-      <label tuiLabel>Comment</label>
+      <label tuiLabel>{{ 'keys.keygen.comment' | transloco }}</label>
       <input
         tuiInput
         class="mono"
@@ -114,7 +113,7 @@
     <fieldset>
       <div class="stack">
         <tui-textfield>
-          <label tuiLabel>Passphrase (optional)</label>
+          <label tuiLabel>{{ 'keys.fields.passphraseOptional' | transloco }}</label>
           <input
             tuiInput
             type="password"
@@ -128,7 +127,7 @@
       </div>
       <div class="stack">
         <tui-textfield>
-          <label tuiLabel>Confirm passphrase</label>
+          <label tuiLabel>{{ 'keys.keygen.confirm' | transloco }}</label>
           <input
             tuiInput
             type="password"
@@ -144,11 +143,11 @@
 
     <label class="check">
       <input tuiCheckbox type="checkbox" formControlName="remember" data-testid="keygen-remember" />
-      Remember passphrase in the system keychain
+      {{ 'keys.fields.rememberPassphrase' | transloco }}
     </label>
 
     @if (saving() && isRsa()) {
-      <p class="note" role="status">Generating an RSA key takes a few seconds.</p>
+      <p class="note" role="status">{{ 'keys.keygen.rsaSlow' | transloco }}</p>
     }
 
     <footer>
@@ -159,10 +158,10 @@
         [disabled]="saving()"
         (click)="context.$implicit.complete()"
       >
-        Cancel
+        {{ 'common.cancel' | transloco }}
       </button>
       <button tuiButton type="submit" data-testid="keygen-submit" [loading]="saving()">
-        Generate
+        {{ 'keys.keygen.submit' | transloco }}
       </button>
     </footer>
   </form>

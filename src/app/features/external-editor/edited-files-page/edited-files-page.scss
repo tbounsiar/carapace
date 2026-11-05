@@ -103,3 +103,10 @@
 .loader {
   margin-block-start: var(--tui-padding-l);
 }
+
+.th-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

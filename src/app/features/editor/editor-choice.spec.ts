@@ -1,9 +1,14 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { of } from 'rxjs';
 import type { TuiDialogService } from '@taiga-ui/core';
 import { askEditorChoice } from './editor-choice';
 import type { EditorChoiceData } from './editor-choice-dialog/editor-choice-dialog';
 
 describe('askEditorChoice', () => {
+  // The helpers translate through Transloco's global service, created on first injection.
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   beforeAll(() => import('./editor-choice-dialog/editor-choice-dialog'), 60_000);
 
   it('escapes the file name in the label, which Taiga renders as HTML', async () => {

@@ -1,6 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { TranslocoService } from '@jsverse/transloco';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { ConfigService } from '../../../core/ipc/config';
 import { collection, fakeConfig, host, project } from '../../../core/ipc/config.fixture';
@@ -63,7 +64,6 @@ describe('HostGroups', () => {
     config = fakeConfig();
     config.projects.set([project('p1', 'Payments')]);
     config.nodes.set(NODES);
-    groups.set(hostGroups(scopeTree(NODES, 'p1'), 'Payments'));
     await TestBed.configureTestingModule({
       imports: [Shell],
       providers: [
@@ -77,6 +77,9 @@ describe('HostGroups', () => {
         { provide: MoveLauncher, useValue: { openDialog: vi.fn() } },
       ],
     }).compileComponents();
+    // The global `translate` behind `uiText` needs the service to exist.
+    TestBed.inject(TranslocoService);
+    groups.set(hostGroups(scopeTree(NODES, 'p1'), 'Payments'));
     fixture = TestBed.createComponent(Shell);
     await settle();
   });

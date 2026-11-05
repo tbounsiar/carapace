@@ -10,7 +10,7 @@
     <tui-tabs-with-more
       size="m"
       role="tablist"
-      aria-label="Open tabs"
+      [attr.aria-label]="'workspace.strip.label' | transloco"
       data-testid="workspace-tabs"
       [activeItemIndex]="activeIndex()"
       [moreContent]="more"
@@ -58,7 +58,7 @@
               icon="@tui.x"
               class="close"
               data-testid="tab-close"
-              [attr.aria-label]="'Close ' + t.title"
+              [attr.aria-label]="'workspace.strip.close' | transloco: { title: t.title }"
               (click.stop)="close(tab)"
             />
           </span>
@@ -79,16 +79,18 @@
     [attr.aria-label]="newHint()"
     (click)="newTerminal()"
   >
-    New terminal
+    {{ 'workspace.strip.newTerminal' | transloco }}
   </button>
 }
 
 <ng-template #more>
-  <span data-testid="tabs-more">More ({{ hiddenTabs().length }})</span>
+  <span data-testid="tabs-more">{{
+    'workspace.strip.more' | transloco: { count: hiddenTabs().length }
+  }}</span>
 </ng-template>
 
 <ng-template #hidden>
-  <tui-data-list size="s" role="menu" aria-label="Hidden tabs">
+  <tui-data-list size="s" role="menu" [attr.aria-label]="'workspace.strip.hidden' | transloco">
     @for (tab of hiddenTabs(); track tab.id) {
       @let t = title(tab);
       <button

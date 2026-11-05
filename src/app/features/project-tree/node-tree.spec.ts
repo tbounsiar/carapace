@@ -1,3 +1,5 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { collection, host, project } from '../../core/ipc/config.fixture';
 import {
   ancestors,
@@ -27,6 +29,9 @@ const NODES = [
 const PROJECTS = [project('p1', 'Payments')];
 
 describe('node-tree', () => {
+  // The global `translate` behind `uiText` needs the service to exist.
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   it('builds one scope, collections first, names sorted numerically', () => {
     const tree = scopeTree(NODES, 'p1');
     expect(tree.map((i) => i.id)).toEqual(['c1', 'c2', 'h2', 'h1']);
@@ -58,6 +63,8 @@ describe('node-tree', () => {
     expect(countText({ collections: 1, hosts: 0 })).toBe('1 collection');
     expect(countText({ collections: 0, hosts: 1 })).toBe('1 host');
     expect(countText({ collections: 0, hosts: 0 })).toBe('');
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    expect(countText({ collections: 2, hosts: 1 })).toBe('2 collections et 1 hôte');
     expect(countNodes(descendants(NODES, 'c1'))).toEqual({ collections: 1, hosts: 2 });
   });
 

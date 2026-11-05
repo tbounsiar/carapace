@@ -8,6 +8,7 @@ import {
   TuiInput,
   TuiTextfield,
 } from '@taiga-ui/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
 import { CurrentScope } from '../../../shared/current-scope';
 import { HostLauncher } from '../../host-connection/host-launcher';
@@ -18,7 +19,7 @@ import { SidebarState } from '../sidebar-state';
 
 /** Aside `<header>` content: the host filter and the New menu. */
 @Component({
-  imports: [TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiInput, TuiTextfield],
+  imports: [TranslocoPipe, TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiInput, TuiTextfield],
   selector: 'app-aside-header',
   templateUrl: './aside-header.html',
   styleUrl: './aside-header.scss',

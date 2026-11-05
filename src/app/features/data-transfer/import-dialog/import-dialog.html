@@ -33,7 +33,7 @@
             data-testid="dialog-cancel"
             (click)="cancel()"
           >
-            Cancel
+            {{ 'common.cancel' | transloco }}
           </button>
           <button
             tuiButton
@@ -42,7 +42,7 @@
             [loading]="picking()"
             (click)="chooseAnother()"
           >
-            Choose another file
+            {{ 'dataTransfer.import.chooseAnother' | transloco }}
           </button>
         </footer>
       </div>
@@ -63,7 +63,7 @@
         </header>
 
         <fieldset class="strategies">
-          <legend class="legend">If an item already exists here</legend>
+          <legend class="legend">{{ 'dataTransfer.import.legend' | transloco }}</legend>
           <div tuiGroup orientation="vertical" class="group" [collapsed]="true">
             @for (option of strategies; track option) {
               <label tuiBlock="s" [attr.data-testid]="'import-strategy-' + option">
@@ -76,17 +76,17 @@
                   [tuiAutoFocus]="option === 'merge'"
                 />
                 <span tuiTitle>
-                  {{ labels[option] }}
+                  {{ 'dataTransfer.strategy.' + option | transloco }}
                   <span tuiSubtitle>
                     @switch (option) {
                       @case ('merge') {
-                        Add new items, update matching ones, keep the rest
+                        {{ 'dataTransfer.import.mergeNote' | transloco }}
                       }
                       @case ('replace') {
                         {{ replaceNote() }}
                       }
                       @default {
-                        Import matching items as copies
+                        {{ 'dataTransfer.import.duplicateNote' | transloco }}
                       }
                     }
                   </span>
@@ -110,16 +110,22 @@
 
         @if (nothing()) {
           <p class="nothing" data-testid="import-nothing">
-            Nothing to import: this computer already has everything in the file.
+            {{ 'dataTransfer.import.nothing' | transloco }}
           </p>
         } @else if (table(); as t) {
           <table tuiTable size="s" class="table" data-testid="import-table">
             <caption class="caption">
-              What changes
+              {{
+                'dataTransfer.import.caption' | transloco
+              }}
             </caption>
             <thead tuiThead>
               <tr>
-                <th tuiTh scope="col" aria-label="Item"></th>
+                <th
+                  tuiTh
+                  scope="col"
+                  [attr.aria-label]="'dataTransfer.import.item' | transloco"
+                ></th>
                 @for (column of t.columns; track column) {
                   <th tuiTh scope="col" class="number">{{ column }}</th>
                 }
@@ -143,12 +149,14 @@
         @if (detailsCount()) {
           <tui-accordion size="s" data-testid="import-details">
             <button type="button" [tuiAccordion]="detailsOpen()">
-              Details ({{ detailsCount() }})
+              {{ 'dataTransfer.import.details' | transloco: { count: detailsCount() } }}
             </button>
             <tui-expand>
               <ng-container *ngTemplateOutlet="items; context: { $implicit: details() }" />
               @if (moreItems()) {
-                <p class="more">and {{ moreItems() }} more</p>
+                <p class="more">
+                  {{ 'dataTransfer.import.more' | transloco: { count: moreItems() } }}
+                </p>
               }
             </tui-expand>
           </tui-accordion>
@@ -177,14 +185,19 @@
         @if (secretLines().length || undefinedText()) {
           <div tuiNotification appearance="info" size="s" data-testid="import-needs-secret">
             <div tuiTitle>
-              {{ secretLines().length ? 'Secrets to set after importing' : 'Variables to define' }}
+              {{
+                (secretLines().length
+                  ? 'dataTransfer.import.secretsTitle'
+                  : 'dataTransfer.import.variablesTitle'
+                ) | transloco
+              }}
               <div tuiSubtitle>
                 @for (line of secretLines(); track line) {
                   <span class="line">{{ line }}</span>
                 }
                 @if (secretLines().length) {
                   <span class="line">
-                    You will be asked for them when connecting until you set them in Variables.
+                    {{ 'dataTransfer.import.askedWhenConnecting' | transloco }}
                   </span>
                 }
                 @if (undefinedText(); as text) {
@@ -203,7 +216,7 @@
             role="status"
             data-testid="import-refreshed"
           >
-            Your data changed since this preview. The preview was updated.
+            {{ 'dataTransfer.import.refreshed' | transloco }}
           </div>
         }
 
@@ -222,7 +235,9 @@
         @if (secretsSent().length) {
           <div tuiNotification appearance="warning" size="s" data-testid="import-secrets-warning">
             <div tuiTitle>
-              <span [id]="secretsTitleId">Saved secrets will go to new servers</span>
+              <span [id]="secretsTitleId">{{
+                'dataTransfer.import.secretsWarning' | transloco
+              }}</span>
               <div tuiSubtitle>
                 @for (line of secretsSent(); track $index) {
                   <span class="line">{{ line }}</span>
@@ -236,14 +251,14 @@
                   formControlName="secretsAck"
                   data-testid="import-secrets-ack"
                 />
-                I trust these servers
+                {{ 'dataTransfer.import.trust' | transloco }}
               </label>
             </div>
           </div>
         }
 
         <p class="note" data-testid="import-backup-note">
-          A backup of your current data is saved first.
+          {{ 'dataTransfer.import.backupNote' | transloco }}
         </p>
 
         <footer>
@@ -255,7 +270,7 @@
             [disabled]="busy()"
             (click)="cancel()"
           >
-            Cancel
+            {{ 'common.cancel' | transloco }}
           </button>
           <button
             tuiButton
@@ -265,7 +280,7 @@
             [disabled]="!canImport()"
             [loading]="busy()"
           >
-            {{ submitLabel() }}
+            {{ submitLabel() | transloco }}
           </button>
         </footer>
       </form>
@@ -278,10 +293,14 @@
             <tui-icon class="done-icon" [icon]="s.undone ? '@tui.undo-2' : '@tui.circle-check'" />
             <hgroup tuiTitle>
               @if (s.undone) {
-                <h2 #summaryHeading tabindex="-1" data-testid="import-undone">Import undone</h2>
-                <p tuiSubtitle>Your data is back as before the import.</p>
+                <h2 #summaryHeading tabindex="-1" data-testid="import-undone">
+                  {{ 'dataTransfer.summary.undoneTitle' | transloco }}
+                </h2>
+                <p tuiSubtitle>{{ 'dataTransfer.summary.undoneText' | transloco }}</p>
               } @else {
-                <h2 #summaryHeading tabindex="-1" data-testid="import-summary">Import complete</h2>
+                <h2 #summaryHeading tabindex="-1" data-testid="import-summary">
+                  {{ 'dataTransfer.summary.completeTitle' | transloco }}
+                </h2>
                 <p tuiSubtitle>{{ s.sentence }}</p>
               }
             </hgroup>
@@ -291,7 +310,7 @@
             @if (s.details.length) {
               <tui-accordion size="s" data-testid="import-details">
                 <button type="button" [tuiAccordion]="s.details.length <= 10">
-                  Details ({{ s.details.length }})
+                  {{ 'dataTransfer.import.details' | transloco: { count: s.details.length } }}
                 </button>
                 <tui-expand>
                   <ng-container *ngTemplateOutlet="items; context: { $implicit: s.details }" />
@@ -302,7 +321,7 @@
             @if (s.disconnected) {
               <div tuiNotification appearance="info" size="s" data-testid="import-disconnected">
                 <div tuiTitle>
-                  Disconnected
+                  {{ 'dataTransfer.summary.disconnected' | transloco }}
                   <div tuiSubtitle>{{ s.disconnected }}</div>
                 </div>
               </div>
@@ -311,7 +330,7 @@
             @if (s.secrets.length) {
               <div tuiNotification appearance="info" size="s" data-testid="import-needs-secret">
                 <div tuiTitle>
-                  Secrets to set
+                  {{ 'dataTransfer.summary.secretsTitle' | transloco }}
                   <div tuiSubtitle>
                     @for (group of s.secrets; track group.key) {
                       @for (line of group.lines; track line) {
@@ -334,12 +353,12 @@
 
             @if (s.undoError; as message) {
               <div tuiNotification appearance="negative" size="s" role="alert">
-                {{ message }}
+                {{ message | transloco: { name: s.backupName } }}
               </div>
             }
 
             <p class="note">
-              Backup:
+              {{ 'dataTransfer.summary.backup' | transloco }}
               <span
                 tuiHintOverflow
                 class="mono ellipsis"
@@ -356,12 +375,12 @@
                 appearance="flat"
                 type="button"
                 data-testid="import-undo"
-                [tuiHint]="s.lostSecrets ? lostHint : null"
+                [tuiHint]="s.lostSecrets ? ('dataTransfer.summary.lostHint' | transloco) : null"
                 [loading]="undoing()"
                 [disabled]="busy() && !undoing()"
                 (click)="undo()"
               >
-                Undo import
+                {{ 'dataTransfer.summary.undo' | transloco }}
               </button>
             }
             <button
@@ -371,7 +390,7 @@
               [disabled]="busy()"
               (click)="cancel()"
             >
-              Done
+              {{ 'dataTransfer.summary.done' | transloco }}
             </button>
           </footer>
         </div>

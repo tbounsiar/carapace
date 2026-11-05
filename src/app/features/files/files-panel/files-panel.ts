@@ -1,4 +1,5 @@
 import { Component, computed, inject, input, linkedSignal } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiAvatar, TuiButtonLoading } from '@taiga-ui/kit';
 import { TuiBlockStatus } from '@taiga-ui/layout';
@@ -16,7 +17,15 @@ import { FilePane, type PaneTransfer } from '../file-pane/file-pane';
 import { PanePaths } from '../pane-paths';
 
 @Component({
-  imports: [FilePane, TransferPanel, TuiAvatar, TuiBlockStatus, TuiButton, TuiButtonLoading],
+  imports: [
+    FilePane,
+    TransferPanel,
+    TranslocoPipe,
+    TuiAvatar,
+    TuiBlockStatus,
+    TuiButton,
+    TuiButtonLoading,
+  ],
   selector: 'app-files-panel',
   styleUrl: './files-panel.scss',
   templateUrl: './files-panel.html',

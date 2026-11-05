@@ -1,11 +1,18 @@
+import { translate } from '@jsverse/transloco';
+
 export type LanguageId = 'plain' | 'shell' | 'yaml' | 'json' | 'ini' | 'nginx' | 'dockerfile';
 
-export const LANGUAGES: readonly { readonly id: LanguageId; readonly label: string }[] = [
-  { id: 'plain', label: 'Plain text' },
+/** `key` is the translation of a label that is not a name. */
+export const LANGUAGES: readonly {
+  readonly id: LanguageId;
+  readonly label: string;
+  readonly key?: string;
+}[] = [
+  { id: 'plain', label: 'Plain text', key: 'editor.languages.plain' },
   { id: 'shell', label: 'Shell' },
   { id: 'yaml', label: 'YAML' },
   { id: 'json', label: 'JSON' },
-  { id: 'ini', label: 'INI / properties' },
+  { id: 'ini', label: 'INI / properties', key: 'editor.languages.ini' },
   { id: 'nginx', label: 'nginx' },
   { id: 'dockerfile', label: 'Dockerfile' },
 ];
@@ -35,7 +42,8 @@ const INI_EXTENSIONS = new Set([
 ]);
 
 export function languageLabel(id: LanguageId): string {
-  return LANGUAGES.find((l) => l.id === id)?.label ?? 'Plain text';
+  const language = LANGUAGES.find((l) => l.id === id) ?? LANGUAGES[0];
+  return language.key ? translate(language.key) : language.label;
 }
 
 function extensionOf(name: string): string {

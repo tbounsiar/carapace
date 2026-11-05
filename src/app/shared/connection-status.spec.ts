@@ -1,6 +1,10 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { connectedCounts, connectionStatus } from './connection-status';
 
 describe('connectionStatus', () => {
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   it('pairs every state with a word, not only a color', () => {
     expect(connectionStatus('idle')).toEqual({
       label: 'Not connected',

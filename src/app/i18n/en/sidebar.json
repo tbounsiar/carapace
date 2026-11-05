@@ -1,1 +1,38 @@
-{}
+{
+  "filter": "Filter hosts",
+  "new": "New",
+  "newHost": "New host",
+  "newCollection": "New collection",
+  "newProject": "New project",
+  "loadError": "Hosts could not be loaded",
+  "retry": "Try again",
+  "empty": {
+    "home": "Nothing here yet. Use + for a collection or a project.",
+    "project": "No hosts yet. Use + for a collection."
+  },
+  "noMatch": "No host matches",
+  "query": "“{query}”",
+  "clearFilter": "Clear filter",
+  "projects": "Projects",
+  "open": "Open",
+  "openProject": "Open {name}",
+  "openConnections": "{count, plural, one {# open connection} other {# open connections}}",
+  "addHost": "Add host",
+  "connect": "Connect",
+  "disconnect": "Disconnect",
+  "connectHost": "Connect {name}",
+  "disconnectHost": "Disconnect {name}",
+  "actions": "Actions",
+  "actionsFor": "Actions for {name}",
+  "menu": {
+    "move": "Move to…",
+    "openProject": "Open project",
+    "variables": "Project variables",
+    "newHostHere": "New host here",
+    "newCollectionHere": "New collection here",
+    "newTerminal": "New terminal",
+    "openFiles": "Open files"
+  },
+  "connectionsFailed": "Connections not loaded",
+  "hostsFailed": "Hosts not loaded"
+}

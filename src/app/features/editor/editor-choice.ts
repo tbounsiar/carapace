@@ -1,3 +1,4 @@
+import { translate } from '@jsverse/transloco';
 import type { TuiDialogService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
@@ -6,12 +7,12 @@ import type { EditorChoice, EditorChoiceData } from './editor-choice-dialog/edit
 
 /** Taiga renders a dialog label as HTML: a file name is escaped. */
 const LABELS = {
-  unsaved: (name: string) => `Save changes to ${escapeHtml(name)}?`,
-  changed: () => 'File changed on the server',
-  deleted: () => 'File changed on the server',
-  retargeted: () => 'Link changed on the server',
-  externalChanged: () => 'File changed on the server',
-  externalDeleted: () => 'File changed on the server',
+  unsaved: (name: string) => translate('editor.choice.unsavedTitle', { name: escapeHtml(name) }),
+  changed: () => translate('editor.choice.changedTitle'),
+  deleted: () => translate('editor.choice.changedTitle'),
+  retargeted: () => translate('editor.choice.retargetedTitle'),
+  externalChanged: () => translate('editor.choice.changedTitle'),
+  externalDeleted: () => translate('editor.choice.changedTitle'),
 } as const;
 
 /** Esc and the close button answer Cancel. */

@@ -1,3 +1,5 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { collection, host, project } from '../../core/ipc/config.fixture';
 import type { Host } from '../../core/ipc/config.models';
 import { scopeTree } from '../project-tree/node-tree';
@@ -29,6 +31,9 @@ const lookups: BoardLookups = {
 };
 
 describe('board', () => {
+  // The global `translate` behind `uiText` needs the service to exist.
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   const groups = () => hostGroups(scopeTree(NODES, 'p1'), 'Payments');
 
   it('groups hosts by the container holding them, root first then depth-first', () => {
@@ -88,5 +93,16 @@ describe('board', () => {
     expect(countText(5, 12)).toBe('5 of 12 hosts');
     expect(projectSummary(20, 2)).toBe('20 hosts · 2 connected');
     expect(projectSummary(1, 0)).toBe('1 host');
+  });
+
+  it('writes stats, counts and the root label in French', () => {
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    expect(statsText({ hosts: 1, collections: 2, connected: 1 })).toBe(
+      '1 hôte · 2 collections · 1 connecté',
+    );
+    expect(countText(0, 12)).toBe('0 sur 12 hôtes');
+    expect(
+      hostGroups([{ kind: 'host', id: 'h', host: host('h', 'vps', null) }], 'Home')[0],
+    ).toEqual(expect.objectContaining({ label: 'Accueil (racine)', testId: 'host-group-Home' }));
   });
 });

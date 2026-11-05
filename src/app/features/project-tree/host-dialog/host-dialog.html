@@ -1,23 +1,30 @@
 <form tuiForm="m" [formGroup]="form" (ngSubmit)="submit()">
-  <p class="location" data-testid="host-location">In: {{ context.data.location }}</p>
+  <p class="location" data-testid="host-location">
+    {{ 'projectTree.hostDialog.location' | transloco: { location: context.data.location } }}
+  </p>
   <tui-textfield>
-    <label tuiLabel>Name</label>
+    <label tuiLabel>{{ 'projectTree.hostDialog.fields.name' | transloco }}</label>
     <input tuiAutoFocus tuiInput formControlName="name" data-testid="host-name" />
   </tui-textfield>
   <tui-error appErrorLink formControlName="name" />
 
   <p class="note">
-    Fields accept variables such as <code class="mono">{{ example }}</code
-    >; write <code class="mono">$$</code> for a literal <code class="mono">$</code>.
+    @for (part of note(); track $index) {
+      @if (part.mono) {
+        <code class="mono">{{ part.text }}</code>
+      } @else {
+        <span>{{ part.text }}</span>
+      }
+    }
   </p>
 
   <fieldset class="address">
     <tui-textfield>
-      <label tuiLabel>Hostname</label>
+      <label tuiLabel>{{ 'projectTree.hostDialog.fields.hostname' | transloco }}</label>
       <input tuiInput class="mono" formControlName="hostname" data-testid="host-hostname" />
     </tui-textfield>
     <tui-textfield>
-      <label tuiLabel>Port</label>
+      <label tuiLabel>{{ 'projectTree.hostDialog.fields.port' | transloco }}</label>
       <input tuiInput class="mono" formControlName="port" data-testid="host-port" />
     </tui-textfield>
   </fieldset>
@@ -25,13 +32,13 @@
   <tui-error appErrorLink formControlName="port" />
 
   <tui-textfield>
-    <label tuiLabel>Username</label>
+    <label tuiLabel>{{ 'projectTree.hostDialog.fields.username' | transloco }}</label>
     <input tuiInput class="mono" formControlName="username" data-testid="host-username" />
   </tui-textfield>
   <tui-error appErrorLink formControlName="username" />
 
   <fieldset class="auth">
-    <legend>Authentication</legend>
+    <legend>{{ 'projectTree.hostDialog.authentication' | transloco }}</legend>
     <tui-segmented size="s" data-testid="host-auth">
       @for (kind of authKinds; track kind) {
         <label>
@@ -48,7 +55,7 @@
       [tuiDropdownManual]="keyMenuOpen()"
       (tuiActiveZoneChange)="$event || keyMenuOpen.set(false)"
     >
-      <label tuiLabel>Key path</label>
+      <label tuiLabel>{{ 'projectTree.hostDialog.fields.keyPath' | transloco }}</label>
       <input
         #keyPathInput
         tuiInput
@@ -63,11 +70,9 @@
         size="xs"
         iconStart="@tui.key-round"
         type="button"
-        aria-label="Pick a registered key"
         data-testid="host-key-pick"
-        [tuiHint]="
-          keyMenuOpen() ? null : keys().length ? 'Pick a registered key' : 'No registered keys yet'
-        "
+        [attr.aria-label]="'projectTree.hostDialog.pickKey' | transloco"
+        [tuiHint]="keyMenuOpen() ? null : (pickHint() | transloco)"
         [attr.aria-expanded]="keyMenuOpen()"
         (click)="keyMenuOpen.set(!keyMenuOpen())"
       ></button>
@@ -78,14 +83,14 @@
         size="xs"
         iconStart="@tui.folder-open"
         type="button"
-        aria-label="Choose a key file"
-        tuiHint="Choose a key file"
         data-testid="host-key-browse"
+        [attr.aria-label]="'projectTree.hostDialog.browseKey' | transloco"
+        [tuiHint]="'projectTree.hostDialog.browseKey' | transloco"
         [disabled]="picking()"
         (click)="browseKey()"
       ></button>
       <ng-template #keyMenu>
-        <tui-data-list size="s" emptyContent="No registered keys. Add one in SSH keys.">
+        <tui-data-list size="s" [emptyContent]="'projectTree.hostDialog.noKeysList' | transloco">
           @for (key of keys(); track key.id) {
             <button
               tuiOption
@@ -106,13 +111,13 @@
     @if (showRegister()) {
       <div tuiNotification appearance="neutral" size="s" data-testid="host-key-register">
         <span tuiTitle>
-          Not in SSH keys. Register it to remember its passphrase and deploy it.
+          {{ 'projectTree.hostDialog.notRegistered' | transloco }}
           <span tuiSubtitle>
             <button
               tuiLink
               type="button"
               data-testid="host-key-register-link"
-              [textContent]="'Register this key'"
+              [textContent]="'projectTree.hostDialog.register' | transloco"
               (click)="registerKey()"
             ></button>
           </span>
@@ -120,20 +125,18 @@
       </div>
     }
     <tui-textfield tuiChevron [stringify]="askLabel" [tuiTextfieldCleaner]="false">
-      <label tuiLabel>Passphrase</label>
+      <label tuiLabel>{{ 'projectTree.hostDialog.fields.passphrase' | transloco }}</label>
       <input
         tuiSelect
         class="mono"
-        placeholder="Ask when connecting"
+        [placeholder]="'projectTree.hostDialog.ask' | transloco"
         formControlName="passphrase"
         data-testid="host-passphrase"
       />
-      <tui-icon
-        tuiTooltip="Only for an encrypted key. Pick a secret variable (defined in Project variables or Global variables) or be asked when needed."
-      />
+      <tui-icon [tuiTooltip]="'projectTree.hostDialog.passphraseHint' | transloco" />
       <tui-data-list *tuiDropdown size="s">
         <button tuiOption type="button" data-testid="host-secret-option-ask" [value]="null">
-          Ask when connecting
+          {{ 'projectTree.hostDialog.ask' | transloco }}
         </button>
         @for (ref of secretReferences(); track ref) {
           <button
@@ -153,20 +156,18 @@
 
   @if (isPassword()) {
     <tui-textfield tuiChevron [stringify]="askLabel" [tuiTextfieldCleaner]="false">
-      <label tuiLabel>Password</label>
+      <label tuiLabel>{{ 'projectTree.hostDialog.fields.password' | transloco }}</label>
       <input
         tuiSelect
         class="mono"
-        placeholder="Ask when connecting"
+        [placeholder]="'projectTree.hostDialog.ask' | transloco"
         formControlName="password"
         data-testid="host-password"
       />
-      <tui-icon
-        tuiTooltip="Pick a secret variable (defined in Project variables or Global variables) or be asked when connecting."
-      />
+      <tui-icon [tuiTooltip]="'projectTree.hostDialog.passwordHint' | transloco" />
       <tui-data-list *tuiDropdown size="s">
         <button tuiOption type="button" data-testid="host-secret-option-ask" [value]="null">
-          Ask when connecting
+          {{ 'projectTree.hostDialog.ask' | transloco }}
         </button>
         @for (ref of secretReferences(); track ref) {
           <button
@@ -193,15 +194,17 @@
     >
       @if (p.missing.length) {
         <tui-icon icon="@tui.circle-alert" />
-        <span>Missing: {{ p.missing.join(', ') }}</span>
+        <span>{{
+          'projectTree.hostDialog.missing' | transloco: { names: p.missing.join(', ') }
+        }}</span>
       } @else if (p.errors.length) {
         <tui-icon icon="@tui.circle-alert" />
         <span>{{ p.errors[0] }}</span>
       } @else {
         <tui-icon icon="@tui.circle-check" />
-        <span
-          >Resolves to <span class="mono">{{ p.address }}</span></span
-        >
+        <span>
+          <ng-container *ngTemplateOutlet="parts; context: { $implicit: resolves() }" />
+        </span>
       }
     </p>
   }
@@ -273,7 +276,10 @@
       [tuiHint]="testing() ? null : testBlocker()"
       (click)="toggleTest()"
     >
-      {{ testing() ? 'Cancel test' : 'Test connection' }}
+      {{
+        (testing() ? 'projectTree.hostDialog.cancelTest' : 'projectTree.hostDialog.test')
+          | transloco
+      }}
     </button>
     <button
       tuiButton
@@ -282,8 +288,10 @@
       data-testid="dialog-cancel"
       (click)="context.$implicit.complete()"
     >
-      Cancel
+      {{ 'common.cancel' | transloco }}
     </button>
-    <button tuiButton type="submit" data-testid="dialog-save" [loading]="saving()">Save</button>
+    <button tuiButton type="submit" data-testid="dialog-save" [loading]="saving()">
+      {{ 'common.save' | transloco }}
+    </button>
   </footer>
 </form>

@@ -1,4 +1,5 @@
 import { inject, Service } from '@angular/core';
+import { TranslocoService } from '@jsverse/transloco';
 import { TuiDialogService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
@@ -13,17 +14,19 @@ export interface HostKeyAskOptions {
 @Service()
 export class HostKeyPrompter {
   private readonly dialogs = inject(TuiDialogService);
+  private readonly transloco = inject(TranslocoService);
 
   /** True only on an explicit accept; any other way of closing the dialog is a reject. */
   async ask(prompt: HostKeyPrompt, options: HostKeyAskOptions = {}): Promise<boolean> {
     const { HostKeyDialog } = await import('./host-key-dialog');
     const result = await firstValueFrom(
       this.dialogs.open<boolean>(new PolymorpheusComponent(HostKeyDialog), {
-        label: 'Unknown host key',
+        label: this.transloco.translate('hostKeyDialog.unknown.title'),
         size: 'm',
         data: {
           ...prompt,
-          acceptLabel: options.acceptLabel ?? 'Accept and connect',
+          acceptLabel:
+            options.acceptLabel ?? this.transloco.translate('hostKeyDialog.unknown.acceptConnect'),
         } satisfies HostKeyDialogData,
       }),
       { defaultValue: false },
@@ -37,7 +40,7 @@ export class HostKeyPrompter {
       await import('./host-key-changed-dialog/host-key-changed-dialog');
     const result = await firstValueFrom(
       this.dialogs.open<boolean>(new PolymorpheusComponent(HostKeyChangedDialog), {
-        label: 'Host key has changed',
+        label: this.transloco.translate('hostKeyDialog.changed.title'),
         size: 'm',
         data: event,
       }),

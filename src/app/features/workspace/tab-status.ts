@@ -1,10 +1,11 @@
 import type { ConnectionState, EndReason } from '../../core/ipc/ssh.models';
+import { uiText } from '../../shared/ui-text';
 
 export type TabStatusKind = 'connecting' | 'connected' | 'lost' | 'ended';
 
 export interface TabStatus {
   readonly kind: TabStatusKind;
-  /** The word read in hints and aria labels. */
+  /** English word, also the identifier `statusWord` translates. */
   readonly word: string;
 }
 
@@ -59,4 +60,20 @@ export function editorTabStatus(
     return { kind: 'connecting', word: 'Saving…' };
   }
   return connectionTabStatus(state, end);
+}
+
+const WORD_KEYS: Readonly<Record<string, string>> = {
+  'Connecting…': 'connecting',
+  Connected: 'connected',
+  'Connection lost': 'lost',
+  Disconnected: 'disconnected',
+  'Session ended': 'ended',
+  'Loading…': 'loading',
+  'Saving…': 'saving',
+};
+
+/** The status word in the active language; `word` stays the English identifier. */
+export function statusWord(status: TabStatus): string {
+  const key = WORD_KEYS[status.word];
+  return key ? uiText(`workspace.status.${key}`) : status.word;
 }

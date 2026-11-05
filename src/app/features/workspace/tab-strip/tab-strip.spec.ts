@@ -9,6 +9,8 @@ import type { TabStatus } from '../tab-status';
 import { type TabSpec, Workspace, type WorkspaceTab } from '../workspace';
 import { WorkspaceActions } from '../workspace-actions';
 import { TabStrip } from './tab-strip';
+import { TranslocoService } from '@jsverse/transloco';
+import { trackLanguage } from '../../../shared/ui-text';
 
 @Component({ template: '' })
 class Blank {}
@@ -214,5 +216,26 @@ describe('TabStrip', () => {
     press({ key: 'T', ctrlKey: true, shiftKey: true });
     expect(launcher.newTerminal).toHaveBeenCalledTimes(2);
     expect(launcher.newTerminal).toHaveBeenCalledWith(expect.objectContaining({ id: 'h1' }));
+  });
+
+  it('follows a switch to French', async () => {
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    workspace.add({
+      key: 'terminal:h1:3',
+      kind: 'terminal',
+      hostId: 'h1',
+      label: 'Terminal 3',
+      status: signal<TabStatus>({ kind: 'lost', word: 'Connection lost' }),
+    });
+    add('h1', 'files', 'Files');
+    await settle();
+    transloco.setActiveLang('fr');
+    await settle();
+    expect(byId('workspace-tabs')?.getAttribute('aria-label')).toBe('Onglets ouverts');
+    const term = byId('tab-vps-terminal-3')!;
+    expect(term.getAttribute('aria-label')).toBe('vps · Terminal 3 — Connexion perdue');
+    expect(byId('tab-vps-files')?.textContent).toContain('Fichiers');
+    expect(byId('tabs-new')?.getAttribute('aria-label')).toBe('Sélectionnez d’abord un onglet');
   });
 });

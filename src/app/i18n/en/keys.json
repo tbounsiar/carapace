@@ -1,1 +1,127 @@
-{}
+{
+  "page": {
+    "title": "SSH keys",
+    "subtitle": "Generate or register private keys, then deploy their public key to a host. Private keys never leave this machine.",
+    "generate": "Generate key",
+    "import": "Import key",
+    "columns": {
+      "name": "Name",
+      "type": "Type",
+      "fingerprint": "Fingerprint",
+      "comment": "Comment",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "badges": {
+      "encrypted": "Encrypted",
+      "passphraseSaved": "Passphrase saved",
+      "external": "External",
+      "customFolder": "Custom folder"
+    },
+    "rowMenu": "Actions for {name}",
+    "menu": {
+      "copy": "Copy public key",
+      "deploy": "Deploy to host...",
+      "forget": "Forget passphrase"
+    },
+    "loadError": "SSH keys could not be loaded",
+    "retry": "Try again",
+    "unavailable": "Keys unavailable",
+    "empty": {
+      "title": "No SSH keys yet",
+      "text": "Generate a new Ed25519 key, or register a private key you already have."
+    }
+  },
+  "actions": {
+    "renameTitle": "Rename key",
+    "copied": "Public key copied",
+    "copyFailed": "Copy failed",
+    "noClipboard": "The clipboard is not available.",
+    "forgotten": "Passphrase forgotten",
+    "forgottenText": "The passphrase of {name} is no longer saved.",
+    "notForgotten": "Passphrase not forgotten",
+    "deleteTitle": "Delete key \"{name}\"?",
+    "notDeleted": "Key not deleted",
+    "deleteConflict": "The file at this path no longer holds this key. Nothing was deleted.",
+    "deployTitle": "Deploy public key",
+    "deployFailed": "Deploy failed",
+    "hostGone": "The host no longer exists.",
+    "restricted": "Key restricted",
+    "restrictedText": "Key present with restrictions (options) on {host}; not changed. Edit authorized_keys by hand to allow normal logins.",
+    "deployed": "Key deployed",
+    "deployedText": "Key added to authorized_keys on {host}",
+    "nothingToDo": "Nothing to do",
+    "presentText": "Key already present on {host}",
+    "hostNotUpdated": "Host not updated"
+  },
+  "fields": {
+    "name": "Name",
+    "passphraseOptional": "Passphrase (optional)",
+    "rememberPassphrase": "Remember passphrase in the system keychain"
+  },
+  "delete": {
+    "text": "The key is removed from the list and any saved passphrase is forgotten.",
+    "deleteFiles": "Also delete the key files",
+    "pubFile": "and {file}.pub.",
+    "managedNote": "Servers that trust this key can no longer be reached with it.",
+    "sharedNote": "Other tools may use this key.",
+    "importedNote": "The file stays where it is: it was imported, not generated here."
+  },
+  "deploy": {
+    "intro": "Appends the public key of {name} to {file} on the host. You connect first, as usual.",
+    "host": "Host",
+    "pickHost": "Pick a host",
+    "noHosts": "No hosts yet",
+    "useKey": "Use this key for the host",
+    "useKeyNote": "Sets the host's authentication to this key ({path}).",
+    "submit": "Deploy"
+  },
+  "keygen": {
+    "type": "Type",
+    "typeNote": "Ed25519 is recommended. RSA 4096 is slower, for servers without Ed25519.",
+    "folder": "Folder",
+    "resetFolder": "Use the default folder",
+    "chooseFolder": "Choose a folder",
+    "fileName": "File name",
+    "fileNameHint": "Letters, digits, '.', '_' and '-'. The public key gets a .pub suffix.",
+    "savedAs": "Saved as {file} and {pub} in this folder.",
+    "folderWarning": "Other users can open this folder. The private key file stays readable only by you, but they may be able to replace or delete it.",
+    "comment": "Comment",
+    "confirm": "Confirm passphrase",
+    "rsaSlow": "Generating an RSA key takes a few seconds.",
+    "submit": "Generate",
+    "folderMissing": "This folder does not exist. Create it, or choose another one.",
+    "folderDenied": "Carapace cannot write to this folder. Choose another one.",
+    "fileExists": "{file} or {file}.pub already exists in this folder.",
+    "pickerFailed": "Folder picker not opened",
+    "notGenerated": "Key not generated"
+  },
+  "import": {
+    "path": "Private key path",
+    "chooseFile": "Choose a key file",
+    "pathHint": "An OpenSSH private key. The file is not copied: it stays where it is and is only registered.",
+    "passphraseNote": "Only needed to remember the passphrase of an encrypted key.",
+    "submit": "Import",
+    "pickerFailed": "File picker not opened",
+    "notImported": "Key not imported",
+    "wrongPassphrase": "Wrong passphrase"
+  },
+  "validation": {
+    "nameRequired": "Name is required",
+    "nameMax": "Name must be at most {max} characters",
+    "nameTaken": "A key with this name already exists",
+    "fileNameRequired": "File name is required",
+    "fileNameMax": "File name must be at most {max} characters",
+    "fileNameDot": "File name must not start with \".\"",
+    "fileNameChars": "File name may only contain letters, digits, \".\", \"_\" and \"-\"",
+    "commentMax": "Comment must be at most {max} characters",
+    "commentLine": "Comment must be a single line",
+    "passphraseMax": "Passphrase must be at most {max} characters",
+    "mismatch": "Passphrases do not match",
+    "pathRequired": "Path is required",
+    "networkPath": "Network paths are not supported",
+    "pathAbsolute": "Use an absolute path or one starting with ~/",
+    "folderRequired": "Choose a folder for the key.",
+    "folderAbsolute": "Use a full path, or one starting with ~/."
+  }
+}

@@ -46,10 +46,10 @@
           iconStart="@tui.ellipsis"
           type="button"
           [attr.aria-expanded]="menuOpen()"
-          [attr.aria-label]="'Actions for ' + current.name"
+          [attr.aria-label]="'dashboard.card.actionsFor' | transloco: { name: current.name }"
           [attr.data-testid]="'card-menu-' + current.name"
         >
-          Actions
+          {{ 'dashboard.card.actions' | transloco }}
         </button>
       </span>
     </aside>
@@ -74,11 +74,11 @@
         size="s"
         iconStart="@tui.square-terminal"
         type="button"
-        [attr.aria-label]="'Open terminal on ' + current.name"
+        [attr.aria-label]="'dashboard.card.openTerminal' | transloco: { name: current.name }"
         [attr.data-testid]="'card-terminal-' + current.name"
         (click)="openTerminal()"
       >
-        Terminal
+        {{ 'dashboard.card.terminal' | transloco }}
       </button>
       <button
         tuiButton
@@ -86,11 +86,11 @@
         size="s"
         iconStart="@tui.folder-open"
         type="button"
-        [attr.aria-label]="'Browse files on ' + current.name"
+        [attr.aria-label]="'dashboard.card.browseFiles' | transloco: { name: current.name }"
         [attr.data-testid]="'card-files-' + current.name"
         (click)="openFiles()"
       >
-        Files
+        {{ 'dashboard.card.files' | transloco }}
       </button>
     } @else {
       <button
@@ -100,18 +100,22 @@
         iconStart="@tui.plug"
         type="button"
         [loading]="state.busy"
-        [attr.aria-label]="'Connect ' + current.name"
+        [attr.aria-label]="'dashboard.card.connectHost' | transloco: { name: current.name }"
         [attr.data-testid]="'card-connect-' + current.name"
         (click)="connect()"
       >
-        Connect
+        {{ 'dashboard.card.connect' | transloco }}
       </button>
     }
   </footer>
 </article>
 
 <ng-template #menu let-close>
-  <tui-data-list size="s" role="menu" [attr.aria-label]="'Actions for ' + current.name">
+  <tui-data-list
+    size="s"
+    role="menu"
+    [attr.aria-label]="'dashboard.card.actionsFor' | transloco: { name: current.name }"
+  >
     @for (entry of menuEntries(); track entry.id) {
       @if (entry.separated) {
         <hr />

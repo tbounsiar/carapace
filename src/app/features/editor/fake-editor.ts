@@ -59,6 +59,12 @@ export class FakeEditor implements CodeEditor {
     this.readOnly = readOnly;
   }
 
+  label = '';
+
+  setTexts(label: string): void {
+    this.label = label;
+  }
+
   setWrap(wrap: boolean): void {
     this.wrap = wrap;
   }

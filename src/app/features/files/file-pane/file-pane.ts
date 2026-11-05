@@ -12,6 +12,8 @@ import {
   untracked,
   viewChildren,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { RouterLink } from '@angular/router';
 import { TuiTable, type TuiComparator, type TuiTableSortChange } from '@taiga-ui/addon-table';
 import { TuiItem } from '@taiga-ui/cdk';
@@ -27,6 +29,7 @@ import {
   TuiNotificationService,
 } from '@taiga-ui/core';
 import { TuiBadge, TuiBreadcrumbs } from '@taiga-ui/kit';
+import { LanguageService } from '../../../core/i18n/language';
 import { MAX_EDIT_BYTES } from '../../../core/ipc/editor-files';
 import { OptionLabel } from '../../../shared/option-reason/option-label';
 import { OptionReason } from '../../../shared/option-reason/option-reason';
@@ -34,6 +37,7 @@ import { type EditedFile, MAX_EXTERNAL_BYTES } from '../../../core/ipc/external-
 import type { FileEntry, FileSource, Listing } from '../../../core/ipc/files';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { stateLook } from '../../external-editor/edited-view';
+import { escapeHtml } from '../../../shared/path-breaks';
 import { errorText, notifyError } from '../../../shared/save-error';
 import { FileDialogs } from '../file-dialogs';
 import { DRAG_PLACEHOLDER, DRAG_TYPE, FileDrag } from '../file-drag';
@@ -103,6 +107,7 @@ const SORTERS = Object.fromEntries(
     TuiLoader,
     TuiNotification,
     TuiTable,
+    TranslocoPipe,
   ],
   selector: 'app-file-pane',
   styleUrl: './file-pane.scss',
@@ -113,6 +118,10 @@ export class FilePane {
   private readonly alerts = inject(TuiNotificationService);
   private readonly injector = inject(Injector);
   private readonly drag = inject(FileDrag);
+  private readonly transloco = inject(TranslocoService);
+  private readonly language = inject(LanguageService);
+  /** Read by computed texts so they follow a language switch once its translations are loaded. */
+  private readonly translation = toSignal(this.transloco.selectTranslation());
 
   readonly source = input.required<FileSource>();
   readonly label = input.required<string>();
@@ -164,22 +173,25 @@ export class FilePane {
     return listing ? upTarget(listing.path, listing.parent, this.side()) : null;
   });
   protected readonly canCreate = computed(() => !!this.path());
-  protected readonly rows = computed<Row[]>(() =>
-    sortEntries(
+  protected readonly rows = computed<Row[]>(() => {
+    this.translation();
+    const locale = this.language.locale();
+    return sortEntries(
       visibleEntries(this.listing()?.entries ?? [], this.showHidden()),
       this.sortKey(),
       this.direction(),
     ).map((entry) => ({
       entry,
       icon: KIND_ICONS[entry.kind],
-      size: entry.kind === 'dir' ? '' : formatSize(entry.size),
-      modified: formatModified(entry.modified),
-      marker: this.markerOf(this.edited().get(entry.path)),
-    })),
-  );
-  protected readonly transferLabel = computed(() =>
-    this.side() === 'local' ? 'Upload to remote' : 'Download to local',
-  );
+      size: entry.kind === 'dir' ? '' : formatSize(entry.size, locale),
+      modified: formatModified(entry.modified, locale),
+      marker: this.markerOf(this.edited().get(entry.path), locale),
+    }));
+  });
+  protected readonly transferLabel = computed(() => {
+    this.translation();
+    return this.t(this.side() === 'local' ? 'files.pane.upload' : 'files.pane.download');
+  });
   protected readonly canSend = computed(
     () => this.transferTarget() !== null && this.selection.count() > 0,
   );
@@ -344,14 +356,18 @@ export class FilePane {
     return entry.size !== null && entry.size > MAX_EXTERNAL_BYTES;
   }
 
-  private markerOf(file: EditedFile | undefined): Marker | null {
+  private t(key: string, params?: Record<string, unknown>): string {
+    return this.transloco.translate(key, params);
+  }
+
+  private markerOf(file: EditedFile | undefined, locale: string): Marker | null {
     if (!file) {
       return null;
     }
     return {
       state: file.state,
       attention: file.needsAttention,
-      label: `Open in an external editor · ${stateLook(file).word}`,
+      label: this.t('files.pane.marker', { state: stateLook(file, locale).word }),
     };
   }
 
@@ -446,7 +462,7 @@ export class FilePane {
       return;
     }
     const source = this.source();
-    this.dialogs.askName('New folder', source.side, '', async (name) => {
+    this.dialogs.askName(this.t('files.pane.newFolder'), source.side, '', async (name) => {
       const created = await source.mkdir(parent, name);
       await this.load(source, parent, { select: created.path });
     });
@@ -458,7 +474,8 @@ export class FilePane {
       return;
     }
     const source = this.source();
-    this.dialogs.askName(`Rename "${entry.name}"`, source.side, entry.name, async (name) => {
+    const label = this.t('files.pane.renameTitle', { name: escapeHtml(entry.name) });
+    this.dialogs.askName(label, source.side, entry.name, async (name) => {
       if (name === entry.name) {
         return;
       }
@@ -479,7 +496,7 @@ export class FilePane {
       notifyError(
         this.alerts,
         err,
-        entry.kind === 'dir' ? 'Folder not deleted' : 'File not deleted',
+        this.t(entry.kind === 'dir' ? 'files.pane.folderNotDeleted' : 'files.pane.fileNotDeleted'),
       );
     }
     await this.load(source, parent, { select: null });
@@ -559,7 +576,7 @@ export class FilePane {
     if (this.listing() === null) {
       this.error.set(errorText(err));
     }
-    notifyError(this.alerts, err, 'Folder not opened');
+    notifyError(this.alerts, err, this.t('files.pane.folderNotOpened'));
   }
 
   private focusActiveRow(): void {

@@ -1,11 +1,12 @@
 <header tuiHeader class="header">
   <hgroup tuiTitle>
-    <h1 #heading tabindex="-1" data-testid="edited-title">Edited files</h1>
+    <h1 #heading tabindex="-1" data-testid="edited-title">
+      {{ 'externalEditor.page.title' | transloco }}
+    </h1>
     <p tuiSubtitle>
-      Files open in an external editor. Each save there is uploaded to the server.
+      {{ 'externalEditor.page.subtitle' | transloco }}
       @if (rows().length) {
-        Closing the file in your editor does not stop syncing; use Stop editing. If your editor
-        briefly says the file is in use, save again.
+        {{ 'externalEditor.page.subtitleMore' | transloco }}
       }
     </p>
   </hgroup>
@@ -15,15 +16,30 @@
   <tui-loader size="m" class="loader" />
 } @else if (rows().length) {
   <div tuiNotification appearance="neutral" size="s" class="note" data-testid="edited-note">
-    While you edit, a copy of each file is stored on this computer. Stop editing deletes it; your
-    editor may keep its own copies (backups, history).
+    {{ 'externalEditor.page.note' | transloco }}
   </div>
-  <table tuiTable size="s" class="table" aria-label="Edited files">
+  <table
+    tuiTable
+    size="s"
+    class="table"
+    [attr.aria-label]="'externalEditor.page.title' | transloco"
+  >
     <thead tuiThead>
       <tr>
-        <th tuiTh>File</th>
-        <th tuiTh class="col-state">State</th>
-        <th tuiTh class="col-actions" aria-label="Actions" [class._wide]="hasRowAction()"></th>
+        <th tuiTh>
+          <span tuiHintOverflow class="th-label">{{ 'externalEditor.page.file' | transloco }}</span>
+        </th>
+        <th tuiTh class="col-state">
+          <span tuiHintOverflow class="th-label">{{
+            'externalEditor.page.state' | transloco
+          }}</span>
+        </th>
+        <th
+          tuiTh
+          class="col-actions"
+          [attr.aria-label]="'externalEditor.page.actions' | transloco"
+          [class._wide]="hasRowAction()"
+        ></th>
       </tr>
     </thead>
     <tbody tuiTbody>
@@ -44,7 +60,9 @@
                   data-testid="edited-open"
                   aria-keyshortcuts="Delete"
                   [disabled]="!!row.blocked"
-                  [attr.aria-label]="'Open ' + row.file.name + ' in the external editor'"
+                  [attr.aria-label]="
+                    'externalEditor.page.openAria' | transloco: { name: row.file.name }
+                  "
                   [textContent]="row.file.name"
                   (click)="actions.reopen(row.file)"
                 ></button>
@@ -107,13 +125,15 @@
                 type="button"
                 data-testid="edited-row-menu"
                 aria-keyshortcuts="Delete Shift+F10"
-                [attr.aria-label]="'Actions for ' + row.file.name"
+                [attr.aria-label]="
+                  'externalEditor.page.actionsFor' | transloco: { name: row.file.name }
+                "
                 [tuiDropdown]="menu"
                 tuiDropdownAlign="end"
                 [tuiDropdownOpen]="openMenu() === row.file.id"
                 (tuiDropdownOpenChange)="setMenu(row, $event)"
               >
-                Actions
+                {{ 'externalEditor.page.actions' | transloco }}
               </button>
             </span>
             <ng-template #menu let-close>
@@ -127,7 +147,9 @@
                   [appOptionReason]="row.uploadReason"
                   (click)="close(); actions.upload(row.file)"
                 >
-                  <app-option-label>Upload now</app-option-label>
+                  <app-option-label>{{
+                    'externalEditor.page.uploadNow' | transloco
+                  }}</app-option-label>
                 </button>
                 <button
                   tuiOption
@@ -138,7 +160,9 @@
                   [appOptionReason]="row.blocked"
                   (click)="close(); actions.reopen(row.file)"
                 >
-                  <app-option-label>Open in external editor</app-option-label>
+                  <app-option-label>{{
+                    'externalEditor.page.openExternal' | transloco
+                  }}</app-option-label>
                 </button>
                 <button
                   tuiOption
@@ -149,7 +173,9 @@
                   [appOptionReason]="row.builtInReason"
                   (click)="close(); actions.openBuiltIn(row.file)"
                 >
-                  <app-option-label>Open in built-in editor</app-option-label>
+                  <app-option-label>{{
+                    'externalEditor.page.openBuiltIn' | transloco
+                  }}</app-option-label>
                 </button>
                 <button
                   tuiOption
@@ -159,7 +185,7 @@
                   data-testid="edited-reveal"
                   (click)="close(); actions.reveal(row.file)"
                 >
-                  Show in folder
+                  {{ 'externalEditor.page.showInFolder' | transloco }}
                 </button>
                 @if (row.host && !row.connected && !row.blocked) {
                   <button
@@ -170,7 +196,7 @@
                     data-testid="edited-reconnect"
                     (click)="close(); actions.reconnect(row.file)"
                   >
-                    Reconnect {{ row.hostName }}
+                    {{ 'externalEditor.page.reconnect' | transloco: { host: row.hostName } }}
                   </button>
                 }
                 <hr />
@@ -183,7 +209,7 @@
                     data-testid="edited-discard"
                     (click)="close(); stop(row)"
                   >
-                    Discard
+                    {{ 'externalEditor.page.discard' | transloco }}
                   </button>
                 } @else {
                   <button
@@ -194,7 +220,7 @@
                     data-testid="edited-stop"
                     (click)="close(); stop(row)"
                   >
-                    Stop editing
+                    {{ 'externalEditor.page.stop' | transloco }}
                   </button>
                 }
               </tui-data-list>
@@ -207,12 +233,10 @@
 } @else {
   <tui-block-status size="m" data-testid="edited-empty">
     <span tuiAvatar="@tui.external-link" size="l" tuiSlot="top"></span>
-    <h2 #emptyHeading tabindex="-1">No edited files</h2>
-    <p>
-      Open a remote file from a Files tab: row menu (…) → Open in external editor, or Shift+Enter.
-    </p>
+    <h2 #emptyHeading tabindex="-1">{{ 'externalEditor.page.emptyTitle' | transloco }}</h2>
+    <p>{{ 'externalEditor.page.emptyText' | transloco }}</p>
     <button tuiButton size="s" appearance="secondary" type="button" routerLink="/settings">
-      Settings
+      {{ 'externalEditor.page.settings' | transloco }}
     </button>
   </tui-block-status>
 }

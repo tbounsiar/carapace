@@ -9,15 +9,17 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiItem } from '@taiga-ui/cdk';
 import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiIcon, TuiLoader } from '@taiga-ui/core';
 import { TuiBadgeNotification, TuiStatus, TuiTabs, TuiTabsWithMore } from '@taiga-ui/kit';
 import { ConfigService } from '../../../core/ipc/config';
 import { OpenDialogs } from '../../../shared/open-dialogs';
+import { uiText } from '../../../shared/ui-text';
 import { OptionLabel } from '../../../shared/option-reason/option-label';
 import { OptionReason } from '../../../shared/option-reason/option-reason';
 import { HostLauncher } from '../../host-connection/host-launcher';
-import { type TabTitle, tabTitles } from '../tab-titles';
+import { type TabTitle, tabLabel, tabTitles, terminalNumber } from '../tab-titles';
 import { Workspace, type WorkspaceTab } from '../workspace';
 import { type TabMenuEntry, WorkspaceActions } from '../workspace-actions';
 import { inTerminal, workspaceKey } from '../workspace-keys';
@@ -31,7 +33,7 @@ export function tabElementId(tab: WorkspaceTab): string {
 /** `{host}-terminal-{n}`, `{host}-files`, `{host}-edit-{name}`: the test id suffix of a tab. */
 export function tabTestSuffix(tab: WorkspaceTab, host: string): string {
   if (tab.kind === 'terminal') {
-    return `${host}-terminal-${tab.label.replace('Terminal ', '')}`;
+    return `${host}-terminal-${terminalNumber(tab) ?? tab.label.replace('Terminal ', '')}`;
   }
   return tab.kind === 'files' ? `${host}-files` : `${host}-edit-${tab.label}`;
 }
@@ -42,6 +44,7 @@ export function tabTestSuffix(tab: WorkspaceTab, host: string): string {
     NgTemplateOutlet,
     OptionLabel,
     OptionReason,
+    TranslocoPipe,
     TuiBadgeNotification,
     TuiButton,
     TuiDataList,
@@ -84,9 +87,11 @@ export class TabStrip {
   });
   protected readonly newHint = computed(() => {
     const active = this.active();
-    return active
-      ? `New terminal on ${this.titles().get(active.id)?.host ?? 'this host'} (Ctrl+Shift+T)`
-      : 'Select a tab first';
+    if (!active) {
+      return uiText('workspace.strip.selectFirst');
+    }
+    const host = this.titles().get(active.id)?.host;
+    return host ? uiText('workspace.strip.newOn', { host }) : uiText('workspace.strip.newHere');
   });
 
   constructor() {
@@ -116,15 +121,8 @@ export class TabStrip {
   }
 
   protected title(tab: WorkspaceTab): TabTitle {
-    return (
-      this.titles().get(tab.id) ?? {
-        host: '',
-        label: tab.label,
-        title: tab.label,
-        hint: tab.label,
-        aria: tab.label,
-      }
-    );
+    const label = tabLabel(tab);
+    return this.titles().get(tab.id) ?? { host: '', label, title: label, hint: label, aria: label };
   }
 
   protected suffix(tab: WorkspaceTab): string {

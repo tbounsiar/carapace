@@ -1,1 +1,50 @@
-{}
+{
+  "tab": {
+    "terminal": "Terminal {n}",
+    "files": "Fichiers",
+    "unknownHost": "Hôte inconnu",
+    "unknownProject": "Projet inconnu",
+    "modified": "modifié",
+    "readOnly": "lecture seule"
+  },
+  "status": {
+    "connecting": "Connexion…",
+    "connected": "Connecté",
+    "lost": "Connexion perdue",
+    "disconnected": "Déconnecté",
+    "ended": "Session terminée",
+    "loading": "Chargement…",
+    "saving": "Enregistrement…"
+  },
+  "strip": {
+    "label": "Onglets ouverts",
+    "close": "Fermer {title}",
+    "newTerminal": "Nouveau terminal",
+    "newOn": "Nouveau terminal sur {host} (Ctrl+Maj+T)",
+    "newHere": "Nouveau terminal sur cet hôte (Ctrl+Maj+T)",
+    "selectFirst": "Sélectionnez d’abord un onglet",
+    "more": "Plus ({count})",
+    "hidden": "Onglets masqués"
+  },
+  "menu": {
+    "newTerminal": "Nouveau terminal",
+    "openFiles": "Ouvrir les fichiers",
+    "openExternal": "Ouvrir dans l’éditeur externe",
+    "saveFirst": "Enregistrez d’abord vos modifications",
+    "closeOthers": "Fermer les autres onglets",
+    "closeHost": "Fermer les onglets de {host}",
+    "connect": "Connecter {host}",
+    "disconnect": "Déconnecter {host}",
+    "hostPage": "Aller à la page de l’hôte"
+  },
+  "unsaved": {
+    "names": "{more, plural, one {{shown} et # autre} other {{shown} et # autres}}",
+    "closeTitle": "Fermer les onglets avec des modifications non enregistrées ?",
+    "closeContent": "Modifications non enregistrées dans {names}.",
+    "closeYes": "Fermer sans enregistrer",
+    "quitTitle": "Quitter avec des modifications non enregistrées ?",
+    "quitUnsaved": "Non enregistré dans Carapace : {names}",
+    "quitNotUploaded": "Non envoyé depuis votre éditeur : {names}",
+    "quitYes": "Quitter sans enregistrer"
+  }
+}

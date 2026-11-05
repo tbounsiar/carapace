@@ -1,12 +1,15 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TuiButton, TuiCell, TuiIcon, TuiLoader, TuiTitle } from '@taiga-ui/core';
 import { TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiHeader } from '@taiga-ui/layout';
 import type { Host } from '../../../core/ipc/config.models';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { tabTestSuffix } from '../../workspace/tab-strip/tab-strip';
+import { statusWord } from '../../workspace/tab-status';
+import { tabLabel } from '../../workspace/tab-titles';
 import { Workspace, type WorkspaceTab } from '../../workspace/workspace';
 
 /** The host page's list of the host's workspace tabs, with New terminal and Files. */
@@ -22,6 +25,7 @@ import { Workspace, type WorkspaceTab } from '../../workspace/workspace';
     TuiLoader,
     TuiStatus,
     TuiTitle,
+    TranslocoPipe,
   ],
   selector: 'app-host-tabs',
   templateUrl: './host-tabs.html',
@@ -30,6 +34,7 @@ import { Workspace, type WorkspaceTab } from '../../workspace/workspace';
 export class HostTabs {
   private readonly workspace = inject(Workspace);
   private readonly launcher = inject(HostLauncher);
+  private readonly transloco = inject(TranslocoService);
 
   readonly host = input.required<Host>();
   /** Connect stays the page's only primary action while the host is disconnected. */
@@ -42,9 +47,25 @@ export class HostTabs {
     return tabTestSuffix(tab, this.host().name);
   }
 
+  protected label(tab: WorkspaceTab): string {
+    return tabLabel(tab);
+  }
+
   protected aria(tab: WorkspaceTab): string {
-    const extra = `${tab.modified() ? ', modified' : ''}${tab.readOnly() ? ', read-only' : ''}`;
-    return `${tab.label} — ${tab.status().word}${extra}`;
+    const modified = tab.modified();
+    const readOnly = tab.readOnly();
+    const variant =
+      modified && readOnly
+        ? 'modifiedReadOnly'
+        : modified
+          ? 'modified'
+          : readOnly
+            ? 'readOnly'
+            : 'plain';
+    return this.transloco.translate(`hostDetail.tabs.aria.${variant}`, {
+      label: tabLabel(tab),
+      status: statusWord(tab.status()),
+    });
   }
 
   protected newTerminal(): void {

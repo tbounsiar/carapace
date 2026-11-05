@@ -1,3 +1,5 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import type { HostInput, VariableView } from '../core/ipc/config.models';
 import {
   hasReferences,
@@ -32,6 +34,8 @@ const layers: VariableLayers = {
 };
 
 describe('template', () => {
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   it('parses references, $$ escapes and literal dollars', () => {
     expect(parseTemplate('${user}@${host}')).toEqual([
       { ref: 'user' },

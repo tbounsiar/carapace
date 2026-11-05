@@ -1,22 +1,24 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiButton, TuiDataList, TuiDropdown, TuiHint } from '@taiga-ui/core';
 import { Settings } from '../../../core/settings/settings';
 import { type ThemeMode, ThemeService } from '../../../core/theme/theme';
 
 interface ThemeOption {
   readonly mode: ThemeMode;
+  /** Translation key. */
   readonly label: string;
   readonly icon: string;
 }
 
 const THEME_OPTIONS: readonly ThemeOption[] = [
-  { mode: 'system', label: 'System', icon: '@tui.monitor' },
-  { mode: 'light', label: 'Light', icon: '@tui.sun' },
-  { mode: 'dark', label: 'Dark', icon: '@tui.moon' },
+  { mode: 'system', label: 'shell.themeMenu.system', icon: '@tui.monitor' },
+  { mode: 'light', label: 'shell.themeMenu.light', icon: '@tui.sun' },
+  { mode: 'dark', label: 'shell.themeMenu.dark', icon: '@tui.moon' },
 ];
 
 @Component({
-  imports: [TuiButton, TuiDataList, TuiDropdown, TuiHint],
+  imports: [TranslocoPipe, TuiButton, TuiDataList, TuiDropdown, TuiHint],
   selector: 'app-theme-menu',
   templateUrl: './theme-menu.html',
 })

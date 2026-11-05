@@ -1,6 +1,10 @@
+import { TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { fakeConfig, host, project } from '../../core/ipc/config.fixture';
 import { editedFile } from '../../core/ipc/external-edits.fixture';
 import {
+  clockTime,
+  dayTime,
   deleteLines,
   extensionOf,
   failureReason,
@@ -12,6 +16,9 @@ import {
 } from './edited-view';
 
 describe('edited-view', () => {
+  // The helpers translate through Transloco's global service, created on first injection.
+  beforeEach(() => TestBed.inject(TranslocoService));
+
   const at = new Date(2026, 10, 4, 14, 2).getTime();
 
   it('words every state with a shape, never colour alone', () => {
@@ -20,7 +27,7 @@ describe('edited-view', () => {
     expect(look({ state: 'opening' })).toEqual({ kind: 'loader', word: 'Opening…' });
     expect(look({ state: 'uploading' })).toEqual({ kind: 'loader', word: 'Uploading…' });
     expect(look({}).word).toBe('No changes');
-    expect(look({ lastUploadedAt: at }).word).toBe('Uploaded 14:02');
+    expect(look({ lastUploadedAt: at }).word).toBe(`Uploaded ${clockTime(at)}`);
     expect(look({ state: 'conflict' })).toMatchObject({
       kind: 'badge',
       appearance: 'warning',
@@ -31,8 +38,14 @@ describe('edited-view', () => {
     expect(look({ state: 'waiting' })).toMatchObject({ icon: '@tui.unplug' });
     expect(look({ state: 'disconnected' })).toMatchObject({ kind: 'status', word: 'Disconnected' });
     expect(look({ state: 'recovered', recoveredAt: at }).word).toBe(
-      'Not uploaded (from 4 Nov 14:02)',
+      `Not uploaded (from ${dayTime(at)})`,
     );
+  });
+
+  it('formats times and dates for the locale', () => {
+    expect(clockTime(at, 'fr-FR')).toBe('14:02');
+    expect(dayTime(at, 'fr-FR')).toBe('4 nov., 14:02');
+    expect(dayTime(at)).toMatch(/^Nov 4, 2:02\sPM$/);
   });
 
   it('offers one row action per state needing the user', () => {
