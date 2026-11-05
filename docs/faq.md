@@ -73,6 +73,7 @@ In the data folder: `~/.carapace` by default, `%USERPROFILE%\.carapace` on Windo
 | `known_hosts` | Host keys you accepted in Carapace |
 | `keys/` | Keys generated in the default folder |
 | `edit/` | Copies of files open in an external editor |
+| `backups/` | Copies of `data.json` taken before each import (the last 10) |
 
 Passwords and passphrases are in the system keychain, not in this folder.
 
@@ -102,7 +103,7 @@ On Windows, sign out and in again (or restart Explorer) so apps started from the
 
 ### Backing up or moving to another computer
 
-Copy the data folder. Secret variable values and saved passwords are in the keychain and do not move with it: set them again on the new computer. Keys imported from elsewhere stay at their original path, so copy them too and fix their path if needed.
+Copy the data folder, or use **Settings > Data > Export…** and **Import…** on the other computer (see [Settings](settings.md#data)); export also works for a single project you want to share. Either way, secret variable values and saved passwords are in the keychain and do not move: set them again on the new computer. Key files are not copied either: copy them and register them again if needed.
 
 ### "data.json" cannot be read
 

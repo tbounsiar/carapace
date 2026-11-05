@@ -39,6 +39,22 @@ If the `DO_NOT_TRACK` environment variable is set (any value other than empty, `
 
 Only official release builds can send usage data. Development builds and your own builds from source never do; the page says so ("This build does not send usage data").
 
+## Data
+
+**Export…** saves your projects, collections, hosts, variables and registered key paths to a JSON file: everything, Home only, or one project. For a project you can include the global variables and SSH keys its hosts use. **Import…** reads such a file and shows what would change before anything is written. The same actions are in the **…** menu of Home and of each project, and an empty Home offers **Import from a file**.
+
+The file never contains secret values: a secret variable is exported by name only, saved passwords and key files are not included. Set the secrets again on the computer you import to. The file does list your hosts and user names, so keep it private.
+
+When importing, choose what happens to items that already exist:
+
+- **Merge** adds new items, updates matching ones and keeps everything else.
+- **Replace** makes the imported part of your data match the file exactly, deleting what the file does not have. It asks for confirmation first.
+- **Keep both** imports matching items as copies named "(imported)".
+
+The preview lists every change, the hosts with an open connection that are affected, the secrets you still need to set and the key files not found on this computer. If an import would make a saved secret go to a different server, for example because a host's address or a variable changes, it says which, and you must tick **I trust these servers** before importing. Key files outside your home folder are not checked: add those keys by hand in SSH keys.
+
+Your current data is backed up before every import (`backups/` in the data folder), and **Undo import** in the summary restores it. Secret values deleted by a Replace cannot be restored.
+
 ## Where settings are stored
 
 All settings on this page are stored in `settings.toml` in the [data folder](faq.md#where-is-my-data). It is a plain text file you can read, back up or edit by hand while Carapace is closed.

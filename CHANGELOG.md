@@ -17,6 +17,7 @@ First public release, for Windows (x64, ARM64), macOS (Apple Silicon, Intel) and
 - Dark and light themes following the system, with a manual toggle.
 - Settings: theme, default key type, terminal font size, external editor, privacy, stored in a readable `settings.toml`; data (projects, collections, hosts, variables, key paths) in `data.json`.
 - Anonymous usage data in three categories (launch count, feature usage, connection results), shown at first launch before anything is sent and switchable per category, in that question and in Settings > Privacy. `DO_NOT_TRACK` turns it all off. See PRIVACY.md.
+- Import and export of data as JSON (everything, Home or one project), with a preview, merge / replace / keep both, a backup before every import and Undo. Secret values are never exported.
 - Installers with fixed file names, so the README download links always point to the latest version, and user documentation in `docs/`.
 
 ### Known limitations
