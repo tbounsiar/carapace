@@ -43,6 +43,7 @@ pub const OWN_AREAS: &[&str] = &[
     "analytics",
     "commands",
     "config",
+    "data_transfer",
     "external",
     "files",
     "fsutil",
