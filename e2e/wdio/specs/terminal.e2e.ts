@@ -1,5 +1,6 @@
+import { Key } from 'webdriverio';
 import { HOST, PROJECT } from '../helpers/fixture';
-import { screenshotThemes, setThemeMode } from '../helpers/screenshot';
+import { screenshot, screenshotThemes, setThemeMode } from '../helpers/screenshot';
 import {
   byId,
   clickId,
@@ -45,6 +46,70 @@ async function run(n: number, command: string): Promise<void> {
   );
   await browser.keys(command.split(''));
   await browser.keys('Enter');
+}
+
+const terminalMenu = () => $('[data-testid="context-menu"][data-surface="terminal"]');
+
+async function openTerminalMenu(n: number): Promise<void> {
+  await byId(`terminal-view-${n}`).click({ button: 'right' });
+  await terminalMenu().waitForDisplayed({ timeout: 5000 });
+  expect(await $$('tui-dropdown').length).toBe(1);
+}
+
+async function closeTerminalMenu(): Promise<void> {
+  await browser.keys('Escape');
+  await terminalMenu().waitForExist({ timeout: 5000, reverse: true });
+}
+
+/** Double-clicks the start of the last row beginning with `word`: xterm selects that word. */
+async function selectWord(n: number, word: string): Promise<void> {
+  const rowsOf = await $$(`${tid(`terminal-view-${n}`)} .xterm-rows > div`);
+  let target: (typeof rowsOf)[number] | null = null;
+  for (const row of rowsOf) {
+    if (((await row.getText()) as string).startsWith(word)) {
+      target = row;
+    }
+  }
+  if (!target) {
+    throw new Error(`no terminal row starts with "${word}"`);
+  }
+  // `doubleClick()` aims at the row's centre, which is blank after the text.
+  const size = await target.getSize();
+  await browser
+    .action('pointer')
+    .move({ origin: target, x: Math.round(-size.width / 2) + 4, y: 0 })
+    .down()
+    .up()
+    .pause(50)
+    .down()
+    .up()
+    .perform();
+  await browser.waitUntil(
+    () =>
+      browser.execute(
+        (sel: string) => !!document.querySelector(`${sel} .xterm-selection div`),
+        tid(`terminal-view-${n}`),
+      ),
+    { timeout: 3000, timeoutMsg: `"${word}" was not selected` },
+  );
+}
+
+async function occurrences(n: number, text: string): Promise<number> {
+  return (await rowsText(n)).split(text).length - 1;
+}
+
+async function shotTerminalMenu(name: string, n: number): Promise<void> {
+  const files: string[] = [];
+  for (const mode of ['light', 'dark'] as const) {
+    await setThemeMode(mode);
+    await browser.pause(400);
+    await openTerminalMenu(n);
+    await browser.pause(400);
+    files.push(await screenshot(`${name}-${mode}`));
+    await closeTerminalMenu();
+  }
+  await setThemeMode('system');
+  console.log('screenshots', files);
 }
 
 const terminalBackground = () =>
@@ -183,5 +248,73 @@ describe('terminal tabs', () => {
     await waitOutput(3, 'reopened-2');
     expect(await rowsText(3)).toContain('carapace-42');
     await shot('term-07-reopened');
+  });
+
+  it('copies and pastes from the terminal menu and its keys, Ctrl+C still interrupts', async () => {
+    await run(3, 'clear');
+    await run(3, 'echo ctx-copy-$((5*5))');
+    await waitOutput(3, 'ctx-copy-25');
+    await shotTerminalMenu('ctx-10-terminal-no-selection', 3);
+    await openTerminalMenu(3);
+    await expect(byId('terminal-menu-copy')).toHaveAttribute('aria-disabled', 'true');
+    await closeTerminalMenu();
+
+    await selectWord(3, 'ctx-copy-25');
+    await shotTerminalMenu('ctx-09-terminal', 3);
+    await openTerminalMenu(3);
+    await expect(byId('terminal-menu-copy')).not.toHaveAttribute('aria-disabled');
+    await clickId('terminal-menu-copy');
+    const before = await occurrences(3, 'ctx-copy-25');
+    await browser.keys('echo '.split(''));
+    await openTerminalMenu(3);
+    await clickId('terminal-menu-paste');
+    await browser.keys('Enter');
+    await browser.waitUntil(async () => (await occurrences(3, 'ctx-copy-25')) >= before + 2, {
+      timeout: 10000,
+      timeoutMsg: 'the pasted selection never ran',
+    });
+    await browser.pause(500);
+    expect(await occurrences(3, 'ctx-copy-25')).toBe(before + 2);
+
+    await selectWord(3, 'ctx-copy-25');
+    await browser.keys(['Control', 'Shift', 'c']);
+    const typed = await occurrences(3, 'ctx-copy-25');
+    await browser.keys('echo '.split(''));
+    await browser.keys(['Control', 'Shift', 'v']);
+    await browser.keys('Enter');
+    await browser.waitUntil(async () => (await occurrences(3, 'ctx-copy-25')) >= typed + 2, {
+      timeout: 10000,
+      timeoutMsg: 'Ctrl+Shift+V never pasted',
+    });
+    // Exactly once: the key's own paste, not also the browser's native paste event.
+    await browser.pause(500);
+    expect(await occurrences(3, 'ctx-copy-25')).toBe(typed + 2);
+
+    // A program reading the mouse owns the plain right click; Shift+right click opens the menu.
+    await run(3, "printf '\\033[?1000h'; cat > /dev/null");
+    await browser.pause(500);
+    await byId('terminal-view-3').click({ button: 'right' });
+    await browser.pause(500);
+    await expect(terminalMenu()).not.toExist();
+    await browser.action('key').down(Key.Shift).perform(true);
+    await byId('terminal-view-3').click({ button: 'right' });
+    await browser.action('key').up(Key.Shift).perform();
+    await terminalMenu().waitForDisplayed({ timeout: 5000 });
+    await closeTerminalMenu();
+    await browser.keys(['Control', 'c']);
+    await run(3, "printf '\\033[?1000l'");
+
+    await run(3, 'sleep 30; echo slept-$((2+2))');
+    await browser.pause(500);
+    await browser.keys(['Control', 'c']);
+    await run(3, 'echo after-$((6*7))');
+    await waitOutput(3, 'after-42');
+    expect(await rowsText(3)).not.toContain('slept-4');
+
+    await openTerminalMenu(3);
+    await clickId('terminal-menu-clear');
+    await terminalMenu().waitForExist({ timeout: 5000, reverse: true });
+    await run(3, 'echo cleared-ok');
+    await waitOutput(3, 'cleared-ok');
   });
 });

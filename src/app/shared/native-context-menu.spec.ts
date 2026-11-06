@@ -25,13 +25,14 @@ describe('suppressNativeContextMenu', () => {
     return event;
   };
 
-  it('hides the page menu outside editable text', () => {
+  it('hides the page menu outside editable text, the terminal included', () => {
     expect(rightClick('page').defaultPrevented).toBe(true);
     expect(rightClick('button').defaultPrevented).toBe(true);
+    expect(rightClick('term').defaultPrevented).toBe(true);
   });
 
-  it('keeps it in fields, the code editor and the terminal', () => {
-    for (const id of ['input', 'area', 'code', 'term']) {
+  it('keeps it in fields and the code editor', () => {
+    for (const id of ['input', 'area', 'code']) {
       expect(rightClick(id).defaultPrevented).toBe(false);
     }
   });

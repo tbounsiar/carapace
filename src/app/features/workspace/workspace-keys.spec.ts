@@ -1,4 +1,4 @@
-import { inTerminal, isTerminalReserved, workspaceKey } from './workspace-keys';
+import { inTerminal, isTerminalReserved, terminalKey, workspaceKey } from './workspace-keys';
 
 const key = (init: KeyboardEventInit) => new KeyboardEvent('keydown', init);
 
@@ -48,5 +48,30 @@ describe('workspaceKey', () => {
     host.append(inner);
     expect(inTerminal(inner)).toBe(true);
     expect(inTerminal(document.body)).toBe(false);
+  });
+
+  it('reserves the terminal copy, paste and select all keys, not Ctrl+C or Ctrl+V', () => {
+    const ctrlShift = (k: string) => key({ key: k, ctrlKey: true, shiftKey: true });
+    expect(terminalKey(ctrlShift('C'), false)).toBe('copy');
+    expect(terminalKey(ctrlShift('V'), false)).toBe('paste');
+    expect(terminalKey(ctrlShift('A'), false)).toBe('selectAll');
+    for (const k of ['C', 'V', 'A']) {
+      expect(isTerminalReserved(ctrlShift(k), false)).toBe(true);
+    }
+    expect(terminalKey(key({ key: 'c', ctrlKey: true }), false)).toBeNull();
+    expect(isTerminalReserved(key({ key: 'c', ctrlKey: true }), false)).toBe(false);
+    expect(isTerminalReserved(key({ key: 'v', ctrlKey: true }), false)).toBe(false);
+    expect(terminalKey(key({ key: 'c', metaKey: true }), false)).toBeNull();
+    expect(
+      terminalKey(key({ key: 'C', ctrlKey: true, shiftKey: true, altKey: true }), false),
+    ).toBeNull();
+  });
+
+  it('uses the Command key on Apple systems', () => {
+    expect(terminalKey(key({ key: 'c', metaKey: true }), true)).toBe('copy');
+    expect(terminalKey(key({ key: 'v', metaKey: true }), true)).toBe('paste');
+    expect(terminalKey(key({ key: 'a', metaKey: true }), true)).toBe('selectAll');
+    expect(terminalKey(key({ key: 'C', ctrlKey: true, shiftKey: true }), true)).toBeNull();
+    expect(isTerminalReserved(key({ key: 'c', ctrlKey: true }), true)).toBe(false);
   });
 });

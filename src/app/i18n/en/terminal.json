@@ -15,5 +15,18 @@
     "notOpened": "Terminal not opened",
     "notClosed": "Terminal not closed",
     "inputLost": "Terminal input lost"
+  },
+  "menu": {
+    "label": "Terminal actions",
+    "copy": "Copy",
+    "paste": "Paste",
+    "selectAll": "Select all",
+    "clear": "Clear scrollback",
+    "noSelection": "No text selected",
+    "sessionEnded": "Session ended",
+    "copyFailed": "Copy failed",
+    "copyFailedText": "The clipboard is not available.",
+    "pasteFailed": "Paste failed",
+    "pasteFailedText": "The clipboard could not be read. Try Shift+Insert."
   }
 }

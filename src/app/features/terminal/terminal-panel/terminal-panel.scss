@@ -15,6 +15,13 @@
 }
 
 /* The fit addon needs a definite height: the view takes what the tab panel leaves. */
+.frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
 .view {
   flex: 1;
   min-block-size: 0;
@@ -23,4 +30,12 @@
   border-radius: var(--tui-radius-m);
   background: var(--tui-background-base);
   overflow: hidden;
+}
+
+/* DataList has no shortcut slot: the key hint trails the label. */
+.shortcut {
+  margin-inline-start: auto;
+  padding-inline-start: 1rem;
+  color: var(--tui-text-secondary);
+  white-space: nowrap;
 }
