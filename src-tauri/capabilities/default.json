@@ -90,6 +90,8 @@
     "allow-refresh-import",
     "allow-apply-import",
     "allow-undo-import",
-    "allow-cancel-import"
+    "allow-cancel-import",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
   ]
 }

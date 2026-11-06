@@ -41,6 +41,7 @@ open = { version = "5.4.5", features = ["shellexecute-on-windows"] }
 sha2 = "0.11.1"
 notify = "8.2.1"
 toml_edit = "0.25.18"
+tauri-plugin-clipboard-manager = "2"
 
 [dev-dependencies]
 rand = "0.10"
