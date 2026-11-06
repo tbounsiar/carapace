@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { editSettings, readSettings, type Toml } from '../helpers/app-files';
 import { appPids, waitAppExited } from '../helpers/app-process';
 import { HOST, NOOP_EDITOR, PROJECT } from '../helpers/fixture';
+import { closeContextMenu, contextMenu, shotContextMenu } from '../helpers/context-menu';
 import { screenshot, screenshotThemes, setThemeMode, shotWithMenu } from '../helpers/screenshot';
 import {
   byId,
@@ -409,6 +410,15 @@ describe('external editor', () => {
     ]);
     await shot('ext-08-mixed-states');
     await shotRowMenu('ext-09-row-menu', HOST.name, 'nginx.conf', 'edited-builtin');
+  });
+
+  it('opens the row menu of an edited file with a right click', async () => {
+    const target = row(HOST.name, 'nginx.conf');
+    await target.click({ button: 'right' });
+    await contextMenu('edited').waitForDisplayed({ timeout: 5000 });
+    await expect(contextMenu('edited').$(tid('edited-builtin'))).toExist();
+    await closeContextMenu('edited');
+    await shotContextMenu('ctx-08-edited-row', 'edited', () => target.click({ button: 'right' }));
   });
 
   it('lists the edited files in the host delete confirm', async () => {

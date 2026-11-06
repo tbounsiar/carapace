@@ -23,6 +23,13 @@ export class FileSelection {
     this.anchor = path;
   }
 
+  /** Moves the primary to an already selected path; the selection stays. */
+  focus(path: string): void {
+    if (this.has(path)) {
+      this._primary.set(path);
+    }
+  }
+
   toggle(path: string): void {
     const paths = this._paths();
     this._paths.set(paths.includes(path) ? paths.filter((p) => p !== path) : [...paths, path]);

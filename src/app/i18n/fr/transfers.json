@@ -25,6 +25,13 @@
     "cancel": "Annuler {name}",
     "empty": "Aucun transfert pour l’instant. Sélectionnez des fichiers et utilisez Envoyer ou Télécharger, ou faites-les glisser vers l’autre volet."
   },
+  "menu": {
+    "retry": "Réessayer",
+    "showRemote": "Afficher dans le volet distant",
+    "showLocal": "Afficher dans le volet local",
+    "notConnected": "Connectez-vous d’abord à l’hôte distant",
+    "label": "Actions du transfert {name}"
+  },
   "conflict": {
     "title": "Le fichier existe déjà",
     "exists": "{name} existe déjà dans le dossier de destination.",

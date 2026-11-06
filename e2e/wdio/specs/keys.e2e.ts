@@ -4,6 +4,12 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } fr
 import { join, resolve } from 'node:path';
 import { readSettings } from '../helpers/app-files';
 import { HOST, PROJECT } from '../helpers/fixture';
+import {
+  closeContextMenu,
+  contextMenu,
+  openDropdowns,
+  shotContextMenu,
+} from '../helpers/context-menu';
 import { screenshot, screenshotThemes, setThemeMode } from '../helpers/screenshot';
 import {
   byId,
@@ -111,6 +117,30 @@ describe('keys', () => {
     await openKeyMenu(GEN, 'key-copy');
     await toast('Public key copied').waitForDisplayed({ timeout: 10000 });
     await shot('keys-04-copied');
+  });
+
+  it('opens the key menu with a right click and with Shift+F10', async () => {
+    const row = byId(`key-row-${GEN}`);
+    await row.click({ button: 'right' });
+    await contextMenu('key').waitForDisplayed({ timeout: 5000 });
+    expect(await openDropdowns()).toBe(1);
+    await expect(contextMenu('key').$('[data-testid="key-rename"]')).toExist();
+    await closeContextMenu('key');
+    await shotContextMenu('ctx-07-key-row', 'key', () => row.click({ button: 'right' }));
+
+    // Off the rows (the table header) a right click opens nothing.
+    await $('thead th:first-child').click({ button: 'right' });
+    expect(await openDropdowns()).toBe(0);
+
+    await byId(`key-fingerprint-${GEN}`).click();
+    await byId(`key-menu-${GEN}`).click();
+    await byId('key-copy').waitForDisplayed({ timeout: 5000 });
+    await browser.keys('Escape');
+    await byId('key-copy').waitForExist({ timeout: 5000, reverse: true });
+    await browser.keys(['Shift', 'F10']);
+    await byId('key-copy').waitForDisplayed({ timeout: 5000 });
+    await browser.keys('Escape');
+    await byId('key-copy').waitForExist({ timeout: 5000, reverse: true });
   });
 
   it('creates the fixture host and shows the key picker', async () => {

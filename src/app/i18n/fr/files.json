@@ -36,13 +36,33 @@
     "fileNotDeleted": "Fichier non supprimé",
     "folderNotOpened": "Dossier non ouvert"
   },
+  "menu": {
+    "open": "Ouvrir",
+    "copyPath": "Copier le chemin",
+    "copyPaths": "Copier les chemins",
+    "noRemote": "Connectez-vous d’abord à l’hôte distant",
+    "noLocal": "Ouvrez d’abord un dossier local",
+    "actionsForMany": "{count, plural, other {Actions pour # éléments}}",
+    "folderActions": "Actions du dossier",
+    "selectAll": "Tout sélectionner",
+    "copyFolderPath": "Copier le chemin du dossier",
+    "pathsCopied": "{count, plural, one {Chemin copié} other {# chemins copiés}}",
+    "copyFailed": "Échec de la copie",
+    "noClipboard": "Le presse-papiers n’est pas disponible.",
+    "notDeleted": "Non supprimés",
+    "notDeletedText": "{failed} éléments sur {count} non supprimés : {names}. {reason}"
+  },
   "dialogs": {
     "noun": "fichier ou dossier",
     "nameConflict": "Un fichier ou un dossier portant ce nom existe déjà",
     "deleteFolderTitle": "Supprimer le dossier « {name} » ?",
     "deleteFileTitle": "Supprimer le fichier « {name} » ?",
     "deleteFolderContent": "Le dossier et tout son contenu seront supprimés. Cette action est irréversible.",
-    "deleteFileContent": "Le fichier sera supprimé. Cette action est irréversible."
+    "deleteFileContent": "Le fichier sera supprimé. Cette action est irréversible.",
+    "deleteManyTitle": "Supprimer {count} éléments ?",
+    "deleteManyNames": "{names}.",
+    "deleteManyFolders": "Les dossiers sont supprimés avec tout leur contenu.",
+    "andMore": "{names} et {count} autres"
   },
   "name": {
     "required": "Le nom est obligatoire",

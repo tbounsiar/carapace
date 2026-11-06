@@ -23,6 +23,10 @@
   inline-size: 2.5rem;
 }
 
+.row._menu > td {
+  background: var(--tui-background-neutral-1);
+}
+
 .name {
   font-weight: bold;
   overflow-wrap: break-word;

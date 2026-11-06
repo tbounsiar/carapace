@@ -127,6 +127,9 @@ describe('FilePane', () => {
       },
     ),
     confirmDelete: vi.fn(() => Promise.resolve(true)),
+    confirmDeleteMany: vi.fn<(entries: readonly FileEntry[]) => Promise<boolean>>(() =>
+      Promise.resolve(true),
+    ),
   };
   const alerts = { open: vi.fn(() => of(undefined)) };
 
@@ -677,6 +680,281 @@ describe('FilePane', () => {
       await settle();
       expect(source.list.mock.calls.length).toBe(calls + 1);
       expect(source.list).toHaveBeenLastCalledWith('/home/u');
+    });
+  });
+
+  describe('context menus', () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    const rightClick = async (target: Element, init: MouseEventInit = {}): Promise<Event> => {
+      const event = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 20,
+        ...init,
+      });
+      target.dispatchEvent(event);
+      await settle();
+      return event;
+    };
+    const clickWith = async (id: string, init: MouseEventInit = {}): Promise<void> => {
+      byId(id)!.dispatchEvent(new MouseEvent('click', { bubbles: true, ...init }));
+      await settle();
+    };
+    const menu = (): HTMLElement | null =>
+      document.querySelector<HTMLElement>('[data-testid="context-menu"]');
+    const lists = (): NodeListOf<Element> => document.querySelectorAll('tui-data-list');
+    const entries = (root: Element | null = menu()): string[] =>
+      Array.from(root?.querySelectorAll('[tuiOption]') ?? []).map((o) =>
+        o.getAttribute('data-testid')!,
+      );
+    const option = (id: string): HTMLElement =>
+      document.querySelector<HTMLElement>(`tui-data-list [data-testid="${id}"]`)!;
+    const selected = (): string[] =>
+      Array.from(el().querySelectorAll('tbody tr[aria-selected="true"]')).map((r) =>
+        r.getAttribute('data-testid')!,
+      );
+    const scroll = (): HTMLElement => el().querySelector<HTMLElement>('.scroll')!;
+
+    beforeEach(() => {
+      TREE['/home/u'].entries.push(entry('/home/u', 'a.log'), entry('/home/u', 'b.log'));
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    });
+
+    afterEach(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+    });
+
+    it('selects an unselected row alone and opens its menu at the pointer', async () => {
+      await setup();
+      fixture.componentInstance.editable.set(true);
+      await clickWith('entry-a.log');
+      await clickWith('entry-b.log', { ctrlKey: true });
+      const event = await rightClick(byId('entry-notes.txt')!.querySelector('td')!);
+      expect(event.defaultPrevented).toBe(true);
+      expect(selected()).toEqual(['entry-notes.txt']);
+      expect(menu()!.getAttribute('data-surface')).toBe('file-row');
+      expect(menu()!.getAttribute('aria-label')).toBe('Actions for notes.txt');
+      expect(entries()).toEqual([
+        'entry-edit',
+        'entry-external',
+        'entry-transfer',
+        'entry-copy-path',
+        'entry-rename',
+        'entry-delete',
+      ]);
+      expect(menu()!.querySelectorAll('hr').length).toBe(2);
+      expect(document.activeElement).toBe(byId('entry-notes.txt'));
+      // No row of the grid carries the dropdown's aria attributes.
+      expect(el().querySelector('tr[aria-expanded], tr[aria-haspopup]')).toBeNull();
+    });
+
+    it('offers Open on folders and no editor entries on the local side', async () => {
+      await setup(null, 'local');
+      await rightClick(byId('entry-src')!);
+      expect(entries()).toEqual([
+        'entry-open',
+        'entry-transfer',
+        'entry-copy-path',
+        'entry-rename',
+        'entry-delete',
+      ]);
+      await click(option('entry-open'));
+      expect(source.list).toHaveBeenLastCalledWith('/home/u/src');
+    });
+
+    it('keeps a multi-selection on a selected row and shows the multi menu', async () => {
+      await setup();
+      await clickWith('entry-src');
+      await clickWith('entry-b.log', { shiftKey: true });
+      expect(selected()).toEqual(['entry-src', 'entry-a.log', 'entry-b.log']);
+      await rightClick(byId('entry-a.log')!, { ctrlKey: true });
+      expect(selected()).toEqual(['entry-src', 'entry-a.log', 'entry-b.log']);
+      expect(byId('entry-a.log')!.tabIndex).toBe(0);
+      expect(menu()!.getAttribute('aria-label')).toBe('Actions for 3 items');
+      expect(
+        menu()!.querySelector('[data-testid="entry-menu-count"]')!.getAttribute('data-label'),
+      ).toBe('3 selected');
+      expect(entries()).toEqual(['entry-transfer', 'entry-copy-path', 'entry-delete']);
+      expect(option('entry-copy-path').textContent).toContain('Copy paths');
+    });
+
+    it('gives the "…" of a row inside a multi-selection the multi menu', async () => {
+      await setup();
+      await clickWith('entry-a.log');
+      await clickWith('entry-b.log', { ctrlKey: true });
+      await click(byId('entry-menu-b.log'));
+      expect(menu()).toBeNull();
+      expect(entries(lists()[0])).toEqual(['entry-transfer', 'entry-copy-path', 'entry-delete']);
+    });
+
+    it('explains the transfer entry without a destination and sends with one', async () => {
+      await setup(null, 'local');
+      await rightClick(byId('entry-notes.txt')!);
+      const transfer = option('entry-transfer');
+      expect(transfer.getAttribute('aria-disabled')).toBe('true');
+      expect(transfer.textContent).toContain('Connect to the remote first');
+      await click(transfer);
+      expect(fixture.componentInstance.sent).toEqual([]);
+
+      fixture.componentInstance.transferTarget.set('/srv');
+      await clickWith('entry-a.log');
+      await clickWith('entry-notes.txt', { ctrlKey: true });
+      await rightClick(byId('entry-notes.txt')!);
+      expect(option('entry-transfer').getAttribute('aria-disabled')).toBeNull();
+      await click(option('entry-transfer'));
+      expect(fixture.componentInstance.sent).toEqual([
+        { sources: ['/home/u/a.log', '/home/u/notes.txt'], targetDir: '/srv' },
+      ]);
+    });
+
+    it('says to open a local folder in the remote pane when the local pane lists drives', async () => {
+      await setup();
+      fixture.componentInstance.transferTarget.set('');
+      await rightClick(byId('entry-notes.txt')!);
+      expect(option('entry-transfer').textContent).toContain('Open a local folder first');
+      expect((byId('pane-download') as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('copies the selected paths, one per line, in display order', async () => {
+      await setup();
+      await clickWith('entry-notes.txt');
+      await clickWith('entry-src', { ctrlKey: true });
+      await rightClick(byId('entry-src')!);
+      await click(option('entry-copy-path'));
+      expect(writeText).toHaveBeenCalledWith('/home/u/src\n/home/u/notes.txt');
+      expect(alerts.open).toHaveBeenCalledWith('2 paths copied', { appearance: 'positive' });
+    });
+
+    it('reports a failed copy', async () => {
+      await setup();
+      writeText.mockRejectedValueOnce(new Error('denied'));
+      await rightClick(byId('entry-notes.txt')!);
+      await click(option('entry-copy-path'));
+      expect(alerts.open).toHaveBeenCalledWith('The clipboard is not available.', {
+        label: 'Copy failed',
+        appearance: 'negative',
+      });
+    });
+
+    it('opens the folder menu on the empty area and clears the selection', async () => {
+      await setup();
+      await clickWith('entry-a.log');
+      await rightClick(el().querySelector('thead th')!);
+      expect(selected()).toEqual([]);
+      expect(menu()!.getAttribute('data-surface')).toBe('file-pane');
+      expect(menu()!.getAttribute('aria-label')).toBe('Folder actions');
+      expect(entries()).toEqual([
+        'pane-menu-mkdir',
+        'pane-menu-refresh',
+        'pane-menu-hidden',
+        'pane-menu-select-all',
+        'pane-menu-copy-path',
+      ]);
+      const hidden = option('pane-menu-hidden');
+      expect(hidden.getAttribute('role')).toBe('menuitemcheckbox');
+      expect(hidden.getAttribute('aria-checked')).toBe('false');
+      await click(hidden);
+      expect(rowNames()).toContain('entry-.profile');
+      await rightClick(scroll());
+      expect(option('pane-menu-hidden').getAttribute('aria-checked')).toBe('true');
+      await click(option('pane-menu-select-all'));
+      expect(selected().length).toBe(5);
+      expect(document.activeElement?.tagName).toBe('TR');
+
+      await rightClick(scroll());
+      await click(option('pane-menu-mkdir'));
+      expect(dialogs.askName).toHaveBeenCalled();
+      await rightClick(scroll());
+      await click(option('pane-menu-copy-path'));
+      expect(writeText).toHaveBeenLastCalledWith('/home/u');
+    });
+
+    it('leaves only the context menu when a row is right-clicked with its "…" open', async () => {
+      await setup();
+      await click(byId('entry-menu-notes.txt'));
+      expect(lists().length).toBe(1);
+      expect(byId('entry-menu-notes.txt')!.getAttribute('aria-expanded')).toBe('true');
+      await rightClick(byId('entry-notes.txt')!);
+      expect(lists().length).toBe(1);
+      expect(menu()).not.toBeNull();
+      expect(byId('entry-menu-notes.txt')!.getAttribute('aria-expanded')).not.toBe('true');
+    });
+
+    it('opens the row "…" with Shift+F10 and ContextMenu, first entry focused', async () => {
+      await setup();
+      const row = byId('entry-notes.txt')!;
+      row.focus();
+      row.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }),
+      );
+      await settle();
+      expect(byId('entry-menu-notes.txt')!.getAttribute('aria-expanded')).toBe('true');
+      expect(menu()).toBeNull();
+      expect(document.activeElement).toBe(option('entry-transfer'));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+      await key(byId('entry-src'), 'ContextMenu');
+      expect(byId('entry-menu-src')!.getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('deletes the selection with Delete: one confirm, one call each, one refresh', async () => {
+      await setup();
+      await clickWith('entry-src');
+      await clickWith('entry-notes.txt', { ctrlKey: true });
+      const listed = source.list.mock.calls.length;
+      await key(byId('entry-notes.txt'), 'Delete');
+      expect(dialogs.confirmDelete).not.toHaveBeenCalled();
+      expect(dialogs.confirmDeleteMany).toHaveBeenCalledTimes(1);
+      expect(dialogs.confirmDeleteMany.mock.calls[0][0].map((e) => e.name)).toEqual([
+        'src',
+        'notes.txt',
+      ]);
+      expect(source.delete.mock.calls).toEqual([
+        ['/home/u/src', true],
+        ['/home/u/notes.txt', false],
+      ]);
+      expect(source.list.mock.calls.length).toBe(listed + 1);
+      expect(rowNames()).toEqual(['entry-a.log', 'entry-b.log']);
+    });
+
+    it('deletes only the focused row with Delete when it is outside the selection', async () => {
+      await setup();
+      await clickWith('entry-a.log');
+      await key(byId('entry-b.log'), 'Delete');
+      expect(dialogs.confirmDelete).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'b.log' }),
+      );
+      expect(dialogs.confirmDeleteMany).not.toHaveBeenCalled();
+    });
+
+    it('keeps deleting after a failure and reports the failures in one toast', async () => {
+      await setup();
+      source.delete.mockImplementation((path: string) =>
+        path.endsWith('.log')
+          ? Promise.reject(new IpcError('permission_denied', 'Permission denied'))
+          : Promise.resolve(),
+      );
+      await clickWith('entry-src');
+      await clickWith('entry-notes.txt', { shiftKey: true });
+      await rightClick(byId('entry-a.log')!);
+      await click(option('entry-delete'));
+      expect(source.delete).toHaveBeenCalledTimes(4);
+      expect(alerts.open).toHaveBeenCalledTimes(1);
+      const [text, options] = alerts.open.mock.calls[0] as unknown as [string, { label: string }];
+      expect(options.label).toBe('Not deleted');
+      expect(text).toContain('2 of 4 items not deleted: a.log, b.log.');
+      expect(text).toContain('Permission denied');
+    });
+
+    it('does nothing when the multi delete is cancelled', async () => {
+      await setup();
+      dialogs.confirmDeleteMany.mockResolvedValueOnce(false);
+      await clickWith('entry-a.log');
+      await clickWith('entry-b.log', { ctrlKey: true });
+      await key(byId('entry-b.log'), 'Delete');
+      expect(source.delete).not.toHaveBeenCalled();
     });
   });
 });

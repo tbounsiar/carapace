@@ -12,11 +12,12 @@ import {
   untracked,
   viewChildren,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { RouterLink } from '@angular/router';
 import { TuiTable, type TuiComparator, type TuiTableSortChange } from '@taiga-ui/addon-table';
-import { TuiItem } from '@taiga-ui/cdk';
+import { TuiAutoFocus, TuiItem } from '@taiga-ui/cdk';
 import {
   TuiButton,
   TuiDataList,
@@ -31,6 +32,8 @@ import {
 import { TuiBadge, TuiBreadcrumbs } from '@taiga-ui/kit';
 import { LanguageService } from '../../../core/i18n/language';
 import { MAX_EDIT_BYTES } from '../../../core/ipc/editor-files';
+import { isMenuKey } from '../../../shared/context-menu/context-menu';
+import { ContextMenuTarget } from '../../../shared/context-menu/context-menu-target';
 import { OptionLabel } from '../../../shared/option-reason/option-label';
 import { OptionReason } from '../../../shared/option-reason/option-reason';
 import { type EditedFile, MAX_EXTERNAL_BYTES } from '../../../core/ipc/external-edits';
@@ -39,7 +42,7 @@ import { IpcError } from '../../../core/ipc/ipc-error';
 import { stateLook } from '../../external-editor/edited-view';
 import { escapeHtml } from '../../../shared/path-breaks';
 import { errorText, notifyError } from '../../../shared/save-error';
-import { FileDialogs } from '../file-dialogs';
+import { FileDialogs, fileNames } from '../file-dialogs';
 import { DRAG_PLACEHOLDER, DRAG_TYPE, FileDrag } from '../file-drag';
 import {
   compareEntries,
@@ -83,6 +86,27 @@ interface NavigateOptions {
   onFail?: () => void;
 }
 
+/** One entry of a file row or pane menu; the "…" and the context menu render the same list. */
+export interface MenuEntry {
+  /** The `data-testid`. */
+  readonly id: string;
+  readonly icon: string;
+  readonly label: string;
+  /** Why the entry is unavailable; null when it can run. */
+  readonly reason: string | null;
+  /** Set for a toggle (`menuitemcheckbox`). */
+  readonly checked?: boolean;
+  readonly run: () => void;
+}
+
+export interface PaneMenu {
+  readonly aria: string;
+  /** Group label of a multi-selection menu ("3 selected"). */
+  readonly count: string | null;
+  /** Separated by `<hr />`. */
+  readonly groups: readonly (readonly MenuEntry[])[];
+}
+
 const SORT_KEYS: readonly SortKey[] = ['name', 'size', 'modified'];
 
 // The table only uses these as column identities; rows are sorted by `sortEntries`.
@@ -92,6 +116,8 @@ const SORTERS = Object.fromEntries(
 
 @Component({
   imports: [
+    ContextMenuTarget,
+    NgTemplateOutlet,
     OptionLabel,
     OptionReason,
     RouterLink,
@@ -106,6 +132,7 @@ const SORTERS = Object.fromEntries(
     TuiLink,
     TuiLoader,
     TuiNotification,
+    TuiAutoFocus,
     TuiTable,
     TranslocoPipe,
   ],
@@ -154,6 +181,12 @@ export class FilePane {
   protected readonly sortKey = signal<SortKey>('name');
   protected readonly direction = signal<SortDirection>(1);
   protected readonly openMenu = signal<string | null>(null);
+  /** The entries the row menu acts on, captured when it opened. */
+  private readonly menuEntries = signal<readonly FileEntry[]>([]);
+  /** What the open context menu is about: rows, or the listed folder. */
+  protected readonly contextKind = signal<'row' | 'pane'>('row');
+  /** The "…" menu was opened from the keyboard: its first entry takes the focus. */
+  protected readonly keyboardMenu = signal(false);
   private readonly dropTarget = signal<string | null>(null);
 
   private readonly rowElements = viewChildren<ElementRef<HTMLElement>>('row');
@@ -192,9 +225,18 @@ export class FilePane {
     this.translation();
     return this.t(this.side() === 'local' ? 'files.pane.upload' : 'files.pane.download');
   });
+  /** `''` is the local drive list: nothing can be written there. */
   protected readonly canSend = computed(
-    () => this.transferTarget() !== null && this.selection.count() > 0,
+    () => !!this.transferTarget() && this.selection.count() > 0,
   );
+  protected readonly rowMenu = computed<PaneMenu>(() => {
+    this.translation();
+    return this.entryMenuOf(this.menuEntries());
+  });
+  protected readonly paneMenu = computed<PaneMenu>(() => {
+    this.translation();
+    return this.folderMenu();
+  });
   protected readonly activeDrop = computed(() => (this.drag.current() ? this.dropTarget() : null));
   private readonly revision = computed(
     () => {
@@ -275,9 +317,18 @@ export class FilePane {
   }
 
   protected sendSelection(): void {
+    this.sendEntries(this.selectedInOrder());
+  }
+
+  /** Lists `dir` and selects `select` when it is listed there (transfer "Show in pane"). */
+  show(dir: string, select: string | null): void {
+    void this.navigate(dir, { select, focus: true });
+  }
+
+  private sendEntries(sources: readonly string[]): void {
     const targetDir = this.transferTarget();
-    if (targetDir !== null && this.selection.count() > 0) {
-      this.send.emit({ sources: this.selectedInOrder(), targetDir });
+    if (targetDir && sources.length > 0) {
+      this.send.emit({ sources: [...sources], targetDir });
     }
   }
 
@@ -348,6 +399,209 @@ export class FilePane {
     return this.orderedPaths().filter((p) => this.selection.has(p));
   }
 
+  private selectedEntries(): FileEntry[] {
+    return this.rows()
+      .map((r) => r.entry)
+      .filter((e) => this.selection.has(e.path));
+  }
+
+  /** Right click and "…" rule: an unselected row becomes the selection, a selected one keeps it. */
+  private target(entry: FileEntry): void {
+    if (this.selection.has(entry.path)) {
+      this.selection.focus(entry.path);
+    } else {
+      this.selection.select(entry.path);
+    }
+    this.menuEntries.set(this.selectedEntries());
+  }
+
+  /** Runs before Taiga opens the pane's context menu (spec F1). */
+  protected onContextTarget(row: HTMLElement | null): void {
+    this.openMenu.set(null);
+    this.keyboardMenu.set(false);
+    const path = row?.dataset['menuRow'];
+    const found = path === undefined ? undefined : this.rows().find((r) => r.entry.path === path);
+    if (!found || !row) {
+      this.selection.clear();
+      this.contextKind.set('pane');
+      return;
+    }
+    this.contextKind.set('row');
+    this.target(found.entry);
+    row.focus();
+  }
+
+  private entryMenuOf(entries: readonly FileEntry[]): PaneMenu {
+    const [entry] = entries;
+    const paths = entries.map((e) => e.path);
+    const transfer: MenuEntry = {
+      id: 'entry-transfer',
+      icon: this.side() === 'local' ? '@tui.upload' : '@tui.download',
+      label: this.transferLabel(),
+      reason: this.transferTarget()
+        ? null
+        : this.t(this.side() === 'local' ? 'files.menu.noRemote' : 'files.menu.noLocal'),
+      run: () => this.sendEntries(paths),
+    };
+    const remove: MenuEntry = {
+      id: 'entry-delete',
+      icon: '@tui.trash',
+      label: this.t('common.delete'),
+      reason: null,
+      run: () => void this.removeEntries(entries),
+    };
+    if (entries.length > 1) {
+      return {
+        aria: this.t('files.menu.actionsForMany', { count: entries.length }),
+        count: this.t('files.pane.selected', { count: entries.length }),
+        groups: [
+          [transfer],
+          [
+            {
+              id: 'entry-copy-path',
+              icon: '@tui.copy',
+              label: this.t('files.menu.copyPaths'),
+              reason: null,
+              run: () => void this.copyPaths(paths),
+            },
+          ],
+          [remove],
+        ],
+      };
+    }
+    if (!entry) {
+      return { aria: '', count: null, groups: [] };
+    }
+    const open: MenuEntry[] = [];
+    if (isOpenable(entry)) {
+      open.push({
+        id: 'entry-open',
+        icon: '@tui.folder-open',
+        label: this.t('files.menu.open'),
+        reason: null,
+        run: () => this.open(entry, true),
+      });
+    }
+    if (this.canEdit(entry)) {
+      open.push(
+        {
+          id: 'entry-edit',
+          icon: '@tui.file-pen',
+          label: this.t('common.edit'),
+          reason: this.isTooLarge(entry) ? this.t('files.pane.tooLargeEdit') : null,
+          run: () => this.edit.emit(entry),
+        },
+        {
+          id: 'entry-external',
+          icon: '@tui.external-link',
+          label: this.t('files.pane.openExternal'),
+          reason: this.isTooLargeExternal(entry) ? this.t('files.pane.tooLargeExternal') : null,
+          run: () => this.openExternal.emit(entry),
+        },
+      );
+    }
+    open.push(transfer);
+    return {
+      aria: this.t('files.pane.actionsFor', { name: entry.name }),
+      count: null,
+      groups: [
+        open,
+        [
+          {
+            id: 'entry-copy-path',
+            icon: '@tui.copy',
+            label: this.t('files.menu.copyPath'),
+            reason: null,
+            run: () => void this.copyPaths(paths),
+          },
+          {
+            id: 'entry-rename',
+            icon: '@tui.pencil',
+            label: this.t('common.rename'),
+            reason: null,
+            run: () => this.rename(entry),
+          },
+        ],
+        [remove],
+      ],
+    };
+  }
+
+  private folderMenu(): PaneMenu {
+    const path = this.path();
+    const folder: MenuEntry[] = [];
+    if (this.canCreate()) {
+      folder.push({
+        id: 'pane-menu-mkdir',
+        icon: '@tui.folder-plus',
+        label: this.t('files.pane.newFolder'),
+        reason: null,
+        run: () => this.mkdir(),
+      });
+    }
+    if (path !== null) {
+      folder.push({
+        id: 'pane-menu-refresh',
+        icon: '@tui.refresh-cw',
+        label: this.t('files.pane.refresh'),
+        reason: null,
+        run: () => this.refresh(),
+      });
+    }
+    folder.push({
+      id: 'pane-menu-hidden',
+      icon: '@tui.eye',
+      label: this.t('files.pane.showHidden'),
+      reason: null,
+      checked: this.showHidden(),
+      run: () => this.toggleHidden(),
+    });
+    const list: MenuEntry[] = [];
+    if (this.rows().length) {
+      list.push({
+        id: 'pane-menu-select-all',
+        icon: '@tui.list-checks',
+        label: this.t('files.menu.selectAll'),
+        reason: null,
+        run: () => this.selectAll(),
+      });
+    }
+    if (path) {
+      list.push({
+        id: 'pane-menu-copy-path',
+        icon: '@tui.copy',
+        label: this.t('files.menu.copyFolderPath'),
+        reason: null,
+        run: () => void this.copyPaths([path]),
+      });
+    }
+    return { aria: this.t('files.menu.folderActions'), count: null, groups: [folder, list] };
+  }
+
+  /** Focuses the primary row afterwards, so Delete and Shift+F10 work right away. */
+  private selectAll(): void {
+    this.selection.selectAll(this.orderedPaths());
+    afterNextRender(() => this.focusActiveRow(), { injector: this.injector });
+  }
+
+  private async copyPaths(paths: readonly string[]): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(paths.join('\n'));
+      this.alerts
+        .open(this.t('files.menu.pathsCopied', { count: paths.length }), {
+          appearance: 'positive',
+        })
+        .subscribe();
+    } catch {
+      this.alerts
+        .open(this.t('files.menu.noClipboard'), {
+          label: this.t('files.menu.copyFailed'),
+          appearance: 'negative',
+        })
+        .subscribe();
+    }
+  }
+
   protected canEdit(entry: FileEntry): boolean {
     return this.editable() && (entry.kind === 'file' || entry.kind === 'symlink');
   }
@@ -393,7 +647,19 @@ export class FilePane {
   }
 
   protected onRowKeydown(event: KeyboardEvent, index: number): void {
-    if (event.target !== event.currentTarget || event.altKey) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    if (isMenuKey(event)) {
+      const entry = this.rows()[index]?.entry;
+      if (entry) {
+        event.preventDefault();
+        this.setMenu(entry, true);
+        this.keyboardMenu.set(true);
+      }
+      return;
+    }
+    if (event.altKey) {
       return;
     }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
@@ -437,7 +703,7 @@ export class FilePane {
         this.rename(entry);
         break;
       case 'Delete':
-        void this.remove(entry);
+        void this.removeEntries(this.selection.has(entry.path) ? this.selectedEntries() : [entry]);
         break;
       default:
         return;
@@ -450,9 +716,29 @@ export class FilePane {
   }
 
   protected setMenu(entry: FileEntry, open: boolean): void {
-    this.openMenu.set(open ? entry.path : null);
-    if (open && !this.selection.has(entry.path)) {
-      this.select(entry);
+    if (open) {
+      this.keyboardMenu.set(false);
+      this.target(entry);
+      this.openMenu.set(entry.path);
+      return;
+    }
+    if (this.openMenu() !== entry.path) {
+      return;
+    }
+    this.openMenu.set(null);
+    if (this.keyboardMenu()) {
+      this.keyboardMenu.set(false);
+      afterNextRender(() => this.refocusRow(entry.path), { injector: this.injector });
+    }
+  }
+
+  /** Esc on a keyboard-opened menu puts the focus back on its row, not on the "…" button. */
+  private refocusRow(path: string): void {
+    const index = this.rows().findIndex((r) => r.entry.path === path);
+    const row = this.rowElements()[index]?.nativeElement;
+    const active = document.activeElement;
+    if (row && (!active || active === document.body || row.contains(active))) {
+      row.focus();
     }
   }
 
@@ -482,6 +768,48 @@ export class FilePane {
       const renamed = await source.rename(entry.path, name);
       await this.load(source, parent, { select: renamed.path });
     });
+  }
+
+  /** Several entries: one confirm, deletes one after the other, one refresh, one failure toast. */
+  protected async removeEntries(entries: readonly FileEntry[]): Promise<void> {
+    if (entries.length <= 1) {
+      if (entries[0]) {
+        await this.remove(entries[0]);
+      }
+      return;
+    }
+    const parent = this.path();
+    if (parent === null || !(await this.dialogs.confirmDeleteMany(entries))) {
+      return;
+    }
+    const source = this.source();
+    const failed: { name: string; error: unknown }[] = [];
+    this.loading.set(true);
+    for (const entry of entries) {
+      try {
+        await source.delete(entry.path, entry.kind === 'dir');
+      } catch (error) {
+        failed.push({ name: entry.name, error });
+      }
+    }
+    if (failed.length) {
+      const names = fileNames(
+        failed.map((f) => f.name),
+        3,
+      );
+      this.alerts
+        .open(
+          this.t('files.menu.notDeletedText', {
+            failed: failed.length,
+            count: entries.length,
+            names,
+            reason: errorText(failed[0].error),
+          }),
+          { label: this.t('files.menu.notDeleted'), appearance: 'negative' },
+        )
+        .subscribe();
+    }
+    await this.load(source, parent, { select: null });
   }
 
   protected async remove(entry: FileEntry): Promise<void> {

@@ -33,7 +33,20 @@
 </header>
 
 @if (keys().length) {
-  <table tuiTable size="s" class="table" [attr.aria-label]="'keys.page.title' | transloco">
+  <table
+    #contextDropdown="tuiDropdown"
+    #contextTarget="appContextMenuTarget"
+    tuiTable
+    size="s"
+    class="table"
+    appContextMenuTarget="rows"
+    tuiDropdownContext
+    tuiDropdownRole="menu"
+    [tuiDropdown]="contextMenu"
+    [tuiDropdownAlign]="contextTarget.align()"
+    [attr.aria-label]="'keys.page.title' | transloco"
+    (contextTarget)="onContextTarget($event)"
+  >
     <thead tuiThead>
       <tr>
         <th tuiTh>{{ 'keys.page.columns.name' | transloco }}</th>
@@ -46,7 +59,15 @@
     </thead>
     <tbody tuiTbody>
       @for (key of keys(); track key.id) {
-        <tr [attr.data-testid]="'key-row-' + key.name">
+        <tr
+          class="row"
+          [class._menu]="
+            openMenu() === key.id || (!!contextDropdown.ref() && contextKey()?.id === key.id)
+          "
+          [attr.data-menu-row]="key.id"
+          [attr.data-testid]="'key-row-' + key.name"
+          (keydown)="onRowKeydown($event, key)"
+        >
           <td tuiTd>
             <span class="name">{{ key.name }}</span>
           </td>
@@ -130,63 +151,23 @@
               type="button"
               [attr.aria-label]="'keys.page.rowMenu' | transloco: { name: key.name }"
               [attr.data-testid]="'key-menu-' + key.name"
+              aria-keyshortcuts="Shift+F10"
               [tuiDropdown]="menu"
               tuiDropdownAlign="end"
               [tuiDropdownOpen]="openMenu() === key.id"
-              (tuiDropdownOpenChange)="setMenu(key, $event)"
+              (tuiDropdownOpenChange)="
+                setMenu(key, $event); $event && contextDropdown.toggle(false)
+              "
             >
               {{ 'keys.page.columns.actions' | transloco }}
             </button>
             <ng-template #menu let-close>
-              <tui-data-list size="s">
-                <button
-                  tuiOption
-                  iconStart="@tui.copy"
-                  type="button"
-                  data-testid="key-copy"
-                  (click)="close(); actions.copyPublicKey(key)"
-                >
-                  {{ 'keys.page.menu.copy' | transloco }}
-                </button>
-                <button
-                  tuiOption
-                  iconStart="@tui.upload"
-                  type="button"
-                  data-testid="key-deploy"
-                  (click)="close(); actions.deploy(key)"
-                >
-                  {{ 'keys.page.menu.deploy' | transloco }}
-                </button>
-                <button
-                  tuiOption
-                  iconStart="@tui.pencil"
-                  type="button"
-                  data-testid="key-rename"
-                  (click)="close(); actions.rename(key)"
-                >
-                  {{ 'common.rename' | transloco }}
-                </button>
-                @if (key.hasPassphrase) {
-                  <button
-                    tuiOption
-                    iconStart="@tui.lock-open"
-                    type="button"
-                    data-testid="key-forget"
-                    (click)="close(); actions.forgetPassphrase(key)"
-                  >
-                    {{ 'keys.page.menu.forget' | transloco }}
-                  </button>
-                }
-                <hr />
-                <button
-                  tuiOption
-                  iconStart="@tui.trash"
-                  type="button"
-                  data-testid="key-delete"
-                  (click)="close(); actions.remove(key)"
-                >
-                  {{ 'common.delete' | transloco }}
-                </button>
+              <tui-data-list
+                size="s"
+                role="menu"
+                [attr.aria-label]="'keys.page.rowMenu' | transloco: { name: key.name }"
+              >
+                <ng-container *ngTemplateOutlet="entries; context: { $implicit: key, close }" />
               </tui-data-list>
             </ng-template>
           </td>
@@ -194,6 +175,77 @@
       }
     </tbody>
   </table>
+
+  <ng-template #contextMenu let-close>
+    @if (contextKey(); as key) {
+      <tui-data-list
+        size="s"
+        role="menu"
+        data-testid="context-menu"
+        data-surface="key"
+        [attr.aria-label]="'keys.page.rowMenu' | transloco: { name: key.name }"
+      >
+        <ng-container *ngTemplateOutlet="entries; context: { $implicit: key, close }" />
+      </tui-data-list>
+    }
+  </ng-template>
+
+  <!-- The "…" menu and the context menu of a row render these same entries. -->
+  <ng-template #entries let-key let-close="close">
+    <button
+      tuiOption
+      iconStart="@tui.copy"
+      type="button"
+      role="menuitem"
+      data-testid="key-copy"
+      (click)="close(); actions.copyPublicKey(key)"
+    >
+      {{ 'keys.page.menu.copy' | transloco }}
+    </button>
+    <button
+      tuiOption
+      iconStart="@tui.upload"
+      type="button"
+      role="menuitem"
+      data-testid="key-deploy"
+      (click)="close(); actions.deploy(key)"
+    >
+      {{ 'keys.page.menu.deploy' | transloco }}
+    </button>
+    <button
+      tuiOption
+      iconStart="@tui.pencil"
+      type="button"
+      role="menuitem"
+      data-testid="key-rename"
+      (click)="close(); actions.rename(key)"
+    >
+      {{ 'common.rename' | transloco }}
+    </button>
+    @if (key.hasPassphrase) {
+      <button
+        tuiOption
+        iconStart="@tui.lock-open"
+        type="button"
+        role="menuitem"
+        data-testid="key-forget"
+        (click)="close(); actions.forgetPassphrase(key)"
+      >
+        {{ 'keys.page.menu.forget' | transloco }}
+      </button>
+    }
+    <hr />
+    <button
+      tuiOption
+      iconStart="@tui.trash"
+      type="button"
+      role="menuitem"
+      data-testid="key-delete"
+      (click)="close(); actions.remove(key)"
+    >
+      {{ 'common.delete' | transloco }}
+    </button>
+  </ng-template>
 } @else if (loading()) {
   <tui-loader size="m" class="loader" />
 } @else if (loadError(); as message) {

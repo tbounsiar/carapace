@@ -100,9 +100,18 @@
 }
 
 <tui-loader class="body" [overlay]="true" [loading]="loading()">
+  <!-- One context menu for the pane: on a row, Taiga's aria-expanded would read as an expandable row. -->
   <div
+    #contextDropdown="tuiDropdown"
+    #contextTarget="appContextMenuTarget"
     class="scroll"
+    appContextMenuTarget
+    tuiDropdownContext
+    tuiDropdownRole="menu"
+    [tuiDropdown]="contextMenu"
+    [tuiDropdownAlign]="contextTarget.align()"
     [class._drop]="activeDrop() !== null && activeDrop() === path()"
+    (contextTarget)="onContextTarget($event)"
     (dragover)="onDragOver($event)"
     (dragleave)="onDragLeave($event)"
     (drop)="onDrop($event)"
@@ -147,9 +156,10 @@
             draggable="true"
             [attr.aria-keyshortcuts]="
               editable()
-                ? 'Enter Shift+Enter Backspace F2 Delete Control+A'
-                : 'Enter Backspace F2 Delete Control+A'
+                ? 'Enter Shift+Enter Backspace F2 Delete Control+A Shift+F10 ContextMenu'
+                : 'Enter Backspace F2 Delete Control+A Shift+F10 ContextMenu'
             "
+            [attr.data-menu-row]="row.entry.path"
             [class._selected]="selection.has(row.entry.path)"
             [class._drop]="activeDrop() === row.entry.path"
             [attr.data-drop-dir]="row.entry.kind === 'dir' ? row.entry.path : null"
@@ -201,64 +211,15 @@
                 [tabIndex]="i === activeIndex() ? 0 : -1"
                 [attr.aria-label]="'files.pane.actionsFor' | transloco: { name: row.entry.name }"
                 [attr.data-testid]="'entry-menu-' + row.entry.name"
-                [tuiDropdown]="menu"
+                [tuiDropdown]="buttonMenu"
                 tuiDropdownAlign="end"
                 [tuiDropdownOpen]="openMenu() === row.entry.path"
-                (tuiDropdownOpenChange)="setMenu(row.entry, $event)"
+                (tuiDropdownOpenChange)="
+                  setMenu(row.entry, $event); $event && contextDropdown.toggle(false)
+                "
               >
                 {{ 'files.pane.actions' | transloco }}
               </button>
-              <ng-template #menu let-close>
-                <tui-data-list size="s">
-                  @if (canEdit(row.entry)) {
-                    @let tooLarge = isTooLarge(row.entry);
-                    <button
-                      tuiOption
-                      iconStart="@tui.file-pen"
-                      type="button"
-                      data-testid="entry-edit"
-                      [appOptionReason]="tooLarge ? ('files.pane.tooLargeEdit' | transloco) : null"
-                      (click)="close(); edit.emit(row.entry)"
-                    >
-                      <app-option-label>{{ 'common.edit' | transloco }}</app-option-label>
-                    </button>
-                    @let external = isTooLargeExternal(row.entry);
-                    <button
-                      tuiOption
-                      iconStart="@tui.external-link"
-                      type="button"
-                      data-testid="entry-external"
-                      [appOptionReason]="
-                        external ? ('files.pane.tooLargeExternal' | transloco) : null
-                      "
-                      (click)="close(); openExternal.emit(row.entry)"
-                    >
-                      <app-option-label>{{
-                        'files.pane.openExternal' | transloco
-                      }}</app-option-label>
-                    </button>
-                  }
-                  <button
-                    tuiOption
-                    iconStart="@tui.pencil"
-                    type="button"
-                    data-testid="entry-rename"
-                    (click)="close(); rename(row.entry)"
-                  >
-                    {{ 'common.rename' | transloco }}
-                  </button>
-                  <hr />
-                  <button
-                    tuiOption
-                    iconStart="@tui.trash"
-                    type="button"
-                    data-testid="entry-delete"
-                    (click)="close(); remove(row.entry)"
-                  >
-                    {{ 'common.delete' | transloco }}
-                  </button>
-                </tui-data-list>
-              </ng-template>
             </td>
           </tr>
         } @empty {
@@ -278,3 +239,58 @@
     </table>
   </div>
 </tui-loader>
+
+<ng-template #buttonMenu let-close>
+  @let menu = rowMenu();
+  <tui-data-list size="s" role="menu" [attr.aria-label]="menu.aria">
+    <ng-container *ngTemplateOutlet="menuBody; context: { $implicit: menu, close }" />
+  </tui-data-list>
+</ng-template>
+
+<ng-template #contextMenu let-close>
+  @let rows = contextKind() === 'row';
+  @let menu = rows ? rowMenu() : paneMenu();
+  <tui-data-list
+    size="s"
+    role="menu"
+    data-testid="context-menu"
+    [attr.data-surface]="rows ? 'file-row' : 'file-pane'"
+    [attr.aria-label]="menu.aria"
+  >
+    <ng-container *ngTemplateOutlet="menuBody; context: { $implicit: menu, close }" />
+  </tui-data-list>
+</ng-template>
+
+<ng-template #menuBody let-menu let-close="close">
+  @if (menu.count) {
+    <tui-opt-group data-testid="entry-menu-count" [label]="menu.count">
+      <ng-container *ngTemplateOutlet="menuGroups; context: { $implicit: menu, close }" />
+    </tui-opt-group>
+  } @else {
+    <ng-container *ngTemplateOutlet="menuGroups; context: { $implicit: menu, close }" />
+  }
+</ng-template>
+
+<ng-template #menuGroups let-menu let-close="close">
+  @for (group of menu.groups; track $index; let first = $first) {
+    @if (!first && group.length) {
+      <hr />
+    }
+    @for (item of group; track item.id; let firstItem = $first) {
+      <button
+        tuiOption
+        type="button"
+        [iconStart]="item.icon"
+        [iconEnd]="item.checked ? '@tui.check' : ''"
+        [attr.role]="item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'"
+        [attr.aria-checked]="item.checked ?? null"
+        [attr.data-testid]="item.id"
+        [appOptionReason]="item.reason"
+        [tuiAutoFocus]="keyboardMenu() && first && firstItem"
+        (click)="close(); item.run()"
+      >
+        <app-option-label>{{ item.label }}</app-option-label>
+      </button>
+    }
+  }
+</ng-template>

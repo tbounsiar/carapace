@@ -56,9 +56,26 @@
 </div>
 
 <tui-expand [expanded]="expanded()">
-  <ul class="list" id="transfer-list" [attr.aria-label]="'transfers.panel.list' | transloco">
+  <ul
+    #contextDropdown="tuiDropdown"
+    #contextTarget="appContextMenuTarget"
+    class="list"
+    id="transfer-list"
+    appContextMenuTarget="rows"
+    tuiDropdownContext
+    tuiDropdownRole="menu"
+    [tuiDropdown]="menu"
+    [tuiDropdownAlign]="contextTarget.align()"
+    [attr.aria-label]="'transfers.panel.list' | transloco"
+    (contextTarget)="onContextTarget($event)"
+  >
     @for (row of rows(); track row.job.id) {
-      <li class="row" [attr.data-testid]="'transfer-' + row.job.name">
+      <li
+        class="row"
+        [class._menu]="!!contextDropdown.ref() && menuJobId() === row.job.id"
+        [attr.data-menu-row]="row.job.id"
+        [attr.data-testid]="'transfer-' + row.job.name"
+      >
         <tui-icon
           class="direction"
           [icon]="row.icon"
@@ -105,7 +122,9 @@
             type="button"
             [attr.aria-label]="'transfers.panel.cancel' | transloco: { name: row.job.name }"
             [attr.data-testid]="'transfer-cancel-' + row.job.name"
+            aria-keyshortcuts="Shift+F10 ContextMenu"
             (click)="cancel(row)"
+            (keydown)="onCancelKeydown($event)"
           >
             {{ 'common.cancel' | transloco }}
           </button>
@@ -118,3 +137,30 @@
     }
   </ul>
 </tui-expand>
+
+<ng-template #menu let-close>
+  <tui-data-list
+    size="s"
+    role="menu"
+    data-testid="context-menu"
+    data-surface="transfer"
+    [attr.aria-label]="menuLabel()"
+  >
+    @for (item of menuEntries(); track item.id) {
+      @if (item.separated) {
+        <hr />
+      }
+      <button
+        tuiOption
+        type="button"
+        role="menuitem"
+        [iconStart]="item.icon"
+        [attr.data-testid]="item.id"
+        [appOptionReason]="item.reason"
+        (click)="close(); item.run()"
+      >
+        <app-option-label>{{ item.label }}</app-option-label>
+      </button>
+    }
+  </tui-data-list>
+</ng-template>

@@ -168,6 +168,80 @@ describe('KeysPage', () => {
     expect(actions.forgetPassphrase).toHaveBeenCalledWith(saved);
   });
 
+  describe('context menu', () => {
+    const rightClick = async (target: Element): Promise<MouseEvent> => {
+      const event = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 20,
+      });
+      target.dispatchEvent(event);
+      await settle();
+      return event;
+    };
+    const menu = (): HTMLElement | null => byId('context-menu');
+    const entries = (root: Element | null): string[] =>
+      Array.from(root?.querySelectorAll('[tuiOption]') ?? []).map((o) =>
+        o.getAttribute('data-testid')!,
+      );
+    const other = key({ id: 'k2', name: 'deploy', hasPassphrase: true });
+
+    afterEach(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+    });
+
+    it('shows the same entries as the "…" menu and runs them on that key', async () => {
+      await setup([KEY, other]);
+      await click('key-menu-deploy');
+      const button = entries(document.querySelector('tui-data-list'));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+
+      const event = await rightClick(byId('key-fingerprint-deploy')!);
+      expect(event.defaultPrevented).toBe(true);
+      expect(menu()!.getAttribute('data-surface')).toBe('key');
+      expect(menu()!.getAttribute('aria-label')).toBe('Actions for deploy');
+      expect(entries(menu())).toEqual(button);
+      expect(entries(menu())).toEqual([
+        'key-copy',
+        'key-deploy',
+        'key-rename',
+        'key-forget',
+        'key-delete',
+      ]);
+      expect(byId('key-row-deploy')!.classList).toContain('_menu');
+      menu()!.querySelector<HTMLElement>('[data-testid="key-rename"]')!.click();
+      expect(actions.rename).toHaveBeenCalledWith(other);
+    });
+
+    it('opens nothing off the rows', async () => {
+      await setup([KEY]);
+      const event = await rightClick(document.querySelector('thead th')!);
+      expect(event.defaultPrevented).toBe(true);
+      expect(menu()).toBeNull();
+    });
+
+    it('closes an open "…" when a row is right-clicked', async () => {
+      await setup([KEY]);
+      await click('key-menu-id_ed25519');
+      await rightClick(byId('key-row-id_ed25519')!);
+      expect(document.querySelectorAll('tui-data-list').length).toBe(1);
+      expect(menu()).not.toBeNull();
+    });
+
+    it('opens the row "…" with Shift+F10 on any control of the row', async () => {
+      await setup([key({ origin: 'imported' })]);
+      byId('key-badge-external-id_ed25519')!.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }),
+      );
+      await settle();
+      expect(byId('key-menu-id_ed25519')!.getAttribute('aria-expanded')).toBe('true');
+      expect(byId('key-menu-id_ed25519')!.getAttribute('aria-keyshortcuts')).toBe('Shift+F10');
+    });
+  });
+
   it('renders in French', async () => {
     await setup([]);
     TestBed.inject(TranslocoService).setActiveLang('fr');

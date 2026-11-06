@@ -1,10 +1,10 @@
 import { LanguageService } from '../../../core/i18n/language';
-import { computed, signal } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideTaiga } from '@taiga-ui/core';
+import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import type { TransferView } from '../../../core/ipc/transfers';
 import { TransferQueue } from '../transfer-queue';
-import { TransferPanel } from './transfer-panel';
+import { TransferPanel, type TransferReveal } from './transfer-panel';
 
 function job(name: string, patch: Partial<TransferView> = {}): TransferView {
   return {
@@ -25,6 +25,21 @@ function job(name: string, patch: Partial<TransferView> = {}): TransferView {
   };
 }
 
+@Component({
+  imports: [TransferPanel, TuiRoot],
+  template: `<tui-root>
+    <app-transfer-panel
+      connectionId="h1"
+      [connected]="connected()"
+      (reveal)="revealed.push($event)"
+    />
+  </tui-root>`,
+})
+class MenuHost {
+  readonly connected = signal(true);
+  readonly revealed: TransferReveal[] = [];
+}
+
 describe('TransferPanel', () => {
   const transfers = signal<TransferView[]>([]);
   const queue = {
@@ -33,6 +48,7 @@ describe('TransferPanel', () => {
     hasFinished: computed(() => false),
     cancel: vi.fn(() => Promise.resolve()),
     clearFinished: vi.fn(() => Promise.resolve()),
+    enqueue: vi.fn(() => Promise.resolve()),
   };
   let fixture: ComponentFixture<TransferPanel>;
 
@@ -178,6 +194,147 @@ describe('TransferPanel', () => {
     toggle.click();
     await settle();
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  describe('row menu', () => {
+    let hostFixture: ComponentFixture<MenuHost>;
+    const root = (): HTMLElement => hostFixture.nativeElement as HTMLElement;
+    const row = (name: string): HTMLElement =>
+      root().querySelector<HTMLElement>(`[data-testid="transfer-${name}"]`)!;
+    const menu = (): HTMLElement | null =>
+      document.querySelector<HTMLElement>('[data-testid="context-menu"]');
+    const entries = (): string[] =>
+      Array.from(menu()?.querySelectorAll('[tuiOption]') ?? []).map((o) =>
+        o.getAttribute('data-testid')!,
+      );
+    const option = (id: string): HTMLElement =>
+      menu()!.querySelector<HTMLElement>(`[data-testid="${id}"]`)!;
+    const settleHost = async (): Promise<void> => {
+      for (let i = 0; i < 3; i++) {
+        await hostFixture.whenStable();
+        await new Promise((r) => setTimeout(r));
+      }
+    };
+    const rightClick = async (target: Element): Promise<MouseEvent> => {
+      const event = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 20,
+      });
+      target.dispatchEvent(event);
+      await settleHost();
+      return event;
+    };
+
+    async function setupHost(jobs: TransferView[], connected = true): Promise<void> {
+      transfers.set(jobs);
+      hostFixture = TestBed.createComponent(MenuHost);
+      hostFixture.componentInstance.connected.set(connected);
+      await settleHost();
+    }
+
+    afterEach(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settleHost();
+    });
+
+    it('offers Cancel on an active job and runs it', async () => {
+      await setupHost([job('big.iso', { state: 'running' }), job('old', { state: 'done' })]);
+      const event = await rightClick(row('big.iso').querySelector('.name')!);
+      expect(event.defaultPrevented).toBe(true);
+      expect(menu()!.getAttribute('data-surface')).toBe('transfer');
+      expect(menu()!.getAttribute('aria-label')).toBe('Transfer actions for big.iso');
+      expect(entries()).toEqual([
+        'transfer-menu-cancel',
+        'transfer-menu-reveal',
+        'transfer-menu-clear',
+      ]);
+      expect(row('big.iso').classList).toContain('_menu');
+      option('transfer-menu-cancel').click();
+      expect(queue.cancel).toHaveBeenCalledWith('big.iso');
+    });
+
+    it('retries a failed or cancelled job with the same request and policy ask', async () => {
+      await setupHost([
+        job('a.txt', { state: 'failed', error: { code: 'io', message: 'Disk full' } }),
+      ]);
+      await rightClick(row('a.txt'));
+      expect(entries()).toEqual([
+        'transfer-menu-retry',
+        'transfer-menu-reveal',
+        'transfer-menu-clear',
+      ]);
+      option('transfer-menu-retry').click();
+      expect(queue.enqueue).toHaveBeenCalledWith(
+        'h1',
+        'upload',
+        ['C:\\data\\a.txt'],
+        '/srv',
+        'ask',
+      );
+    });
+
+    it('has no Retry for a done job', async () => {
+      await setupHost([job('a.txt', { state: 'done' })]);
+      await rightClick(row('a.txt'));
+      expect(entries()).toEqual(['transfer-menu-reveal', 'transfer-menu-clear']);
+    });
+
+    it('shows the destination pane with the item selected', async () => {
+      await setupHost([
+        job('up.txt', { state: 'done' }),
+        job('down.txt', { state: 'done', direction: 'download', targetDir: 'C:\\in' }),
+      ]);
+      await rightClick(row('up.txt'));
+      expect(option('transfer-menu-reveal').textContent).toContain('Show in Remote pane');
+      option('transfer-menu-reveal').click();
+      await rightClick(row('down.txt'));
+      expect(option('transfer-menu-reveal').textContent).toContain('Show in Local pane');
+      option('transfer-menu-reveal').click();
+      expect(hostFixture.componentInstance.revealed).toEqual([
+        { side: 'remote', dir: '/srv', path: '/srv/up.txt' },
+        { side: 'local', dir: 'C:\\in', path: 'C:\\in\\down.txt' },
+      ]);
+    });
+
+    it('needs the connection for Retry and the remote pane', async () => {
+      await setupHost([job('a.txt', { state: 'cancelled' })], false);
+      await rightClick(row('a.txt'));
+      for (const id of ['transfer-menu-retry', 'transfer-menu-reveal']) {
+        expect(option(id).getAttribute('aria-disabled')).toBe('true');
+        expect(option(id).textContent).toContain('Connect to the remote first');
+      }
+      option('transfer-menu-retry').click();
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('clears finished jobs from the menu', async () => {
+      await setupHost([job('a.txt', { state: 'done' })]);
+      await rightClick(row('a.txt'));
+      option('transfer-menu-clear').click();
+      expect(queue.clearFinished).toHaveBeenCalled();
+    });
+
+    it('opens nothing off the rows', async () => {
+      await setupHost([job('a.txt', { state: 'done' })]);
+      const event = await rightClick(root().querySelector('[data-testid="transfer-toggle"]')!);
+      expect(event.defaultPrevented).toBe(false);
+      transfers.set([]);
+      await settleHost();
+      const empty = await rightClick(root().querySelector('.empty')!);
+      expect(empty.defaultPrevented).toBe(true);
+      expect(menu()).toBeNull();
+    });
+
+    it('opens the menu with Shift+F10 on the Cancel button', async () => {
+      await setupHost([job('big.iso', { state: 'running' })]);
+      root()
+        .querySelector('[data-testid="transfer-cancel-big.iso"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }));
+      await settleHost();
+      expect(entries()[0]).toBe('transfer-menu-cancel');
+    });
   });
 
   it('starts expanded when a job is active and shows an empty state', async () => {

@@ -1,5 +1,6 @@
 <div class="panes">
   <app-file-pane
+    #localPane
     [label]="'files.panel.local' | transloco"
     data-testid="pane-local"
     [source]="local"
@@ -12,6 +13,7 @@
   />
   @if (connected()) {
     <app-file-pane
+      #remotePane
       [label]="'files.panel.remote' | transloco"
       data-testid="pane-remote"
       [source]="remote()"
@@ -47,4 +49,9 @@
     </section>
   }
 </div>
-<app-transfer-panel class="transfers" [connectionId]="target().connectionId" />
+<app-transfer-panel
+  class="transfers"
+  [connectionId]="target().connectionId"
+  [connected]="connected()"
+  (reveal)="reveal($event)"
+/>

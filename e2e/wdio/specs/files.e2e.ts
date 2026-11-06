@@ -3,6 +3,13 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { HOST, PROJECT } from '../helpers/fixture';
+import {
+  closeContextMenu,
+  contextMenu,
+  menuEdges,
+  openDropdowns,
+  shotContextMenu,
+} from '../helpers/context-menu';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
   byId,
@@ -10,6 +17,8 @@ import {
   confirmDelete,
   createHost,
   createProject,
+  dialogButton,
+  remoteSh,
   tid,
   typeInto,
   waitForApp,
@@ -198,6 +207,193 @@ describe('file explorer', () => {
     await remove('local', 'local-renamed');
     await waitEntry('local', 'visible.txt');
     await shot('files-10-local-deleted');
+  });
+
+  describe('context menus', () => {
+    const ctxDir = `${dirName}-ctx`;
+    const scroll = (side: Side) => $(`${tid(`pane-${side}`)} .scroll`);
+    const pointer = async (el: ChainablePromiseElement, dx = 0) => {
+      const { x } = await el.getLocation();
+      const { width } = await el.getSize();
+      return x + width / 2 + dx;
+    };
+    const rightClick = async (side: Side, name: string, dx = 0) => {
+      const el = entry(side, name);
+      await el.scrollIntoView({ block: 'center' });
+      await el.click({ button: 'right', x: dx });
+    };
+    const ctrlClick = async (side: Side, name: string) => {
+      const el = entry(side, name);
+      await browser.actions([
+        browser.action('key').down('').pause(0).pause(0).pause(0).up(''),
+        browser
+          .action('pointer')
+          .move({ origin: await el })
+          .down()
+          .up(),
+      ]);
+    };
+    const below = async (side: Side) => {
+      const { height } = await scroll(side).getSize();
+      await scroll(side).click({ button: 'right', y: Math.round(height / 2) - 12 });
+    };
+
+    // Mocha runs this block after the parent's own tests, the last of which disconnects.
+    before(async () => {
+      if (
+        !(await byId('files-panel')
+          .isDisplayed()
+          .catch(() => false))
+      ) {
+        await clickId(`tab-${HOST.name}-files`);
+        await byId('files-panel').waitForDisplayed({ timeout: 10000 });
+      }
+      if (await inPane('remote', 'pane-connect').isExisting()) {
+        await paneClick('remote', 'pane-connect');
+        await acceptHostKeyIfAsked();
+        await waitStatus(HOST.name, 'Connected');
+      }
+      await inPane('remote', 'pane-path').waitForDisplayed({ timeout: 20000 });
+      if (!(await pathText('local')).includes(dirName)) {
+        await openEntry('local', dirName);
+        await waitPath('local', dirName);
+      }
+    });
+
+    // Each test starts from a.txt, b.txt and c.txt listed in the remote folder, no menu open.
+    beforeEach(async () => {
+      if (await contextMenu('file-row').isExisting()) await browser.keys('Escape');
+      remoteSh(
+        `rm -rf ~/${ctxDir} && mkdir -p ~/${ctxDir} && for f in a.txt b.txt c.txt; do echo "$f" > ~/${ctxDir}/$f; done`,
+      );
+      for (const name of ['b.txt', 'c.txt']) rmSync(join(dirPath, name), { force: true });
+      if (!(await pathText('remote')).includes(ctxDir)) {
+        const home = inPane('remote', 'pane-path').$('button=carapace');
+        if (await home.isExisting()) await home.click();
+        await waitEntry('remote', ctxDir);
+        await openEntry('remote', ctxDir);
+        await waitPath('remote', ctxDir);
+      }
+      await paneClick('remote', 'pane-refresh');
+      await waitEntry('remote', 'a.txt');
+      await waitEntry('remote', 'b.txt');
+      await waitEntry('remote', 'c.txt');
+      await paneClick('local', 'pane-refresh');
+      await waitEntry('local', 'b.txt', false);
+    });
+
+    after(() => {
+      try {
+        remoteSh(`rm -rf ~/${ctxDir}`);
+      } catch {
+        // the container may be gone
+      }
+    });
+
+    it('opens the row menu at the pointer and renames from it', async () => {
+      // The left part of the row is far enough from the window's right edge to open rightwards.
+      const { width } = await entry('remote', 'a.txt').getSize();
+      const left = 48 - Math.round(width / 2);
+      await rightClick('remote', 'a.txt', left);
+      await contextMenu('file-row').waitForDisplayed({ timeout: 5000 });
+      expect(await openDropdowns()).toBe(1);
+      expect(await inPane('remote', 'entry-a.txt').getAttribute('aria-selected')).toBe('true');
+      const start = await menuEdges('file-row');
+      expect(Math.abs(start.left - (await pointer(entry('remote', 'a.txt'), left)))).toBeLessThan(
+        8,
+      );
+      await expect(byId('entry-edit')).toExist();
+      await expect(byId('entry-copy-path')).toExist();
+      await closeContextMenu('file-row');
+      await shotContextMenu('ctx-01-file-row', 'file-row', () =>
+        rightClick('remote', 'a.txt', left),
+      );
+
+      // Near the right edge the menu grows leftwards instead of being squeezed.
+      const dx = Math.round(width / 2) - 24;
+      await rightClick('remote', 'a.txt', dx);
+      await contextMenu('file-row').waitForDisplayed({ timeout: 5000 });
+      const end = await menuEdges('file-row');
+      expect(Math.abs(end.right - (await pointer(entry('remote', 'a.txt'), dx)))).toBeLessThan(8);
+      await closeContextMenu('file-row');
+      await shotContextMenu('ctx-04-remote-right-edge', 'file-row', () =>
+        rightClick('remote', 'a.txt', dx),
+      );
+
+      await rightClick('remote', 'a.txt');
+      await clickId('entry-rename');
+      await typeInto('name-input', 'renamed.txt');
+      await clickId('dialog-save');
+      await waitGone('name-input');
+      await waitEntry('remote', 'renamed.txt');
+    });
+
+    it('acts on a Ctrl+click selection: "2 selected", Download to local', async () => {
+      await entry('remote', 'b.txt').click();
+      await ctrlClick('remote', 'c.txt');
+      await rightClick('remote', 'c.txt');
+      await contextMenu('file-row').waitForDisplayed({ timeout: 5000 });
+      expect(await byId('entry-menu-count').getAttribute('data-label')).toBe('2 selected');
+      expect(await inPane('remote', 'entry-b.txt').getAttribute('aria-selected')).toBe('true');
+      await closeContextMenu('file-row');
+      await shotContextMenu('ctx-02-file-multi', 'file-row', () => rightClick('remote', 'c.txt'));
+      await rightClick('remote', 'c.txt');
+      await clickId('entry-transfer');
+      await waitEntry('local', 'b.txt');
+      await waitEntry('local', 'c.txt');
+    });
+
+    it('opens the folder menu on the empty area and toggles hidden files', async () => {
+      await below('remote');
+      await contextMenu('file-pane').waitForDisplayed({ timeout: 5000 });
+      expect(await byId('pane-menu-hidden').getAttribute('aria-checked')).toBe('false');
+      await closeContextMenu('file-pane');
+      await shotContextMenu('ctx-03-pane-empty', 'file-pane', () => below('remote'));
+      await below('remote');
+      await clickId('pane-menu-hidden');
+      await browser.waitUntil(
+        async () => (await inPane('remote', 'pane-hidden').getAttribute('aria-pressed')) === 'true',
+        { timeout: 5000, timeoutMsg: 'the folder menu did not show hidden files' },
+      );
+      await setHidden('remote', false);
+    });
+
+    it('keeps one menu open: the "…" closes on a right click, breadcrumbs open nothing', async () => {
+      await entry('remote', 'a.txt').moveTo();
+      await paneClick('remote', 'entry-menu-a.txt');
+      await byId('entry-rename').waitForDisplayed({ timeout: 5000 });
+      await rightClick('remote', 'a.txt');
+      await contextMenu('file-row').waitForDisplayed({ timeout: 5000 });
+      expect(await openDropdowns()).toBe(1);
+
+      await inPane('remote', 'pane-path').click({ button: 'right' });
+      await contextMenu('file-row').waitForExist({ timeout: 5000, reverse: true });
+      expect(await openDropdowns()).toBe(0);
+    });
+
+    it('opens the row "…" with Shift+F10', async () => {
+      await entry('remote', 'a.txt').click();
+      await browser.keys(['Shift', 'F10']);
+      await browser.waitUntil(
+        async () =>
+          (await inPane('remote', 'entry-menu-a.txt').getAttribute('aria-expanded')) === 'true',
+        { timeout: 5000, timeoutMsg: 'Shift+F10 did not open the row menu' },
+      );
+      await browser.keys('Escape');
+      await byId('entry-rename').waitForExist({ timeout: 5000, reverse: true });
+    });
+
+    it('deletes a selection after one confirm', async () => {
+      await entry('remote', 'b.txt').click();
+      await ctrlClick('remote', 'a.txt');
+      await browser.keys('Delete');
+      await dialogButton('Delete').waitForClickable({ timeout: 10000 });
+      await shot('ctx-12-multi-delete-confirm');
+      await confirmDelete();
+      await waitEntry('remote', 'b.txt', false);
+      await waitEntry('remote', 'a.txt', false);
+      await waitEntry('remote', 'c.txt');
+    });
   });
 
   it('keeps pane paths across navigation and resets the remote pane on disconnect', async () => {
