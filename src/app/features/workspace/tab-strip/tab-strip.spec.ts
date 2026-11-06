@@ -234,7 +234,7 @@ describe('TabStrip', () => {
     await settle();
     expect(byId('workspace-tabs')?.getAttribute('aria-label')).toBe('Onglets ouverts');
     const term = byId('tab-vps-terminal-3')!;
-    expect(term.getAttribute('aria-label')).toBe('vps · Terminal 3 — Connexion perdue');
+    expect(term.getAttribute('aria-label')).toBe('Accueil / vps · Terminal 3 — Connexion perdue');
     expect(byId('tab-vps-files')?.textContent).toContain('Fichiers');
     expect(byId('tabs-new')?.getAttribute('aria-label')).toBe('Sélectionnez d’abord un onglet');
   });

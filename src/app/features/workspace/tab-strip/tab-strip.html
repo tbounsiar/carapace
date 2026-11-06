@@ -31,6 +31,7 @@
           [class._modified]="tab.modified()"
           [id]="tabId(tab)"
           [attr.data-tab]="tab.id"
+          tuiHintDirection="bottom-end"
           [tuiHint]="t.hint"
           [attr.aria-label]="t.aria"
           [attr.aria-selected]="tab === active()"
@@ -44,6 +45,10 @@
             [ngTemplateOutlet]="statusIcon"
             [ngTemplateOutletContext]="{ $implicit: status }"
           />
+          @if (t.path) {
+            <span class="path" data-testid="tab-path">{{ t.path }}</span>
+            <span class="separator" aria-hidden="true">/</span>
+          }
           <span class="host">{{ t.host }}</span>
           <span class="separator" aria-hidden="true">·</span>
           <span class="label">{{ t.label }}</span>

@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { host, project } from '../../core/ipc/config.fixture';
+import { collection, host, project } from '../../core/ipc/config.fixture';
 import type { TabStatus } from './tab-status';
 import { tabTitles, unsavedNames } from './tab-titles';
 import { type TabSpec, tabKey, Workspace } from './workspace';
@@ -101,7 +101,8 @@ describe('Workspace', () => {
 
 describe('tabTitles', () => {
   const vps = host('h1', 'vps', null);
-  const other = host('h2', 'vps', 'p1');
+  const other = host('h2', 'vps', 'p1', 'c2');
+  const nodes = [collection('c1', 'clavis', 'p1'), collection('c2', 'prod', 'p1', 'c1')];
   const tab = (
     id: string,
     hostId: string,
@@ -130,14 +131,22 @@ describe('tabTitles', () => {
       tab('t3', 'h1', 'edit', 'app.conf', '/etc/php/app.conf'),
       tab('t4', 'h2', 'terminal', 'Terminal 1'),
     ];
-    const titles = tabTitles(tabs, [vps, other], [project('p1', 'Payments')]);
+    const titles = tabTitles(
+      tabs,
+      [vps, other],
+      [project('p1', 'Payments')],
+      [...nodes, vps, other],
+    );
     expect(titles.get('t1')?.title).toBe('vps · Terminal 1');
+    expect(titles.get('t1')?.path).toBe('');
     expect(titles.get('t2')?.label).toBe('nginx/app.conf');
     expect(titles.get('t3')?.label).toBe('php/app.conf');
-    expect(titles.get('t1')?.hint).toBe('vps (Home) · Terminal 1 — Connected');
-    expect(titles.get('t4')?.hint).toBe('vps (Payments) · Terminal 1 — Connected');
+    expect(titles.get('t1')?.hint).toBe('Home / vps · Terminal 1 — Connected');
+    expect(titles.get('t4')?.path).toBe('clavis / prod');
+    expect(titles.get('t4')?.title).toBe('clavis / prod / vps · Terminal 1');
+    expect(titles.get('t4')?.hint).toBe('Payments / clavis / prod / vps · Terminal 1 — Connected');
     expect(titles.get('t2')?.aria).toBe(
-      'vps (Home) · nginx/app.conf — Connected, vps:/etc/nginx/app.conf, modified',
+      'Home / vps · nginx/app.conf — Connected, vps:/etc/nginx/app.conf, modified',
     );
   });
 
