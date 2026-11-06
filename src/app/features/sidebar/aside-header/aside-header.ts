@@ -1,25 +1,17 @@
 import { afterRenderEffect, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import {
-  TuiButton,
-  TuiDataList,
-  TuiDropdown,
-  TuiHint,
-  TuiInput,
-  TuiTextfield,
-} from '@taiga-ui/core';
+import { TuiButton, TuiDropdown, TuiHint, TuiInput, TuiTextfield } from '@taiga-ui/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
-import { CurrentScope } from '../../../shared/current-scope';
 import { HostLauncher } from '../../host-connection/host-launcher';
 import { ancestors } from '../../project-tree/node-tree';
-import { ProjectActions } from '../../project-tree/project-actions';
+import { NewMenu } from '../new-menu/new-menu';
 import { SidebarFilter } from '../sidebar-filter';
 import { SidebarState } from '../sidebar-state';
 
 /** Aside `<header>` content: the host filter and the New menu. */
 @Component({
-  imports: [TranslocoPipe, TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiInput, TuiTextfield],
+  imports: [NewMenu, TranslocoPipe, TuiButton, TuiDropdown, TuiHint, TuiInput, TuiTextfield],
   selector: 'app-aside-header',
   templateUrl: './aside-header.html',
   styleUrl: './aside-header.scss',
@@ -27,8 +19,6 @@ import { SidebarState } from '../sidebar-state';
 })
 export class AsideHeader {
   private readonly config = inject(ConfigService);
-  private readonly scope = inject(CurrentScope);
-  private readonly actions = inject(ProjectActions);
   private readonly launcher = inject(HostLauncher);
   private readonly state = inject(SidebarState);
   private readonly router = inject(Router);
@@ -36,7 +26,6 @@ export class AsideHeader {
 
   private readonly field = viewChild.required<ElementRef<HTMLInputElement>>('field');
 
-  protected readonly isHome = this.scope.isHome;
   protected readonly loaded = this.config.loaded;
   protected readonly newOpen = signal(false);
 
@@ -118,20 +107,5 @@ export class AsideHeader {
       this.filter.clear();
       void this.router.navigate(['/projects', project.id]);
     }
-  }
-
-  protected newHost(): void {
-    this.newOpen.set(false);
-    this.actions.addHost({ projectId: this.scope.projectId(), parentId: null });
-  }
-
-  protected newCollection(): void {
-    this.newOpen.set(false);
-    this.actions.addCollection({ projectId: this.scope.projectId(), parentId: null });
-  }
-
-  protected newProject(): void {
-    this.newOpen.set(false);
-    this.actions.createProject();
   }
 }

@@ -65,6 +65,19 @@ describe('SidebarTree', () => {
     target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, ...init }));
     await settle();
   };
+  const rootMenu = () =>
+    document.body.querySelector('[data-testid="context-menu"][data-surface="sidebar-root"]');
+  const rightClickBelowRows = async (): Promise<MouseEvent> => {
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 20,
+      clientY: 400,
+    });
+    byId('sidebar-tree')!.querySelector('.root')!.dispatchEvent(event);
+    await settle();
+    return event;
+  };
   const go = async (url: string): Promise<void> => {
     await TestBed.inject(Router).navigateByUrl(url);
     await settle();
@@ -260,6 +273,41 @@ describe('SidebarTree', () => {
       expect(byId('menu-host-my-vps')?.getAttribute('aria-expanded')).not.toBe('true');
     });
 
+    it('opens the New menu on a right click below the rows, not on a row', async () => {
+      const event = await rightClickBelowRows();
+      expect(event.defaultPrevented).toBe(true);
+      const ids = [...rootMenu()!.querySelectorAll('[tuiOption]')].map((o) =>
+        o.getAttribute('data-testid'),
+      );
+      expect(ids).toEqual(['new-host', 'new-collection', 'new-project']);
+      byId('new-collection')!.click();
+      await settle();
+      expect(actions.addCollection).toHaveBeenCalledWith({ projectId: null, parentId: null });
+      expect(rootMenu()).toBeNull();
+
+      byId('open-host-my-vps')!.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 20,
+          clientY: 20,
+        }),
+      );
+      await settle();
+      expect(rootMenu()).toBeNull();
+      expect(document.body.querySelector('[data-testid="menu-new-terminal"]')).not.toBeNull();
+    });
+
+    it('closes an open "…" menu when the New menu opens', async () => {
+      byId('menu-host-my-vps')!.click();
+      await settle();
+      expect(byId('tree-host-my-vps')?.classList).toContain('_menu');
+      await rightClickBelowRows();
+      expect(byId('tree-host-my-vps')?.classList).not.toContain('_menu');
+      expect(document.body.querySelectorAll('[data-testid="menu-new-terminal"]').length).toBe(0);
+      expect(rootMenu()).not.toBeNull();
+    });
+
     it('focuses or opens the terminal on a host double-click', async () => {
       byId('open-host-my-vps')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
       expect(launcher.openTerminal).toHaveBeenCalledWith(config.findNode('h2'));
@@ -409,6 +457,13 @@ describe('SidebarTree', () => {
       await settle();
       byId('empty-add-Empty')!.click();
       expect(actions.addHost).toHaveBeenCalledWith({ projectId: 'p1', parentId: 'c9' });
+    });
+
+    it('opens the New menu of the project root below the rows', async () => {
+      await rightClickBelowRows();
+      expect(byId('new-project')).toBeNull();
+      byId('new-host')!.click();
+      expect(actions.addHost).toHaveBeenCalledWith({ projectId: 'p1', parentId: null });
     });
 
     it('leaves the project with Alt+ArrowUp', async () => {

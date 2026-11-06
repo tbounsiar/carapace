@@ -1,10 +1,14 @@
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
   min-block-size: 100%;
-  /* An empty strip under the last item stays a drop target for the scope root. */
-  padding-block-end: 2rem;
-  box-sizing: border-box;
   border-radius: var(--tui-radius-m);
+}
+
+/* An empty strip under the last item stays a drop target and the New menu area of the scope root. */
+.root {
+  flex: 1;
+  padding-block-end: 2rem;
 }
 
 :host._drop-root {

@@ -1,0 +1,40 @@
+<tui-data-list
+  size="s"
+  role="menu"
+  [attr.aria-label]="'sidebar.new' | transloco"
+  [attr.data-testid]="surface() ? 'context-menu' : null"
+  [attr.data-surface]="surface()"
+>
+  <button
+    tuiOption
+    type="button"
+    role="menuitem"
+    iconStart="@tui.server"
+    data-testid="new-host"
+    (click)="newHost()"
+  >
+    {{ 'sidebar.newHost' | transloco }}
+  </button>
+  <button
+    tuiOption
+    type="button"
+    role="menuitem"
+    iconStart="@tui.folder-plus"
+    data-testid="new-collection"
+    (click)="newCollection()"
+  >
+    {{ 'sidebar.newCollection' | transloco }}
+  </button>
+  @if (isHome()) {
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.folder-kanban"
+      data-testid="new-project"
+      (click)="newProject()"
+    >
+      {{ 'sidebar.newProject' | transloco }}
+    </button>
+  }
+</tui-data-list>

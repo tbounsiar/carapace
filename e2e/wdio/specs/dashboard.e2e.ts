@@ -1,5 +1,5 @@
 import { HOST } from '../helpers/fixture';
-import { screenshotThemes } from '../helpers/screenshot';
+import { screenshot, screenshotThemes, setThemeMode } from '../helpers/screenshot';
 import {
   activeTab,
   byId,
@@ -23,6 +23,30 @@ import {
 } from '../helpers/ui';
 
 const shot = async (name: string) => console.log('screenshots', await screenshotThemes(name));
+
+const contextMenu = (surface: string) =>
+  $(`[data-testid="context-menu"][data-surface="${surface}"]`);
+
+/** Light and dark shots of a context menu opened fresh in each theme (a dropdown keeps its theme). */
+async function shotContextMenu(
+  name: string,
+  surface: string,
+  open: () => Promise<unknown>,
+): Promise<void> {
+  const files: string[] = [];
+  for (const mode of ['light', 'dark'] as const) {
+    await setThemeMode(mode);
+    await browser.pause(400);
+    await open();
+    await contextMenu(surface).waitForDisplayed({ timeout: 5000 });
+    await browser.pause(400);
+    files.push(await screenshot(`${name}-${mode}`));
+    await browser.keys('Escape');
+    await contextMenu(surface).waitForExist({ timeout: 5000, reverse: true });
+  }
+  await setThemeMode('system');
+  console.log('screenshots', files);
+}
 
 const PROJECT = 'Ops';
 const BASTION = { ...HOST, name: 'bastion' };
@@ -293,5 +317,40 @@ describe('dashboards', () => {
     } finally {
       await browser.setWindowSize(size.width, size.height);
     }
+  });
+
+  it('renames a project from its card menu and opens the New menu below the sidebar rows', async () => {
+    await clickId('home-link');
+    await byId('project-card-Blank').waitForDisplayed({ timeout: 10000 });
+    await shotContextMenu('ctx-06-project-card', 'project-card', () =>
+      byId('project-card-Blank').click({ button: 'right' }),
+    );
+    await byId('project-card-Blank').click({ button: 'right' });
+    await contextMenu('project-card').waitForDisplayed({ timeout: 5000 });
+    expect(await $$('tui-dropdown').length).toBe(1);
+    await clickId('menu-edit');
+    await fillName('Blank renamed');
+    await byId('project-card-Blank renamed').waitForDisplayed({ timeout: 10000 });
+    await expect(byId('project-card-Blank')).not.toExist();
+
+    const belowRows = async () => {
+      const root = $('#sidebar-tree .root');
+      const size = await root.getSize();
+      await root.click({ button: 'right', y: Math.round(size.height / 2) - 8 });
+    };
+    await shotContextMenu('ctx-11-sidebar-root', 'sidebar-root', belowRows);
+    await belowRows();
+    await contextMenu('sidebar-root').waitForDisplayed({ timeout: 5000 });
+    await expect(byId('new-project')).toExist();
+    await clickId('new-collection');
+    await fillName('From the empty area');
+    await byId('tree-collection-From the empty area').waitForDisplayed({ timeout: 10000 });
+
+    // A right click where no menu lives closes the open one and shows nothing.
+    await belowRows();
+    await contextMenu('sidebar-root').waitForDisplayed({ timeout: 5000 });
+    await byId('home-title').click({ button: 'right' });
+    await contextMenu('sidebar-root').waitForExist({ timeout: 5000, reverse: true });
+    expect(await $$('tui-dropdown').length).toBe(0);
   });
 });

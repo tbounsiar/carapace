@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { TranslocoService } from '@jsverse/transloco';
 import { ConfigService } from '../../../core/ipc/config';
+import type { Project } from '../../../core/ipc/config.models';
 import { collection, fakeConfig, host, project } from '../../../core/ipc/config.fixture';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { SshService } from '../../../core/ipc/ssh';
@@ -28,7 +29,13 @@ describe('Welcome (Home page)', () => {
   let fixture: ComponentFixture<Shell>;
   let config: ReturnType<typeof fakeConfig>;
   const states = signal<Record<string, ConnectionState>>({});
-  const actions = { createProject: vi.fn(), addHost: vi.fn(), addCollection: vi.fn() };
+  const actions = {
+    createProject: vi.fn(),
+    addHost: vi.fn(),
+    addCollection: vi.fn(),
+    renameProject: vi.fn(),
+    deleteProject: vi.fn<(p: Project) => Promise<boolean>>(() => Promise.resolve(false)),
+  };
   const launcher = { open: vi.fn(), openTerminal: vi.fn() };
   const transfer = { importing: signal(false), exportData: vi.fn(), importData: vi.fn() };
   const byId = <T extends HTMLElement = HTMLElement>(id: string): T | null =>
@@ -226,5 +233,92 @@ describe('Welcome (Home page)', () => {
     const load = vi.spyOn(config, 'load');
     byId('dashboard-retry')!.click();
     expect(load).toHaveBeenCalledOnce();
+  });
+
+  describe('project card menu', () => {
+    const menu = () => document.body.querySelector('[data-testid="context-menu"]');
+    const rightClick = async (id: string) => {
+      const event = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 30,
+        clientY: 30,
+      });
+      byId(id)!.dispatchEvent(event);
+      await settle();
+      return event;
+    };
+
+    it('shows the sidebar project entries and runs them on that project', async () => {
+      await setup();
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      const event = await rightClick('project-card-Payments');
+      expect(event.defaultPrevented).toBe(true);
+      expect(menu()?.getAttribute('data-surface')).toBe('project-card');
+      expect(menu()?.getAttribute('aria-label')).toBe('Actions for Payments');
+      expect(
+        [...menu()!.querySelectorAll('[tuiOption]')].map((o) => [
+          o.getAttribute('data-testid'),
+          o.textContent?.trim(),
+        ]),
+      ).toEqual([
+        ['menu-open', 'Open project'],
+        ['menu-variables', 'Project variables'],
+        ['menu-edit', 'Rename'],
+        ['menu-delete', 'Delete'],
+      ]);
+      byId('menu-edit')!.click();
+      await settle();
+      expect(actions.renameProject).toHaveBeenCalledWith(config.findProject('p1'));
+      expect(document.activeElement).toBe(byId('project-card-Payments'));
+      expect(menu()).toBeNull();
+
+      await rightClick('project-card-Shop');
+      byId('menu-variables')!.click();
+      expect(navigate).toHaveBeenCalledWith(['/projects', 'p2', 'variables']);
+      await settle();
+      await rightClick('project-card-Shop');
+      byId('menu-open')!.click();
+      expect(navigate).toHaveBeenCalledWith(['/projects', 'p2']);
+    });
+
+    it('opens from Shift+F10 on the focused card', async () => {
+      await setup();
+      const card = byId('project-card-Shop')!;
+      card.focus();
+      const event = new KeyboardEvent('keydown', {
+        key: 'F10',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      card.dispatchEvent(event);
+      await settle();
+      expect(event.defaultPrevented).toBe(true);
+      expect(menu()?.getAttribute('aria-label')).toBe('Actions for Shop');
+    });
+
+    it('focuses the next card after a delete, else New project', async () => {
+      actions.deleteProject.mockImplementation(async (p: Project) => {
+        config.projects.update((all) => all.filter((x) => x.id !== p.id));
+        return true;
+      });
+      await setup();
+      await rightClick('project-card-Payments');
+      byId('menu-delete')!.click();
+      await settle();
+      expect(actions.deleteProject).toHaveBeenCalledWith(project('p1', 'Payments'));
+      expect(document.activeElement).toBe(byId('project-card-Shop'));
+      await rightClick('project-card-Shop');
+      byId('menu-delete')!.click();
+      await settle();
+      expect(document.activeElement).toBe(byId('home-new-project'));
+    });
+
+    it('gives the New project card no menu', async () => {
+      await setup();
+      await rightClick('home-new-project');
+      expect(menu()).toBeNull();
+    });
   });
 });

@@ -44,6 +44,7 @@ import { errorText, notifyError } from '../../../shared/save-error';
 import { uiText } from '../../../shared/ui-text';
 import { isTreeKey, treeKeyAction, type VisibleRow } from '../../project-tree/tree-keys';
 import { SIDEBAR_DRAG_PLACEHOLDER, SIDEBAR_DRAG_TYPE, SidebarDrag } from '../sidebar-drag';
+import { NewMenu } from '../new-menu/new-menu';
 import { SidebarFilter } from '../sidebar-filter';
 import { SidebarState } from '../sidebar-state';
 
@@ -79,6 +80,7 @@ export function projectKey(projectId: string): string {
 /** The hierarchy of the current scope as nested Taiga aside groups, plus the projects at Home. */
 @Component({
   imports: [
+    NewMenu,
     NgTemplateOutlet,
     RouterLink,
     TuiBlockStatus,
@@ -125,6 +127,7 @@ export class SidebarTree implements OnInit {
 
   protected readonly rootDrop = ROOT_DROP;
   protected readonly loading = computed(() => this.config.loading() && !this.config.loaded());
+  protected readonly loaded = this.config.loaded;
   private readonly failure = signal<string | null>(null);
   /** Cleared by any later successful load, including a retry from a dashboard. */
   protected readonly loadError = computed(() => (this.config.loaded() ? null : this.failure()));
@@ -476,6 +479,11 @@ export class SidebarTree implements OnInit {
 
   protected openContextMenu(key: string): void {
     this.menuKey.set(key);
+    this.buttonMenu.set(null);
+  }
+
+  /** Right click off the rows (rows stop theirs): the New menu of the scope root. */
+  protected openRootMenu(): void {
     this.buttonMenu.set(null);
   }
 

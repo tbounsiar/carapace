@@ -1,10 +1,20 @@
-import { Component, computed, inject, signal, viewChild } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  Injector,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiButton, TuiDataList, TuiDropdown, TuiIcon, TuiTitle } from '@taiga-ui/core';
 import { TuiButtonLoading, TuiSkeleton, TuiStatus } from '@taiga-ui/kit';
 import { TuiBlockStatus, TuiCardLarge, TuiHeader } from '@taiga-ui/layout';
 import { ConfigService } from '../../../core/ipc/config';
+import type { Project } from '../../../core/ipc/config.models';
 import { SshService } from '../../../core/ipc/ssh';
 import { connectedCounts } from '../../../shared/connection-status';
 import {
@@ -25,12 +35,23 @@ import { HostLauncher } from '../../host-connection/host-launcher';
 import { byName, countNodes, HOME, scopeTree } from '../../project-tree/node-tree';
 import { ProjectActions } from '../../project-tree/project-actions';
 import { errorText } from '../../../shared/save-error';
+import { uiText } from '../../../shared/ui-text';
+import { ContextMenuTarget } from '../../../shared/context-menu/context-menu-target';
 
 const HOME_ROOT = { projectId: null, parentId: null };
+
+interface ProjectMenuEntry {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: string;
+  readonly separated?: boolean;
+  readonly run: (project: Project) => void;
+}
 
 /** The Home page (`/`): the projects, then hosts and collections outside projects. */
 @Component({
   imports: [
+    ContextMenuTarget,
     HostGroups,
     HostsToolbar,
     RouterLink,
@@ -59,6 +80,8 @@ export class Welcome {
   private readonly router = inject(Router);
   private readonly transfer = inject(DataTransferActions);
 
+  private readonly injector = inject(Injector);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly toolbar = viewChild(HostsToolbar);
   protected readonly placeholders = [1, 2, 3, 4, 5, 6];
 
@@ -129,6 +152,37 @@ export class Welcome {
   );
   protected readonly trimmedQuery = computed(() => this.query().trim());
 
+  /** The project whose card was right-clicked last. */
+  protected readonly menuProject = signal<Project | null>(null);
+  /** The sidebar project row menu, same entries and ids. */
+  protected readonly projectMenu = computed<ProjectMenuEntry[]>(() => [
+    {
+      id: 'menu-open',
+      label: uiText('sidebar.menu.openProject'),
+      icon: '@tui.arrow-right',
+      run: (project) => void this.router.navigate(['/projects', project.id]),
+    },
+    {
+      id: 'menu-variables',
+      label: uiText('sidebar.menu.variables'),
+      icon: '@tui.variable',
+      run: (project) => void this.router.navigate(['/projects', project.id, 'variables']),
+    },
+    {
+      id: 'menu-edit',
+      label: uiText('common.rename'),
+      icon: '@tui.pencil',
+      run: (project) => this.actions.renameProject(project),
+    },
+    {
+      id: 'menu-delete',
+      label: uiText('common.delete'),
+      icon: '@tui.trash',
+      separated: true,
+      run: (project) => void this.deleteProject(project),
+    },
+  ]);
+
   protected createProject(): void {
     this.actions.createProject();
   }
@@ -180,5 +234,55 @@ export class Welcome {
 
   protected focusSearch(): void {
     this.toolbar()?.focus();
+  }
+
+  protected onCardKeydown(event: KeyboardEvent): void {
+    const plain = !event.ctrlKey && !event.altKey && !event.metaKey;
+    if (
+      plain &&
+      ((event.key === 'F10' && event.shiftKey) || (event.key === 'ContextMenu' && !event.shiftKey))
+    ) {
+      event.preventDefault();
+      // Taiga's context dropdown opens at the pointer of a contextmenu event: give it the card's corner.
+      const card = event.currentTarget as HTMLElement;
+      const rect = card.getBoundingClientRect();
+      card.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left,
+          clientY: rect.bottom,
+        }),
+      );
+    }
+  }
+
+  protected runProjectEntry(entry: ProjectMenuEntry): void {
+    const project = this.menuProject();
+    if (!project) {
+      return;
+    }
+    // Dialogs give the focus back to where it was when they opened: the card.
+    this.card(project.id)?.focus();
+    entry.run(project);
+  }
+
+  private async deleteProject(project: Project): Promise<void> {
+    const index = this.projectCards().findIndex((c) => c.project.id === project.id);
+    if (!(await this.actions.deleteProject(project))) {
+      return;
+    }
+    afterNextRender(
+      () => {
+        const cards = this.host.querySelectorAll<HTMLElement>('[data-project-card]');
+        const next = cards[Math.min(index, cards.length - 1)];
+        (next ?? this.host.querySelector<HTMLElement>('[data-testid="home-new-project"]'))?.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  private card(projectId: string): HTMLElement | null {
+    return this.host.querySelector<HTMLElement>(`[data-project-card="${projectId}"]`);
   }
 }
