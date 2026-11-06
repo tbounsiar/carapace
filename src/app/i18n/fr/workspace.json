@@ -28,7 +28,7 @@
   },
   "menu": {
     "newTerminal": "Nouveau terminal",
-    "openFiles": "Ouvrir les fichiers",
+    "openFiles": "Parcourir les fichiers",
     "openExternal": "Ouvrir dans l’éditeur externe",
     "saveFirst": "Enregistrez d’abord vos modifications",
     "closeOthers": "Fermer les autres onglets",

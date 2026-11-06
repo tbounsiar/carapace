@@ -70,12 +70,13 @@
         <div
           class="row"
           tuiDropdownContext
+          tuiDropdownAlign="start"
           tuiDropdownAppearance=""
           [attr.data-drop]="key"
           [attr.data-drop-target]="dropTarget() === key ? 'true' : null"
-          [class._menu]="menuKey() === key"
+          [class._menu]="buttonMenu() === key"
           [tuiDropdown]="menu"
-          (contextmenu)="menuKey.set(key)"
+          (contextmenu)="openContextMenu(key)"
         >
           <button
             tuiAsideItem
@@ -141,12 +142,13 @@
         <div
           class="row"
           tuiDropdownContext
+          tuiDropdownAlign="start"
           tuiDropdownAppearance=""
           [attr.data-drop]="'collection:' + item.id"
           [attr.data-drop-target]="dropTarget() === item.id ? 'true' : null"
-          [class._menu]="menuKey() === item.id"
+          [class._menu]="buttonMenu() === item.id"
           [tuiDropdown]="menu"
-          (contextmenu)="menuKey.set(item.id)"
+          (contextmenu)="openContextMenu(item.id)"
         >
           <button
             tuiAsideItem
@@ -200,12 +202,13 @@
       <div
         class="row"
         tuiDropdownContext
+        tuiDropdownAlign="start"
         tuiDropdownAppearance=""
         [class._selected]="selectedHost() === host.id"
-        [class._menu]="menuKey() === item.id"
+        [class._menu]="buttonMenu() === item.id"
         [attr.data-testid]="'tree-host-' + host.name"
         [tuiDropdown]="menu"
-        (contextmenu)="menuKey.set(item.id)"
+        (contextmenu)="openContextMenu(item.id)"
       >
         <a
           tuiAsideItem
@@ -272,9 +275,10 @@
 <ng-template #menuButton let-key="key" let-name="name" let-kind="kind">
   <span
     class="menu-anchor"
+    tuiDropdownAlign="end"
     tuiDropdownAppearance=""
     [tuiDropdown]="menu"
-    [tuiDropdownOpen]="menuKey() === key"
+    [tuiDropdownOpen]="buttonMenu() === key"
     (tuiDropdownOpenChange)="setMenu(key, $event)"
   >
     <button
@@ -284,7 +288,7 @@
       iconStart="@tui.ellipsis"
       type="button"
       tabindex="-1"
-      [attr.aria-expanded]="menuKey() === key"
+      [attr.aria-expanded]="buttonMenu() === key"
       [attr.aria-label]="'sidebar.actionsFor' | transloco: { name }"
       [attr.data-testid]="'menu-' + kind + '-' + name"
       (click)="toggleMenu($event, key)"
@@ -307,7 +311,7 @@
         [iconStart]="entry.icon"
         [disabled]="!!entry.disabled"
         [attr.data-testid]="entry.id"
-        (click)="close(); menuKey.set(null); entry.run()"
+        (click)="close(); buttonMenu.set(null); entry.run()"
       >
         {{ entry.label }}
       </button>
