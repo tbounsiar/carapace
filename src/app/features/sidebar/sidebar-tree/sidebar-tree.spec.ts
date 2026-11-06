@@ -212,7 +212,7 @@ describe('SidebarTree', () => {
       expect(actions.addCollection).toHaveBeenCalledWith({ projectId: null, parentId: 'c1' });
     });
 
-    it('starts the host menu with New terminal and Open files', async () => {
+    it('starts the host menu with New terminal and Browse files', async () => {
       byId('menu-host-my-vps')!.click();
       await settle();
       const ids = [...document.body.querySelectorAll('tui-data-list [data-testid]')].map((e) =>
@@ -226,6 +226,38 @@ describe('SidebarTree', () => {
       await settle();
       byId('menu-open-files')!.click();
       expect(launcher.openFiles).toHaveBeenCalledWith(config.findNode('h2'));
+    });
+
+    it('opens a single menu on right click, also with the "…" menu already open', async () => {
+      const menus = () => document.body.querySelectorAll('[data-testid="menu-new-terminal"]');
+      const rightClick = async (id: string) => {
+        byId(id)!.dispatchEvent(
+          new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: 20,
+            clientY: 20,
+          }),
+        );
+        await settle();
+      };
+      await rightClick('open-host-my-vps');
+      expect(menus().length).toBe(1);
+      expect(byId('menu-host-my-vps')?.getAttribute('aria-expanded')).not.toBe('true');
+      expect(byId('tree-host-my-vps')?.classList).not.toContain('_menu');
+
+      byId('menu-new-terminal')!.click();
+      expect(launcher.newTerminal).toHaveBeenCalledWith(config.findNode('h2'));
+      await settle();
+      expect(menus().length).toBe(0);
+
+      byId('menu-host-my-vps')!.click();
+      await settle();
+      expect(menus().length).toBe(1);
+      await rightClick('open-host-my-vps');
+      await settle();
+      expect(menus().length).toBe(1);
+      expect(byId('menu-host-my-vps')?.getAttribute('aria-expanded')).not.toBe('true');
     });
 
     it('focuses or opens the terminal on a host double-click', async () => {

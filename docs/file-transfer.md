@@ -1,6 +1,6 @@
 # Files and transfers
 
-Open the file explorer with **Files** on a host card, the host page or the host's sidebar menu (**Open files**). It opens as a tab with two panes: **Local** (this computer) on the left, **Remote** (the host, over SFTP) on the right. The remote pane starts in your home directory.
+Open the file explorer with **Files** on a host card, the host page or the host's sidebar menu (**Browse files**). It opens as a tab with two panes: **Local** (this computer) on the left, **Remote** (the host, over SFTP) on the right. The remote pane starts in your home directory.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/file-transfer-dark.png">

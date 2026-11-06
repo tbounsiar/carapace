@@ -140,7 +140,10 @@ export class SidebarTree implements OnInit {
     computation: () => new Set(),
   });
 
+  /** The row the menu entries are built for: the last "…", context or keyboard menu opened. */
   protected readonly menuKey = signal<string | null>(null);
+  /** The row whose "…" dropdown is open; a right click opens its own dropdown at the pointer. */
+  protected readonly buttonMenu = signal<string | null>(null);
   protected readonly selectedProject = signal<string | null>(null);
   protected readonly dropTarget = signal<string | null>(null);
   private readonly lastFocused = signal<string | null>(null);
@@ -459,11 +462,21 @@ export class SidebarTree implements OnInit {
    */
   protected toggleMenu(event: Event, key: string): void {
     event.stopPropagation();
-    this.menuKey.update((current) => (current === key ? null : key));
+    this.setMenu(key, this.buttonMenu() !== key);
   }
 
   protected setMenu(key: string, open: boolean): void {
-    this.menuKey.update((current) => (open ? key : current === key ? null : current));
+    if (open) {
+      this.menuKey.set(key);
+      this.buttonMenu.set(key);
+    } else if (this.buttonMenu() === key) {
+      this.buttonMenu.set(null);
+    }
+  }
+
+  protected openContextMenu(key: string): void {
+    this.menuKey.set(key);
+    this.buttonMenu.set(null);
   }
 
   protected selectProject(project: Project): void {
@@ -600,7 +613,7 @@ export class SidebarTree implements OnInit {
       (event.key === 'F10' && event.shiftKey && !ctrl) ||
       (event.key === 'ContextMenu' && plain)
     ) {
-      this.menuKey.set(row.key);
+      this.setMenu(row.key, true);
       return true;
     }
     if (!plain) {

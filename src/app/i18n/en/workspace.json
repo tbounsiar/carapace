@@ -28,7 +28,7 @@
   },
   "menu": {
     "newTerminal": "New terminal",
-    "openFiles": "Open files",
+    "openFiles": "Browse files",
     "openExternal": "Open in external editor",
     "saveFirst": "Save your changes first",
     "closeOthers": "Close other tabs",

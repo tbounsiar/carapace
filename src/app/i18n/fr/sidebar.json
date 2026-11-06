@@ -31,7 +31,7 @@
     "newHostHere": "Nouvel hôte ici",
     "newCollectionHere": "Nouvelle collection ici",
     "newTerminal": "Nouveau terminal",
-    "openFiles": "Ouvrir les fichiers"
+    "openFiles": "Parcourir les fichiers"
   },
   "connectionsFailed": "Connexions non chargées",
   "hostsFailed": "Hôtes non chargés"
