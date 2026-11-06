@@ -11,7 +11,7 @@ use tokio::time::timeout;
 use uuid::Uuid;
 
 use super::error::TerminalError;
-use crate::ssh::{SessionEnd, SessionRef, SshManager};
+use crate::ssh::{Lease, SessionEnd, SessionRef, SshManager};
 
 pub const MAX_COLS: u32 = 1000;
 pub const MAX_ROWS: u32 = 500;
@@ -143,11 +143,8 @@ impl TerminalManager {
     ) -> Result<String, TerminalError> {
         check_size(cols, rows)?;
         let reservation = self.reserve(connection_id)?;
-        let session = ssh
-            .session(connection_id)
-            .await
-            .ok_or(TerminalError::NotConnected)?;
-        let (channel, early) = start_shell(&session, cols, rows).await?;
+        let (mut channel, session) = ssh.open_channel(connection_id).await?;
+        let early = start_shell(&session, &mut channel, connection_id, cols, rows).await?;
         let (read, write) = channel.split();
 
         let id = Uuid::new_v4().to_string();
@@ -192,6 +189,7 @@ impl TerminalManager {
                 failed: failed_rx,
                 ended: session.ended,
             },
+            _lease: session.lease,
         };
         tokio::spawn(pump.run(done, early));
         Ok(id)
@@ -312,52 +310,67 @@ fn not_connected_or(session: &SessionRef, other: TerminalError) -> TerminalError
     }
 }
 
-/// Returns the channel and the output received before the shell was confirmed.
+/// Requests the pty and the shell on `channel`; returns the output received before the shell
+/// was confirmed. The channel is closed on failure. A refusal is never retried elsewhere: it
+/// is about this account or server, not about the number of sessions.
 async fn start_shell(
     session: &SessionRef,
-    cols: u32,
-    rows: u32,
-) -> Result<(Channel<Msg>, Vec<u8>), TerminalError> {
-    let mut channel = match timeout(OPEN_TIMEOUT, session.handle.channel_open_session()).await {
-        Ok(Ok(c)) => c,
-        _ => return Err(not_connected_or(session, TerminalError::Network)),
-    };
-    match timeout(OPEN_TIMEOUT, request_shell(&mut channel, cols, rows)).await {
-        Ok(Ok(early)) => Ok((channel, early)),
-        _ => {
-            let _ = timeout(CLOSE_TIMEOUT, channel.close()).await;
-            Err(not_connected_or(session, TerminalError::Network))
-        }
-    }
-}
-
-async fn request_shell(
     channel: &mut Channel<Msg>,
+    connection_id: &str,
     cols: u32,
     rows: u32,
 ) -> Result<Vec<u8>, TerminalError> {
-    let failed = |_| TerminalError::Network;
-    channel
-        .request_pty(false, TERM, cols, rows, 0, 0, &[])
-        .await
-        .map_err(failed)?;
-    channel.request_shell(true).await.map_err(failed)?;
-    let mut early = Vec::new();
+    let failure = match timeout(OPEN_TIMEOUT, request_shell(channel, cols, rows)).await {
+        Ok(Ok(early)) => return Ok(early),
+        Ok(Err(e)) => e,
+        Err(_) => TerminalError::Timeout,
+    };
+    let _ = timeout(CLOSE_TIMEOUT, channel.close()).await;
+    let failure = not_connected_or(session, failure);
+    log::warn!(
+        "connection {connection_id}: opening a shell failed: {}",
+        failure.code()
+    );
+    Err(failure)
+}
+
+/// The reply to the request just sent; output arriving meanwhile is kept in `early`.
+async fn reply(
+    channel: &mut Channel<Msg>,
+    early: &mut Vec<u8>,
+    refused: TerminalError,
+) -> Result<(), TerminalError> {
     loop {
         match channel.wait().await {
-            Some(ChannelMsg::Success) => return Ok(early),
+            Some(ChannelMsg::Success) => return Ok(()),
             Some(ChannelMsg::Data { data }) | Some(ChannelMsg::ExtendedData { data, .. }) => {
                 if early.len() + data.len() > OUTPUT_BUDGET {
                     return Err(TerminalError::Network);
                 }
                 early.extend_from_slice(&data);
             }
-            Some(ChannelMsg::Failure | ChannelMsg::Close) | None => {
-                return Err(TerminalError::Network);
-            }
+            Some(ChannelMsg::Failure | ChannelMsg::Close) | None => return Err(refused),
             Some(_) => {}
         }
     }
+}
+
+/// The pty is requested with a reply so a refused pty and a refused shell are told apart.
+async fn request_shell(
+    channel: &mut Channel<Msg>,
+    cols: u32,
+    rows: u32,
+) -> Result<Vec<u8>, TerminalError> {
+    let failed = |_| TerminalError::Network;
+    let mut early = Vec::new();
+    channel
+        .request_pty(true, TERM, cols, rows, 0, 0, &[])
+        .await
+        .map_err(failed)?;
+    reply(channel, &mut early, TerminalError::PtyRefused).await?;
+    channel.request_shell(true).await.map_err(failed)?;
+    reply(channel, &mut early, TerminalError::ShellRefused).await?;
+    Ok(early)
 }
 
 async fn apply_inputs(
@@ -481,6 +494,8 @@ struct Pump {
     outputs: mpsc::UnboundedSender<Output>,
     budget: Arc<Semaphore>,
     stops: Stops,
+    /// Keeps an extra connection open while the terminal runs on it.
+    _lease: Option<Lease>,
 }
 
 impl Pump {
@@ -559,3 +574,6 @@ mod tests;
 
 #[cfg(test)]
 mod e2e_tests;
+
+#[cfg(test)]
+mod extra_tests;

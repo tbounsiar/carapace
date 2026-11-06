@@ -9,7 +9,10 @@ pub mod test_sftp;
 
 pub use ends::{ConnectionEnd, ConnectionEvent};
 pub use error::SshError;
+#[cfg(test)]
+pub use manager::MAX_EXTRAS;
 pub use manager::{
-    ConnectEvent, Connected, ConnectionInfo, Credential, Emit, HostIdentity, HostTestResult,
-    RegisteredKey, SessionEnd, SessionRef, SshManager, Target, TargetAuth, TestTicket,
+    ChannelError, ConnectEvent, Connected, ConnectionInfo, Credential, Emit, HostIdentity,
+    HostTestResult, IsCurrent, Lease, RegisteredKey, SessionEnd, SessionRef, SshManager, Target,
+    TargetAuth, TestTicket,
 };

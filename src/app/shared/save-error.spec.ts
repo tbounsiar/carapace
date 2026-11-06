@@ -40,6 +40,21 @@ describe('errorText', () => {
     );
   });
 
+  it('explains a session the server refused instead of blaming the network', () => {
+    expect(
+      errorText(
+        new IpcError('channel_refused', 'the server allows no more sessions on this connection', {
+          key: 'errors.terminal.channelRefused',
+        }),
+      ),
+    ).toBe(
+      'The server allows no more sessions on this connection. Close another tab of this host, or ask the server administrator to raise MaxSessions.',
+    );
+    for (const code of ['pty_refused', 'shell_refused', 'subsystem_refused']) {
+      expect(errorText({ code, message: 'refused' })).not.toMatch(/unexpected|network/iu);
+    }
+  });
+
   it('does not double the final period', () => {
     expect(errorText(new IpcError('busy', 'Busy.'))).toBe('Busy. Wait a moment and try again.');
   });

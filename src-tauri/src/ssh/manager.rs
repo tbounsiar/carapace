@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
 use russh::client::{self, AuthResult, Handle};
@@ -27,6 +27,10 @@ pub type Emit = Arc<dyn Fn(ConnectEvent) + Send + Sync>;
 
 /// Tells whether the host is still configured as it was when the connect started.
 pub type StillCurrent<'a> = &'a (dyn Fn() -> bool + Send + Sync);
+
+/// Tells whether `target` is still what its host resolves to; checked under the lifecycle
+/// lock before an extra connection is registered.
+pub type IsCurrent = Arc<dyn Fn(&Target) -> bool + Send + Sync>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -336,6 +340,8 @@ pub struct SessionRef {
     /// Becomes `Some` once when the connection ends; a closed sender also means it ended.
     pub ended: watch::Receiver<Option<SessionEnd>>,
     pub identity: Arc<HostIdentity>,
+    /// Set on an extra connection, which stays open while a lease of it is held.
+    pub lease: Option<Lease>,
 }
 
 /// Which server a session reached: the accepted host key and the resolved endpoint. Used to
@@ -359,6 +365,8 @@ pub struct ClientHandler {
     changed: Option<ChangedKeys>,
     emit: Emit,
     prompt_timeout: Duration,
+    /// `false` for an extra connection: nobody is there to answer, so an unknown key fails.
+    prompt: bool,
     shared: Arc<Shared>,
 }
 
@@ -470,6 +478,10 @@ impl ClientHandler {
         let status = self.known_hosts.check(&self.hostname, self.port, &key);
         if let Some(verdict) = self.verdict(status, &key) {
             return Ok((verdict, fp));
+        }
+        if !self.prompt {
+            self.shared.reject(Rejection::Rejected);
+            return Ok((false, fp));
         }
 
         let request_id = Uuid::new_v4().to_string();
@@ -626,6 +638,10 @@ struct Connection {
     ended: EndSignal,
     info: ConnectionInfo,
     identity: Arc<HostIdentity>,
+    /// What an extra connection is made from; `None` when the secret was typed and not
+    /// stored, since a new connection would have to ask for it again.
+    reuse: Option<Target>,
+    extras: Vec<Weak<Extra>>,
 }
 
 impl Connection {
@@ -665,6 +681,15 @@ fn closable(stream: TcpStream) -> Result<(TcpStream, SocketCloser), SshError> {
             armed: true,
         },
     ))
+}
+
+/// A test keeps a changed key away from `replace_host_key` and makes the socket closable from
+/// outside russh; an extra connection never prompts and never offers a changed key either.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Connect,
+    Test,
+    Extra,
 }
 
 /// An authenticated session, not registered anywhere yet.
@@ -715,16 +740,24 @@ pub struct SshManager {
     tests: Tests,
     next_test: AtomicU64,
     ends: Ends,
+    is_current: IsCurrent,
 }
 
 impl SshManager {
-    pub fn new(config_dir: &Path, secrets: SecretStore) -> Self {
+    pub fn new(config_dir: &Path, secrets: SecretStore, is_current: IsCurrent) -> Self {
         let user_file = std::env::home_dir().map(|h| h.join(".ssh").join("known_hosts"));
         Self::with_parts(
             KnownHosts::new(config_dir.join("known_hosts"), user_file),
             Timeouts::default(),
             secrets,
         )
+        .with_current(is_current)
+    }
+
+    /// Without it every target counts as stale, so no extra connection is ever registered.
+    pub fn with_current(mut self, is_current: IsCurrent) -> Self {
+        self.is_current = is_current;
+        self
     }
 
     pub fn with_parts(known_hosts: KnownHosts, timeouts: Timeouts, secrets: SecretStore) -> Self {
@@ -739,6 +772,7 @@ impl SshManager {
             tests: Default::default(),
             next_test: AtomicU64::new(0),
             ends: Ends::default(),
+            is_current: Arc::new(|_| false),
         }
     }
 
@@ -792,6 +826,7 @@ impl SshManager {
                 handle: c.handle.clone(),
                 ended: c.ended.subscribe(),
                 identity: c.identity.clone(),
+                lease: None,
             }),
             Some(_) => {
                 if let Some(c) = sessions.remove(connection_id) {
@@ -890,7 +925,7 @@ impl SshManager {
             shared,
             guard: _guard,
             ..
-        } = match self.open(target, &credentials, &emit, false).await {
+        } = match self.open(target, &credentials, &emit, Mode::Connect).await {
             Ok(opened) => opened,
             Err(e) => {
                 if let (SshError::AuthFailed(_), Some(Source::Saved), Credentials::Password(p)) =
@@ -908,6 +943,7 @@ impl SshManager {
         // a delete or move that ran before the check makes it fail, one that runs after it
         // finds the session when it closes the host's connections.
         let mut sessions = self.sessions.lock().await;
+        let mut stored = false;
         let current = {
             let _lifecycle = self.secrets.lifecycle();
             let current = still_current();
@@ -916,16 +952,14 @@ impl SshManager {
                 && let Some(saved) = &target.saved
             {
                 let bound = target.bound_to(kind);
-                if fits_saved(&bound, &secret)
-                    && self
-                        .secrets
-                        .set_saved(saved, kind, &bound, &secret)
-                        .is_err()
-                {
-                    log::warn!(
-                        "could not store the {kind} of connection {} in the keychain",
-                        target.connection_id
-                    );
+                if fits_saved(&bound, &secret) {
+                    match self.secrets.set_saved(saved, kind, &bound, &secret) {
+                        Ok(()) => stored = true,
+                        Err(_) => log::warn!(
+                            "could not store the {kind} of connection {} in the keychain",
+                            target.connection_id
+                        ),
+                    }
                 }
             }
             current
@@ -958,6 +992,8 @@ impl SshManager {
                         .unwrap_or_default(),
                     endpoint: format!("{}:{}:{}", target.hostname, target.port, target.username),
                 }),
+                reuse: (source != Some(Source::Typed) || stored).then(|| target.clone()),
+                extras: Vec::new(),
             },
         );
         emit(ConnectEvent::Status {
@@ -970,14 +1006,13 @@ impl SshManager {
         })
     }
 
-    /// TCP connect, handshake with the host key check, authentication. `test` keeps a changed
-    /// key away from `replace_host_key` and makes the socket closable from outside russh.
+    /// TCP connect, handshake with the host key check, authentication.
     async fn open(
         &self,
         target: &Target,
         credentials: &Credentials,
         emit: &Emit,
-        test: bool,
+        mode: Mode,
     ) -> Result<Opened, SshError> {
         emit(ConnectEvent::Status {
             state: ConnectState::Connecting,
@@ -990,7 +1025,7 @@ impl SshManager {
         .await
         .map_err(|_| SshError::Timeout)?
         .map_err(|_| SshError::Network)?;
-        let (stream, socket) = if test {
+        let (stream, socket) = if mode == Mode::Test {
             let (stream, closer) = closable(stream)?;
             (stream, Some(closer))
         } else {
@@ -1010,9 +1045,10 @@ impl SshManager {
             port: target.port,
             known_hosts: self.known_hosts.clone(),
             pending: self.pending.clone(),
-            changed: (!test).then(|| self.changed.clone()),
+            changed: (mode == Mode::Connect).then(|| self.changed.clone()),
             emit: emit.clone(),
             prompt_timeout: self.timeouts.prompt,
+            prompt: mode != Mode::Extra,
             shared: shared.clone(),
         };
         let config = Arc::new(client::Config {
@@ -1133,7 +1169,7 @@ impl SshManager {
             shared,
             mut socket,
             ..
-        } = match self.open(target, &credentials, &emit, true).await {
+        } = match self.open(target, &credentials, &emit, Mode::Test).await {
             Ok(opened) => opened,
             Err(SshError::AuthFailed(message)) => {
                 let refused = match (&credentials, &source) {
@@ -1486,6 +1522,13 @@ async fn connect_agent() -> Result<DynAgent, SshError> {
             .map_err(|_| unavailable())
     }
 }
+
+mod extra;
+
+use extra::Extra;
+#[cfg(test)]
+pub use extra::MAX_EXTRAS;
+pub use extra::{ChannelError, Lease};
 
 #[cfg(test)]
 mod tests;
