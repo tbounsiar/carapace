@@ -81,6 +81,12 @@
   }
 }
 
+/* tui-expand lays its content out in a grid sized to the content's min-content width: without
+   this a long nested label widened the group and the tree scrolled sideways. */
+.level {
+  contain: inline-size;
+}
+
 .level._indent {
   margin-inline-start: 0.75rem;
 }

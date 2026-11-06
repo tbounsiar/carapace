@@ -78,7 +78,7 @@ export class TabStrip {
     return active ? this.tabs().indexOf(active) : -1;
   });
   protected readonly titles = computed(() =>
-    tabTitles(this.tabs(), this.config.hosts(), this.config.projects()),
+    tabTitles(this.tabs(), this.config.hosts(), this.config.projects(), this.config.nodes()),
   );
   protected readonly menuTab = signal<WorkspaceTab | null>(null);
   protected readonly menuEntries = computed<TabMenuEntry[]>(() => {
@@ -122,7 +122,16 @@ export class TabStrip {
 
   protected title(tab: WorkspaceTab): TabTitle {
     const label = tabLabel(tab);
-    return this.titles().get(tab.id) ?? { host: '', label, title: label, hint: label, aria: label };
+    return (
+      this.titles().get(tab.id) ?? {
+        path: '',
+        host: '',
+        label,
+        title: label,
+        hint: label,
+        aria: label,
+      }
+    );
   }
 
   protected suffix(tab: WorkspaceTab): string {
