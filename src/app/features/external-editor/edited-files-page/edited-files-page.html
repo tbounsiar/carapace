@@ -19,10 +19,18 @@
     {{ 'externalEditor.page.note' | transloco }}
   </div>
   <table
+    #contextDropdown="tuiDropdown"
+    #contextTarget="appContextMenuTarget"
     tuiTable
     size="s"
     class="table"
+    appContextMenuTarget="rows"
+    tuiDropdownContext
+    tuiDropdownRole="menu"
+    [tuiDropdown]="contextMenu"
+    [tuiDropdownAlign]="contextTarget.align()"
     [attr.aria-label]="'externalEditor.page.title' | transloco"
+    (contextTarget)="onContextTarget($event)"
   >
     <thead tuiThead>
       <tr>
@@ -46,6 +54,12 @@
       @for (row of rows(); track row.file.id) {
         <tr
           #row
+          class="row"
+          [class._menu]="
+            openMenu() === row.file.id ||
+            (!!contextDropdown.ref() && contextRow()?.file?.id === row.file.id)
+          "
+          [attr.data-menu-row]="row.file.id"
           [attr.data-testid]="row.testId"
           [attr.data-state]="row.file.state"
           (keydown)="onRowKeydown($event, row)"
@@ -131,98 +145,22 @@
                 [tuiDropdown]="menu"
                 tuiDropdownAlign="end"
                 [tuiDropdownOpen]="openMenu() === row.file.id"
-                (tuiDropdownOpenChange)="setMenu(row, $event)"
+                (tuiDropdownOpenChange)="
+                  setMenu(row, $event); $event && contextDropdown.toggle(false)
+                "
               >
                 {{ 'externalEditor.page.actions' | transloco }}
               </button>
             </span>
             <ng-template #menu let-close>
-              <tui-data-list size="s" role="menu">
-                <button
-                  tuiOption
-                  iconStart="@tui.upload"
-                  type="button"
-                  role="menuitem"
-                  data-testid="edited-upload"
-                  [appOptionReason]="row.uploadReason"
-                  (click)="close(); actions.upload(row.file)"
-                >
-                  <app-option-label>{{
-                    'externalEditor.page.uploadNow' | transloco
-                  }}</app-option-label>
-                </button>
-                <button
-                  tuiOption
-                  iconStart="@tui.external-link"
-                  type="button"
-                  role="menuitem"
-                  data-testid="edited-reopen"
-                  [appOptionReason]="row.blocked"
-                  (click)="close(); actions.reopen(row.file)"
-                >
-                  <app-option-label>{{
-                    'externalEditor.page.openExternal' | transloco
-                  }}</app-option-label>
-                </button>
-                <button
-                  tuiOption
-                  iconStart="@tui.file-pen"
-                  type="button"
-                  role="menuitem"
-                  data-testid="edited-builtin"
-                  [appOptionReason]="row.builtInReason"
-                  (click)="close(); actions.openBuiltIn(row.file)"
-                >
-                  <app-option-label>{{
-                    'externalEditor.page.openBuiltIn' | transloco
-                  }}</app-option-label>
-                </button>
-                <button
-                  tuiOption
-                  iconStart="@tui.folder-open"
-                  type="button"
-                  role="menuitem"
-                  data-testid="edited-reveal"
-                  (click)="close(); actions.reveal(row.file)"
-                >
-                  {{ 'externalEditor.page.showInFolder' | transloco }}
-                </button>
-                @if (row.host && !row.connected && !row.blocked) {
-                  <button
-                    tuiOption
-                    iconStart="@tui.plug"
-                    type="button"
-                    role="menuitem"
-                    data-testid="edited-reconnect"
-                    (click)="close(); actions.reconnect(row.file)"
-                  >
-                    {{ 'externalEditor.page.reconnect' | transloco: { host: row.hostName } }}
-                  </button>
-                }
-                <hr />
-                @if (row.file.state === 'recovered') {
-                  <button
-                    tuiOption
-                    iconStart="@tui.trash"
-                    type="button"
-                    role="menuitem"
-                    data-testid="edited-discard"
-                    (click)="close(); stop(row)"
-                  >
-                    {{ 'externalEditor.page.discard' | transloco }}
-                  </button>
-                } @else {
-                  <button
-                    tuiOption
-                    iconStart="@tui.x"
-                    type="button"
-                    role="menuitem"
-                    data-testid="edited-stop"
-                    (click)="close(); stop(row)"
-                  >
-                    {{ 'externalEditor.page.stop' | transloco }}
-                  </button>
-                }
+              <tui-data-list
+                size="s"
+                role="menu"
+                [attr.aria-label]="
+                  'externalEditor.page.actionsFor' | transloco: { name: row.file.name }
+                "
+              >
+                <ng-container *ngTemplateOutlet="entries; context: { $implicit: row, close }" />
               </tui-data-list>
             </ng-template>
           </td>
@@ -230,6 +168,103 @@
       }
     </tbody>
   </table>
+
+  <ng-template #contextMenu let-close>
+    @if (contextRow(); as row) {
+      <tui-data-list
+        size="s"
+        role="menu"
+        data-testid="context-menu"
+        data-surface="edited"
+        [attr.aria-label]="'externalEditor.page.actionsFor' | transloco: { name: row.file.name }"
+      >
+        <ng-container *ngTemplateOutlet="entries; context: { $implicit: row, close }" />
+      </tui-data-list>
+    }
+  </ng-template>
+
+  <!-- The "…" menu and the context menu of a row render these same entries. -->
+  <ng-template #entries let-row let-close="close">
+    <button
+      tuiOption
+      iconStart="@tui.upload"
+      type="button"
+      role="menuitem"
+      data-testid="edited-upload"
+      [appOptionReason]="row.uploadReason"
+      (click)="close(); actions.upload(row.file)"
+    >
+      <app-option-label>{{ 'externalEditor.page.uploadNow' | transloco }}</app-option-label>
+    </button>
+    <button
+      tuiOption
+      iconStart="@tui.external-link"
+      type="button"
+      role="menuitem"
+      data-testid="edited-reopen"
+      [appOptionReason]="row.blocked"
+      (click)="close(); actions.reopen(row.file)"
+    >
+      <app-option-label>{{ 'externalEditor.page.openExternal' | transloco }}</app-option-label>
+    </button>
+    <button
+      tuiOption
+      iconStart="@tui.file-pen"
+      type="button"
+      role="menuitem"
+      data-testid="edited-builtin"
+      [appOptionReason]="row.builtInReason"
+      (click)="close(); actions.openBuiltIn(row.file)"
+    >
+      <app-option-label>{{ 'externalEditor.page.openBuiltIn' | transloco }}</app-option-label>
+    </button>
+    <button
+      tuiOption
+      iconStart="@tui.folder-open"
+      type="button"
+      role="menuitem"
+      data-testid="edited-reveal"
+      (click)="close(); actions.reveal(row.file)"
+    >
+      {{ 'externalEditor.page.showInFolder' | transloco }}
+    </button>
+    @if (row.host && !row.connected && !row.blocked) {
+      <button
+        tuiOption
+        iconStart="@tui.plug"
+        type="button"
+        role="menuitem"
+        data-testid="edited-reconnect"
+        (click)="close(); actions.reconnect(row.file)"
+      >
+        {{ 'externalEditor.page.reconnect' | transloco: { host: row.hostName } }}
+      </button>
+    }
+    <hr />
+    @if (row.file.state === 'recovered') {
+      <button
+        tuiOption
+        iconStart="@tui.trash"
+        type="button"
+        role="menuitem"
+        data-testid="edited-discard"
+        (click)="close(); stop(row)"
+      >
+        {{ 'externalEditor.page.discard' | transloco }}
+      </button>
+    } @else {
+      <button
+        tuiOption
+        iconStart="@tui.x"
+        type="button"
+        role="menuitem"
+        data-testid="edited-stop"
+        (click)="close(); stop(row)"
+      >
+        {{ 'externalEditor.page.stop' | transloco }}
+      </button>
+    }
+  </ng-template>
 } @else {
   <tui-block-status size="m" data-testid="edited-empty">
     <span tuiAvatar="@tui.external-link" size="l" tuiSlot="top"></span>

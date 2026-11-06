@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, linkedSignal } from '@angular/core';
+import { Component, computed, inject, input, linkedSignal, viewChild } from '@angular/core';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiButton } from '@taiga-ui/core';
 import { TuiAvatar, TuiButtonLoading } from '@taiga-ui/kit';
@@ -11,7 +11,7 @@ import { SshService } from '../../../core/ipc/ssh';
 import { connectionStatus } from '../../../shared/connection-status';
 import { HostConnector } from '../../host-connection/host-connector';
 import { HostLauncher } from '../../host-connection/host-launcher';
-import { TransferPanel } from '../../transfers/transfer-panel/transfer-panel';
+import { TransferPanel, type TransferReveal } from '../../transfers/transfer-panel/transfer-panel';
 import { paneRevisions, TransferQueue } from '../../transfers/transfer-queue';
 import { FilePane, type PaneTransfer } from '../file-pane/file-pane';
 import { PanePaths } from '../pane-paths';
@@ -42,6 +42,8 @@ export class FilesPanel {
   private readonly edited = inject(EditedFiles);
 
   readonly target = input.required<ConnectionTarget>();
+  private readonly localPane = viewChild<FilePane>('localPane');
+  private readonly remotePane = viewChild<FilePane>('remotePane');
 
   protected readonly local = this.sources.local;
   protected readonly editedFiles = computed(() => this.edited.ofHost(this.target().hostId));
@@ -92,6 +94,11 @@ export class FilesPanel {
     if (host) {
       void this.launcher.openExternal(host, entry.path, entry.size);
     }
+  }
+
+  protected reveal(target: TransferReveal): void {
+    const pane = target.side === 'local' ? this.localPane() : this.remotePane();
+    pane?.show(target.dir, target.path);
   }
 
   protected upload(request: PaneTransfer): void {

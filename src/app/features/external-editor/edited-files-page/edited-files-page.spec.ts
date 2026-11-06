@@ -290,6 +290,72 @@ describe('EditedFilesPage', () => {
     expect(document.activeElement).toBe(byId('edited-open', row('edited-row-db-1-logo.png')));
   });
 
+  describe('context menu', () => {
+    const rightClick = async (
+      fixture: { whenStable(): Promise<unknown> },
+      target: Element,
+    ): Promise<MouseEvent> => {
+      const event = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 20,
+      });
+      target.dispatchEvent(event);
+      await fixture.whenStable();
+      await settle();
+      await fixture.whenStable();
+      return event;
+    };
+    const entries = (root: Element | null): string[] =>
+      Array.from(root?.querySelectorAll('[tuiOption]') ?? []).map((o) =>
+        o.getAttribute('data-testid')!,
+      );
+    const menu = () => document.querySelector<HTMLElement>('[data-testid="context-menu"]');
+
+    afterEach(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+    });
+
+    it('shows the same entries as the row "…" and runs them on that file', async () => {
+      const { fixture, row } = await render([conflict, recovered]);
+      await openMenu(fixture, row('edited-row-vps-backup.sh'));
+      const button = entries(document.querySelector('tui-data-list'));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+
+      const event = await rightClick(
+        fixture,
+        row('edited-row-vps-backup.sh').querySelector('[data-testid="edited-state"]')!,
+      );
+      expect(event.defaultPrevented).toBe(true);
+      expect(menu()!.getAttribute('data-surface')).toBe('edited');
+      expect(menu()!.getAttribute('aria-label')).toBe('Actions for backup.sh');
+      expect(entries(menu())).toEqual(button);
+      expect(entries(menu())).toContain('edited-discard');
+      expect(row('edited-row-vps-backup.sh').classList).toContain('_menu');
+      menu()!.querySelector<HTMLElement>('[data-testid="edited-reveal"]')!.click();
+      await settle();
+      expect(actions.reveal).toHaveBeenCalledWith(recovered);
+    });
+
+    it('opens nothing off the rows', async () => {
+      const { fixture } = await render([conflict]);
+      const event = await rightClick(fixture, document.querySelector('thead th')!);
+      expect(event.defaultPrevented).toBe(true);
+      expect(menu()).toBeNull();
+    });
+
+    it('closes an open "…" when a row is right-clicked', async () => {
+      const { fixture, row } = await render([conflict]);
+      await openMenu(fixture, row('edited-row-vps-nginx.conf'));
+      await rightClick(fixture, row('edited-row-vps-nginx.conf'));
+      expect(document.querySelectorAll('tui-data-list').length).toBe(1);
+      expect(menu()).not.toBeNull();
+    });
+  });
+
   it('focuses the row action asked by a Review', async () => {
     const { fixture, store, byId, row } = await render([synced, failed]);
     store.focusRequest.set({ id: 'e2' });

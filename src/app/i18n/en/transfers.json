@@ -25,6 +25,13 @@
     "cancel": "Cancel {name}",
     "empty": "No transfers yet. Select files and use Upload or Download, or drag them to the other pane."
   },
+  "menu": {
+    "retry": "Retry",
+    "showRemote": "Show in Remote pane",
+    "showLocal": "Show in Local pane",
+    "notConnected": "Connect to the remote first",
+    "label": "Transfer actions for {name}"
+  },
   "conflict": {
     "title": "File already exists",
     "exists": "{name} already exists in the destination folder.",

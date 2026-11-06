@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { HOST, PROJECT } from '../helpers/fixture';
+import { closeContextMenu, contextMenu, shotContextMenu } from '../helpers/context-menu';
 import { screenshotThemes } from '../helpers/screenshot';
 import {
   byId,
@@ -295,6 +296,33 @@ describe('file transfers', () => {
     await expect(entry('remote', '.big.bin.carapace-part')).not.toExist();
     await shot('tx-10-no-leftover');
     await setHidden('remote', false);
+  });
+
+  // Cancel from the menu is unit-tested only: a loopback upload ends before a menu can open on it.
+  it('retries a cancelled upload from its row menu and shows it in the remote pane', async () => {
+    const row = $(`${tid('transfer-big.bin')}`);
+    await row.scrollIntoView({ block: 'center' });
+    await row.click({ button: 'right' });
+    await contextMenu('transfer').waitForDisplayed({ timeout: 5000 });
+    await expect(byId('transfer-menu-cancel')).not.toExist();
+    await closeContextMenu('transfer');
+    await shotContextMenu('ctx-05-transfer-row', 'transfer', () => row.click({ button: 'right' }));
+    await row.click({ button: 'right' });
+    await clickId('transfer-menu-retry');
+    await waitState('big.bin', 'Done');
+
+    await paneClick('remote', 'pane-up');
+    await waitEntry('remote', remoteName);
+    const done = $(
+      `//li[@data-testid="transfer-big.bin"][.//*[starts-with(normalize-space(), "Done")]]`,
+    );
+    await done.click({ button: 'right' });
+    await clickId('transfer-menu-reveal');
+    await waitPath('remote', remoteName);
+    await browser.waitUntil(
+      async () => (await entry('remote', 'big.bin').getAttribute('aria-selected')) === 'true',
+      { timeout: 10000, timeoutMsg: 'Show in Remote pane did not select big.bin' },
+    );
   });
 
   it('clears finished transfers', async () => {

@@ -1,5 +1,18 @@
 import { FileSelection } from './file-selection';
 
+describe('FileSelection focus', () => {
+  it('moves the primary within the selection and ignores unselected paths', () => {
+    const selection = new FileSelection();
+    selection.select('/a');
+    selection.toggle('/b');
+    selection.focus('/a');
+    expect(selection.primary()).toBe('/a');
+    expect(selection.paths()).toEqual(['/a', '/b']);
+    selection.focus('/c');
+    expect(selection.primary()).toBe('/a');
+  });
+});
+
 describe('FileSelection', () => {
   const order = ['/a', '/b', '/c', '/d'];
 

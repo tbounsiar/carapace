@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { Component, computed, inject, signal } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { TuiTable } from '@taiga-ui/addon-table';
 import {
@@ -16,11 +17,15 @@ import { TuiBlockStatus, TuiHeader } from '@taiga-ui/layout';
 import { KeyStore } from '../../../core/ipc/key-store';
 import { keyTypeLabel, type KeyView } from '../../../core/ipc/keys';
 import { textOf } from '../../../shared/backend-text';
+import { isMenuKey } from '../../../shared/context-menu/context-menu';
+import { ContextMenuTarget } from '../../../shared/context-menu/context-menu-target';
 import { errorText, notifyError } from '../../../shared/save-error';
 import { KeyActions } from '../key-actions';
 
 @Component({
   imports: [
+    ContextMenuTarget,
+    NgTemplateOutlet,
     TuiAvatar,
     TuiBadge,
     TuiBlockStatus,
@@ -51,6 +56,11 @@ export class KeysPage {
   /** Set when the last load failed, so an empty list is not shown as "no keys". */
   protected readonly loadError = signal<string | null>(null);
   protected readonly openMenu = signal<string | null>(null);
+  private readonly contextKeyId = signal<string | null>(null);
+  /** The key whose context menu opened last. */
+  protected readonly contextKey = computed(
+    () => this.keys().find((k) => k.id === this.contextKeyId()) ?? null,
+  );
 
   constructor() {
     void this.reload();
@@ -75,5 +85,18 @@ export class KeysPage {
 
   protected setMenu(key: KeyView, open: boolean): void {
     this.openMenu.update((current) => (open ? key.id : current === key.id ? null : current));
+  }
+
+  protected onContextTarget(row: HTMLElement | null): void {
+    this.openMenu.set(null);
+    this.contextKeyId.set(row?.dataset['menuRow'] ?? null);
+  }
+
+  /** Shift+F10 / ContextMenu on any control of a row opens the row's "…" menu. */
+  protected onRowKeydown(event: KeyboardEvent, key: KeyView): void {
+    if (isMenuKey(event)) {
+      event.preventDefault();
+      this.openMenu.set(key.id);
+    }
   }
 }

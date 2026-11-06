@@ -11,6 +11,8 @@ import { HostConnector } from '../../host-connection/host-connector';
 import { dirKey, TransferQueue } from '../../transfers/transfer-queue';
 import { FileDialogs } from '../file-dialogs';
 import { PanePaths } from '../pane-paths';
+import { By } from '@angular/platform-browser';
+import { TransferPanel } from '../../transfers/transfer-panel/transfer-panel';
 import { FilesPanel } from './files-panel';
 
 function fakeSource(side: FileSide, home: string, files: string[] = []): FileSource {
@@ -204,6 +206,22 @@ describe('FilesPanel', () => {
   it('shows the transfer panel below the panes', async () => {
     await setup();
     expect(el().querySelector('[data-testid="transfer-panel"]')).toBeTruthy();
+  });
+
+  it('lists the destination folder of a transfer in its pane, item selected', async () => {
+    states.set({ [WEB.connectionId]: 'connected' });
+    await setup();
+    const panel = fixture.debugElement.query(By.directive(TransferPanel))
+      .componentInstance as TransferPanel;
+    panel.reveal.emit({ side: 'remote', dir: '/srv', path: '/srv/b.txt' });
+    await settle();
+    expect(remote.list).toHaveBeenLastCalledWith('/srv');
+    expect(
+      pane('remote').querySelector('[data-testid="entry-b.txt"]')!.getAttribute('aria-selected'),
+    ).toBe('true');
+    panel.reveal.emit({ side: 'local', dir: 'C:\\in', path: 'C:\\in\\a.txt' });
+    await settle();
+    expect(local.list).toHaveBeenLastCalledWith('C:\\in');
   });
 
   it('shows the remote placeholder in French', async () => {

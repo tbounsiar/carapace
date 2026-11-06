@@ -36,13 +36,33 @@
     "fileNotDeleted": "File not deleted",
     "folderNotOpened": "Folder not opened"
   },
+  "menu": {
+    "open": "Open",
+    "copyPath": "Copy path",
+    "copyPaths": "Copy paths",
+    "noRemote": "Connect to the remote first",
+    "noLocal": "Open a local folder first",
+    "actionsForMany": "{count, plural, other {Actions for # items}}",
+    "folderActions": "Folder actions",
+    "selectAll": "Select all",
+    "copyFolderPath": "Copy folder path",
+    "pathsCopied": "{count, plural, one {Path copied} other {# paths copied}}",
+    "copyFailed": "Copy failed",
+    "noClipboard": "The clipboard is not available.",
+    "notDeleted": "Not deleted",
+    "notDeletedText": "{failed} of {count} items not deleted: {names}. {reason}"
+  },
   "dialogs": {
     "noun": "file or folder",
     "nameConflict": "A file or folder with this name already exists",
     "deleteFolderTitle": "Delete folder \"{name}\"?",
     "deleteFileTitle": "Delete file \"{name}\"?",
     "deleteFolderContent": "The folder and everything inside it will be deleted. This cannot be undone.",
-    "deleteFileContent": "The file will be deleted. This cannot be undone."
+    "deleteFileContent": "The file will be deleted. This cannot be undone.",
+    "deleteManyTitle": "Delete {count} items?",
+    "deleteManyNames": "{names}.",
+    "deleteManyFolders": "Folders are deleted with everything inside.",
+    "andMore": "{names} and {count} more"
   },
   "name": {
     "required": "Name is required",

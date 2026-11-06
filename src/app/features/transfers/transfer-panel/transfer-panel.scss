@@ -44,6 +44,10 @@
   gap: 0.5rem;
   min-block-size: var(--tui-height-xs);
   font: var(--tui-typography-ui-s);
+
+  &._menu {
+    background: var(--tui-background-neutral-1);
+  }
 }
 
 .direction {

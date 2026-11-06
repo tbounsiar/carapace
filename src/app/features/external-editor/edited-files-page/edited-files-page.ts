@@ -11,6 +11,7 @@ import {
   viewChild,
   viewChildren,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
@@ -35,6 +36,8 @@ import { hostTarget } from '../../../core/ipc/connection';
 import { EditedFiles } from '../../../core/ipc/edited-files';
 import type { EditedFile } from '../../../core/ipc/external-edits';
 import { SshService } from '../../../core/ipc/ssh';
+import { isMenuKey } from '../../../shared/context-menu/context-menu';
+import { ContextMenuTarget } from '../../../shared/context-menu/context-menu-target';
 import { OptionLabel } from '../../../shared/option-reason/option-label';
 import { OptionReason } from '../../../shared/option-reason/option-reason';
 import { builtInBlocker, EditedActions } from '../edited-actions';
@@ -68,6 +71,8 @@ interface Row {
 /** `/edited-files`: every file open in an external editor, across hosts (spec R1). */
 @Component({
   imports: [
+    ContextMenuTarget,
+    NgTemplateOutlet,
     RouterLink,
     OptionLabel,
     OptionReason,
@@ -139,6 +144,12 @@ export class EditedFilesPage {
     });
   });
 
+  private readonly contextId = signal<string | null>(null);
+  /** The row whose context menu opened last. */
+  protected readonly contextRow = computed(
+    () => this.rows().find((r) => r.file.id === this.contextId()) ?? null,
+  );
+
   /** The actions column is wide only when a row shows a button next to its "…". */
   protected readonly hasRowAction = computed(() => this.rows().some((r) => r.action));
 
@@ -160,7 +171,14 @@ export class EditedFilesPage {
   }
 
   protected setMenu(row: Row, open: boolean): void {
-    this.openMenu.set(open ? row.file.id : null);
+    this.openMenu.update((current) =>
+      open ? row.file.id : current === row.file.id ? null : current,
+    );
+  }
+
+  protected onContextTarget(row: HTMLElement | null): void {
+    this.openMenu.set(null);
+    this.contextId.set(row?.dataset['menuRow'] ?? null);
   }
 
   protected runAction(row: Row): void {
@@ -196,7 +214,7 @@ export class EditedFilesPage {
     if (event.key === 'Delete' && !event.ctrlKey && !event.altKey && !event.metaKey) {
       event.preventDefault();
       void this.stop(row);
-    } else if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+    } else if (isMenuKey(event)) {
       event.preventDefault();
       this.openMenu.set(row.file.id);
     }

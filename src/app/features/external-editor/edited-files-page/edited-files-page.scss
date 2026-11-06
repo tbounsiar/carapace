@@ -39,6 +39,10 @@
   }
 }
 
+.row._menu > td {
+  background: var(--tui-background-neutral-1);
+}
+
 .file,
 .file-text,
 .state-cell,
