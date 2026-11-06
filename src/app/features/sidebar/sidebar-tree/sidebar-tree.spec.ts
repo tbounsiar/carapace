@@ -273,6 +273,47 @@ describe('SidebarTree', () => {
       expect(byId('menu-host-my-vps')?.getAttribute('aria-expanded')).not.toBe('true');
     });
 
+    it('keeps the context menu on the row it was opened on', async () => {
+      byId('open-host-my-vps')!.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 20,
+          clientY: 20,
+        }),
+      );
+      await settle();
+      const context = () =>
+        document.body.querySelector('[data-testid="menu-new-terminal"]')?.closest('tui-data-list');
+      expect(context()).toBeTruthy();
+      // A click without pointerdown leaves Taiga's context dropdown open.
+      byId('menu-project-Shop')!.click();
+      await settle();
+      expect(context()).toBeTruthy();
+      expect(context()!.querySelector('[data-testid="menu-variables"]')).toBeNull();
+    });
+
+    it('closes an open context menu when the keyboard opens another row menu', async () => {
+      byId('open-host-my-vps')!.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 20,
+          clientY: 20,
+        }),
+      );
+      await settle();
+      expect(byId('menu-new-terminal')).not.toBeNull();
+
+      await key(byId('tree-project-Shop')!, 'F10', { shiftKey: true });
+      expect(byId('menu-new-terminal')).toBeNull();
+      expect(document.body.querySelectorAll('tui-data-list').length).toBe(1);
+      expect(byId('menu-project-Shop')?.getAttribute('aria-expanded')).toBe('true');
+      byId('menu-delete')!.click();
+      expect(actions.deleteProject).toHaveBeenCalledWith(config.findProject('p2'));
+      expect(actions.deleteHost).not.toHaveBeenCalled();
+    });
+
     it('opens the New menu on a right click below the rows, not on a row', async () => {
       const event = await rightClickBelowRows();
       expect(event.defaultPrevented).toBe(true);

@@ -195,6 +195,37 @@ describe('TransferQueue', () => {
     expect(ipc.answerConflict).toHaveBeenNthCalledWith(2, 'j2', 1, 'skip', false);
   });
 
+  it('knows the written name only for jobs enqueued here without a rename or skip on the item', async () => {
+    await queue.start();
+    ipc.enqueue.mockResolvedValueOnce(['j1', 'j2', 'j3', 'j4']);
+    await queue.enqueue('h1', 'upload', ['C:\\a', 'C:\\b', 'C:\\c', 'C:\\d'], '/srv');
+    ipc.enqueue.mockResolvedValueOnce(['j5']);
+    await queue.enqueue('h1', 'upload', ['C:\\e'], '/srv', 'rename');
+    for (const id of ['j1', 'j2', 'j3', 'j4', 'j5']) {
+      emit({ kind: 'updated', transfer: job(id, { state: 'waitingConflict' }) });
+    }
+    emit({ kind: 'updated', transfer: job('j3', { name: 'dir', state: 'waitingConflict' }) });
+    prompter.ask
+      .mockResolvedValueOnce({ decision: 'rename', applyToAll: false })
+      .mockResolvedValueOnce({ decision: 'overwrite', applyToAll: false })
+      .mockResolvedValueOnce({ decision: 'rename', applyToAll: false })
+      .mockResolvedValueOnce({ decision: 'skip', applyToAll: false });
+    emit(conflict('j1', '/srv/j1.txt'));
+    emit(conflict('j2', '/srv/j2.txt'));
+    emit(conflict('j3', '/srv/dir/inner.txt'));
+    emit(conflict('j4', '/srv/j4.txt'));
+    for (let i = 0; i < 4; i++) await flush();
+    expect(ipc.answerConflict).toHaveBeenCalledTimes(4);
+
+    const named = (id: string) => queue.writtenName(queue.transfers().find((t) => t.id === id)!);
+    expect(named('j1')).toBeNull();
+    expect(named('j2')).toBe('j2.txt');
+    expect(named('j3')).toBe('dir');
+    expect(named('j4')).toBeNull();
+    expect(named('j5')).toBeNull();
+    expect(queue.writtenName(job('j9'))).toBeNull();
+  });
+
   it('does not ask about a job that already finished', async () => {
     await queue.start();
     emit({ kind: 'updated', transfer: job('j1', { state: 'cancelled' }) });

@@ -1,4 +1,10 @@
-import { inTerminal, isTerminalReserved, terminalKey, workspaceKey } from './workspace-keys';
+import {
+  inTerminal,
+  isTerminalMenuKey,
+  isTerminalReserved,
+  terminalKey,
+  workspaceKey,
+} from './workspace-keys';
 
 const key = (init: KeyboardEventInit) => new KeyboardEvent('keydown', init);
 
@@ -73,5 +79,17 @@ describe('workspaceKey', () => {
     expect(terminalKey(key({ key: 'a', metaKey: true }), true)).toBe('selectAll');
     expect(terminalKey(key({ key: 'C', ctrlKey: true, shiftKey: true }), true)).toBeNull();
     expect(isTerminalReserved(key({ key: 'c', ctrlKey: true }), true)).toBe(false);
+  });
+});
+
+describe('isTerminalMenuKey', () => {
+  const key = (init: KeyboardEventInit): boolean =>
+    isTerminalMenuKey(new KeyboardEvent('keydown', init));
+
+  it('takes the ContextMenu key alone and leaves Shift+F10 to the shell', () => {
+    expect(key({ key: 'ContextMenu' })).toBe(true);
+    expect(key({ key: 'ContextMenu', shiftKey: true })).toBe(false);
+    expect(key({ key: 'ContextMenu', ctrlKey: true })).toBe(false);
+    expect(key({ key: 'F10', shiftKey: true })).toBe(false);
   });
 });

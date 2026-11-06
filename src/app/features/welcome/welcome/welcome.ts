@@ -36,6 +36,7 @@ import { byName, countNodes, HOME, scopeTree } from '../../project-tree/node-tre
 import { ProjectActions } from '../../project-tree/project-actions';
 import { errorText } from '../../../shared/save-error';
 import { uiText } from '../../../shared/ui-text';
+import { isMenuKey, openContextMenuAt } from '../../../shared/context-menu/context-menu';
 import { ContextMenuTarget } from '../../../shared/context-menu/context-menu-target';
 
 const HOME_ROOT = { projectId: null, parentId: null };
@@ -237,23 +238,9 @@ export class Welcome {
   }
 
   protected onCardKeydown(event: KeyboardEvent): void {
-    const plain = !event.ctrlKey && !event.altKey && !event.metaKey;
-    if (
-      plain &&
-      ((event.key === 'F10' && event.shiftKey) || (event.key === 'ContextMenu' && !event.shiftKey))
-    ) {
+    if (isMenuKey(event)) {
       event.preventDefault();
-      // Taiga's context dropdown opens at the pointer of a contextmenu event: give it the card's corner.
-      const card = event.currentTarget as HTMLElement;
-      const rect = card.getBoundingClientRect();
-      card.dispatchEvent(
-        new MouseEvent('contextmenu', {
-          bubbles: true,
-          cancelable: true,
-          clientX: rect.left,
-          clientY: rect.bottom,
-        }),
-      );
+      openContextMenuAt(event.currentTarget as HTMLElement);
     }
   }
 

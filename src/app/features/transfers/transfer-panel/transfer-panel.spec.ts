@@ -49,6 +49,7 @@ describe('TransferPanel', () => {
     cancel: vi.fn(() => Promise.resolve()),
     clearFinished: vi.fn(() => Promise.resolve()),
     enqueue: vi.fn(() => Promise.resolve()),
+    writtenName: vi.fn((job: TransferView): string | null => job.name),
   };
   let fixture: ComponentFixture<TransferPanel>;
 
@@ -295,6 +296,31 @@ describe('TransferPanel', () => {
       expect(hostFixture.componentInstance.revealed).toEqual([
         { side: 'remote', dir: '/srv', path: '/srv/up.txt' },
         { side: 'local', dir: 'C:\\in', path: 'C:\\in\\down.txt' },
+      ]);
+    });
+
+    it('joins remote paths with a slash, even when the folder name has a backslash', async () => {
+      await setupHost([
+        job('up.txt', { state: 'done', targetDir: '/srv/a\\b' }),
+        job('down.txt', { state: 'done', direction: 'download', targetDir: '/home/me' }),
+      ]);
+      await rightClick(row('up.txt'));
+      option('transfer-menu-reveal').click();
+      await rightClick(row('down.txt'));
+      option('transfer-menu-reveal').click();
+      expect(hostFixture.componentInstance.revealed).toEqual([
+        { side: 'remote', dir: '/srv/a\\b', path: '/srv/a\\b/up.txt' },
+        { side: 'local', dir: '/home/me', path: '/home/me/down.txt' },
+      ]);
+    });
+
+    it('shows only the folder when the written name is not known', async () => {
+      queue.writtenName.mockReturnValueOnce(null);
+      await setupHost([job('up.txt', { state: 'done' })]);
+      await rightClick(row('up.txt'));
+      option('transfer-menu-reveal').click();
+      expect(hostFixture.componentInstance.revealed).toEqual([
+        { side: 'remote', dir: '/srv', path: null },
       ]);
     });
 

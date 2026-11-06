@@ -41,6 +41,17 @@ export function paneRevisions(
   return result;
 }
 
+/** The job's own top-level destination, not an item inside a folder it copies. */
+function isTopLevel(conflict: TransferConflict, job: TransferView): boolean {
+  const trim = (path: string) => path.replace(/[\\/]+$/, '');
+  const { path } = conflict;
+  if (!path.endsWith(job.name)) {
+    return false;
+  }
+  const parent = path.slice(0, path.length - job.name.length);
+  return /[\\/]$/.test(parent) && trim(parent) === trim(job.targetDir);
+}
+
 function targetSide(direction: TransferDirection): FileSide {
   return direction === 'upload' ? 'remote' : 'local';
 }
@@ -67,6 +78,8 @@ export class TransferQueue {
   private prompts: Promise<void> = Promise.resolve();
   private failures: TransferView[] = [];
   private failureTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Jobs enqueued here whose top-level item keeps its source name unless a conflict says otherwise. */
+  private readonly keepsName = new Set<string>();
 
   readonly transfers = this._transfers.asReadonly();
   /** Bumped per target directory each time a job writing into it finishes. */
@@ -107,13 +120,16 @@ export class TransferQueue {
       return;
     }
     try {
-      await this.ipc.enqueue({
+      const ids = await this.ipc.enqueue({
         connectionId,
         direction,
         sources: [...sources],
         targetDir,
         conflict,
       });
+      if (conflict === 'ask' || conflict === 'overwrite') {
+        ids.forEach((id) => this.keepsName.add(id));
+      }
     } catch (err) {
       notifyError(this.alerts, err, this.t('notStarted'));
     }
@@ -137,6 +153,15 @@ export class TransferQueue {
     }
   }
 
+  /**
+   * The name the job's item has at the destination, when it is known to be the source name.
+   * Null after a "keep both" or "skip" on the item itself, or for a job enqueued before a
+   * reload: the backend does not report the name it wrote.
+   */
+  writtenName(job: TransferView): string | null {
+    return this.keepsName.has(job.id) ? job.name : null;
+  }
+
   forConnection(connectionId: string): TransferView[] {
     return this._transfers().filter((t) => t.connectionId === connectionId);
   }
@@ -148,7 +173,10 @@ export class TransferQueue {
         break;
       case 'removed': {
         const ids = new Set(event.jobIds);
-        ids.forEach((id) => this.removedBeforeSnapshot?.add(id));
+        ids.forEach((id) => {
+          this.removedBeforeSnapshot?.add(id);
+          this.keepsName.delete(id);
+        });
         this._transfers.update((list) => list.filter((t) => !ids.has(t.id)));
         break;
       }
@@ -194,6 +222,10 @@ export class TransferQueue {
     }
     const name = conflict.path.split(/[\\/]/).filter(Boolean).at(-1) ?? conflict.path;
     const answer = await this.prompter.ask(name, conflict);
+    const target = job ?? this._transfers().find((t) => t.id === conflict.jobId);
+    if (answer.decision !== 'overwrite' && (!target || isTopLevel(conflict, target))) {
+      this.keepsName.delete(conflict.jobId);
+    }
     try {
       await this.ipc.answerConflict(
         conflict.jobId,

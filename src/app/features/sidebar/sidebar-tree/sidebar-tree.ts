@@ -9,6 +9,7 @@ import {
   linkedSignal,
   signal,
   untracked,
+  viewChildren,
   type OnInit,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
@@ -16,6 +17,8 @@ import {
   TuiButton,
   TuiDataList,
   TuiDropdown,
+  TuiDropdownContext,
+  TuiDropdownDirective,
   TuiHint,
   TuiLoader,
   TuiNotificationService,
@@ -143,8 +146,17 @@ export class SidebarTree implements OnInit {
     computation: () => new Set(),
   });
 
-  /** The row the menu entries are built for: the last "…", context or keyboard menu opened. */
+  /** The row the "…" entries are built for: the last "…" or keyboard menu opened. */
   protected readonly menuKey = signal<string | null>(null);
+  /**
+   * The row the context menu was opened on. Kept apart from `menuKey` so a keyboard menu opened
+   * on another row never re-targets a context menu still drawn at the first one.
+   */
+  protected readonly contextKey = signal<string | null>(null);
+  /** Every row's context dropdown, plus the scope root's (New menu). */
+  private readonly contextDropdowns = viewChildren(TuiDropdownContext, {
+    read: TuiDropdownDirective,
+  });
   /** The row whose "…" dropdown is open; a right click opens its own dropdown at the pointer. */
   protected readonly buttonMenu = signal<string | null>(null);
   protected readonly selectedProject = signal<string | null>(null);
@@ -215,17 +227,17 @@ export class SidebarTree implements OnInit {
     return this.rows()[0]?.key ?? null;
   });
 
-  protected readonly menuTarget = computed<MenuTarget | null>(() => {
-    const row = this.rows().find((r) => r.key === this.menuKey());
-    return row ? this.targetOf(row) : null;
-  });
+  /** The "…" menu of the item whose "…" button or keyboard menu was opened last. */
+  protected readonly menuEntries = computed(() => this.entriesFor(this.menuKey()));
+  /** The context menu of the row it was opened on. */
+  protected readonly contextEntries = computed(() => this.entriesFor(this.contextKey()));
 
-  /** The menu of the item whose "…" button or context menu was opened last. */
-  protected readonly menuEntries = computed<MenuEntry[]>(() => {
-    const target = this.menuTarget();
-    if (!target) {
+  private entriesFor(key: string | null): MenuEntry[] {
+    const row = key === null ? undefined : this.rows().find((r) => r.key === key);
+    if (!row) {
       return [];
     }
+    const target = this.targetOf(row);
     const remove: MenuEntry = {
       id: 'menu-delete',
       label: uiText('common.delete'),
@@ -321,7 +333,7 @@ export class SidebarTree implements OnInit {
         ];
       }
     }
-  });
+  }
 
   constructor() {
     let previous: string | null | undefined;
@@ -478,8 +490,17 @@ export class SidebarTree implements OnInit {
   }
 
   protected openContextMenu(key: string): void {
-    this.menuKey.set(key);
+    this.contextKey.set(key);
     this.buttonMenu.set(null);
+  }
+
+  /** Taiga's context dropdown closes on pointerdown and Escape only, not on a keyboard menu. */
+  private closeContextMenus(): void {
+    for (const dropdown of this.contextDropdowns()) {
+      if (dropdown.ref()) {
+        dropdown.toggle(false);
+      }
+    }
   }
 
   /** Right click off the rows (rows stop theirs): the New menu of the scope root. */
@@ -621,6 +642,7 @@ export class SidebarTree implements OnInit {
       (event.key === 'F10' && event.shiftKey && !ctrl) ||
       (event.key === 'ContextMenu' && plain)
     ) {
+      this.closeContextMenus();
       this.setMenu(row.key, true);
       return true;
     }

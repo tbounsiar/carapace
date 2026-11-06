@@ -3,6 +3,7 @@ import { TranslocoService } from '@jsverse/transloco';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import { firstValueFrom } from 'rxjs';
+import { ClipboardText } from '../../core/clipboard/clipboard-text';
 import { ConfigService } from '../../core/ipc/config';
 import { hostTarget } from '../../core/ipc/connection';
 import { IpcError } from '../../core/ipc/ipc-error';
@@ -35,6 +36,7 @@ export class KeyActions {
   private readonly connector = inject(HostConnector);
   private readonly dialogs = inject(TuiDialogService);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly clipboard = inject(ClipboardText);
   private readonly transloco = inject(TranslocoService);
 
   private t(key: string, params?: Record<string, string>): string {
@@ -79,7 +81,7 @@ export class KeyActions {
 
   async copyPublicKey(key: KeyView): Promise<void> {
     try {
-      await navigator.clipboard.writeText(key.publicKey);
+      await this.clipboard.write(key.publicKey);
       this.alerts
         .open(key.name, { label: this.t('actions.copied'), appearance: 'positive' })
         .subscribe();

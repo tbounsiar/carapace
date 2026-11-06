@@ -99,7 +99,7 @@
   </div>
 }
 
-<tui-loader class="body" [overlay]="true" [loading]="loading()">
+<tui-loader class="body" [overlay]="true" [loading]="loading() || deleting()">
   <!-- One context menu for the pane: on a row, Taiga's aria-expanded would read as an expandable row. -->
   <div
     #contextDropdown="tuiDropdown"

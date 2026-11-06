@@ -26,11 +26,12 @@ import { Settings } from '../../../core/settings/settings';
 import { ThemeService } from '../../../core/theme/theme';
 import { OptionLabel } from '../../../shared/option-reason/option-label';
 import { OptionReason } from '../../../shared/option-reason/option-reason';
+import { openContextMenuAt } from '../../../shared/context-menu/context-menu';
 import { ContextMenuTarget } from '../../../shared/context-menu/context-menu-target';
 import { HostConnector } from '../../host-connection/host-connector';
 import {
   inTerminal,
-  isMenuKey,
+  isTerminalMenuKey,
   onApple,
   terminalKey,
   type TerminalKey,
@@ -199,7 +200,7 @@ export class TerminalPanel {
     if (!inTerminal(event.target)) {
       return;
     }
-    if (isMenuKey(event)) {
+    if (isTerminalMenuKey(event)) {
       event.preventDefault();
       this.openAtCursor();
       return;
@@ -245,15 +246,7 @@ export class TerminalPanel {
       return;
     }
     const rect = frame.getBoundingClientRect();
-    const point = this.xterm()?.cursorPoint() ?? { x: rect.left, y: rect.top };
-    frame.dispatchEvent(
-      new MouseEvent('contextmenu', {
-        bubbles: true,
-        cancelable: true,
-        clientX: point.x,
-        clientY: point.y,
-      }),
-    );
+    openContextMenuAt(frame, this.xterm()?.cursorPoint() ?? { x: rect.left, y: rect.top });
   }
 
   private async copy(text: string): Promise<void> {

@@ -14,6 +14,7 @@ import { TuiItem } from '@taiga-ui/cdk';
 import { TuiButton, TuiDataList, TuiDropdown, TuiHint, TuiIcon, TuiLoader } from '@taiga-ui/core';
 import { TuiBadgeNotification, TuiStatus, TuiTabs, TuiTabsWithMore } from '@taiga-ui/kit';
 import { ConfigService } from '../../../core/ipc/config';
+import { isMenuKey, openContextMenuAt } from '../../../shared/context-menu/context-menu';
 import { OpenDialogs } from '../../../shared/open-dialogs';
 import { uiText } from '../../../shared/ui-text';
 import { OptionLabel } from '../../../shared/option-reason/option-label';
@@ -200,22 +201,9 @@ export class TabStrip {
       this.close(tab);
       return;
     }
-    if (
-      (event.key === 'F10' && event.shiftKey && plain) ||
-      (event.key === 'ContextMenu' && plain)
-    ) {
+    if (isMenuKey(event)) {
       event.preventDefault();
-      // Taiga's context dropdown opens at the pointer of a contextmenu event: give it the tab's corner.
-      const element = event.currentTarget as HTMLElement;
-      const rect = element.getBoundingClientRect();
-      element.dispatchEvent(
-        new MouseEvent('contextmenu', {
-          bubbles: true,
-          cancelable: true,
-          clientX: rect.left,
-          clientY: rect.bottom,
-        }),
-      );
+      openContextMenuAt(event.currentTarget as HTMLElement);
     }
   }
 

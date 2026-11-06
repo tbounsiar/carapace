@@ -40,6 +40,12 @@ export function crumbs(path: string, side: FileSide): Crumb[] {
   return result;
 }
 
+/** `name` inside `dir`: remote paths are POSIX; local ones use `\` under a drive letter. */
+export function childPath(dir: string, name: string, side: FileSide): string {
+  const separator = side === 'local' && DRIVE.test(dir) ? '\\' : '/';
+  return dir.endsWith(separator) ? dir + name : `${dir}${separator}${name}`;
+}
+
 /** The parent from the listing, or the roots listing above a local drive root. */
 export function upTarget(path: string, parent: string | null, side: FileSide): string | null {
   if (parent !== null) return parent;

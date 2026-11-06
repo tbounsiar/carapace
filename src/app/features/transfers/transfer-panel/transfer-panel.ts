@@ -19,14 +19,15 @@ import { isMenuKey, openContextMenuAt } from '../../../shared/context-menu/conte
 import { ContextMenuTarget } from '../../../shared/context-menu/context-menu-target';
 import { OptionLabel } from '../../../shared/option-reason/option-label';
 import { OptionReason } from '../../../shared/option-reason/option-reason';
+import { childPath } from '../../files/file-path';
 import { TransferQueue } from '../transfer-queue';
 import { transferRow, type TransferRow } from '../transfer-view';
 
-/** The pane to show for a job, the folder it writes into and the item in it. */
+/** The pane to show for a job, the folder it writes into and the item in it, when known. */
 export interface TransferReveal {
   readonly side: FileSide;
   readonly dir: string;
-  readonly path: string;
+  readonly path: string | null;
 }
 
 export interface TransferMenuEntry {
@@ -37,11 +38,6 @@ export interface TransferMenuEntry {
   /** Preceded by an `<hr />`. */
   readonly separated?: boolean;
   readonly run: () => void;
-}
-
-export function joinPath(dir: string, name: string): string {
-  const separator = /^[A-Za-z]:/.test(dir) || dir.includes('\\') ? '\\' : '/';
-  return dir.endsWith(separator) ? dir + name : `${dir}${separator}${name}`;
 }
 
 @Component({
@@ -190,12 +186,15 @@ export class TransferPanel {
       icon: '@tui.folder-open',
       label: this.t(upload ? 'transfers.menu.showRemote' : 'transfers.menu.showLocal'),
       reason: upload ? offline : null,
-      run: () =>
+      run: () => {
+        const side = upload ? 'remote' : 'local';
+        const name = this.queue.writtenName(job);
         this.reveal.emit({
-          side: upload ? 'remote' : 'local',
+          side,
           dir: job.targetDir,
-          path: joinPath(job.targetDir, job.name),
-        }),
+          path: name === null ? null : childPath(job.targetDir, name, side),
+        });
+      },
     });
     if (this.canClear()) {
       entries.push({
