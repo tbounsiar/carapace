@@ -34,7 +34,8 @@ fn logger<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     use tauri_plugin_log::{Builder, RotationStrategy, Target, TargetKind};
     let builder = Builder::default()
         .max_file_size(MAX_LOG_BYTES)
-        .rotation_strategy(RotationStrategy::KeepSome(2));
+        .rotation_strategy(RotationStrategy::KeepSome(2))
+        .level_for("tauri_plugin_clipboard_manager", log::LevelFilter::Warn);
     if cfg!(debug_assertions) {
         builder.level(log::LevelFilter::Info).build()
     } else {
@@ -65,6 +66,7 @@ fn private_log_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             #[cfg(unix)]
             private_log_dir(app.handle());
