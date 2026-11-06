@@ -6,6 +6,7 @@
   "notFound": "terminal introuvable",
   "ptyRefused": "l’hôte a refusé d’allouer un terminal (pty)",
   "required": "{name} est requis",
+  "sessionRejected": "l’hôte a refusé d’ouvrir une session pour le terminal",
   "shellRefused": "l’hôte a refusé de démarrer un shell",
   "size": "cols doit être entre 1 et {cols}, et rows entre 1 et {rows}",
   "timeout": "l’hôte n’a pas répondu à temps pendant l’ouverture du terminal",

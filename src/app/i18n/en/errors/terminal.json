@@ -6,6 +6,7 @@
   "notFound": "terminal not found",
   "ptyRefused": "the host refused to allocate a terminal (pty)",
   "required": "{name} is required",
+  "sessionRejected": "the host refused to open a session for the terminal",
   "shellRefused": "the host refused to start a shell",
   "size": "cols must be 1 to {cols} and rows 1 to {rows}",
   "timeout": "the host did not answer in time while opening the terminal",

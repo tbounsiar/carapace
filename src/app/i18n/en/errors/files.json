@@ -29,6 +29,7 @@
   "renameRoot": "cannot rename /",
   "required": "{name} is required",
   "retargeted": "{path} now points to another file on the server",
+  "sessionRejected": "the host refused to open a session for file transfers",
   "sourceChanged": "the local copy changed during the upload",
   "subsystemRefused": "the host refused to start its SFTP service",
   "timeout": "the host did not answer in time while opening the file transfer channel",

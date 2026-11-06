@@ -55,8 +55,8 @@ struct Shared {
     refuse_pty: Arc<AtomicBool>,
     refuse_shell: Arc<AtomicBool>,
     refuse_sftp: Arc<AtomicBool>,
-    /// Over `max_sessions`, refuse with `ResourceShortage` instead of what OpenSSH sends.
-    refuse_as_shortage: Arc<AtomicBool>,
+    /// Reason sent over `max_sessions`; `None`: `AdministrativelyProhibited` (russh's default).
+    refuse_reason: Arc<Mutex<Option<russh::ChannelOpenFailure>>>,
     /// TCP connections accepted so far.
     accepted: Arc<AtomicUsize>,
     fs: MemFs,
@@ -96,8 +96,9 @@ impl TestServer {
         self.shared.refuse_shell.store(refuse, Ordering::SeqCst);
     }
 
-    pub fn refuse_as_shortage(&self, on: bool) {
-        self.shared.refuse_as_shortage.store(on, Ordering::SeqCst);
+    /// The reason sent when refusing a session channel over `max_sessions`.
+    pub fn refuse_with(&self, reason: russh::ChannelOpenFailure) {
+        *self.shared.refuse_reason.lock().unwrap() = Some(reason);
     }
 
     /// TCP connections accepted so far, served or not.
@@ -198,11 +199,13 @@ impl server::Handler for AcceptAll {
         self.shared.clients.lock().unwrap().push(session.handle());
         let max = self.shared.max_sessions.load(Ordering::SeqCst);
         if max > 0 && self.open.len() >= max {
-            let reason = if self.shared.refuse_as_shortage.load(Ordering::SeqCst) {
-                russh::ChannelOpenFailure::ResourceShortage
-            } else {
-                russh::ChannelOpenFailure::AdministrativelyProhibited
-            };
+            let reason = self
+                .shared
+                .refuse_reason
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or(russh::ChannelOpenFailure::AdministrativelyProhibited);
             reply.reject(reason).await;
             return Ok(());
         }

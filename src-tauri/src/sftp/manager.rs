@@ -268,6 +268,7 @@ fn channel_error(e: ChannelError) -> FsError {
     match e {
         ChannelError::NotConnected => FsError::NotConnected,
         ChannelError::Refused => FsError::ChannelRefused,
+        ChannelError::Rejected => FsError::SessionRejected,
         ChannelError::Timeout => FsError::Timeout,
         ChannelError::Network => FsError::Network,
         ChannelError::Connect(e) => FsError::Other {
