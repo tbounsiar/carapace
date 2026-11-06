@@ -38,6 +38,9 @@ pub enum FsError {
     Network,
     #[error("the server allows no more sessions on this connection")]
     ChannelRefused,
+    /// Refused for another reason than the number of sessions: SFTP cannot start.
+    #[error("the host refused to open a session for file transfers")]
+    SessionRejected,
     #[error("the host refused to start its SFTP service")]
     SubsystemRefused,
     #[error("the host did not answer in time while opening the file transfer channel")]
@@ -63,6 +66,7 @@ impl FsError {
             Self::Io(_) => "io",
             Self::Network => "network",
             Self::ChannelRefused => "channel_refused",
+            Self::SessionRejected => "subsystem_refused",
             Self::SubsystemRefused => "subsystem_refused",
             Self::Timeout => "timeout",
             Self::SourceChanged => "io",
@@ -138,6 +142,10 @@ impl Localized for FsError {
             Self::ChannelRefused => crate::text!(
                 "errors.files.channelRefused",
                 "the server allows no more sessions on this connection"
+            ),
+            Self::SessionRejected => crate::text!(
+                "errors.files.sessionRejected",
+                "the host refused to open a session for file transfers"
             ),
             Self::SubsystemRefused => crate::text!(
                 "errors.files.subsystemRefused",

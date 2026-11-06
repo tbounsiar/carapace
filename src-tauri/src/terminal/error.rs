@@ -17,6 +17,9 @@ pub enum TerminalError {
     Busy,
     #[error("the server allows no more sessions on this connection")]
     ChannelRefused,
+    /// Refused for another reason than the number of sessions: the shell cannot start.
+    #[error("the host refused to open a session for the terminal")]
+    SessionRejected,
     #[error("the host refused to allocate a terminal (pty)")]
     PtyRefused,
     #[error("the host refused to start a shell")]
@@ -37,6 +40,7 @@ impl TerminalError {
             Self::Network => "network",
             Self::Busy => "busy",
             Self::ChannelRefused => "channel_refused",
+            Self::SessionRejected => "shell_refused",
             Self::PtyRefused => "pty_refused",
             Self::ShellRefused => "shell_refused",
             Self::Timeout => "timeout",
@@ -50,6 +54,7 @@ impl From<ChannelError> for TerminalError {
         match e {
             ChannelError::NotConnected => Self::NotConnected,
             ChannelError::Refused => Self::ChannelRefused,
+            ChannelError::Rejected => Self::SessionRejected,
             ChannelError::Timeout => Self::Timeout,
             ChannelError::Network => Self::Network,
             ChannelError::Connect(e) => Self::Connect(e),
@@ -78,6 +83,10 @@ impl Localized for TerminalError {
             Self::ChannelRefused => crate::text!(
                 "errors.terminal.channelRefused",
                 "the server allows no more sessions on this connection"
+            ),
+            Self::SessionRejected => crate::text!(
+                "errors.terminal.sessionRejected",
+                "the host refused to open a session for the terminal"
             ),
             Self::PtyRefused => crate::text!(
                 "errors.terminal.ptyRefused",
@@ -114,6 +123,7 @@ mod tests {
         let cases = [
             (ChannelError::NotConnected, "not_connected"),
             (ChannelError::Refused, "channel_refused"),
+            (ChannelError::Rejected, "shell_refused"),
             (ChannelError::Timeout, "timeout"),
             (ChannelError::Network, "network"),
             (
@@ -128,6 +138,8 @@ mod tests {
         for (e, code) in cases {
             assert_eq!(TerminalError::from(e).code(), code);
         }
+        let t = TerminalError::from(ChannelError::Rejected).text();
+        assert_eq!(t.key, Some("errors.terminal.sessionRejected"));
         let t = TerminalError::Connect(SshError::HostKeyChanged).text();
         assert_eq!(t.key, Some("errors.ssh.hostKeyChanged"));
     }

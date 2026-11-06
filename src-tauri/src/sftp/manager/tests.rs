@@ -362,6 +362,7 @@ fn channel_errors_map_to_file_codes() {
     let cases = [
         (ChannelError::NotConnected, "not_connected"),
         (ChannelError::Refused, "channel_refused"),
+        (ChannelError::Rejected, "subsystem_refused"),
         (ChannelError::Timeout, "timeout"),
         (ChannelError::Network, "network"),
         (

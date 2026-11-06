@@ -262,17 +262,44 @@ async fn an_extra_reaching_a_server_with_another_trusted_key_fails_closed() {
 }
 
 #[tokio::test]
-async fn only_a_max_sessions_refusal_opens_an_extra_connection() {
+async fn a_resource_shortage_refusal_opens_an_extra_connection() {
     let (server, ssh) = limited(92).await;
-    server.refuse_as_shortage(true);
+    server.refuse_with(russh::ChannelOpenFailure::ResourceShortage);
     let terminals = TerminalManager::default();
     let (_a, _rx_a) = open(&terminals, &ssh).await.unwrap();
     let (_b, _rx_b) = open(&terminals, &ssh).await.unwrap();
-    let accepted = server.accepted();
 
-    let err = open(&terminals, &ssh).await.unwrap_err();
-    assert_eq!(err.code(), "channel_refused");
-    assert_eq!(server.accepted(), accepted);
+    let (c, mut rx_c) = open(&terminals, &ssh).await.unwrap();
+    assert_eq!(ssh.manager.extra_count("h1").await, 1);
+    assert_eq!(server.open_sessions(), 2);
+    echoes(&terminals, &c, &mut rx_c, "on the extra").await;
+}
+
+#[tokio::test]
+async fn a_refusal_not_about_sessions_opens_no_extra_connection() {
+    for (seed, reason) in [
+        (95, russh::ChannelOpenFailure::UnknownChannelType),
+        (
+            96,
+            russh::ChannelOpenFailure::Other {
+                code: 42,
+                reason: "peer text".into(),
+            },
+        ),
+    ] {
+        let (server, ssh) = limited(seed).await;
+        server.refuse_with(reason);
+        let terminals = TerminalManager::default();
+        let (_a, _rx_a) = open(&terminals, &ssh).await.unwrap();
+        let (_b, _rx_b) = open(&terminals, &ssh).await.unwrap();
+        let accepted = server.accepted();
+
+        let err = open(&terminals, &ssh).await.unwrap_err();
+        assert_eq!(err, TerminalError::SessionRejected);
+        assert_eq!(err.code(), "shell_refused");
+        assert_eq!(server.accepted(), accepted, "no extra connection attempted");
+        assert_eq!(ssh.manager.extra_count("h1").await, 0);
+    }
 }
 
 #[tokio::test]

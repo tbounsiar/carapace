@@ -24,8 +24,11 @@ pub const MAX_EXTRAS: usize = 4;
 #[derive(Debug, PartialEq)]
 pub enum ChannelError {
     NotConnected,
-    /// The server refused it and no extra connection could take it.
+    /// The server refused it for lack of sessions and no extra connection could take it.
     Refused,
+    /// The server refused it for another reason (no session channels for this account, an
+    /// unknown code): another connection would not help.
+    Rejected,
     Timeout,
     Network,
     /// An extra connection was needed and could not be made.
@@ -37,6 +40,7 @@ impl ChannelError {
         match self {
             Self::NotConnected => "not_connected",
             Self::Refused => "channel_refused",
+            Self::Rejected => "channel_rejected",
             Self::Timeout => "timeout",
             Self::Network => "network",
             Self::Connect(e) => e.code(),
@@ -138,12 +142,23 @@ fn refused(connection_id: &str, reason: &ChannelOpenFailure, on: &str) {
 
 /// OpenSSH refuses a session over `MaxSessions` with `ConnectFailed` (the default reason of
 /// `server_input_channel_open`, checked against the e2e sshd); russh-based servers default to
-/// `AdministrativelyProhibited`. Other reasons are not about the number of sessions.
+/// `AdministrativelyProhibited`; Dropbear sends `ResourceShortage` when its channel table is
+/// full. `UnknownChannelType` and unknown codes are not about the number of sessions.
 fn for_lack_of_sessions(reason: &ChannelOpenFailure) -> bool {
     matches!(
         reason,
-        ChannelOpenFailure::ConnectFailed | ChannelOpenFailure::AdministrativelyProhibited
+        ChannelOpenFailure::ConnectFailed
+            | ChannelOpenFailure::AdministrativelyProhibited
+            | ChannelOpenFailure::ResourceShortage
     )
+}
+
+fn refusal(reason: &ChannelOpenFailure) -> ChannelError {
+    if for_lack_of_sessions(reason) {
+        ChannelError::Refused
+    } else {
+        ChannelError::Rejected
+    }
 }
 
 fn no_extra(connection_id: &str, why: &str) -> ChannelError {
@@ -176,7 +191,7 @@ impl SshManager {
             Err(Attempt::Refused(reason)) => {
                 refused(connection_id, &reason, "the connection");
                 if !for_lack_of_sessions(&reason) {
-                    return Err(ChannelError::Refused);
+                    return Err(ChannelError::Rejected);
                 }
             }
             Err(Attempt::Failed(e)) => return Err(e),
@@ -195,7 +210,7 @@ impl SshManager {
             Ok(channel) => Ok((channel, extra)),
             Err(Attempt::Refused(reason)) => {
                 refused(connection_id, &reason, "a new extra connection");
-                Err(ChannelError::Refused)
+                Err(refusal(&reason))
             }
             Err(Attempt::Failed(e)) => Err(e),
         }
@@ -376,5 +391,29 @@ impl SshManager {
     /// Extra connections of `connection_id` still open.
     pub async fn extra_count(&self, connection_id: &str) -> usize {
         self.live_extras(connection_id).await.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_session_limit_reasons_lead_to_extras() {
+        use ChannelOpenFailure as F;
+        for reason in [
+            F::ConnectFailed,
+            F::AdministrativelyProhibited,
+            F::ResourceShortage,
+        ] {
+            assert_eq!(refusal(&reason), ChannelError::Refused, "{reason:?}");
+        }
+        let other = F::Other {
+            code: 42,
+            reason: "x".into(),
+        };
+        for reason in [F::UnknownChannelType, other] {
+            assert_eq!(refusal(&reason), ChannelError::Rejected, "{reason:?}");
+        }
     }
 }
