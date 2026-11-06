@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { TranslocoService } from '@jsverse/transloco';
 import type { AbstractControl } from '@angular/forms';
-import { crumbs, fileNameValidator, upTarget } from './file-path';
+import { childPath, crumbs, fileNameValidator, upTarget } from './file-path';
 
 // The validator translates through Transloco's global service, created on first injection.
 beforeEach(() => TestBed.inject(TranslocoService));
@@ -35,6 +35,19 @@ describe('crumbs', () => {
       { label: '/', path: '/' },
       { label: 'tmp', path: '/tmp' },
     ]);
+  });
+});
+
+describe('childPath', () => {
+  it('uses a slash on the remote side, whatever the folder name holds', () => {
+    expect(childPath('/srv/a\\b', 'x.txt', 'remote')).toBe('/srv/a\\b/x.txt');
+    expect(childPath('/', 'x.txt', 'remote')).toBe('/x.txt');
+  });
+
+  it('uses a backslash under a local drive, else a slash', () => {
+    expect(childPath('C:\\in', 'x.txt', 'local')).toBe('C:\\in\\x.txt');
+    expect(childPath('C:\\', 'x.txt', 'local')).toBe('C:\\x.txt');
+    expect(childPath('/home/me', 'x.txt', 'local')).toBe('/home/me/x.txt');
   });
 });
 

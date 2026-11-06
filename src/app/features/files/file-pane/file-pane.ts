@@ -42,6 +42,7 @@ import { IpcError } from '../../../core/ipc/ipc-error';
 import { stateLook } from '../../external-editor/edited-view';
 import { escapeHtml } from '../../../shared/path-breaks';
 import { errorText, notifyError } from '../../../shared/save-error';
+import { ClipboardText } from '../../../core/clipboard/clipboard-text';
 import { FileDialogs, fileNames } from '../file-dialogs';
 import { DRAG_PLACEHOLDER, DRAG_TYPE, FileDrag } from '../file-drag';
 import {
@@ -143,6 +144,7 @@ const SORTERS = Object.fromEntries(
 export class FilePane {
   private readonly dialogs = inject(FileDialogs);
   private readonly alerts = inject(TuiNotificationService);
+  private readonly clipboard = inject(ClipboardText);
   private readonly injector = inject(Injector);
   private readonly drag = inject(FileDrag);
   private readonly transloco = inject(TranslocoService);
@@ -176,6 +178,10 @@ export class FilePane {
   protected readonly selection = new FileSelection();
   protected readonly listing = signal<Listing | null>(null);
   protected readonly loading = signal(false);
+  /** Several entries are being deleted: the loader stays on and the rows ignore keys. */
+  protected readonly deleting = signal(false);
+  /** From the confirm to the reload: a second delete meanwhile is refused. */
+  private deleteRunning = false;
   protected readonly error = signal<string | null>(null);
   protected readonly showHidden = signal(false);
   protected readonly sortKey = signal<SortKey>('name');
@@ -586,7 +592,7 @@ export class FilePane {
 
   private async copyPaths(paths: readonly string[]): Promise<void> {
     try {
-      await navigator.clipboard.writeText(paths.join('\n'));
+      await this.clipboard.write(paths.join('\n'));
       this.alerts
         .open(this.t('files.menu.pathsCopied', { count: paths.length }), {
           appearance: 'positive',
@@ -647,7 +653,7 @@ export class FilePane {
   }
 
   protected onRowKeydown(event: KeyboardEvent, index: number): void {
-    if (event.target !== event.currentTarget) {
+    if (event.target !== event.currentTarget || this.deleting()) {
       return;
     }
     if (isMenuKey(event)) {
@@ -779,12 +785,24 @@ export class FilePane {
       return;
     }
     const parent = this.path();
-    if (parent === null || !(await this.dialogs.confirmDeleteMany(entries))) {
+    if (parent === null || this.deleteRunning) {
       return;
     }
+    this.deleteRunning = true;
+    try {
+      if (await this.dialogs.confirmDeleteMany(entries)) {
+        this.deleting.set(true);
+        await this.deleteMany(parent, entries);
+      }
+    } finally {
+      this.deleteRunning = false;
+      this.deleting.set(false);
+    }
+  }
+
+  private async deleteMany(parent: string, entries: readonly FileEntry[]): Promise<void> {
     const source = this.source();
     const failed: { name: string; error: unknown }[] = [];
-    this.loading.set(true);
     for (const entry of entries) {
       try {
         await source.delete(entry.path, entry.kind === 'dir');
@@ -809,25 +827,42 @@ export class FilePane {
         )
         .subscribe();
     }
-    await this.load(source, parent, { select: null });
+    await this.reloadAfterDelete(source, parent);
   }
 
   protected async remove(entry: FileEntry): Promise<void> {
     const parent = this.path();
-    if (parent === null || !(await this.dialogs.confirmDelete(entry))) {
+    if (parent === null || this.deleteRunning) {
       return;
     }
-    const source = this.source();
+    this.deleteRunning = true;
     try {
-      await source.delete(entry.path, entry.kind === 'dir');
-    } catch (err) {
-      notifyError(
-        this.alerts,
-        err,
-        this.t(entry.kind === 'dir' ? 'files.pane.folderNotDeleted' : 'files.pane.fileNotDeleted'),
-      );
+      if (!(await this.dialogs.confirmDelete(entry))) {
+        return;
+      }
+      const source = this.source();
+      try {
+        await source.delete(entry.path, entry.kind === 'dir');
+      } catch (err) {
+        notifyError(
+          this.alerts,
+          err,
+          this.t(
+            entry.kind === 'dir' ? 'files.pane.folderNotDeleted' : 'files.pane.fileNotDeleted',
+          ),
+        );
+      }
+      await this.reloadAfterDelete(source, parent);
+    } finally {
+      this.deleteRunning = false;
     }
-    await this.load(source, parent, { select: null });
+  }
+
+  /** The toolbar and breadcrumbs stay usable during a delete: a pane that moved stays there. */
+  private async reloadAfterDelete(source: FileSource, parent: string): Promise<void> {
+    if (source === this.source() && this.path() === parent) {
+      await this.load(source, parent, { select: null });
+    }
   }
 
   private async start(source: FileSource, start: string | null): Promise<void> {

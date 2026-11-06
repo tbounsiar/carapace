@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { TuiDialogService, TuiNotificationService } from '@taiga-ui/core';
 import { EMPTY, of } from 'rxjs';
+import { ClipboardText } from '../../core/clipboard/clipboard-text';
 import { ConfigService } from '../../core/ipc/config';
 import type { Collection, Host, Project } from '../../core/ipc/config.models';
 import { IpcError } from '../../core/ipc/ipc-error';
@@ -50,6 +51,7 @@ describe('KeyActions', () => {
   const connector = { connect: vi.fn(() => Promise.resolve()) };
   const dialogs = { open: vi.fn((): unknown => EMPTY) };
   const alerts = { open: vi.fn(() => of(undefined)) };
+  const clipboard = { write: vi.fn<(text: string) => Promise<void>>(() => Promise.resolve()) };
   let actions: KeyActions;
 
   beforeEach(() => {
@@ -63,6 +65,7 @@ describe('KeyActions', () => {
         { provide: HostConnector, useValue: connector },
         { provide: TuiDialogService, useValue: dialogs },
         { provide: TuiNotificationService, useValue: alerts },
+        { provide: ClipboardText, useValue: clipboard },
       ],
     });
     actions = TestBed.inject(KeyActions);
@@ -144,13 +147,11 @@ describe('KeyActions', () => {
   });
 
   it('copies the public key', async () => {
-    const writeText = vi.fn(() => Promise.resolve());
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     await actions.copyPublicKey(KEY);
-    expect(writeText).toHaveBeenCalledWith(KEY.publicKey);
+    expect(clipboard.write).toHaveBeenCalledExactlyOnceWith(KEY.publicKey);
     expect(lastToast()[1]).toEqual(expect.objectContaining({ label: 'Public key copied' }));
 
-    writeText.mockRejectedValueOnce(new Error('denied'));
+    clipboard.write.mockRejectedValueOnce(new Error('denied'));
     await actions.copyPublicKey(KEY);
     expect(lastToast()[1]).toEqual(expect.objectContaining({ label: 'Copy failed' }));
   });

@@ -48,4 +48,13 @@ describe('openContextMenuAt', () => {
     expect([events[0].clientX, events[0].clientY]).toEqual([12, 40]);
     expect(events[0].cancelable).toBe(true);
   });
+
+  it('dispatches it at a given point', () => {
+    const element = document.createElement('div');
+    const events: MouseEvent[] = [];
+    element.addEventListener('contextmenu', (e) => events.push(e));
+    openContextMenuAt(element, { x: 7, y: 9 });
+    expect([events[0].clientX, events[0].clientY]).toEqual([7, 9]);
+    expect(events[0].bubbles).toBe(true);
+  });
 });

@@ -34,18 +34,30 @@ export function isMenuKey(event: KeyboardEvent): boolean {
   return (event.key === 'F10' && event.shiftKey) || event.key === 'ContextMenu';
 }
 
+export interface ContextPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
 /**
  * Opens the context menu of `element` from the keyboard: Taiga's context dropdown opens at the
- * pointer of a `contextmenu` event, so the event is given the bottom-left corner of `anchor`.
+ * pointer of a `contextmenu` event, so the event is given `at`, or the bottom-left corner of the
+ * element `at`.
  */
-export function openContextMenuAt(element: Element, anchor: Element = element): void {
-  const rect = anchor.getBoundingClientRect();
+export function openContextMenuAt(element: Element, at: Element | ContextPoint = element): void {
+  let point: ContextPoint;
+  if (at instanceof Element) {
+    const rect = at.getBoundingClientRect();
+    point = { x: rect.left, y: rect.bottom };
+  } else {
+    point = at;
+  }
   element.dispatchEvent(
     new MouseEvent('contextmenu', {
       bubbles: true,
       cancelable: true,
-      clientX: rect.left,
-      clientY: rect.bottom,
+      clientX: point.x,
+      clientY: point.y,
     }),
   );
 }

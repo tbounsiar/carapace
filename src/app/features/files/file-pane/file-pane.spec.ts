@@ -1,3 +1,4 @@
+import { ClipboardText } from '../../../core/clipboard/clipboard-text';
 import { LanguageService } from '../../../core/i18n/language';
 import { Component, signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
@@ -132,6 +133,7 @@ describe('FilePane', () => {
     ),
   };
   const alerts = { open: vi.fn(() => of(undefined)) };
+  const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
 
   const el = (): HTMLElement => fixture.nativeElement as HTMLElement;
   const byId = (id: string): HTMLElement | null => el().querySelector(`[data-testid="${id}"]`);
@@ -180,6 +182,7 @@ describe('FilePane', () => {
         provideRouter([]),
         { provide: FileDialogs, useValue: dialogs },
         { provide: TuiNotificationService, useValue: alerts },
+        { provide: ClipboardText, useValue: { write: writeText } },
       ],
     }).compileComponents();
   });
@@ -684,7 +687,6 @@ describe('FilePane', () => {
   });
 
   describe('context menus', () => {
-    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
     const rightClick = async (target: Element, init: MouseEventInit = {}): Promise<Event> => {
       const event = new MouseEvent('contextmenu', {
         bubbles: true,
@@ -718,7 +720,6 @@ describe('FilePane', () => {
 
     beforeEach(() => {
       TREE['/home/u'].entries.push(entry('/home/u', 'a.log'), entry('/home/u', 'b.log'));
-      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     });
 
     afterEach(async () => {
@@ -946,6 +947,45 @@ describe('FilePane', () => {
       expect(options.label).toBe('Not deleted');
       expect(text).toContain('2 of 4 items not deleted: a.log, b.log.');
       expect(text).toContain('Permission denied');
+    });
+
+    it('ignores row keys and a second delete while a multi delete runs', async () => {
+      await setup();
+      let finish!: () => void;
+      source.delete.mockImplementationOnce(() => new Promise<void>((r) => (finish = r)));
+      await clickWith('entry-a.log');
+      await clickWith('entry-b.log', { ctrlKey: true });
+      await key(byId('entry-b.log'), 'Delete');
+      expect(source.delete).toHaveBeenCalledTimes(1);
+
+      await key(byId('entry-b.log'), 'Delete');
+      await key(byId('entry-src'), 'Enter');
+      expect(dialogs.confirmDeleteMany).toHaveBeenCalledTimes(1);
+      expect(source.list).not.toHaveBeenCalledWith('/home/u/src');
+
+      finish();
+      await settle();
+      expect(source.delete).toHaveBeenCalledTimes(2);
+      expect(source.list).toHaveBeenLastCalledWith('/home/u');
+      expect(rowNames()).not.toContain('entry-b.log');
+    });
+
+    it('stays in the folder the user moved to during a multi delete', async () => {
+      await setup();
+      let finish!: () => void;
+      source.delete.mockImplementationOnce(() => new Promise<void>((r) => (finish = r)));
+      await clickWith('entry-a.log');
+      await clickWith('entry-b.log', { ctrlKey: true });
+      await key(byId('entry-b.log'), 'Delete');
+      await click(byId('pane-up'));
+      expect(fixture.componentInstance.paths.at(-1)).toBe('/home');
+
+      const listed = source.list.mock.calls.length;
+      finish();
+      await settle();
+      expect(source.list.mock.calls.length).toBe(listed);
+      expect(fixture.componentInstance.paths.at(-1)).toBe('/home');
+      expect(rowNames()).toEqual(['entry-u']);
     });
 
     it('does nothing when the multi delete is cancelled', async () => {

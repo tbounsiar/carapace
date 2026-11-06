@@ -56,7 +56,7 @@ export function terminalKey(event: KeyboardEvent, apple = onApple()): TerminalKe
 }
 
 /** The ContextMenu key alone; Shift+F10 stays the shell's (Midnight Commander, htop). */
-export function isMenuKey(event: KeyboardEvent): boolean {
+export function isTerminalMenuKey(event: KeyboardEvent): boolean {
   return (
     event.key === 'ContextMenu' &&
     !event.ctrlKey &&
@@ -68,7 +68,7 @@ export function isMenuKey(event: KeyboardEvent): boolean {
 
 /** Combos taken from xterm so the shell never receives them. */
 export function isTerminalReserved(event: KeyboardEvent, apple = onApple()): boolean {
-  if (terminalKey(event, apple) || isMenuKey(event)) {
+  if (terminalKey(event, apple) || isTerminalMenuKey(event)) {
     return true;
   }
   const key = workspaceKey(event);

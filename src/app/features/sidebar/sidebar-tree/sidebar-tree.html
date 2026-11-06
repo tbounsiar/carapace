@@ -83,7 +83,7 @@
             [attr.data-drop]="key"
             [attr.data-drop-target]="dropTarget() === key ? 'true' : null"
             [class._menu]="buttonMenu() === key"
-            [tuiDropdown]="menu"
+            [tuiDropdown]="contextMenu"
             (contextmenu)="openContextMenu(key)"
           >
             <button
@@ -163,7 +163,7 @@
           [attr.data-drop]="'collection:' + item.id"
           [attr.data-drop-target]="dropTarget() === item.id ? 'true' : null"
           [class._menu]="buttonMenu() === item.id"
-          [tuiDropdown]="menu"
+          [tuiDropdown]="contextMenu"
           (contextmenu)="openContextMenu(item.id)"
         >
           <button
@@ -223,7 +223,7 @@
         [class._selected]="selectedHost() === host.id"
         [class._menu]="buttonMenu() === item.id"
         [attr.data-testid]="'tree-host-' + host.name"
-        [tuiDropdown]="menu"
+        [tuiDropdown]="contextMenu"
         (contextmenu)="openContextMenu(item.id)"
       >
         <a
@@ -315,8 +315,16 @@
 </ng-template>
 
 <ng-template #menu let-close>
+  <ng-container *ngTemplateOutlet="menuList; context: { entries: menuEntries(), close }" />
+</ng-template>
+
+<ng-template #contextMenu let-close>
+  <ng-container *ngTemplateOutlet="menuList; context: { entries: contextEntries(), close }" />
+</ng-template>
+
+<ng-template #menuList let-entries="entries" let-close="close">
   <tui-data-list size="s" role="menu">
-    @for (entry of menuEntries(); track entry.id) {
+    @for (entry of entries; track entry.id) {
       @if (entry.separated) {
         <hr />
       }
