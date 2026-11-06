@@ -6,6 +6,8 @@ import {
   afterRenderEffect,
   Component,
   computed,
+  DestroyRef,
+  DOCUMENT,
   effect,
   ElementRef,
   inject,
@@ -18,6 +20,7 @@ import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import { EditedFiles } from './core/ipc/edited-files';
 import { ThemeService } from './core/theme/theme';
 import { CurrentScope } from './shared/current-scope';
+import { suppressNativeContextMenu } from './shared/native-context-menu';
 import { trackLanguage, uiText } from './shared/ui-text';
 import { LocationBar } from './features/shell/location-bar/location-bar';
 import { ProjectSelect } from './features/shell/project-select/project-select';
@@ -75,6 +78,7 @@ export class App {
 
   constructor() {
     trackLanguage(inject(TranslocoService));
+    inject(DestroyRef).onDestroy(suppressNativeContextMenu(inject(DOCUMENT)));
     // Lazy: tabs only exist after a lazy terminal, files or editor action.
     effect(() => {
       if (this.hasTabs() && !this.stripLoading) {

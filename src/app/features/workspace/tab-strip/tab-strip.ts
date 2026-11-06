@@ -99,10 +99,11 @@ export class TabStrip {
     // Capture phase on the document: runs before xterm and CodeMirror see the key.
     document.addEventListener('keydown', onKeydown, true);
     inject(DestroyRef).onDestroy(() => document.removeEventListener('keydown', onKeydown, true));
-    // Off a tab (the More button, the gaps) the browser menu is kept and the strip menu is not opened.
+    // Off a tab (the More button, the gaps) neither the strip menu nor the page menu opens.
     const onContextmenu = (event: MouseEvent) => {
       if (!(event.target as Element | null)?.closest?.('[data-tab]')) {
         event.stopPropagation();
+        event.preventDefault();
       }
     };
     this.host.addEventListener('contextmenu', onContextmenu, true);
