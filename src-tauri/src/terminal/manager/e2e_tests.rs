@@ -142,3 +142,30 @@ async fn disconnect_closes_every_terminal_of_the_host() {
     assert_eq!(closed(&mut rx_b).await, CloseReason::Closed);
     assert_eq!(w.terminals.count(HOST_ID), 0);
 }
+
+/// OpenSSH refuses the eleventh session channel of a connection (`MaxSessions` 10 by default);
+/// the terminals past it open on an extra connection, closed with the primary.
+#[tokio::test]
+async fn terminals_past_max_sessions_open_on_an_extra_connection() {
+    if !enabled() {
+        return;
+    }
+    let _g = E2E_SERVER.read().await;
+    let w = connected().await;
+    let mut open = Vec::new();
+    for _ in 0..12 {
+        open.push(w.open().await);
+    }
+    assert_eq!(w.ssh.extra_count(HOST_ID).await, 1);
+    assert_eq!(w.terminals.count(HOST_ID), 12);
+    for (i, (id, rx)) in open.iter_mut().enumerate() {
+        w.terminals
+            .write(id, &format!("echo term-$((1000+{i}))\n"))
+            .unwrap();
+        read_until(rx, &format!("term-{}", 1000 + i)).await;
+    }
+    w.ssh.disconnect(HOST_ID).await.unwrap();
+    for (_, mut rx) in open {
+        assert_eq!(closed(&mut rx).await, CloseReason::Closed);
+    }
+}

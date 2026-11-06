@@ -14,7 +14,8 @@ use tokio::time::timeout;
 
 use super::path::{file_name, join, normalize, parent};
 use crate::files::{self, EntryKind, FileEntry, FsError, Listing, MAX_DEPTH, MAX_ENTRIES};
-use crate::ssh::{SessionRef, SshManager};
+use crate::ssh::{ChannelError, SessionRef, SshManager};
+use crate::text::Localized;
 
 pub use edit::{Body, Downloaded, Saved, TextFile, WriteText};
 pub use io::RemoteMeta;
@@ -263,32 +264,61 @@ impl Remote {
     }
 }
 
-async fn open(session: SessionRef) -> Result<(Remote, oneshot::Receiver<()>), FsError> {
-    let lost = |session: &SessionRef| {
+fn channel_error(e: ChannelError) -> FsError {
+    match e {
+        ChannelError::NotConnected => FsError::NotConnected,
+        ChannelError::Refused => FsError::ChannelRefused,
+        ChannelError::Timeout => FsError::Timeout,
+        ChannelError::Network => FsError::Network,
+        ChannelError::Connect(e) => FsError::Other {
+            code: e.code(),
+            text: e.text(),
+        },
+    }
+}
+
+/// Opens the SFTP channel on `connection_id`, on an extra connection when the connection
+/// refuses another session channel.
+async fn open(
+    ssh: &SshManager,
+    connection_id: &str,
+) -> Result<(Remote, oneshot::Receiver<()>), FsError> {
+    let (mut channel, session) = ssh
+        .open_channel(connection_id)
+        .await
+        .map_err(channel_error)?;
+    let lost = |session: &SessionRef, other: FsError| {
         if session.handle.is_closed() || session.ended.borrow().is_some() {
             FsError::NotConnected
         } else {
-            FsError::Network
+            other
         }
     };
-    let mut channel = match timeout(OPEN_TIMEOUT, session.handle.channel_open_session()).await {
-        Ok(Ok(c)) => c,
-        _ => return Err(lost(&session)),
-    };
     let accepted = timeout(OPEN_TIMEOUT, async {
-        channel.request_subsystem(true, "sftp").await.ok()?;
+        channel
+            .request_subsystem(true, "sftp")
+            .await
+            .map_err(|_| FsError::Network)?;
         loop {
-            match channel.wait().await? {
-                ChannelMsg::Success => return Some(()),
-                ChannelMsg::Failure | ChannelMsg::Close | ChannelMsg::Eof => return None,
-                _ => {}
+            match channel.wait().await {
+                Some(ChannelMsg::Success) => return Ok(()),
+                Some(ChannelMsg::Failure | ChannelMsg::Close | ChannelMsg::Eof) | None => {
+                    return Err(FsError::SubsystemRefused);
+                }
+                Some(_) => {}
             }
         }
     })
-    .await;
-    if !matches!(accepted, Ok(Some(()))) {
+    .await
+    .unwrap_or(Err(FsError::Timeout));
+    if let Err(e) = accepted {
         let _ = timeout(Duration::from_secs(2), channel.close()).await;
-        return Err(lost(&session));
+        let e = lost(&session, e);
+        log::warn!(
+            "connection {connection_id}: starting the SFTP subsystem failed: {}",
+            e.code()
+        );
+        return Err(e);
     }
     let raw = RawSftpSession::new_with_config(
         channel.into_stream(),
@@ -299,7 +329,8 @@ async fn open(session: SessionRef) -> Result<(Remote, oneshot::Receiver<()>), Fs
     );
     let version = match timeout(OPEN_TIMEOUT, raw.init()).await {
         Ok(Ok(v)) => v,
-        _ => return Err(lost(&session)),
+        Ok(Err(_)) => return Err(lost(&session, FsError::Network)),
+        Err(_) => return Err(lost(&session, FsError::Timeout)),
     };
     let (alive, gone) = oneshot::channel();
     let mut remote = Remote {
@@ -326,8 +357,7 @@ impl SftpManager {
 
     async fn remote(&self, ssh: &SshManager, connection_id: &str) -> Result<Arc<Remote>, FsError> {
         // Checked before `slot` so unknown or disconnected connection ids never get a map entry.
-        let session = ssh
-            .session(connection_id)
+        ssh.session(connection_id)
             .await
             .ok_or(FsError::NotConnected)?;
         let slot = self.slot(connection_id);
@@ -336,7 +366,7 @@ impl SftpManager {
             return Ok(r.clone());
         }
         *current = None;
-        let (remote, gone) = open(session).await?;
+        let (remote, gone) = open(ssh, connection_id).await?;
         let remote = Arc::new(remote);
         watch_end(Arc::downgrade(&slot), &remote, gone);
         *current = Some(remote.clone());

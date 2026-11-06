@@ -12,7 +12,7 @@ use crate::config::{ConfigStore, HostInput};
 use crate::external::ExternalEdits;
 use crate::ssh::{
     ConnectEvent, Connected, ConnectionEnd, ConnectionEvent, ConnectionInfo, Credential, Emit,
-    HostTestResult, SshManager, TestTicket,
+    HostTestResult, IsCurrent, SshManager, Target, TestTicket,
 };
 
 type Res<T> = Result<T, CommandError>;
@@ -322,6 +322,17 @@ pub(super) async fn close_hosts(ssh: &SshManager, host_ids: &[String]) {
             log::warn!("could not close connection {}", c.connection_id);
         }
     }
+}
+
+/// Whether a target still is what its host resolves to in the app's config, for the stale
+/// check of extra connections.
+pub fn is_current(app: tauri::AppHandle) -> IsCurrent {
+    Arc::new(move |target: &Target| {
+        use tauri::Manager;
+        app.try_state::<ConfigStore>().is_some_and(|store| {
+            resolve::target(&store, &target.host_id).is_ok_and(|now| &now == target)
+        })
+    })
 }
 
 #[tauri::command]

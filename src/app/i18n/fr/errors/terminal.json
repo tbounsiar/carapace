@@ -1,10 +1,14 @@
 {
   "busy": "le terminal n’accepte pas de saisie pour le moment",
+  "channelRefused": "le serveur n’accepte plus de session sur cette connexion",
   "network": "impossible d’ouvrir un shell sur l’hôte",
   "notConnected": "l’hôte n’est pas connecté",
   "notFound": "terminal introuvable",
+  "ptyRefused": "l’hôte a refusé d’allouer un terminal (pty)",
   "required": "{name} est requis",
+  "shellRefused": "l’hôte a refusé de démarrer un shell",
   "size": "cols doit être entre 1 et {cols}, et rows entre 1 et {rows}",
+  "timeout": "l’hôte n’a pas répondu à temps pendant l’ouverture du terminal",
   "tooMany": "{max} terminaux au plus peuvent être ouverts sur une connexion",
   "writeTooLarge": "data ne doit pas dépasser {max} octets par appel"
 }

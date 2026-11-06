@@ -319,3 +319,57 @@ async fn recursive_delete_is_depth_limited() {
     let err = w.delete(&home("deep"), true).await.unwrap_err();
     assert_eq!(err.code(), "too_large");
 }
+
+#[tokio::test]
+async fn a_refused_sftp_channel_opens_on_an_extra_connection() {
+    let w = world(95).await;
+    w.server.set_max_sessions(1);
+    let (held, _) = w.m().open_channel("h1").await.unwrap();
+    assert_eq!(w.server.open_sessions(), 1);
+
+    w.list("").await.unwrap();
+    assert_eq!(w.server.open_sessions(), 2);
+    assert_eq!(w.m().extra_count("h1").await, 1);
+    assert_eq!(w.m().list().await.len(), 1);
+
+    w.m().disconnect("h1").await.unwrap();
+    wait_closed(&w.sftp).await;
+    let _ = held.close().await;
+    for _ in 0..250 {
+        if w.server.open_sessions() == 0 {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("the extra connection stayed open");
+}
+
+#[tokio::test]
+async fn a_refused_sftp_subsystem_is_subsystem_refused() {
+    let w = world(96).await;
+    w.server.refuse_sftp(true);
+    let err = w.list("").await.unwrap_err();
+    assert_eq!(err, FsError::SubsystemRefused);
+    assert_eq!(err.code(), "subsystem_refused");
+    assert_eq!(w.server.open_sessions(), 1);
+    w.server.refuse_sftp(false);
+    w.list("").await.unwrap();
+}
+
+#[test]
+fn channel_errors_map_to_file_codes() {
+    use crate::ssh::{ChannelError, SshError};
+    let cases = [
+        (ChannelError::NotConnected, "not_connected"),
+        (ChannelError::Refused, "channel_refused"),
+        (ChannelError::Timeout, "timeout"),
+        (ChannelError::Network, "network"),
+        (
+            ChannelError::Connect(SshError::SecretRequired),
+            "secret_required",
+        ),
+    ];
+    for (e, code) in cases {
+        assert_eq!(channel_error(e).code(), code);
+    }
+}

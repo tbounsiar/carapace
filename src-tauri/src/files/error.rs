@@ -36,6 +36,12 @@ pub enum FsError {
     Io(String),
     #[error("the file transfer channel to the host failed")]
     Network,
+    #[error("the server allows no more sessions on this connection")]
+    ChannelRefused,
+    #[error("the host refused to start its SFTP service")]
+    SubsystemRefused,
+    #[error("the host did not answer in time while opening the file transfer channel")]
+    Timeout,
     #[error("the local copy changed during the upload")]
     SourceChanged,
 }
@@ -56,6 +62,9 @@ impl FsError {
             Self::InvalidInput(_) => "invalid_input",
             Self::Io(_) => "io",
             Self::Network => "network",
+            Self::ChannelRefused => "channel_refused",
+            Self::SubsystemRefused => "subsystem_refused",
+            Self::Timeout => "timeout",
             Self::SourceChanged => "io",
         }
     }
@@ -125,6 +134,18 @@ impl Localized for FsError {
             Self::Network => crate::text!(
                 "errors.files.network",
                 "the file transfer channel to the host failed"
+            ),
+            Self::ChannelRefused => crate::text!(
+                "errors.files.channelRefused",
+                "the server allows no more sessions on this connection"
+            ),
+            Self::SubsystemRefused => crate::text!(
+                "errors.files.subsystemRefused",
+                "the host refused to start its SFTP service"
+            ),
+            Self::Timeout => crate::text!(
+                "errors.files.timeout",
+                "the host did not answer in time while opening the file transfer channel"
             ),
             Self::SourceChanged => crate::text!(
                 "errors.files.sourceChanged",

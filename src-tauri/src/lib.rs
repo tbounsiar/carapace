@@ -25,17 +25,50 @@ use tauri::{Manager, RunEvent, WindowEvent};
 #[cfg(all(feature = "e2e-offscreen", not(debug_assertions)))]
 compile_error!("the e2e-offscreen feature is for debug end-to-end builds only");
 
+/// Size of the log file before it is rotated; one previous file is kept.
+const MAX_LOG_BYTES: u128 = 1024 * 1024;
+
+/// Debug builds log to stdout and the app log dir; release builds to the log dir only, with
+/// other crates at warn so a dependency's info output never reaches the file.
+fn logger<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    use tauri_plugin_log::{Builder, RotationStrategy, Target, TargetKind};
+    let builder = Builder::default()
+        .max_file_size(MAX_LOG_BYTES)
+        .rotation_strategy(RotationStrategy::KeepSome(2));
+    if cfg!(debug_assertions) {
+        builder.level(log::LevelFilter::Info).build()
+    } else {
+        builder
+            .clear_targets()
+            .target(Target::new(TargetKind::LogDir { file_name: None }))
+            .level(log::LevelFilter::Warn)
+            .level_for("carapace_lib", log::LevelFilter::Info)
+            .build()
+    }
+}
+
+/// The log names hosts by id and records connection failures; on Linux the XDG data dir would
+/// leave it readable by other users. Created (or tightened) to 0700 before the plugin opens it.
+#[cfg(unix)]
+fn private_log_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+    let Ok(dir) = app.path().app_log_dir() else {
+        return;
+    };
+    let _ = std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&dir);
+    let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            #[cfg(unix)]
+            private_log_dir(app.handle());
+            app.handle().plugin(logger())?;
             #[cfg(feature = "e2e-offscreen")]
             if let Some(window) = app.get_webview_window("main") {
                 window.set_skip_taskbar(true)?;
@@ -45,7 +78,11 @@ pub fn run() {
             }
             let home = config::resolve_home()?;
             let secrets = secrets::SecretStore::keychain();
-            app.manage(ssh::SshManager::new(&home, secrets.clone()));
+            app.manage(ssh::SshManager::new(
+                &home,
+                secrets.clone(),
+                commands::ssh::is_current(app.handle().clone()),
+            ));
             app.manage(terminal::TerminalManager::default());
             app.manage(sftp::SftpManager::default());
             app.manage(quit::QuitGuard::default());

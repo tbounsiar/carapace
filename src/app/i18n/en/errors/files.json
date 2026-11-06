@@ -1,6 +1,7 @@
 {
   "alreadyExists": "{path} already exists",
   "changed": "{path} changed on the server since it was opened",
+  "channelRefused": "the server allows no more sessions on this connection",
   "danglingLink": "{path} is a link to a missing file",
   "deleteHome": "refusing to delete the home directory",
   "deleteRefused": "refusing to delete {path}",
@@ -29,6 +30,8 @@
   "required": "{name} is required",
   "retargeted": "{path} now points to another file on the server",
   "sourceChanged": "the local copy changed during the upload",
+  "subsystemRefused": "the host refused to start its SFTP service",
+  "timeout": "the host did not answer in time while opening the file transfer channel",
   "tooLarge": "{path} is too large to process",
   "versionInvalid": "expectedVersion is invalid"
 }

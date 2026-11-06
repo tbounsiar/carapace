@@ -1,10 +1,14 @@
 {
   "busy": "the terminal is not accepting input right now",
+  "channelRefused": "the server allows no more sessions on this connection",
   "network": "could not open a shell on the host",
   "notConnected": "the host is not connected",
   "notFound": "terminal not found",
+  "ptyRefused": "the host refused to allocate a terminal (pty)",
   "required": "{name} is required",
+  "shellRefused": "the host refused to start a shell",
   "size": "cols must be 1 to {cols} and rows 1 to {rows}",
+  "timeout": "the host did not answer in time while opening the terminal",
   "tooMany": "at most {max} terminals can be open on a connection",
   "writeTooLarge": "data must be at most {max} bytes per call"
 }

@@ -1,6 +1,7 @@
 {
   "alreadyExists": "{path} existe déjà",
   "changed": "{path} a été modifié sur le serveur depuis son ouverture",
+  "channelRefused": "le serveur n’accepte plus de session sur cette connexion",
   "danglingLink": "{path} est un lien vers un fichier manquant",
   "deleteHome": "suppression du dossier personnel refusée",
   "deleteRefused": "suppression de {path} refusée",
@@ -29,6 +30,8 @@
   "required": "{name} est requis",
   "retargeted": "{path} pointe désormais vers un autre fichier sur le serveur",
   "sourceChanged": "la copie locale a changé pendant l’envoi",
+  "subsystemRefused": "l’hôte a refusé de démarrer son service SFTP",
+  "timeout": "l’hôte n’a pas répondu à temps pendant l’ouverture du canal de transfert de fichiers",
   "tooLarge": "{path} est trop volumineux pour être traité",
   "versionInvalid": "expectedVersion n’est pas valide"
 }
