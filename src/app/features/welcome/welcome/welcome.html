@@ -183,8 +183,17 @@
                 tuiCardLarge="compact"
                 tuiHeader="body-l"
                 appearance="outline-grayscale"
+                aria-keyshortcuts="Shift+F10 ContextMenu"
+                #contextTarget="appContextMenuTarget"
+                appContextMenuTarget
+                tuiDropdownContext
+                [tuiDropdown]="projectMenuTemplate"
+                [tuiDropdownAlign]="contextTarget.align()"
                 [routerLink]="['/projects', card.project.id]"
+                [attr.data-project-card]="card.project.id"
                 [attr.data-testid]="'project-card-' + card.project.name"
+                (contextmenu)="menuProject.set(card.project)"
+                (keydown)="onCardKeydown($event)"
               >
                 <h3 tuiTitle class="card-title">
                   <span class="ellipsis" [textContent]="card.project.name"></span>
@@ -251,5 +260,31 @@
     >
       {{ 'welcome.import' | transloco }}
     </button>
+  </tui-data-list>
+</ng-template>
+
+<ng-template #projectMenuTemplate let-close>
+  <tui-data-list
+    size="s"
+    role="menu"
+    data-testid="context-menu"
+    data-surface="project-card"
+    [attr.aria-label]="'sidebar.actionsFor' | transloco: { name: menuProject()?.name }"
+  >
+    @for (entry of projectMenu(); track entry.id) {
+      @if (entry.separated) {
+        <hr />
+      }
+      <button
+        tuiOption
+        type="button"
+        role="menuitem"
+        [iconStart]="entry.icon"
+        [attr.data-testid]="entry.id"
+        (click)="close(); runProjectEntry(entry)"
+      >
+        {{ entry.label }}
+      </button>
+    }
   </tui-data-list>
 </ng-template>

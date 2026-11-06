@@ -1,139 +1,155 @@
-@if (loading()) {
-  <tui-loader class="loader" />
-} @else if (loadError(); as message) {
-  <tui-block-status size="m" data-testid="projects-error">
-    <h2>{{ 'sidebar.loadError' | transloco }}</h2>
-    <p>{{ message }}</p>
-    <button
-      tuiButton
-      appearance="primary"
-      size="s"
-      iconStart="@tui.refresh-cw"
-      type="button"
-      data-testid="projects-retry"
-      (click)="reload()"
-    >
-      {{ 'sidebar.retry' | transloco }}
-    </button>
-  </tui-block-status>
-} @else if (empty()) {
-  <tui-block-status size="m" class="aside-block" data-testid="sidebar-empty">
-    <p tuiSubtitle>
-      {{ (isHome() ? 'sidebar.empty.home' : 'sidebar.empty.project') | transloco }}
-    </p>
-    <button
-      tuiButton
-      appearance="flat"
-      size="s"
-      iconStart="@tui.plus"
-      type="button"
-      data-testid="sidebar-empty-new-host"
-      (click)="addHostAtRoot()"
-    >
-      {{ 'sidebar.newHost' | transloco }}
-    </button>
-  </tui-block-status>
-} @else if (filter.noMatch()) {
-  <tui-block-status size="m" class="aside-block" data-testid="sidebar-no-match">
-    <p tuiTitle>
-      {{ 'sidebar.noMatch' | transloco }}
-      <span
-        tuiSubtitle
-        tuiHintOverflow
-        class="query"
-        [textContent]="'sidebar.query' | transloco: { query: filter.query().trim() }"
-      ></span>
-    </p>
-    <button
-      tuiButton
-      appearance="flat"
-      size="s"
-      type="button"
-      data-testid="sidebar-clear-filter"
-      (click)="clearFilter()"
-    >
-      {{ 'sidebar.clearFilter' | transloco }}
-    </button>
-  </tui-block-status>
-} @else {
-  <ng-container *ngTemplateOutlet="list; context: { $implicit: items(), depth: 0 }" />
+<div
+  class="root"
+  tuiDropdownContext
+  tuiDropdownAlign="start"
+  tuiDropdownAppearance=""
+  [tuiDropdown]="loaded() ? rootMenu : null"
+  (contextmenu)="openRootMenu()"
+>
+  @if (loading()) {
+    <tui-loader class="loader" />
+  } @else if (loadError(); as message) {
+    <tui-block-status size="m" data-testid="projects-error">
+      <h2>{{ 'sidebar.loadError' | transloco }}</h2>
+      <p>{{ message }}</p>
+      <button
+        tuiButton
+        appearance="primary"
+        size="s"
+        iconStart="@tui.refresh-cw"
+        type="button"
+        data-testid="projects-retry"
+        (click)="reload()"
+      >
+        {{ 'sidebar.retry' | transloco }}
+      </button>
+    </tui-block-status>
+  } @else if (empty()) {
+    <tui-block-status size="m" class="aside-block" data-testid="sidebar-empty">
+      <p tuiSubtitle>
+        {{ (isHome() ? 'sidebar.empty.home' : 'sidebar.empty.project') | transloco }}
+      </p>
+      <button
+        tuiButton
+        appearance="flat"
+        size="s"
+        iconStart="@tui.plus"
+        type="button"
+        data-testid="sidebar-empty-new-host"
+        (click)="addHostAtRoot()"
+      >
+        {{ 'sidebar.newHost' | transloco }}
+      </button>
+    </tui-block-status>
+  } @else if (filter.noMatch()) {
+    <tui-block-status size="m" class="aside-block" data-testid="sidebar-no-match">
+      <p tuiTitle>
+        {{ 'sidebar.noMatch' | transloco }}
+        <span
+          tuiSubtitle
+          tuiHintOverflow
+          class="query"
+          [textContent]="'sidebar.query' | transloco: { query: filter.query().trim() }"
+        ></span>
+      </p>
+      <button
+        tuiButton
+        appearance="flat"
+        size="s"
+        type="button"
+        data-testid="sidebar-clear-filter"
+        (click)="clearFilter()"
+      >
+        {{ 'sidebar.clearFilter' | transloco }}
+      </button>
+    </tui-block-status>
+  } @else {
+    <ng-container *ngTemplateOutlet="list; context: { $implicit: items(), depth: 0 }" />
 
-  @if (isHome() && (!filter.active() || projectRows().length)) {
-    @if (items().length) {
-      <hr />
-    }
-    <div class="section" data-testid="projects-section">
-      <span class="heading" tuiHintOverflow>{{ 'sidebar.projects' | transloco }}</span>
-      @for (row of projectRows(); track row.key) {
-        @let project = row.project;
-        @let key = row.key;
-        <div
-          class="row"
-          tuiDropdownContext
-          tuiDropdownAlign="start"
-          tuiDropdownAppearance=""
-          [attr.data-drop]="key"
-          [attr.data-drop-target]="dropTarget() === key ? 'true' : null"
-          [class._menu]="buttonMenu() === key"
-          [tuiDropdown]="menu"
-          (contextmenu)="openContextMenu(key)"
-        >
+    @if (isHome() && (!filter.active() || projectRows().length)) {
+      @if (items().length) {
+        <hr />
+      }
+      <div class="section" data-testid="projects-section">
+        <span class="heading" tuiHintOverflow>{{ 'sidebar.projects' | transloco }}</span>
+        @for (row of projectRows(); track row.key) {
+          @let project = row.project;
+          @let key = row.key;
+          <div
+            class="row"
+            tuiDropdownContext
+            tuiDropdownAlign="start"
+            tuiDropdownAppearance=""
+            [attr.data-drop]="key"
+            [attr.data-drop-target]="dropTarget() === key ? 'true' : null"
+            [class._menu]="buttonMenu() === key"
+            [tuiDropdown]="menu"
+            (contextmenu)="openContextMenu(key)"
+          >
+            <button
+              tuiAsideItem
+              iconStart="@tui.folder-kanban"
+              type="button"
+              class="item"
+              [attr.data-item]="key"
+              [attr.tabindex]="tabindex(key)"
+              [attr.data-testid]="'tree-project-' + project.name"
+              (click)="selectProject(project)"
+              (dblclick)="enterProject(project)"
+            >
+              <span class="label" tuiHintOverflow>{{ project.name }}</span>
+              @if (row.connections; as connections) {
+                <span
+                  role="img"
+                  class="dot"
+                  tuiStatus="var(--tui-status-positive)"
+                  [attr.aria-label]="connections"
+                ></span>
+              }
+            </button>
+            <span class="actions">
+              <button
+                tuiIconButton
+                appearance="flat-grayscale"
+                size="xs"
+                iconStart="@tui.arrow-right"
+                type="button"
+                tabindex="-1"
+                [tuiHint]="'sidebar.open' | transloco"
+                [attr.aria-label]="'sidebar.openProject' | transloco: { name: project.name }"
+                [attr.data-testid]="'open-project-' + project.name"
+                (click)="enterProject(project)"
+              >
+                {{ 'sidebar.open' | transloco }}
+              </button>
+              <ng-container
+                *ngTemplateOutlet="
+                  menuButton;
+                  context: { key, name: project.name, kind: 'project' }
+                "
+              />
+            </span>
+          </div>
+        } @empty {
           <button
             tuiAsideItem
-            iconStart="@tui.folder-kanban"
+            appearance="flat-grayscale"
+            iconStart="@tui.plus"
             type="button"
-            class="item"
-            [attr.data-item]="key"
-            [attr.tabindex]="tabindex(key)"
-            [attr.data-testid]="'tree-project-' + project.name"
-            (click)="selectProject(project)"
-            (dblclick)="enterProject(project)"
+            data-testid="projects-new"
+            (click)="createProject()"
           >
-            <span class="label" tuiHintOverflow>{{ project.name }}</span>
-            @if (row.connections; as connections) {
-              <span
-                role="img"
-                class="dot"
-                tuiStatus="var(--tui-status-positive)"
-                [attr.aria-label]="connections"
-              ></span>
-            }
+            <span class="label" tuiHintOverflow>{{ 'sidebar.newProject' | transloco }}</span>
           </button>
-          <span class="actions">
-            <button
-              tuiIconButton
-              appearance="flat-grayscale"
-              size="xs"
-              iconStart="@tui.arrow-right"
-              type="button"
-              tabindex="-1"
-              [tuiHint]="'sidebar.open' | transloco"
-              [attr.aria-label]="'sidebar.openProject' | transloco: { name: project.name }"
-              [attr.data-testid]="'open-project-' + project.name"
-              (click)="enterProject(project)"
-            >
-              {{ 'sidebar.open' | transloco }}
-            </button>
-            <ng-container
-              *ngTemplateOutlet="menuButton; context: { key, name: project.name, kind: 'project' }"
-            />
-          </span>
-        </div>
-      } @empty {
-        <button
-          tuiAsideItem
-          appearance="flat-grayscale"
-          iconStart="@tui.plus"
-          type="button"
-          data-testid="projects-new"
-          (click)="createProject()"
-        >
-          <span class="label" tuiHintOverflow>{{ 'sidebar.newProject' | transloco }}</span>
-        </button>
-      }
-    </div>
+        }
+      </div>
+    }
   }
-}
+</div>
+
+<ng-template #rootMenu let-close>
+  <app-new-menu surface="sidebar-root" (chosen)="close()" />
+</ng-template>
 
 <ng-template #list let-items let-depth="depth">
   @for (item of items; track item.id) {
