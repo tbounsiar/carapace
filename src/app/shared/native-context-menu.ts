@@ -1,6 +1,6 @@
 /** Where the webview's own menu stays useful: copy, paste and spelling in editable text. */
 const NATIVE_MENU_TARGETS =
-  'input, textarea, [contenteditable]:not([contenteditable="false"]), .cm-editor, .xterm';
+  'input, textarea, [contenteditable]:not([contenteditable="false"]), .cm-editor';
 
 export function keepsNativeMenu(target: EventTarget | null): boolean {
   return !!(target as Element | null)?.closest?.(NATIVE_MENU_TARGETS);

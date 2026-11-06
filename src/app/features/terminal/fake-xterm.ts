@@ -14,6 +14,11 @@ export class FakeXterm implements XtermView {
   fits = 0;
   focused = 0;
   reserved: ((event: KeyboardEvent) => boolean) | null = null;
+  mouseTracking = false;
+  selection = '';
+  readonly pasted: string[] = [];
+  cleared = 0;
+  cursor: { x: number; y: number } | null = null;
   private dataListener: ((data: string) => void) | null = null;
   private resizeListener: ((size: { cols: number; rows: number }) => void) | null = null;
 
@@ -49,6 +54,30 @@ export class FakeXterm implements XtermView {
 
   reserveKeys(reserved: (event: KeyboardEvent) => boolean): void {
     this.reserved = reserved;
+  }
+
+  hasSelection(): boolean {
+    return this.selection !== '';
+  }
+
+  getSelection(): string {
+    return this.selection;
+  }
+
+  selectAll(): void {
+    this.selection = 'whole buffer';
+  }
+
+  clear(): void {
+    this.cleared++;
+  }
+
+  paste(text: string): void {
+    this.pasted.push(text);
+  }
+
+  cursorPoint(): { x: number; y: number } | null {
+    return this.cursor;
   }
 
   dispose(): void {

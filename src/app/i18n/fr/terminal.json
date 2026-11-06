@@ -15,5 +15,18 @@
     "notOpened": "Terminal non ouvert",
     "notClosed": "Terminal non fermé",
     "inputLost": "Saisie du terminal perdue"
+  },
+  "menu": {
+    "label": "Actions du terminal",
+    "copy": "Copier",
+    "paste": "Coller",
+    "selectAll": "Tout sélectionner",
+    "clear": "Effacer l’historique",
+    "noSelection": "Aucun texte sélectionné",
+    "sessionEnded": "Session terminée",
+    "copyFailed": "Échec de la copie",
+    "copyFailedText": "Le presse-papiers n’est pas disponible.",
+    "pasteFailed": "Échec du collage",
+    "pasteFailedText": "Impossible de lire le presse-papiers. Essayez Maj+Inser."
   }
 }

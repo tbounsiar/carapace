@@ -175,6 +175,11 @@ export class TerminalSessions {
     this.session(tab)?.view.fit();
   }
 
+  /** The tab's xterm, for the terminal menu and its keys. */
+  view(tab: TerminalTab): XtermView | null {
+    return this.session(tab)?.view ?? null;
+  }
+
   /** `source` must sit inside the themed `tui-root` so the Taiga tokens resolve for `effective`. */
   applyAppearance(source: Element, effective: EffectiveTheme, fontSize: number): void {
     this.appearance = {

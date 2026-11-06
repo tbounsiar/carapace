@@ -29,4 +29,81 @@
     </button>
   </div>
 }
-<div #view class="view" [attr.data-testid]="'terminal-view-' + tab().n"></div>
+<div
+  #frame
+  #contextTarget="appContextMenuTarget"
+  class="frame"
+  appContextMenuTarget
+  tuiDropdownContext
+  [tuiDropdown]="menu"
+  [tuiDropdownAlign]="contextTarget.align()"
+  (contextmenu)="onMenuOpen()"
+>
+  <div
+    #view
+    class="view"
+    [attr.data-testid]="'terminal-view-' + tab().n"
+    (contextmenu)="guardContextMenu($event)"
+  ></div>
+</div>
+
+<ng-template #menu let-close>
+  <tui-data-list
+    size="s"
+    role="menu"
+    data-testid="context-menu"
+    data-surface="terminal"
+    [attr.aria-label]="'terminal.menu.label' | transloco"
+    (keydown.escape)="close(); focus()"
+  >
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.copy"
+      data-testid="terminal-menu-copy"
+      [attr.aria-keyshortcuts]="shortcuts.copy.aria"
+      [appOptionReason]="hasSelection() ? null : ('terminal.menu.noSelection' | transloco)"
+      (click)="close(); run('copy')"
+    >
+      <app-option-label>{{ 'terminal.menu.copy' | transloco }}</app-option-label>
+      <span class="shortcut">{{ shortcuts.copy.text }}</span>
+    </button>
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.clipboard-paste"
+      data-testid="terminal-menu-paste"
+      [attr.aria-keyshortcuts]="shortcuts.paste.aria"
+      [appOptionReason]="ended() ? ('terminal.menu.sessionEnded' | transloco) : null"
+      (click)="close(); run('paste')"
+    >
+      <app-option-label>{{ 'terminal.menu.paste' | transloco }}</app-option-label>
+      <span class="shortcut">{{ shortcuts.paste.text }}</span>
+    </button>
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.text-select"
+      data-testid="terminal-menu-select-all"
+      [attr.aria-keyshortcuts]="shortcuts.selectAll.aria"
+      (click)="close(); run('selectAll')"
+    >
+      {{ 'terminal.menu.selectAll' | transloco }}
+      <span class="shortcut">{{ shortcuts.selectAll.text }}</span>
+    </button>
+    <hr />
+    <button
+      tuiOption
+      type="button"
+      role="menuitem"
+      iconStart="@tui.eraser"
+      data-testid="terminal-menu-clear"
+      (click)="close(); run('clear')"
+    >
+      {{ 'terminal.menu.clear' | transloco }}
+    </button>
+  </tui-data-list>
+</ng-template>
