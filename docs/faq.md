@@ -42,6 +42,22 @@ Carapace supports password, public key and SSH agent authentication. Servers tha
 
 If a saved password was refused, Carapace deletes it and asks again on the next connection.
 
+### "the server allows no more sessions on this connection"
+
+The server refused another terminal or file explorer on the host's connection (OpenSSH `MaxSessions`). Carapace opens an extra connection in that case, but only with credentials it can reuse without asking: a saved password or passphrase, a secret variable, an unencrypted key or the SSH agent. Save the password when you connect, close another tab of the host, or raise `MaxSessions` in the server's `sshd_config`. See [Terminal](terminal.md).
+
+### Finding out why something failed
+
+Carapace writes a log file with connection ids, error codes and the reason a server gave for refusing a session. It never contains passwords, keys, terminal content or commands.
+
+| System | Log file |
+| - | - |
+| Windows | `%LOCALAPPDATA%\org.tbounsiar.carapace\logs\Carapace.log` |
+| macOS | `~/Library/Logs/org.tbounsiar.carapace/Carapace.log` |
+| Linux | `~/.local/share/org.tbounsiar.carapace/logs/Carapace.log` |
+
+The file is limited to 1 MiB; one older file is kept next to it. Attach it to a bug report if the error message is not enough.
+
 ### "the server cannot replace authorized_keys atomically"
 
 Deploying a key to a host that already has an `authorized_keys` file needs the `posix-rename@openssh.com` SFTP extension, which OpenSSH provides. Add the public key by hand on such servers: use **Copy public key** on the SSH keys page.

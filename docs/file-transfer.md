@@ -17,10 +17,15 @@ Each pane has a breadcrumb path and a toolbar: **Upload to remote** / **Download
 | Shift+Enter | Remote file: open in the external editor |
 | Backspace | Up one level |
 | F2 | Rename |
-| Delete | Delete |
+| Delete | Delete the selection |
 | Ctrl+A | Select all |
+| Shift+F10 or Menu key | Open the row's menu |
 
-Ctrl+click and Shift+click select several entries. The **…** menu of a row has **Rename** and **Delete**, plus **Edit** and **Open in external editor** for remote files.
+Ctrl+click and Shift+click select several entries.
+
+Right-click a row, or use its **…** button, for its menu: **Open** (folders), **Edit** and **Open in external editor** (remote files), **Upload to remote** / **Download to local**, **Copy path**, **Rename** and **Delete**. Right-clicking a row that is not selected selects it alone; right-clicking a selected row keeps the selection, and the menu then acts on all of it (**Copy paths**, transfer, **Delete** with one confirmation).
+
+Right-click the empty area of a pane for **New folder**, **Refresh**, **Show hidden files**, **Select all** and **Copy folder path**.
 
 Deleting a folder deletes its contents. Carapace refuses to delete a root or your home directory. Symbolic links are deleted as links; their target is untouched.
 
@@ -28,7 +33,7 @@ Deleting a folder deletes its contents. Carapace refuses to delete a root or you
 
 Select files or folders and choose **Upload to remote** or **Download to local**: they go to the folder open in the other pane. You can also drag the selection to the other pane, or onto a folder in it.
 
-The **Transfers** panel at the bottom lists each job with its progress. Up to three jobs run at the same time per app; the others wait in the queue. **Cancel** (the × of a row) stops a job; **Clear finished** removes completed, failed and cancelled jobs from the list. Transfers keep running when you switch tabs.
+The **Transfers** panel at the bottom lists each job with its progress. Up to three jobs run at the same time per app; the others wait in the queue. **Cancel** (the × of a row) stops a job; **Clear finished** removes completed, failed and cancelled jobs from the list. Right-click a job for **Cancel**, **Retry** (failed or cancelled jobs), **Show in Local/Remote pane** and **Clear finished**. Transfers keep running when you switch tabs.
 
 How files are written:
 

@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.2.0 (2026-11-07)
+
+### Features
+
+- Right-click menus on file and folder rows, the empty area of a pane, transfers, SSH keys, edited files, Home project cards and the empty part of the sidebar. They open at the pointer and offer the same entries as the row's **…** menu.
+- In the file panes, a right click on a selected row acts on the whole selection: transfer, copy paths, or delete with one confirmation. New entries **Open**, **Upload to remote** / **Download to local** and **Copy path**.
+- Terminal menu with **Copy**, **Paste**, **Select all** and **Clear scrollback**, and the shortcuts Ctrl+Shift+C / V / A (Cmd+C / V / A on macOS). Shift+right-click opens the menu while a program uses the mouse.
+- Tab titles show the collections above the host (`clavis / production · Terminal 1`); the hint gives the full location.
+- When a server refuses another session on the host's connection (OpenSSH `MaxSessions`, Dropbear's channel limit), the new terminal or file explorer opens on an extra connection to the same host. It is limited to four extra connections. The server must present the same host key, and only credentials that need no input are reused.
+- A log file in the app log folder records connection ids, error codes and refusal reasons, never secrets or terminal content. See the FAQ.
+
+### Changes
+
+- Delete removes the whole selection in a file pane, not only the focused row.
+- The webview's own menu (Back, Refresh, Print) no longer opens outside text fields: its Refresh reloaded the app and closed every session.
+- "Open files" is now "Browse files".
+- Opening a terminal or the file explorer reports why it failed: the server refused another session, a terminal (pty), a shell or SFTP, or did not answer in time. Before, every case said to check the network.
+
+### Fixes
+
+- A right click on a sidebar row opened two menus at once, and the menu was squeezed against the window edge.
+- A long name in a nested collection scrolled the sidebar sideways.
+- The tab hint covered the sidebar.
+
+### Security
+
+- Pasted text loses its control characters (except tabs and line breaks), so a copied escape sequence cannot end bracketed paste and run commands.
+- The clipboard is read through the Tauri clipboard plugin, allowed to read and write plain text only.
+
+### Known limitations
+
+- Installers are not code-signed: Windows SmartScreen and macOS Gatekeeper warn on first launch.
+- Host key checked on the initial key exchange only, not on rekey.
+- No keyboard-interactive authentication; SSH agent use is less tested on Windows.
+- Heavy terminal output can stall the shared connection.
+- Transfers on one host share a single SFTP channel.
+- The right-click menus and the clipboard were checked by hand on Windows only, and the Dropbear session limit against a test server only.
+
 ## 0.1.0 (2026-11-05)
 
 First public release, for Windows (x64, ARM64), macOS (Apple Silicon, Intel) and Linux (x64, ARM64: AppImage, deb, rpm).
