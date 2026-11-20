@@ -8,7 +8,7 @@
   "fieldWhitespace": "{field, select, hostname {Le nom d’hôte} port {Le port} username {Le nom d’utilisateur} password {Le mot de passe} passphrase {La phrase secrète} other {Le champ {field}}} ne doit pas contenir d’espaces ni de caractères de contrôle",
   "hostNotInHome": "L’hôte n’appartient pas à Accueil",
   "hostNotInProject": "L’hôte n’appartient pas à ce projet",
-  "hostTakenIn": "Un hôte nommé « {name} » existe déjà dans {project}",
+  "hostTakenIn": "Un hôte nommé « {name} » existe déjà dans {target}",
   "hostTakenInHome": "Un hôte nommé « {name} » existe déjà dans Accueil",
   "hostUnresolved": "Impossible de résoudre l’hôte",
   "hostnameCharacters": "Le nom d’hôte ne peut contenir que des lettres, des chiffres, « . », « - » et « : »",

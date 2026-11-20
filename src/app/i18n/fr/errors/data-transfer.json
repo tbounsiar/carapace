@@ -61,7 +61,6 @@
   "syntax": "Le fichier n’est pas un JSON valide (ligne {line}, colonne {column}).",
   "tooDeep": "{who} : imbrication de plus de {max} niveaux.",
   "twiceInPlace": "{who} : présent deux fois au même endroit.",
-  "twiceInScope": "{who} : présent deux fois dans la même portée.",
   "unknownProject": "Ce projet n’existe pas.",
   "unknownStructure": "Le fichier n’a pas la structure qu’écrit Carapace.",
   "wouldBeInconsistent": "le résultat ne serait pas cohérent ({error})",

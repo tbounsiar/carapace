@@ -61,7 +61,6 @@
   "syntax": "The file is not valid JSON (line {line}, column {column}).",
   "tooDeep": "{who} is nested deeper than {max} levels.",
   "twiceInPlace": "{who} is twice in the same place.",
-  "twiceInScope": "{who} is twice in the same scope.",
   "unknownProject": "This project does not exist.",
   "unknownStructure": "The file does not have the structure Carapace writes.",
   "wouldBeInconsistent": "the result would not be consistent ({error})",

@@ -6,8 +6,7 @@ use uuid::Uuid;
 use super::export::references;
 use super::format::{self, DataFile, FileScope, FileVariable};
 use crate::config::model::{
-    AuthMethod, Collection, ConfigFile, Host, KeyEntry, KeyOrigin, Node, Project, Variable,
-    VariableKind,
+    AuthMethod, ConfigFile, Host, KeyEntry, KeyOrigin, Node, Project, Variable, VariableKind,
 };
 use crate::config::same_path;
 use crate::config::validate::{self, MAX_DEPTH, MAX_NODES, MAX_VARIABLES, same_name};
@@ -876,7 +875,7 @@ impl<'a> Builder<'a> {
                 .iter()
                 .filter(|l| l.is_collection() == collection && !self.matched.contains(l.id()))
                 .filter(|l| l.project_id() == project.as_deref())
-                .filter(|l| !collection || l.parent_id() == parent.as_deref())
+                .filter(|l| l.parent_id() == parent.as_deref())
                 .find(|l| same_name(l.name(), fnode.name()))
                 .map(|l| (l, Reason::SameName))
         });
@@ -1061,9 +1060,8 @@ impl<'a> Builder<'a> {
     /// in file order, then nodes that followed a moved parent.
     fn claims(&mut self, cascaded: &[String]) {
         let mut projects: HashSet<String> = HashSet::new();
-        let mut collections: HashMap<(Option<String>, Option<String>), HashSet<String>> =
-            HashMap::new();
-        let mut hosts: HashMap<Option<String>, HashSet<String>> = HashMap::new();
+        let mut collections = SiblingNames::new();
+        let mut hosts = SiblingNames::new();
         for p in &self.result.projects {
             if !self.touched_ids.contains(&p.id) {
                 projects.insert(lower(&p.name));
@@ -1729,27 +1727,29 @@ fn set_id(node: &mut Node, id: &str) {
     }
 }
 
-type CollectionNames = HashMap<(Option<String>, Option<String>), HashSet<String>>;
-type HostNames = HashMap<Option<String>, HashSet<String>>;
+/// Lowercased names per (project, parent). Collections and hosts use separate maps: a host may
+/// share a collection's name.
+type SiblingNames = HashMap<(Option<String>, Option<String>), HashSet<String>>;
 
 fn namespace<'n>(
-    collections: &'n mut CollectionNames,
-    hosts: &'n mut HostNames,
+    collections: &'n mut SiblingNames,
+    hosts: &'n mut SiblingNames,
     n: &Node,
 ) -> &'n mut HashSet<String> {
-    match n {
-        Node::Collection(Collection {
-            project_id,
-            parent_id,
-            ..
-        }) => collections
-            .entry((project_id.clone(), parent_id.clone()))
-            .or_default(),
-        Node::Host(h) => hosts.entry(h.project_id.clone()).or_default(),
-    }
+    let names = if n.is_collection() {
+        collections
+    } else {
+        hosts
+    };
+    names
+        .entry((
+            n.project_id().map(str::to_owned),
+            n.parent_id().map(str::to_owned),
+        ))
+        .or_default()
 }
 
-fn claim_node(collections: &mut CollectionNames, hosts: &mut HostNames, n: &Node) {
+fn claim_node(collections: &mut SiblingNames, hosts: &mut SiblingNames, n: &Node) {
     namespace(collections, hosts, n).insert(lower(n.name()));
 }
 

@@ -301,8 +301,32 @@ fn every_rule_of_the_data_file_applies() {
         v["nodes"].as_array_mut().unwrap().push(other);
     });
     assert!(
-        invalid_messages(&dup).contains(&"host “API-1” is twice in the same scope.".to_string())
+        invalid_messages(&dup).contains(&"host “API-1” is twice in the same place.".to_string())
     );
+}
+
+#[test]
+fn hosts_may_share_a_name_outside_their_siblings() {
+    let v = edit(|v| {
+        let nodes = v["nodes"].as_array_mut().unwrap();
+        let mut frontend = nodes[0].clone();
+        frontend["id"] = json!(id(5));
+        frontend["name"] = json!("Frontend");
+        let mut in_frontend = nodes[1].clone();
+        in_frontend["id"] = json!(id(6));
+        in_frontend["parentId"] = json!(id(5));
+        in_frontend["name"] = json!("API-1");
+        let mut at_root = nodes[1].clone();
+        at_root["id"] = json!(id(7));
+        at_root["parentId"] = json!(null);
+        let mut named_like_collection = nodes[1].clone();
+        named_like_collection["id"] = json!(id(8));
+        named_like_collection["parentId"] = json!(null);
+        named_like_collection["name"] = json!("Backend");
+        nodes.extend([frontend, in_frontend, at_root, named_like_collection]);
+    });
+    let file = parse_value(&v).unwrap();
+    assert_eq!(file.nodes.len(), 6);
 }
 
 #[test]

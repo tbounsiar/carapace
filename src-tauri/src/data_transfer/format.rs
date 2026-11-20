@@ -518,7 +518,7 @@ fn check_nodes(file: &DataFile, out: &mut Messages) {
     let mut ids: HashSet<&str> = projects.clone();
     let by_id: HashMap<&str, &Node> = file.nodes.iter().map(|n| (n.id(), n)).collect();
     let mut collection_names: Vec<(Option<&str>, Option<&str>, &str)> = Vec::new();
-    let mut host_names: Vec<(Option<&str>, &str)> = Vec::new();
+    let mut host_names: Vec<(Option<&str>, Option<&str>, &str)> = Vec::new();
     for n in &file.nodes {
         if out.full() {
             return;
@@ -608,18 +608,18 @@ fn check_nodes(file: &DataFile, out: &mut Messages) {
                 collection_names.push((key.0, key.1, &c.name));
             }
             Node::Host(h) => {
-                let scope = h.project_id.as_deref();
+                let key = (h.project_id.as_deref(), h.parent_id.as_deref());
                 if host_names
                     .iter()
-                    .any(|(p, name)| *p == scope && same_name(name, &h.name))
+                    .any(|(p, q, name)| (*p, *q) == key && same_name(name, &h.name))
                 {
                     out.push(crate::text!(
-                        "errors.dataTransfer.twiceInScope",
-                        "{who} is twice in the same scope.",
+                        "errors.dataTransfer.twiceInPlace",
+                        "{who} is twice in the same place.",
                         who = who
                     ));
                 }
-                host_names.push((scope, &h.name));
+                host_names.push((key.0, key.1, &h.name));
                 let input = HostInput {
                     name: h.name.clone(),
                     hostname: h.hostname.clone(),

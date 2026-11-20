@@ -8,7 +8,7 @@
   "fieldWhitespace": "{field} must not contain whitespace or control characters",
   "hostNotInHome": "the host does not belong to Home",
   "hostNotInProject": "the host does not belong to this project",
-  "hostTakenIn": "a host named \"{name}\" already exists in {project}",
+  "hostTakenIn": "a host named \"{name}\" already exists in {target}",
   "hostTakenInHome": "a host named \"{name}\" already exists in Home",
   "hostUnresolved": "the host could not be resolved",
   "hostnameCharacters": "hostname may only contain letters, digits, '.', '-' and ':'",

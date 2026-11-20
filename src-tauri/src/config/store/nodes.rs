@@ -56,13 +56,13 @@ fn collection_taken_in(name: &str, target: Option<&str>) -> ConfigError {
     })
 }
 
-fn host_taken_in(name: &str, project: Option<&str>) -> ConfigError {
-    ConfigError::NameTaken(match project {
-        Some(project) => crate::text!(
+fn host_taken_in(name: &str, target: Option<&str>) -> ConfigError {
+    ConfigError::NameTaken(match target {
+        Some(target) => crate::text!(
             "errors.config.hostTakenIn",
-            "a host named \"{name}\" already exists in {project}",
+            "a host named \"{name}\" already exists in {target}",
             name = name,
-            project = project
+            target = target
         ),
         None => crate::text!(
             "errors.config.hostTakenInHome",
@@ -142,16 +142,31 @@ fn collection_taken(
     })
 }
 
-/// Host names are unique in the whole scope, at any depth.
-fn host_taken<'a>(
+fn host_taken(
+    cfg: &ConfigFile,
+    project_id: Option<&str>,
+    parent_id: Option<&str>,
+    name: &str,
+    except: Option<&str>,
+) -> bool {
+    cfg.nodes.iter().filter_map(Node::as_host).any(|h| {
+        Some(h.id.as_str()) != except
+            && h.project_id.as_deref() == project_id
+            && h.parent_id.as_deref() == parent_id
+            && same_name(&h.name, name)
+    })
+}
+
+/// The parent collection's name, else the project's; `None` for Home.
+fn location_name<'a>(
     cfg: &'a ConfigFile,
     project_id: Option<&str>,
-    name: &str,
-    except: &dyn Fn(&str) -> bool,
-) -> Option<&'a Host> {
-    cfg.nodes.iter().filter_map(Node::as_host).find(|h| {
-        h.project_id.as_deref() == project_id && !except(&h.id) && same_name(&h.name, name)
-    })
+    parent_id: Option<&str>,
+) -> Option<&'a str> {
+    match parent_id.and_then(|p| cfg.node(p)) {
+        Some(parent) => Some(parent.name()),
+        None => project_name(cfg, project_id),
+    }
 }
 
 fn collection_mut<'a>(
@@ -216,23 +231,22 @@ fn apply_move(
     if depth + height > MAX_DEPTH {
         return Err(too_deep());
     }
-    if let Node::Collection(c) = &node
-        && collection_taken(cfg, project_id, parent_id, &c.name, Some(node_id))
-    {
-        let target = match parent_id.and_then(|p| map.get(p)) {
-            Some(parent) => Some(parent.name()),
-            None => project_name(cfg, project_id),
-        };
-        return Err(collection_taken_in(&c.name, target));
+    // Only the moved node changes parent: the nodes below it keep their siblings, which move
+    // with them.
+    match &node {
+        Node::Collection(c)
+            if collection_taken(cfg, project_id, parent_id, &c.name, Some(node_id)) =>
+        {
+            let target = location_name(cfg, project_id, parent_id);
+            return Err(collection_taken_in(&c.name, target));
+        }
+        Node::Host(h) if host_taken(cfg, project_id, parent_id, &h.name, Some(node_id)) => {
+            let target = location_name(cfg, project_id, parent_id);
+            return Err(host_taken_in(&h.name, target));
+        }
+        _ => {}
     }
     let scope_changed = node.project_id() != project_id;
-    if scope_changed {
-        for h in subtree.iter().filter_map(Node::as_host) {
-            if host_taken(cfg, project_id, &h.name, &|id| ids.contains(id)).is_some() {
-                return Err(host_taken_in(&h.name, project_name(cfg, project_id)));
-            }
-        }
-    }
     let ids: HashSet<String> = ids.into_iter().map(str::to_owned).collect();
     let target_project = project_id.map(str::to_owned);
     for n in &mut cfg.nodes {
@@ -343,7 +357,7 @@ impl ConfigStore {
         self.mutate(|cfg| {
             location_depth(cfg, project_id, parent_id)?;
             check_room(cfg)?;
-            if host_taken(cfg, project_id, &v.name, &|_| false).is_some() {
+            if host_taken(cfg, project_id, parent_id, &v.name, None) {
                 return Err(ConfigError::Conflict("host"));
             }
             let host = Host {
@@ -364,8 +378,15 @@ impl ConfigStore {
     pub fn update_host(&self, host_id: &str, input: &HostInput) -> Result<Host, ConfigError> {
         let v = validate::host(input)?;
         self.mutate(|cfg| {
-            let scope = host_mut(cfg, host_id)?.project_id.clone();
-            if host_taken(cfg, scope.as_deref(), &v.name, &|id| id == host_id).is_some() {
+            let h = host_mut(cfg, host_id)?;
+            let (project, parent) = (h.project_id.clone(), h.parent_id.clone());
+            if host_taken(
+                cfg,
+                project.as_deref(),
+                parent.as_deref(),
+                &v.name,
+                Some(host_id),
+            ) {
                 return Err(ConfigError::Conflict("host"));
             }
             let host = host_mut(cfg, host_id)?;

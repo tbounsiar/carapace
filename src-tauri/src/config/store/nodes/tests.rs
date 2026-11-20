@@ -183,15 +183,20 @@ fn node_count_is_limited() {
 }
 
 #[test]
-fn host_names_are_unique_in_the_whole_scope() {
+fn host_names_are_unique_among_siblings_only() {
     let w = world();
     host(&w, Some(&w.pay), Some(&w.api), "ui");
-    conflict(w.s.create_host(Some(&w.pay), None, &input("UI")));
-    conflict(w.s.create_host(Some(&w.pay), Some(&w.backend), &input("ui")));
+    conflict(w.s.create_host(Some(&w.pay), Some(&w.api), &input("UI")));
+    host(&w, Some(&w.pay), None, "UI");
+    host(&w, Some(&w.pay), Some(&w.backend), "ui");
+    conflict(w.s.create_host(Some(&w.pay), None, &input("Ui")));
+    host(&w, Some(&w.pay), None, "Backend");
     let home = host(&w, None, Some(&w.tools), "ui");
-    conflict(w.s.create_host(None, None, &input("Ui")));
-    let other = host(&w, None, None, "db");
+    host(&w, None, None, "Ui");
+    let other = host(&w, None, Some(&w.tools), "db");
     conflict(w.s.update_host(&other, &input("UI")));
+    let root_db = host(&w, None, None, "db");
+    assert_eq!(w.s.update_host(&root_db, &input("DB")).unwrap().name, "DB");
     let same = w.s.update_host(&home, &input("UI")).unwrap();
     assert_eq!(same.name, "UI");
     assert_eq!(same.parent_id.as_deref(), Some(w.tools.as_str()));
@@ -319,20 +324,26 @@ fn move_rejects_cycles_and_bad_targets() {
 fn move_conflicts_name_the_item_and_the_target() {
     let w = world();
     host(&w, Some(&w.pay), Some(&w.api), "ui");
+    host(&w, Some(&w.pay), None, "UI");
     let home_ui = host(&w, None, Some(&w.tools), "UI");
     name_taken(
         w.s.plan_move(&home_ui, Some(&w.pay), None),
         "a host named \"UI\" already exists in Payments",
     );
+    name_taken(
+        w.s.plan_move(&home_ui, Some(&w.pay), Some(&w.api)),
+        "a host named \"UI\" already exists in Api",
+    );
     let pay_db = host(&w, Some(&w.pay), None, "db");
     host(&w, None, None, "DB");
     name_taken(
-        w.s.plan_move(&pay_db, None, Some(&w.tools)),
+        w.s.plan_move(&pay_db, None, None),
         "a host named \"db\" already exists in Home",
     );
+    host(&w, None, Some(&w.tools), "db");
     name_taken(
-        w.s.plan_move(&w.backend, None, None),
-        "a host named \"ui\" already exists in Home",
+        w.s.plan_move(&pay_db, None, Some(&w.tools)),
+        "a host named \"db\" already exists in Tools",
     );
     let other =
         w.s.create_collection(Some(&w.pay), Some(&w.api), "Tools")
@@ -391,6 +402,31 @@ fn cross_scope_move_takes_the_subtree() {
 }
 
 #[test]
+fn moves_check_host_names_among_the_new_siblings_only() {
+    let w = world();
+    host(&w, Some(&w.pay), Some(&w.api), "web");
+    let h = host(&w, Some(&w.pay), None, "WEB");
+    let m =
+        w.s.move_node(&h, Some(&w.pay), Some(&w.backend), |_| {})
+            .unwrap();
+    assert_eq!(m.nodes[0].parent_id(), Some(w.backend.as_str()));
+    name_taken(
+        w.s.plan_move(&h, Some(&w.pay), Some(&w.api)),
+        "a host named \"WEB\" already exists in Api",
+    );
+    host(&w, None, None, "web");
+    host(&w, None, Some(&w.tools), "Web");
+    let moved = w.s.move_node(&w.backend, None, Some(&w.tools), |_| {});
+    assert_eq!(moved.unwrap().host_ids().len(), 2);
+    let cfg = w.s.snapshot().unwrap();
+    assert_eq!(
+        cfg.host(&h).unwrap().parent_id.as_deref(),
+        Some(w.backend.as_str())
+    );
+    assert!(cfg.host(&h).unwrap().project_id.is_none());
+}
+
+#[test]
 fn failed_move_does_not_call_back_or_write() {
     let w = world();
     let before = raw(&w.d);
@@ -410,7 +446,13 @@ fn move_conflicts_carry_keys_and_params() {
     };
     assert_eq!(t.key, Some("errors.config.hostTakenIn"));
     assert_eq!(t.params["name"], "UI");
-    assert_eq!(t.params["project"], "Payments");
+    assert_eq!(t.params["target"], "Payments");
+    host(&w, None, None, "ui");
+    let Err(ConfigError::NameTaken(t)) = w.s.plan_move(&home_ui, None, None) else {
+        panic!("conflict expected");
+    };
+    assert_eq!(t.key, Some("errors.config.hostTakenInHome"));
+    assert!(!t.params.contains_key("target"));
     let other =
         w.s.create_collection(Some(&w.pay), Some(&w.api), "Tools")
             .unwrap();

@@ -508,7 +508,10 @@ fn a_moved_collection_takes_its_local_children_along() {
     let theirs = local(
         vec![],
         vec![project(11, "Q", vec![])],
-        vec![coll(4, "C", Some(11), None)],
+        vec![
+            coll(4, "C", Some(11), None),
+            host(3, "X", Some(11), Some(4)),
+        ],
     );
     let f = file(
         FileScope::Project {
@@ -522,7 +525,11 @@ fn a_moved_collection_takes_its_local_children_along() {
     validate::structure(&out.result).unwrap();
     let moved = out.result.host(&id(1)).unwrap();
     assert_eq!(moved.project_id.as_deref(), Some(id(11).as_str()));
-    assert_eq!(moved.name, "x (imported)", "a host named x is already in Q");
+    assert_eq!(
+        moved.name, "x (imported)",
+        "the file puts a host named X in C"
+    );
+    assert_eq!(out.result.host(&id(2)).unwrap().name, "x");
     assert_eq!(out.plan.moved_host_ids, vec![id(1)]);
     assert_eq!(out.keychain.saved_hosts, vec![id(1)]);
     assert_eq!(out.plan.affected_connected_hosts, vec!["x".to_string()]);
@@ -575,6 +582,45 @@ fn a_host_moved_onto_a_taken_name_is_renamed_and_a_scope_change_is_reported() {
     );
     assert_eq!(item.changes[0].field, Field::Location);
     assert_eq!(item.changes[0].from, "Home");
+}
+
+#[test]
+fn hosts_match_by_name_only_among_siblings() {
+    let here = local(
+        vec![],
+        vec![project(10, "P", vec![])],
+        vec![
+            coll(4, "A", Some(10), None),
+            coll(5, "B", Some(10), None),
+            host(1, "api", Some(10), Some(4)),
+            host(2, "db", Some(10), None),
+        ],
+    );
+    let theirs = local(
+        vec![],
+        vec![project(10, "P", vec![])],
+        vec![
+            coll(4, "A", Some(10), None),
+            coll(5, "B", Some(10), None),
+            with_hostname(host(91, "API", Some(10), Some(5)), "b"),
+            with_hostname(host(92, "Api", Some(10), Some(4)), "a"),
+            host(93, "DB", Some(10), Some(4)),
+        ],
+    );
+    let f = file(FileScope::All, &theirs, vec![]);
+    let out = run(&here, &f, Strategy::Merge);
+    let in_a = out.result.host(&id(1)).unwrap();
+    assert_eq!((in_a.name.as_str(), in_a.hostname.as_str()), ("Api", "a"));
+    assert!(out.result.host(&id(92)).is_none());
+    let in_b = out.result.host(&id(91)).unwrap();
+    assert_eq!(
+        (in_b.name.as_str(), in_b.parent_id.as_deref()),
+        ("API", Some(id(5).as_str()))
+    );
+    assert_eq!(out.result.host(&id(93)).unwrap().name, "DB");
+    assert_eq!(out.result.host(&id(2)).unwrap().name, "db");
+    assert!(out.renamed.is_empty());
+    assert_eq!(row(&out, ItemKind::Host).added, 2);
 }
 
 #[test]

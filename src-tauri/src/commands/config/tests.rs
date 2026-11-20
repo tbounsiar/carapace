@@ -718,9 +718,14 @@ fn moves_within_a_scope_or_refused_keep_saved_secrets() {
     assert_eq!(conn_accounts(&w, &n.c), 2);
 
     w.store.create_host(None, None, &host_input("A")).unwrap();
-    let err = relocate(&w.store, &w.secrets, &n.backend, None, None).unwrap_err();
+    let err = relocate(&w.store, &w.secrets, &n.a, None, None).unwrap_err();
     assert_eq!(err.code, "conflict");
     assert_eq!(err.message, "a host named \"a\" already exists in Home");
+    w.store
+        .create_host(None, Some(&n.tools), &host_input("B"))
+        .unwrap();
+    let err = relocate(&w.store, &w.secrets, &n.b, None, Some(&n.tools)).unwrap_err();
+    assert_eq!(err.message, "a host named \"b\" already exists in Tools");
     let err = relocate(
         &w.store,
         &w.secrets,

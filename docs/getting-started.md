@@ -34,7 +34,7 @@ Choose **New host** (sidebar **+**, a dashboard, or **New host here** in a colle
 
 ![The host dialog](images/host-dialog-light.png)
 
-- **Name**: unique within the scope.
+- **Name**: unique within its collection (or at the top of its scope). Hosts in different collections can share a name.
 - **Hostname**, **Port**, **Username**: plain values or [variables](variables.md) such as `${host}`. Write `$$` for a literal `$`. Below the fields, the dialog shows what the host resolves to ("Resolves to user@host:port") or which variables are missing.
 - **Authentication**:
   - **Password**: pick a secret variable, or leave **Ask when connecting**.
