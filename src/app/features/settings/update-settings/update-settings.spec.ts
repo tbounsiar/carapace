@@ -120,7 +120,10 @@ describe('UpdateSettings', () => {
     await fixture.whenStable();
     expect(q('settings-updates-offer')!.dataset['phase']).toBe('available');
     q('settings-updates-install')!.click();
-    q('settings-updates-skip')!.click();
+    const skip = q('settings-updates-skip')!;
+    expect(skip.parentElement!.hasAttribute('tuiSubtitle')).toBe(true);
+    expect(skip.closest('.actions')).toBe(q('settings-updates-install')!.closest('.actions'));
+    skip.click();
     expect(flow.update).toHaveBeenCalled();
     expect(flow.skip).toHaveBeenCalled();
     await show({ skippedVersion: '0.3.0' });

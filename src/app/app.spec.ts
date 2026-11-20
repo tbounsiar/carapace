@@ -156,7 +156,7 @@ describe('App', () => {
     store.phase.set('available');
     await fixture.whenStable();
     expect(byId('settings-update-badge')?.textContent?.trim()).toBe('Update');
-    expect(byId('settings-update-badge')?.getAttribute('data-appearance')).toBe('info');
+    expect(byId('settings-update-badge')?.getAttribute('data-appearance')).toBe('primary');
     expect(settings().getAttribute('href')).toBe('/settings#updates');
     expect(settings().getAttribute('aria-label')).toBe('Settings, update available');
     store.state.update((s) => s && { ...s, skippedVersion: '0.3.0' });

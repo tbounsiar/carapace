@@ -64,7 +64,11 @@ describe('UpdateNotice', () => {
     expect(el().textContent).toContain('You have 0.2.0.');
     q('update-notice-notes')!.click();
     q('update-notice-install')!.click();
+    // Flat action text is about 2.5:1 on the dark info background; grayscale reads at 8:1.
+    expect(q('update-notice-later')!.getAttribute('data-appearance')).toBe('flat-grayscale');
     q('update-notice-later')!.click();
+    // A minor action: subtitle type, not the title font of the notice heading.
+    expect(q('update-notice-skip')!.parentElement!.hasAttribute('tuiSubtitle')).toBe(true);
     q('update-notice-skip')!.click();
     expect(flow.openReleasePage).toHaveBeenCalled();
     expect(flow.update).toHaveBeenCalled();

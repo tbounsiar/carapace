@@ -134,7 +134,7 @@
                 tuiButton
                 type="button"
                 size="s"
-                appearance="flat"
+                appearance="flat-grayscale"
                 data-testid="settings-updates-cancel"
                 (click)="flow.cancel()"
               >
@@ -212,14 +212,15 @@
                 </button>
               }
               @if (!store.skipped()) {
-                <button
-                  tuiLink
-                  type="button"
-                  appearance="action-grayscale"
-                  data-testid="settings-updates-skip"
-                  [textContent]="'updates.notice.skip' | transloco"
-                  (click)="flow.skip()"
-                ></button>
+                <span tuiSubtitle>
+                  <button
+                    tuiLink
+                    type="button"
+                    data-testid="settings-updates-skip"
+                    [textContent]="'updates.notice.skip' | transloco"
+                    (click)="flow.skip()"
+                  ></button>
+                </span>
               }
             </span>
           }

@@ -47,23 +47,22 @@
           tuiButton
           type="button"
           size="s"
-          appearance="flat"
+          appearance="flat-grayscale"
           data-testid="update-notice-later"
           (click)="flow.later()"
         >
           {{ 'updates.notice.later' | transloco }}
         </button>
       </div>
-      <div>
+      <span tuiSubtitle>
         <button
           tuiLink
           type="button"
-          appearance="action-grayscale"
           data-testid="update-notice-skip"
           [textContent]="'updates.notice.skip' | transloco"
           (click)="flow.skip()"
         ></button>
-      </div>
+      </span>
     }
     @case ('downloading') {
       @if (store.progress()?.total; as total) {
@@ -91,7 +90,7 @@
           tuiButton
           type="button"
           size="s"
-          appearance="flat"
+          appearance="flat-grayscale"
           data-testid="update-notice-cancel"
           (click)="flow.cancel()"
         >
@@ -129,7 +128,7 @@
           tuiButton
           type="button"
           size="s"
-          appearance="flat"
+          appearance="flat-grayscale"
           data-testid="update-notice-later"
           (click)="flow.later()"
         >
