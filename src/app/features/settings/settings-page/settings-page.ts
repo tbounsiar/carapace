@@ -1,19 +1,30 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  afterRenderEffect,
+  Component,
+  computed,
+  effect,
+  inject,
+  linkedSignal,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
 import {
   TuiDialogService,
   TuiError,
+  TuiGroup,
   TuiIcon,
   TuiLabel,
   TuiLink,
   TuiNotification,
   TuiNotificationService,
+  TuiRadio,
   TuiSlider,
   TuiTitle,
 } from '@taiga-ui/core';
-import { TuiSegmented, TuiSwitch } from '@taiga-ui/kit';
+import { TuiBlock, TuiSegmented, TuiSwitch } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import {
@@ -29,6 +40,7 @@ import {
 } from '../../../core/i18n/language';
 import type { KeyType } from '../../../core/ipc/keys';
 import { FONT_SIZE_MAX, FONT_SIZE_MIN, Settings } from '../../../core/settings/settings';
+import type { Palette } from '../../../core/theme/palette';
 import type { ThemeMode } from '../../../core/theme/theme';
 import {
   CATEGORY_COPY,
@@ -41,6 +53,7 @@ import {
   unsavedDenial,
 } from '../../analytics/privacy-page';
 import { notifyError } from '../../../shared/save-error';
+import { AccentField } from '../accent-field/accent-field';
 import { DataSettings } from '../data-settings/data-settings';
 import { ExternalEditorSettings } from '../external-editor-settings/external-editor-settings';
 
@@ -48,6 +61,17 @@ const THEME_OPTIONS: readonly { value: ThemeMode; label: string; icon: string }[
   { value: 'system', label: 'settings.theme.system', icon: '@tui.monitor' },
   { value: 'light', label: 'settings.theme.light', icon: '@tui.sun' },
   { value: 'dark', label: 'settings.theme.dark', icon: '@tui.moon' },
+];
+
+const PALETTE_OPTIONS: readonly { value: Palette; label: string; note: string }[] = [
+  { value: 'default', label: 'settings.colors.default', note: 'settings.colors.defaultNote' },
+  {
+    value: 'high-contrast',
+    label: 'settings.colors.highContrast',
+    note: 'settings.colors.highContrastNote',
+  },
+  { value: 'pine', label: 'settings.colors.pine', note: 'settings.colors.pineNote' },
+  { value: 'plum', label: 'settings.colors.plum', note: 'settings.colors.plumNote' },
 ];
 
 const LANGUAGE_VALUES: readonly LanguagePreference[] = ['system', 'en', 'fr'];
@@ -59,16 +83,20 @@ const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
 
 @Component({
   imports: [
+    AccentField,
     DataSettings,
     ExternalEditorSettings,
     ReactiveFormsModule,
     TuiError,
+    TuiBlock,
     TuiForm,
+    TuiGroup,
     TuiHeader,
     TuiIcon,
     TuiLabel,
     TuiLink,
     TuiNotification,
+    TuiRadio,
     TuiSegmented,
     TuiSlider,
     TuiSwitch,
@@ -88,6 +116,8 @@ export class SettingsPage {
   private readonly transloco = inject(TranslocoService);
 
   protected readonly themeOptions = THEME_OPTIONS;
+  protected readonly paletteOptions = PALETTE_OPTIONS;
+  protected readonly variants = ['light', 'dark'] as const;
   protected readonly keyTypeOptions = KEY_TYPE_OPTIONS;
   /** `lang` of each option: English and Français in their own language, System in the UI's. */
   protected readonly languageOptions = computed(() =>
@@ -107,6 +137,16 @@ export class SettingsPage {
    * signal to the value the binding already holds, and the input would keep showing the click.
    */
   protected readonly themeControl = new FormControl<ThemeMode>(this.settings.theme(), {
+    nonNullable: true,
+  });
+  protected readonly paletteControl = new FormControl<Palette>(this.settings.palette(), {
+    nonNullable: true,
+  });
+  /** On with a saved accent; turning it on alone saves nothing, so it is off next time. */
+  /** The set whose radio has keyboard focus: its whole block shows the focus outline. */
+  protected readonly keyboardPalette = signal<Palette | null>(null);
+  protected readonly accentOn = linkedSignal(() => this.settings.accentColor() !== null);
+  protected readonly accentControl = new FormControl<boolean>(this.accentOn(), {
     nonNullable: true,
   });
   protected readonly languageControl = new FormControl<LanguagePreference>(
@@ -157,12 +197,30 @@ export class SettingsPage {
   /** One save at a time; the switches are not re-synced from the state until the queue drains. */
   private readonly saving = signal(false);
   private readonly wanted = new Map<AnalyticsCategory, boolean>();
+  private readonly fragment = toSignal(inject(ActivatedRoute).fragment);
 
   constructor() {
+    // The header theme menu links to #colors; the router does no anchor scrolling.
+    afterRenderEffect(() => {
+      if (this.fragment() === 'colors') {
+        document.getElementById('settings-colors')?.scrollIntoView({ block: 'start' });
+      }
+    });
     effect(() => {
       const theme = this.settings.theme();
       this.themeControl.setValue(theme, { emitEvent: false });
       this.themeIndex.set(THEME_OPTIONS.findIndex((o) => o.value === theme));
+    });
+    effect(() => this.paletteControl.setValue(this.settings.palette(), { emitEvent: false }));
+    effect(() => this.accentControl.setValue(this.accentOn(), { emitEvent: false }));
+    this.paletteControl.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((palette) => this.settings.setPalette(palette));
+    this.accentControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((on) => {
+      this.accentOn.set(on);
+      if (!on) {
+        this.settings.setAccentColor(null);
+      }
     });
     effect(() => {
       const language = this.settings.language();
@@ -212,6 +270,13 @@ export class SettingsPage {
       this.controls[category].valueChanges
         .pipe(takeUntilDestroyed())
         .subscribe((granted) => void this.setCategory(category, granted));
+    }
+  }
+
+  protected paletteFocusIn(palette: Palette, event: FocusEvent): void {
+    // Only the radio ring would change otherwise; a pointer focus keeps Taiga's default.
+    if ((event.target as Element).matches(':focus-visible')) {
+      this.keyboardPalette.set(palette);
     }
   }
 

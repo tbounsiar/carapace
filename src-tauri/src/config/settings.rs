@@ -102,12 +102,52 @@ impl KeyType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Palette {
+    #[default]
+    Default,
+    HighContrast,
+    Pine,
+    Plum,
+}
+
+impl Palette {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "default" => Some(Self::Default),
+            "high-contrast" => Some(Self::HighContrast),
+            "pine" => Some(Self::Pine),
+            "plum" => Some(Self::Plum),
+            _ => None,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::HighContrast => "high-contrast",
+            Self::Pine => "pine",
+            Self::Plum => "plum",
+        }
+    }
+}
+
+/// `#rrggbb` in either case, lowercased; anything else (3 digits, alpha, names) is `None`.
+pub fn accent_color(raw: &str) -> Option<String> {
+    let digits = raw.strip_prefix('#')?;
+    (digits.len() == 6 && digits.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| raw.to_ascii_lowercase())
+}
+
 /// What `settings.toml` holds; `None` is "not in the file", and the default applies.
 /// `legacy_imported` records that the preferences the webview kept were imported once.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Settings {
     pub theme: Option<ThemeMode>,
     pub language: Option<Language>,
+    pub palette: Option<Palette>,
+    pub accent_color: Option<String>,
     pub default_key_type: Option<KeyType>,
     pub terminal_font_size: Option<u8>,
     pub key_folder: Option<String>,
@@ -116,11 +156,13 @@ pub struct Settings {
     pub analytics: Option<AnalyticsSettings>,
 }
 
-/// A change to the user preferences; `key_folder: Some(None)` clears the folder.
+/// A change to the user preferences; `Some(None)` clears `accent_color` or `key_folder`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SettingsPatch {
     pub theme: Option<ThemeMode>,
     pub language: Option<Language>,
+    pub palette: Option<Palette>,
+    pub accent_color: Option<Option<String>>,
     pub default_key_type: Option<KeyType>,
     pub terminal_font_size: Option<u8>,
     pub key_folder: Option<Option<String>>,
@@ -166,6 +208,12 @@ impl Settings {
         if let Some(language) = patch.language {
             self.language = Some(language);
         }
+        if let Some(palette) = patch.palette {
+            self.palette = Some(palette);
+        }
+        if let Some(color) = &patch.accent_color {
+            self.accent_color = color.clone();
+        }
         if let Some(kind) = patch.default_key_type {
             self.default_key_type = Some(kind);
         }
@@ -177,10 +225,14 @@ impl Settings {
         }
     }
 
-    /// Only the values the file does not hold yet; a cleared folder imports nothing.
+    /// Only the values the file does not hold yet; a cleared accent or folder imports nothing.
     pub fn fill(&mut self, patch: &SettingsPatch) {
         self.theme = self.theme.or(patch.theme);
         self.language = self.language.or(patch.language);
+        self.palette = self.palette.or(patch.palette);
+        if self.accent_color.is_none() {
+            self.accent_color = patch.accent_color.clone().flatten();
+        }
         self.default_key_type = self.default_key_type.or(patch.default_key_type);
         self.terminal_font_size = self.terminal_font_size.or(patch.terminal_font_size);
         if self.key_folder.is_none() {
@@ -278,6 +330,8 @@ pub(super) fn read(doc: &DocumentMut) -> Settings {
     Settings {
         theme: text_of("theme").and_then(ThemeMode::from_name),
         language: text_of("language").and_then(Language::from_name),
+        palette: text_of("palette").and_then(Palette::from_name),
+        accent_color: text_of("accent_color").and_then(accent_color),
         default_key_type: text_of("default_key_type").and_then(KeyType::from_name),
         terminal_font_size: root
             .get("terminal_font_size")
@@ -389,6 +443,13 @@ pub(super) fn write(doc: &mut DocumentMut, before: &Settings, after: &Settings) 
     }
     if before.language != after.language {
         put(root, "language", after.language.map(|l| l.name().into()));
+    }
+    if before.palette != after.palette {
+        put(root, "palette", after.palette.map(|p| p.name().into()));
+    }
+    if before.accent_color != after.accent_color {
+        let v = after.accent_color.as_deref().map(Value::from);
+        put(root, "accent_color", v);
     }
     if before.default_key_type != after.default_key_type {
         let v = after.default_key_type.map(|k| k.name().into());

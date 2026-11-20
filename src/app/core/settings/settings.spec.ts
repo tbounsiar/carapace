@@ -19,6 +19,8 @@ const DEFAULTS: AppPreferences = {
   defaultKeyType: 'ed25519',
   terminalFontSize: 13,
   keyFolder: null,
+  palette: 'default',
+  accentColor: null,
 };
 
 const flush = async (): Promise<void> => {
@@ -37,6 +39,8 @@ describe('Settings', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    document.documentElement.removeAttribute('data-app-accent');
+    document.documentElement.removeAttribute('style');
     backend = { ...DEFAULTS };
     calls = [];
     failing = new Set();
@@ -100,6 +104,8 @@ describe('Settings', () => {
         defaultKeyType: 'rsa4096',
         terminalFontSize: 18,
         keyFolder: '~/k',
+        palette: 'pine',
+        accentColor: '#6b3fc0',
       };
       const settings = create();
       expect(settings.theme()).toBe('light');
@@ -114,6 +120,35 @@ describe('Settings', () => {
       expect(settings.language()).toBe('fr');
       expect(TestBed.inject(LanguageService).active()).toBe('fr');
       expect(localStorage.getItem(LANGUAGE_CACHE)).toBe('fr');
+      expect(settings.palette()).toBe('pine');
+      expect(settings.accentColor()).toBe('#6b3fc0');
+      expect(localStorage.getItem('carapace.palette')).toBe('pine');
+      expect(localStorage.getItem('carapace.accent')).toBe('#6b3fc0');
+      expect(document.documentElement.getAttribute('data-app-palette')).toBe('pine');
+    });
+
+    it('reads an unknown color set as default and keeps a malformed accent out', async () => {
+      localStorage.setItem(IMPORTED_STORAGE, '1');
+      localStorage.setItem('carapace.palette', 'plum');
+      localStorage.setItem('carapace.accent', '#123456');
+      backend = { ...DEFAULTS, palette: 'neon', accentColor: 'red' } as unknown as AppPreferences;
+      const settings = create();
+      expect(settings.palette()).toBe('plum');
+      await settings.start();
+      expect(settings.palette()).toBe('default');
+      expect(localStorage.getItem('carapace.palette')).toBe('default');
+      expect(settings.accentColor()).toBe('#123456');
+    });
+
+    it('never sends the color set or the accent as legacy values', async () => {
+      localStorage.setItem('carapace.theme', 'dark');
+      localStorage.setItem('carapace.palette', 'plum');
+      localStorage.setItem('carapace.accent', '#123456');
+      await create().start();
+      expect(calls[0]).toEqual({
+        cmd: 'import_legacy_settings',
+        args: { values: { theme: 'dark' } },
+      });
     });
 
     it('reads an unknown language as system', async () => {
@@ -317,6 +352,49 @@ describe('Settings', () => {
       expect(settings.language()).toBe('system');
       expect(localStorage.getItem(LANGUAGE_CACHE)).toBe('system');
       expect(document.documentElement.lang).toBe('en');
+    });
+
+    it('saves the color set and shows it at once', async () => {
+      const settings = create();
+      settings.setPalette('high-contrast');
+      expect(TestBed.inject(ThemeService).palette()).toBe('high-contrast');
+      expect(localStorage.getItem('carapace.palette')).toBe('high-contrast');
+      settings.setPalette('neon' as never);
+      await flush();
+      expect(calls).toEqual([
+        { cmd: 'update_app_settings', args: { patch: { palette: 'high-contrast' } } },
+      ]);
+    });
+
+    it('saves the accent lowercase, clears it with null and ignores invalid values', async () => {
+      const settings = create();
+      settings.setAccentColor('#6B3FC0');
+      settings.setAccentColor('#6b3');
+      settings.setAccentColor('purple');
+      expect(settings.accentColor()).toBe('#6b3fc0');
+      expect(document.documentElement.hasAttribute('data-app-accent')).toBe(true);
+      await flush();
+      settings.setAccentColor(null);
+      expect(document.documentElement.hasAttribute('data-app-accent')).toBe(false);
+      await flush();
+      expect(calls.map((c) => c.args)).toEqual([
+        { patch: { accentColor: '#6b3fc0' } },
+        { patch: { accentColor: null } },
+      ]);
+    });
+
+    it('reverts the color set and the accent on failure', async () => {
+      failing.add('update_app_settings');
+      const settings = create();
+      settings.setPalette('pine');
+      settings.setAccentColor('#ff0000');
+      await flush();
+      expect(settings.palette()).toBe('default');
+      expect(settings.accentColor()).toBeNull();
+      expect(localStorage.getItem('carapace.palette')).toBe('default');
+      expect(localStorage.getItem('carapace.accent')).toBeNull();
+      expect(document.documentElement.getAttribute('data-app-palette')).toBe('default');
+      expect(open).toHaveBeenCalled();
     });
 
     it('merges changes made during a save into the next one', async () => {

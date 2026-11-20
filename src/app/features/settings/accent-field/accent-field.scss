@@ -1,0 +1,45 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  inline-size: 100%;
+}
+
+.field {
+  max-inline-size: 14rem;
+}
+
+.applied {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem var(--tui-padding-l);
+  margin: 0;
+  font: var(--tui-typography-body-s);
+}
+
+.variant {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.dot {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--tui-border-normal);
+}
+
+.hex {
+  font-family: var(--app-font-mono);
+}
+
+.note {
+  margin: 0;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+
+  &:empty {
+    display: none;
+  }
+}

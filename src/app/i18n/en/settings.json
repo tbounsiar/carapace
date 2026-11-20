@@ -6,6 +6,28 @@
     "dark": "Dark",
     "note": "System follows the light or dark setting of the operating system."
   },
+  "colors": {
+    "title": "Colors",
+    "default": "Default",
+    "defaultNote": "Standard look with readable text",
+    "highContrast": "High contrast",
+    "highContrastNote": "Strongest text, borders and focus",
+    "pine": "Pine",
+    "pineNote": "Green-gray surfaces, teal accent",
+    "plum": "Plum",
+    "plumNote": "Violet-gray surfaces, purple accent",
+    "note": "Each set has a light and a dark version; Theme picks which one shows. Terminals follow too."
+  },
+  "accent": {
+    "title": "Custom accent color",
+    "note": "Buttons, links, focus and selection. Status colors do not change.",
+    "label": "Accent color",
+    "light": "Light {hex}",
+    "dark": "Dark {hex}",
+    "adjustedBoth": "Made darker in light mode and lighter in dark mode so text stays readable.",
+    "adjustedLight": "Made darker in light mode so text stays readable.",
+    "adjustedDark": "Made lighter in dark mode so text stays readable."
+  },
   "language": {
     "title": "Language",
     "system": "System ({name})",

@@ -5,7 +5,7 @@
   min-inline-size: 0;
   min-block-size: 0;
   padding: 0.5rem;
-  border: 1px solid var(--tui-border-normal);
+  border: 1px solid var(--app-border-divider);
   border-radius: var(--tui-radius-m);
   background: var(--tui-background-base);
 }
@@ -92,7 +92,7 @@
   }
 
   &._drop > td {
-    background: var(--tui-status-info-pale-hover);
+    background: var(--app-selection);
   }
 
   &:focus-visible > td {

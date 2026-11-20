@@ -27,6 +27,42 @@
   font-weight: bold;
 }
 
+#settings-colors {
+  /* Lands below the navigation header (3rem, as in app.scss) and the compact subheader. */
+  scroll-margin-block-start: calc(3rem + var(--tui-height-m) + var(--tui-padding-l));
+}
+
+.palettes {
+  align-self: stretch;
+}
+
+.previews {
+  display: flex;
+  gap: 0.25rem;
+  margin-inline-start: auto;
+}
+
+/* Custom: Taiga has no palette preview; the tokens come from the set named by data-palette. */
+.app-palette-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  border: 1px solid var(--tui-border-normal);
+  border-radius: var(--tui-radius-s);
+  background: var(--tui-background-base);
+  color: var(--tui-text-primary);
+  font: var(--tui-typography-body-s);
+  font-weight: bold;
+}
+
+.preview-dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--tui-background-accent-1);
+}
+
 .size {
   display: flex;
   align-items: center;
@@ -46,7 +82,7 @@
 .preview {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--tui-border-normal);
+  border: 1px solid var(--app-border-divider);
   border-radius: var(--tui-radius-m);
   background: var(--tui-background-base);
   font-family: var(--app-font-mono);

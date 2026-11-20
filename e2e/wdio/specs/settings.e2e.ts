@@ -1,7 +1,7 @@
 import { readSettings, type TomlValue } from '../helpers/app-files';
 import { restartApp } from '../helpers/app-process';
 import { HOST, PROJECT } from '../helpers/fixture';
-import { screenshotThemes, setThemeMode } from '../helpers/screenshot';
+import { type Palette, screenshotThemes, setPalette, setThemeMode } from '../helpers/screenshot';
 import {
   byId,
   clickId,
@@ -10,6 +10,7 @@ import {
   tid,
   waitForApp,
   waitGone,
+  typeInto,
   waitStatus,
 } from '../helpers/ui';
 
@@ -64,6 +65,48 @@ async function setFontSize(steps: string[]): Promise<void> {
     document.querySelector<HTMLInputElement>(sel)?.focus();
   }, tid('settings-font-size'));
   await browser.keys(steps);
+}
+
+const colorsBelowSubheader = () =>
+  browser.execute(() => {
+    const legend = document.querySelector('#settings-colors legend');
+    const subheader = document.querySelector('nav[tuiSubheader]');
+    if (!legend || !subheader) return false;
+    return legend.getBoundingClientRect().top >= subheader.getBoundingClientRect().bottom;
+  });
+
+/** Scrolls the way the app does: the header theme menu's "Colors…" link to `/settings#colors`. */
+async function scrollToColors(): Promise<void> {
+  // Through the aside first: a link to the URL already shown would not navigate (nor scroll).
+  await openSettings();
+  await browser.execute(() => window.scrollTo(0, 0));
+  await browser.execute(() => {
+    document.querySelector<HTMLElement>('[data-testid="theme-toggle"]')?.click();
+  });
+  await byId('theme-colors').waitForExist({ timeout: 5000 });
+  await browser.execute(() => {
+    document.querySelector<HTMLElement>('[data-testid="theme-colors"]')?.click();
+  });
+  await byId('theme-colors').waitForExist({ timeout: 5000, reverse: true });
+  await browser.waitUntil(
+    () => browser.execute(() => window.scrollY > 0 && location.hash === '#colors'),
+    { timeout: 5000, timeoutMsg: 'the Colors link did not scroll the settings page' },
+  );
+  expect(await colorsBelowSubheader()).toBe(true);
+}
+
+/** Every ANSI foreground, normal then bright, and the black background most prompts use. */
+const ANSI_STRIP =
+  "for c in 30 31 32 33 34 35 36 37 90 91 92 93 94 95 96 97; do printf '\\033[%sm %s ' $c $c; " +
+  "[ $c = 37 ] && printf '\\033[0m\\n'; done; printf '\\033[0m\\n\\033[40;97m black bg \\033[0m\\n'";
+
+async function runInTerminal(command: string): Promise<void> {
+  await browser.execute((sel: string) => {
+    document.querySelector<HTMLTextAreaElement>(`${sel} textarea`)?.focus();
+  }, tid('terminal-view-1'));
+  await browser.keys(command.split(''));
+  await browser.keys('Enter');
+  await browser.pause(500);
 }
 
 async function acceptHostKeyIfAsked(outcome: () => Promise<boolean>): Promise<void> {
@@ -158,9 +201,75 @@ describe('settings', () => {
     await shot('settings-05-terminal-10px');
   });
 
+  it('applies each color set to the app and the terminal, and adjusts a custom accent', async () => {
+    const palettes: Palette[] = ['default', 'high-contrast', 'pine', 'plum'];
+    // The previous test left the smallest size; the shots use the default one.
+    await openSettings();
+    await setFontSize(['Home', 'ArrowRight', 'ArrowRight', 'ArrowRight']);
+    await waitSaved('terminal_font_size', 13);
+    await clickId(`tab-${HOST.name}-terminal-1`);
+    await runInTerminal('clear; ls --color=always -la /');
+    await runInTerminal(ANSI_STRIP);
+    for (const palette of palettes) {
+      await openSettings();
+      await setPalette(palette);
+      if (palette !== 'default') await waitSaved('palette', palette);
+      await scrollToColors();
+      await shot(`settings-06-colors-${palette}`);
+      await clickId(`tab-${HOST.name}-terminal-1`);
+      await byId('terminal-view-1').waitForDisplayed({ timeout: 10000 });
+      await shot(`settings-06-colors-${palette}-terminal`);
+    }
+
+    await openSettings();
+    await setPalette('default');
+    await clickId('settings-accent');
+    await byId('settings-accent-input').waitForDisplayed({ timeout: 5000 });
+    await typeInto('settings-accent-input', '#ffff00');
+    await waitSaved('accent_color', '#ffff00');
+    await expect(byId('settings-accent-adjusted')).toHaveText(
+      'Made darker in light mode so text stays readable.',
+    );
+    await scrollToColors();
+    await shot('settings-07-accent-adjusted');
+    await clickId('settings-accent');
+    await waitGone('settings-accent-input');
+    await browser.waitUntil(async () => readSettings()?.['accent_color'] === undefined, {
+      timeout: 5000,
+      timeoutMsg: 'the accent was not removed from settings.toml',
+    });
+
+    for (const palette of ['high-contrast', 'pine'] as const) {
+      await setPalette(palette);
+      await scrollToColors();
+      // Keyboard focus: from the checked Theme radio, Tab lands on the checked color set.
+      await browser.execute((sel: string) => {
+        document.querySelector<HTMLInputElement>(`${sel} input`)?.focus();
+      }, tid('settings-theme-light'));
+      await browser.keys('Tab');
+      expect(
+        await browser.execute(
+          (sel: string) => document.activeElement === document.querySelector(`${sel} input`),
+          tid(`settings-palette-${palette}`),
+        ),
+      ).toBe(true);
+      console.log(
+        'screenshots',
+        await screenshotThemes(`settings-08-focus-${palette}`, { keepFocus: true }),
+      );
+    }
+
+    // The restart test checks that the 10 px size from the font size test survives.
+    await setFontSize(['Home']);
+    await waitSaved('terminal_font_size', 10);
+  });
+
   it('keeps the preferences after an app restart', async () => {
     await waitSaved('terminal_font_size', 10);
     await waitSaved('theme', 'light');
+    await openSettings();
+    await setPalette('pine');
+    await waitSaved('palette', 'pine');
     await restartApp();
     await waitForApp();
     await openSettings();
@@ -171,10 +280,15 @@ describe('settings', () => {
     await browser.waitUntil(() => radioChecked('settings-key-type-rsa4096'), { timeout: 10000 });
     await browser.waitUntil(() => radioChecked('settings-theme-light'), { timeout: 10000 });
     expect(await effectiveTheme()).toBe('light');
+    await browser.waitUntil(() => radioChecked('settings-palette-pine'), { timeout: 10000 });
+    expect(
+      await browser.execute(() => document.documentElement.getAttribute('data-app-palette')),
+    ).toBe('pine');
     for (const key of OLD_KEYS) expect(await stored(key)).toBeNull();
     expect(readSettings()).toEqual(
       expect.objectContaining({
         theme: 'light',
+        palette: 'pine',
         default_key_type: 'rsa4096',
         terminal_font_size: 10,
       }),

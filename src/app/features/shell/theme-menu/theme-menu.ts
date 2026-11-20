@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { TranslocoPipe } from '@jsverse/transloco';
 import { TuiButton, TuiDataList, TuiDropdown, TuiHint } from '@taiga-ui/core';
 import { Settings } from '../../../core/settings/settings';
@@ -18,7 +19,7 @@ const THEME_OPTIONS: readonly ThemeOption[] = [
 ];
 
 @Component({
-  imports: [TranslocoPipe, TuiButton, TuiDataList, TuiDropdown, TuiHint],
+  imports: [RouterLink, TranslocoPipe, TuiButton, TuiDataList, TuiDropdown, TuiHint],
   selector: 'app-theme-menu',
   templateUrl: './theme-menu.html',
 })

@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import type { AnalyticsCategory, AnalyticsState } from '../../../core/ipc/analytics';
@@ -45,6 +46,8 @@ describe('SettingsPage', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    document.documentElement.removeAttribute('data-app-accent');
+    document.documentElement.removeAttribute('style');
     state = stateOf(OFF, {
       pending: ['launch', 'features', 'connections', 'crashes'],
       askNeeded: true,
@@ -83,6 +86,8 @@ describe('SettingsPage', () => {
           defaultKeyType: 'ed25519',
           terminalFontSize: 13,
           keyFolder: null,
+          palette: 'default',
+          accentColor: null,
           ...(args as { patch: object }).patch,
         };
       }
@@ -121,7 +126,7 @@ describe('SettingsPage', () => {
   async function setup() {
     await TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideTaiga()],
+      providers: [provideTaiga(), provideRouter([])],
     }).compileComponents();
     const fixture = TestBed.createComponent(Host);
     await settle(fixture);
@@ -381,7 +386,7 @@ describe('SettingsPage', () => {
       expect(group.tagName).toBe('FIELDSET');
       expect(group.querySelector('legend')?.textContent?.trim()).toBe('Language');
       expect(group.previousElementSibling?.querySelector('legend')?.textContent?.trim()).toBe(
-        'Theme',
+        'Colors',
       );
       const texts = ['system', 'en', 'fr'].map((v) => {
         const option = label(el, `settings-language-${v}`);
@@ -468,5 +473,157 @@ describe('SettingsPage', () => {
         '[data-testid="settings-font-size-value"]',
       )?.textContent,
     ).toContain('18 px');
+  });
+
+  describe('colors', () => {
+    const typeAccent = (input: HTMLInputElement, value: string) => {
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    };
+
+    it('sits right after Theme with the four sets and their previews', async () => {
+      const { byId } = await setup();
+      const group = byId('settings-palette')!;
+      expect(group.tagName).toBe('FIELDSET');
+      expect(group.id).toBe('settings-colors');
+      expect(group.querySelector('legend')?.textContent?.trim()).toBe('Colors');
+      expect(group.previousElementSibling?.querySelector('legend')?.textContent?.trim()).toBe(
+        'Theme',
+      );
+      const titles = ['default', 'high-contrast', 'pine', 'plum'].map((id) =>
+        byId(`settings-palette-${id}`)?.querySelector('[tuiTitle]')?.textContent?.trim(),
+      );
+      expect(titles).toEqual([
+        expect.stringContaining('Default'),
+        expect.stringContaining('High contrast'),
+        expect.stringContaining('Pine'),
+        expect.stringContaining('Plum'),
+      ]);
+      const chips = byId('settings-palette-pine')!.querySelectorAll('.app-palette-preview');
+      expect(
+        [...chips].map((c) => [c.getAttribute('data-palette'), c.getAttribute('tuiTheme')]),
+      ).toEqual([
+        ['pine', 'light'],
+        ['pine', 'dark'],
+      ]);
+      expect(chips[0].parentElement?.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('applies and saves a set at once', async () => {
+      const { fixture, radio, settings } = await setup();
+      expect(radio('settings-palette-default').checked).toBe(true);
+      radio('settings-palette-pine').click();
+      await settle(fixture);
+      expect(settings.palette()).toBe('pine');
+      expect(document.documentElement.getAttribute('data-app-palette')).toBe('pine');
+      expect(prefSaves()).toEqual([{ patch: { palette: 'pine' } }]);
+    });
+
+    it('shows the previous set again when the save fails', async () => {
+      prefsFail = true;
+      const { fixture, radio, settings } = await setup();
+      radio('settings-palette-plum').click();
+      await settle(fixture);
+      expect(settings.palette()).toBe('default');
+      expect(radio('settings-palette-default').checked).toBe(true);
+      expect(document.body.textContent).toContain('Setting not saved');
+    });
+
+    it('prefills the accent field with the set accent and saves nothing until a pick', async () => {
+      const { fixture, byId } = await setup();
+      const toggle = byId<HTMLInputElement>('settings-accent')!;
+      expect(toggle.checked).toBe(false);
+      expect(byId('settings-accent-input')).toBeNull();
+      toggle.click();
+      await settle(fixture);
+      expect(byId<HTMLInputElement>('settings-accent-input')?.value).toBe('#526ed3');
+      expect(byId('settings-accent-applied')?.textContent).toContain('#526ed3');
+      expect(byId('settings-accent-applied')?.textContent).toContain('#8aa2ff');
+      expect(byId('settings-accent-adjusted')).toBeNull();
+      toggle.click();
+      await settle(fixture);
+      expect(byId('settings-accent-input')).toBeNull();
+      expect(prefSaves()).toEqual([]);
+    });
+
+    it('applies each complete value, notes an adjustment and resets with the switch', async () => {
+      const { fixture, byId, settings } = await setup();
+      byId<HTMLInputElement>('settings-accent')!.click();
+      await settle(fixture);
+      const input = byId<HTMLInputElement>('settings-accent-input')!;
+      typeAccent(input, '#ffff');
+      await settle(fixture);
+      expect(settings.accentColor()).toBeNull();
+      input.dispatchEvent(new Event('blur'));
+      await settle(fixture);
+      expect(input.value).toBe('#526ed3');
+      typeAccent(input, '#FFFF00');
+      await settle(fixture);
+      expect(settings.accentColor()).toBe('#ffff00');
+      expect(document.documentElement.hasAttribute('data-app-accent')).toBe(true);
+      expect(byId('settings-accent-adjusted')?.textContent?.trim()).toBe(
+        'Made darker in light mode so text stays readable.',
+      );
+      expect(byId('settings-accent-applied')?.textContent).toContain('Dark');
+      expect(byId('settings-accent-applied')?.textContent).toContain('#ffff00');
+      byId<HTMLInputElement>('settings-accent')!.click();
+      await settle(fixture);
+      expect(settings.accentColor()).toBeNull();
+      expect(byId('settings-accent-input')).toBeNull();
+      expect(prefSaves()).toEqual([
+        { patch: { accentColor: '#ffff00' } },
+        { patch: { accentColor: null } },
+      ]);
+    });
+
+    it('starts with the switch on and the pick shown when an accent is saved', async () => {
+      localStorage.setItem('carapace.accent', '#6b3fc0');
+      const { byId } = await setup();
+      expect(byId<HTMLInputElement>('settings-accent')!.checked).toBe(true);
+      expect(byId<HTMLInputElement>('settings-accent-input')?.value).toBe('#6b3fc0');
+    });
+
+    it('outlines the whole block while its radio has keyboard focus', async () => {
+      const { fixture, radio, byId } = await setup();
+      const original = Element.prototype.matches;
+      let keyboard = true;
+      vi.spyOn(Element.prototype, 'matches').mockImplementation(function (
+        this: Element,
+        selector: string,
+      ) {
+        return selector === ':focus-visible' ? keyboard : original.call(this, selector);
+      });
+      radio('settings-palette-default').focus();
+      await fixture.whenStable();
+      expect(byId('settings-palette-default')?.getAttribute('data-focus')).toBe('true');
+      expect(byId('settings-palette-pine')?.hasAttribute('data-focus')).toBe(false);
+
+      radio('settings-palette-pine').focus();
+      await fixture.whenStable();
+      expect(byId('settings-palette-default')?.hasAttribute('data-focus')).toBe(false);
+      expect(byId('settings-palette-pine')?.getAttribute('data-focus')).toBe('true');
+
+      radio('settings-palette-pine').blur();
+      await fixture.whenStable();
+      expect(byId('settings-palette-pine')?.hasAttribute('data-focus')).toBe(false);
+
+      keyboard = false;
+      radio('settings-palette-plum').focus();
+      await fixture.whenStable();
+      expect(byId('settings-palette-plum')?.hasAttribute('data-focus')).toBe(false);
+      vi.restoreAllMocks();
+    });
+
+    it('scrolls to the group when opened with #colors', async () => {
+      const scroll = vi.fn();
+      const original = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = scroll;
+      const { fixture } = await setup();
+      await TestBed.inject(Router).navigate([], { fragment: 'colors' });
+      await settle(fixture);
+      Element.prototype.scrollIntoView = original;
+      expect(scroll).toHaveBeenCalled();
+      expect((scroll.mock.contexts[0] as HTMLElement).id).toBe('settings-colors');
+    });
   });
 });

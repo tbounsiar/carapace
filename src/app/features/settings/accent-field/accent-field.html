@@ -1,0 +1,34 @@
+<tui-textfield tuiTextfieldSize="s" class="field" [tuiTextfieldCleaner]="false">
+  <input
+    tuiInputColor
+    format="hex"
+    list="settings-accent-colors"
+    name="accentColor"
+    data-testid="settings-accent-input"
+    [attr.aria-label]="'settings.accent.label' | transloco"
+    [formControl]="control"
+    (blur)="restore()"
+  />
+  <datalist id="settings-accent-colors">
+    @for (color of suggestions(); track color) {
+      <option [value]="color"></option>
+    }
+  </datalist>
+</tui-textfield>
+<p class="applied" data-testid="settings-accent-applied">
+  <span class="variant">
+    <span class="dot" [style.background]="applied().light.accent"></span>
+    <span>{{ 'settings.accent.light' | transloco: { hex: '' } }}</span>
+    <code class="hex">{{ applied().light.accent }}</code>
+  </span>
+  <span class="variant">
+    <span class="dot" [style.background]="applied().dark.accent"></span>
+    <span>{{ 'settings.accent.dark' | transloco: { hex: '' } }}</span>
+    <code class="hex">{{ applied().dark.accent }}</code>
+  </span>
+</p>
+<p class="note" aria-live="polite">
+  @if (adjustedKey(); as key) {
+    <span data-testid="settings-accent-adjusted">{{ key | transloco }}</span>
+  }
+</p>

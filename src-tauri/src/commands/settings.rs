@@ -4,8 +4,8 @@ use tauri::State;
 
 use super::error::CommandError;
 use crate::config::{
-    ConfigStore, DEFAULT_FONT_SIZE, FONT_SIZE_MAX, FONT_SIZE_MIN, KeyType, Language, Settings,
-    SettingsPatch, ThemeMode, check_key_folder, is_font_size,
+    ConfigStore, DEFAULT_FONT_SIZE, FONT_SIZE_MAX, FONT_SIZE_MIN, KeyType, Language, Palette,
+    Settings, SettingsPatch, ThemeMode, accent_color, check_key_folder, is_font_size,
 };
 use crate::text;
 use crate::text::Text;
@@ -18,6 +18,8 @@ type Res<T> = Result<T, CommandError>;
 pub struct AppSettings {
     pub theme: ThemeMode,
     pub language: Language,
+    pub palette: Palette,
+    pub accent_color: Option<String>,
     pub default_key_type: KeyType,
     pub terminal_font_size: u8,
     pub key_folder: Option<String>,
@@ -28,6 +30,8 @@ impl From<Settings> for AppSettings {
         Self {
             theme: s.theme.unwrap_or_default(),
             language: s.language.unwrap_or_default(),
+            palette: s.palette.unwrap_or_default(),
+            accent_color: s.accent_color,
             default_key_type: s.default_key_type.unwrap_or_default(),
             terminal_font_size: s.terminal_font_size.unwrap_or(DEFAULT_FONT_SIZE),
             key_folder: s.key_folder,
@@ -39,9 +43,10 @@ fn invalid(message: Text) -> CommandError {
     CommandError::new("invalid_input", message)
 }
 
-/// `{ theme?, language?, defaultKeyType?, terminalFontSize?, keyFolder?: string | null }`. An unknown field
-/// is always refused. `skip_invalid` drops a bad value instead of refusing the call: the
-/// one-time import must not fail forever on a stale value the webview kept.
+/// `{ theme?, language?, palette?, accentColor?: string | null, defaultKeyType?, terminalFontSize?,
+/// keyFolder?: string | null }`. An unknown field is always refused. `skip_invalid` drops a bad
+/// value instead of refusing the call: the one-time import must not fail forever on a stale value
+/// the webview kept.
 pub(crate) fn parse_patch(value: &Value, skip_invalid: bool) -> Res<SettingsPatch> {
     let map = value.as_object().ok_or_else(|| {
         invalid(text!(
@@ -72,6 +77,28 @@ pub(crate) fn parse_patch(value: &Value, skip_invalid: bool) -> Res<SettingsPatc
                         "language must be system, en or fr"
                     ))
                 }),
+            "palette" => v
+                .as_str()
+                .and_then(Palette::from_name)
+                .map(|p| patch.palette = Some(p))
+                .ok_or_else(|| {
+                    invalid(text!(
+                        "errors.settings.palette",
+                        "palette must be default, high-contrast, pine or plum"
+                    ))
+                }),
+            "accentColor" => match v {
+                Value::Null => Some(None),
+                Value::String(s) => accent_color(s).map(Some),
+                _ => None,
+            }
+            .map(|c| patch.accent_color = Some(c))
+            .ok_or_else(|| {
+                invalid(text!(
+                    "errors.settings.accentColor",
+                    "accentColor must be a #rrggbb color or null"
+                ))
+            }),
             "defaultKeyType" => v
                 .as_str()
                 .and_then(KeyType::from_name)

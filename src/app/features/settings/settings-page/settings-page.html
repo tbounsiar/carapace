@@ -21,6 +21,63 @@
     <p class="note">{{ 'settings.theme.note' | transloco }}</p>
   </fieldset>
 
+  <fieldset class="group" id="settings-colors" data-testid="settings-palette">
+    <legend class="legend">{{ 'settings.colors.title' | transloco }}</legend>
+    <div tuiGroup orientation="vertical" class="palettes" [collapsed]="true">
+      @for (option of paletteOptions; track option.value) {
+        <label
+          tuiBlock="s"
+          [attr.data-testid]="'settings-palette-' + option.value"
+          [tuiAppearanceFocus]="keyboardPalette() === option.value || null"
+          (focusin)="paletteFocusIn(option.value, $event)"
+          (focusout)="keyboardPalette.set(null)"
+        >
+          <input
+            tuiRadio
+            type="radio"
+            size="s"
+            name="palette"
+            [value]="option.value"
+            [formControl]="paletteControl"
+          />
+          <span tuiTitle>
+            {{ option.label | transloco }}
+            <span tuiSubtitle>{{ option.note | transloco }}</span>
+          </span>
+          <span class="previews" aria-hidden="true">
+            @for (variant of variants; track variant) {
+              <span
+                class="app-palette-preview"
+                [attr.data-palette]="option.value"
+                [attr.tuiTheme]="variant"
+              >
+                Aa<span class="preview-dot"></span>
+              </span>
+            }
+          </span>
+        </label>
+      }
+    </div>
+    <p class="note">{{ 'settings.colors.note' | transloco }}</p>
+    <label tuiLabel>
+      <input
+        tuiSwitch
+        type="checkbox"
+        name="accent"
+        data-testid="settings-accent"
+        aria-describedby="settings-accent-note"
+        [formControl]="accentControl"
+      />
+      <span tuiTitle>
+        {{ 'settings.accent.title' | transloco }}
+        <span tuiSubtitle id="settings-accent-note">{{ 'settings.accent.note' | transloco }}</span>
+      </span>
+    </label>
+    @if (accentOn()) {
+      <app-accent-field />
+    }
+  </fieldset>
+
   <fieldset class="group" data-testid="settings-language">
     <legend class="legend">{{ 'settings.language.title' | transloco }}</legend>
     <tui-segmented size="s" [(activeItemIndex)]="languageIndex">

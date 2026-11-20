@@ -34,5 +34,17 @@
         {{ option.label | transloco }}
       </button>
     }
+    <hr />
+    <a
+      tuiOption
+      routerLink="/settings"
+      fragment="colors"
+      role="menuitem"
+      iconStart="@tui.palette"
+      data-testid="theme-colors"
+      (click)="open.set(false)"
+    >
+      {{ 'shell.themeMenu.colors' | transloco }}
+    </a>
   </tui-data-list>
 </ng-template>

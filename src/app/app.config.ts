@@ -1,4 +1,5 @@
 import { provideTaiga } from '@taiga-ui/core';
+import { tuiSwitchOptionsProvider } from '@taiga-ui/kit';
 import {
   ApplicationConfig,
   inject,
@@ -29,6 +30,10 @@ export const appConfig: ApplicationConfig = {
       withRouterConfig({ paramsInheritanceStrategy: 'always' }),
     ),
     provideTaiga(),
+    // Taiga's off track (secondary) is too pale on light surfaces: outline it with the border token.
+    tuiSwitchOptionsProvider({
+      appearance: ({ checked }) => (checked ? 'primary' : 'outline-grayscale'),
+    }),
     tuiLanguageSwitcher((language) =>
       language === 'french'
         ? import('@taiga-ui/i18n/languages/french')

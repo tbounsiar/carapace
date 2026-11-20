@@ -11,6 +11,8 @@ fn full() -> Settings {
     Settings {
         theme: Some(ThemeMode::Dark),
         language: Some(Language::Fr),
+        palette: Some(Palette::HighContrast),
+        accent_color: Some("#1a2b3c".into()),
         default_key_type: Some(KeyType::Rsa4096),
         terminal_font_size: Some(FONT_SIZE_MAX),
         key_folder: Some(if cfg!(windows) { "D:\\keys" } else { "/keys" }.into()),
@@ -55,16 +57,20 @@ fn keys_are_snake_case() {
     assert_eq!(
         keys,
         [
+            "accent_color",
             "analytics",
             "default_key_type",
             "external_editor",
             "key_folder",
             "language",
             "legacy_imported",
+            "palette",
             "terminal_font_size",
             "theme"
         ]
     );
+    assert!(text.contains("palette = \"high-contrast\""), "{text}");
+    assert!(text.contains("accent_color = \"#1a2b3c\""), "{text}");
     assert!(text.contains("[analytics.launch]"), "{text}");
     assert!(text.contains("[analytics.crashes]"), "{text}");
     let editor = t["external_editor"].as_table().unwrap();
@@ -91,14 +97,16 @@ fn only_text_that_is_not_toml_is_refused() {
 #[test]
 fn each_field_falls_back_on_its_own() {
     let s = parse(
-        r#"
+        r##"
 theme = "blue"
 language = "de"
+palette = "solarized"
+accent_color = "#abc"
 default_key_type = "rsa4096"
 terminal_font_size = 99
 key_folder = "relative/dir"
 legacy_imported = "yes"
-"#,
+"##,
     )
     .unwrap();
     assert_eq!(
@@ -137,6 +145,40 @@ legacy_imported = "yes"
         ("[language]\nvalue = \"fr\"", None),
     ] {
         assert_eq!(parse(text).unwrap().language, expected, "{text}");
+    }
+    for (text, expected) in [
+        ("palette = \"default\"", Some(Palette::Default)),
+        ("palette = \"high-contrast\"", Some(Palette::HighContrast)),
+        ("palette = \"pine\"", Some(Palette::Pine)),
+        ("palette = \"plum\"", Some(Palette::Plum)),
+        ("palette = \"Pine\"", None),
+        ("palette = \"high_contrast\"", None),
+        ("palette = \"ocean\"", None),
+        ("palette = 1", None),
+        ("palette = true", None),
+        ("[palette]\nname = \"pine\"", None),
+    ] {
+        assert_eq!(parse(text).unwrap().palette, expected, "{text}");
+    }
+    for (text, expected) in [
+        ("accent_color = \"#00ff7f\"", Some("#00ff7f")),
+        ("accent_color = \"#00FF7F\"", Some("#00ff7f")),
+        ("accent_color = \"#AbCdEf\"", Some("#abcdef")),
+        ("accent_color = \"#0f7\"", None),
+        ("accent_color = \"#00ff7f80\"", None),
+        ("accent_color = \"00ff7f\"", None),
+        ("accent_color = \"red\"", None),
+        ("accent_color = \"#00ff7g\"", None),
+        ("accent_color = \"#00ff7f \"", None),
+        ("accent_color = \"\"", None),
+        ("accent_color = 16711680", None),
+        ("accent_color = [\"#00ff7f\"]", None),
+    ] {
+        assert_eq!(
+            parse(text).unwrap().accent_color.as_deref(),
+            expected,
+            "{text}"
+        );
     }
     assert_eq!(
         parse("default_key_type = \"rsa\"")
@@ -257,18 +299,23 @@ fn a_patch_applies_and_an_import_only_fills_gaps() {
     let patch = SettingsPatch {
         theme: Some(ThemeMode::Light),
         language: Some(Language::En),
+        palette: Some(Palette::Pine),
+        accent_color: Some(Some("#112233".into())),
         default_key_type: Some(KeyType::Rsa4096),
         terminal_font_size: Some(20),
         key_folder: Some(Some("~/k".into())),
     };
     let mut s = Settings {
         theme: Some(ThemeMode::Dark),
+        accent_color: Some("#000000".into()),
         key_folder: Some("~/mine".into()),
         ..Settings::default()
     };
     s.fill(&patch);
     assert_eq!(s.theme, Some(ThemeMode::Dark));
     assert_eq!(s.language, Some(Language::En));
+    assert_eq!(s.palette, Some(Palette::Pine));
+    assert_eq!(s.accent_color.as_deref(), Some("#000000"));
     assert_eq!(s.key_folder.as_deref(), Some("~/mine"));
     assert_eq!(s.default_key_type, Some(KeyType::Rsa4096));
     assert_eq!(s.terminal_font_size, Some(20));
@@ -277,12 +324,91 @@ fn a_patch_applies_and_an_import_only_fills_gaps() {
     assert_eq!(s.theme, Some(ThemeMode::Light));
     assert_eq!(s.language, Some(Language::En));
     assert_eq!(s.key_folder.as_deref(), Some("~/k"));
+    assert_eq!(s.accent_color.as_deref(), Some("#112233"));
     s.apply(&SettingsPatch {
         key_folder: Some(None),
+        accent_color: Some(None),
         ..SettingsPatch::default()
     });
     assert_eq!(s.key_folder, None);
+    assert_eq!(s.accent_color, None);
+    assert_eq!(s.palette, Some(Palette::Pine));
     assert_eq!(s.theme, Some(ThemeMode::Light));
+
+    let mut cleared = Settings::default();
+    cleared.fill(&SettingsPatch {
+        accent_color: Some(None),
+        ..SettingsPatch::default()
+    });
+    assert_eq!(cleared.accent_color, None);
+}
+
+#[test]
+fn accent_colors_are_six_hex_digits_lowercased() {
+    assert_eq!(accent_color("#A1b2C3").as_deref(), Some("#a1b2c3"));
+    assert_eq!(accent_color("#000000").as_deref(), Some("#000000"));
+    for bad in [
+        "",
+        "#",
+        "#fff",
+        "#ffff",
+        "#fffffff",
+        "#ffffffff",
+        "ffffff",
+        "##fffff",
+        "#gggggg",
+        "red",
+        " #ffffff",
+        "#ffffff\n",
+        "#ｆｆｆｆｆｆ",
+        "#ff ff f",
+    ] {
+        assert_eq!(accent_color(bad), None, "{bad}");
+    }
+}
+
+#[test]
+fn an_unknown_palette_or_accent_survives_an_unrelated_write() {
+    let text =
+        "palette = \"aurora\" # from a newer version\naccent_color = \"#ABC\"\ntheme = \"dark\"\n";
+    let mut doc = parse_document(text).unwrap();
+    let before = read(&doc);
+    assert_eq!(
+        (before.palette, before.accent_color.as_deref()),
+        (None, None)
+    );
+    let mut after = before.clone();
+    after.theme = Some(ThemeMode::Light);
+    write(&mut doc, &before, &after);
+    let out = doc.to_string();
+    assert_eq!(
+        out,
+        "palette = \"aurora\" # from a newer version\naccent_color = \"#ABC\"\ntheme = \"light\"\n"
+    );
+
+    let before = read(&doc);
+    let mut after = before.clone();
+    after.palette = Some(Palette::Plum);
+    after.accent_color = Some("#0a0b0c".into());
+    write(&mut doc, &before, &after);
+    let out = doc.to_string();
+    assert!(
+        out.starts_with("palette = \"plum\" # from a newer version\naccent_color = \"#0a0b0c\"\n"),
+        "{out}"
+    );
+    assert_eq!(read(&parse_document(&out).unwrap()), after);
+
+    let before = after;
+    let mut after = before.clone();
+    after.accent_color = None;
+    after.palette = None;
+    write(&mut doc, &before, &after);
+    let out = doc.to_string();
+    assert!(
+        !out.contains("accent_color") && !out.contains("palette"),
+        "{out}"
+    );
+    assert!(out.contains("theme = \"light\""), "{out}");
 }
 
 /// Runs on a small stack, so a parse that recursed without a bound would abort the test run.

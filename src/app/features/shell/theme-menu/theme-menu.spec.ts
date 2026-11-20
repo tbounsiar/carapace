@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { clearMocks, mockIPC } from '@tauri-apps/api/mocks';
 import { provideTaiga, TuiRoot } from '@taiga-ui/core';
 import { ThemeService } from '../../../core/theme/theme';
@@ -11,6 +12,9 @@ import { TranslocoService } from '@jsverse/transloco';
   template: '<tui-root><app-theme-menu /></tui-root>',
 })
 class Host {}
+
+@Component({ template: '' })
+class Blank {}
 
 describe('ThemeMenu', () => {
   const byId = (id: string): HTMLElement | null => document.querySelector(`[data-testid="${id}"]`);
@@ -39,7 +43,9 @@ describe('ThemeMenu', () => {
         ...patch,
       };
     });
-    TestBed.configureTestingModule({ providers: [provideTaiga()] });
+    TestBed.configureTestingModule({
+      providers: [provideTaiga(), provideRouter([{ path: 'settings', component: Blank }])],
+    });
   });
 
   afterEach(() => clearMocks());
@@ -92,5 +98,20 @@ describe('ThemeMenu', () => {
     byId('theme-toggle')!.click();
     await fixture.whenStable();
     expect(byId('theme-dark')?.textContent?.trim()).toBe('Sombre');
+  });
+
+  it('links to the Colors group of the settings and closes', async () => {
+    const fixture = TestBed.createComponent(Host);
+    await fixture.whenStable();
+    byId('theme-toggle')!.click();
+    await fixture.whenStable();
+    const link = byId('theme-colors')!;
+    expect(link.getAttribute('href')).toBe('/settings#colors');
+    expect(link.getAttribute('role')).toBe('menuitem');
+    expect(link.textContent?.trim()).toBe('Colors…');
+    link.click();
+    await settle(fixture);
+    expect(TestBed.inject(Router).url).toBe('/settings#colors');
+    expect(byId('theme-colors')).toBeNull();
   });
 });

@@ -6,6 +6,28 @@
     "dark": "Sombre",
     "note": "Système suit le réglage clair ou sombre du système d’exploitation."
   },
+  "colors": {
+    "title": "Couleurs",
+    "default": "Par défaut",
+    "defaultNote": "Apparence standard, texte bien lisible",
+    "highContrast": "Contraste élevé",
+    "highContrastNote": "Texte, bordures et focus renforcés",
+    "pine": "Pin",
+    "pineNote": "Fonds gris-vert, accent bleu-vert",
+    "plum": "Prune",
+    "plumNote": "Fonds gris-violet, accent violet",
+    "note": "Chaque jeu existe en version claire et sombre ; Thème choisit celle qui s’affiche. Les terminaux suivent aussi."
+  },
+  "accent": {
+    "title": "Couleur d’accentuation personnalisée",
+    "note": "Boutons, liens, focus et sélection. Les couleurs d’état ne changent pas.",
+    "label": "Couleur d’accentuation",
+    "light": "Clair {hex}",
+    "dark": "Sombre {hex}",
+    "adjustedBoth": "Assombrie en mode clair et éclaircie en mode sombre pour que le texte reste lisible.",
+    "adjustedLight": "Assombrie en mode clair pour que le texte reste lisible.",
+    "adjustedDark": "Éclaircie en mode sombre pour que le texte reste lisible."
+  },
   "language": {
     "title": "Langue",
     "system": "Système ({name})",

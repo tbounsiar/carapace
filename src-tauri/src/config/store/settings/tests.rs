@@ -346,6 +346,7 @@ fn the_legacy_import_runs_once_and_keeps_what_the_file_holds() {
         default_key_type: Some(KeyType::Rsa4096),
         terminal_font_size: Some(16),
         key_folder: Some(Some("~/keys".into())),
+        ..SettingsPatch::default()
     };
     let first = s.import_legacy_settings(&values).unwrap();
     assert_eq!(first.theme, Some(ThemeMode::Dark));

@@ -1,4 +1,5 @@
 {
+  "accentColor": "accentColor doit être une couleur #rrggbb ou null",
   "defaultKeyType": "defaultKeyType doit valoir ed25519 ou rsa4096",
   "keyFolder": "keyFolder doit être un chemin ou null",
   "keyFolderInvalid": "Le chemin du dossier des clés n’est pas valide",
@@ -6,6 +7,7 @@
   "keyFolderSpaces": "Le dossier des clés doit être un chemin sans espaces au début ni à la fin",
   "language": "language doit valoir system, en ou fr",
   "notAnObject": "Les préférences doivent être un objet",
+  "palette": "palette doit valoir default, high-contrast, pine ou plum",
   "terminalFontSize": "terminalFontSize doit être un nombre entier de {min} à {max}",
   "theme": "theme doit valoir system, light ou dark",
   "unknownSetting": "Préférence inconnue"

@@ -198,7 +198,7 @@ describe('TerminalSessions', () => {
     const source = document.createElement('div');
     source.style.setProperty('--tui-background-base', '#123456');
     document.body.append(source);
-    sessions.applyAppearance(source, 'dark', 18);
+    sessions.applyAppearance(source, 'dark', 'default', 18);
     expect(factory.created[0].theme?.background).toBe('#123456');
     expect(factory.created[0].fontSize).toBe(18);
     expect(factory.created[0].fits).toBe(fits + 1);

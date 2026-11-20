@@ -2,9 +2,15 @@ import { inject, Service, signal, type WritableSignal } from '@angular/core';
 import { TuiNotificationService } from '@taiga-ui/core';
 import { notifyError } from '../../shared/save-error';
 import { uiText } from '../../shared/ui-text';
-import { type AppPreferences, type AppPreferencesPatch, AppSettings } from '../ipc/app-settings';
+import {
+  type AppPreferences,
+  type AppPreferencesPatch,
+  AppSettings,
+  type LegacyPreferences,
+} from '../ipc/app-settings';
 import { isLanguagePreference, type LanguagePreference, LanguageService } from '../i18n/language';
 import type { KeyType } from '../ipc/keys';
+import { isAccentColor, isPalette, type Palette } from '../theme/palette';
 import { isThemeMode, readCachedTheme, type ThemeMode, ThemeService } from '../theme/theme';
 
 export const KEY_TYPE_STORAGE = 'carapace.keyType';
@@ -51,6 +57,8 @@ const VALID: { readonly [K in Field]: (value: unknown) => value is AppPreference
   defaultKeyType: isKeyType,
   terminalFontSize: isFontSize,
   keyFolder: (value): value is string | null => value === null || isKeyFolder(value),
+  palette: isPalette,
+  accentColor: (value): value is string | null => value === null || isAccentColor(value),
 };
 
 function storage(): Storage | null {
@@ -70,11 +78,11 @@ function getItem(key: string): string | null {
 }
 
 /** Valid preferences still kept in webview storage from before the backend file; empty once imported. */
-export function readLegacy(): AppPreferencesPatch {
+export function readLegacy(): LegacyPreferences {
   if (getItem(IMPORTED_STORAGE) !== null) {
     return {};
   }
-  const values: { -readonly [K in Field]?: AppPreferences[K] } = {};
+  const values: { -readonly [K in keyof LegacyPreferences]: LegacyPreferences[K] } = {};
   const theme = readCachedTheme();
   if (theme !== null) {
     values.theme = theme;
@@ -94,12 +102,22 @@ export function readLegacy(): AppPreferencesPatch {
   return values;
 }
 
-/** A language this build does not know (a newer version wrote it) reads as `system`. */
+/**
+ * A language or color set this build does not know (a newer version wrote it) reads as `system`
+ * or `default`; an accent is compared lowercase.
+ */
 function normalize<T extends AppPreferencesPatch>(values: T): T {
-  if (values.language === undefined || isLanguagePreference(values.language)) {
-    return values;
+  let result = values;
+  if (result.language !== undefined && !isLanguagePreference(result.language)) {
+    result = { ...result, language: 'system' };
   }
-  return { ...values, language: 'system' } as T;
+  if (result.palette !== undefined && !isPalette(result.palette)) {
+    result = { ...result, palette: 'default' };
+  }
+  if (typeof result.accentColor === 'string') {
+    result = { ...result, accentColor: result.accentColor.toLowerCase() };
+  }
+  return result;
 }
 
 function markImported(): void {
@@ -132,6 +150,9 @@ export class Settings {
   readonly terminalFontSize = signal<number>(this.legacy.terminalFontSize ?? DEFAULT_FONT_SIZE);
   /** Custom folder of the last successful generation; null is the managed keys folder. */
   readonly keyFolder = signal<string | null>(this.legacy.keyFolder ?? null);
+  readonly palette = this.themeService.palette;
+  /** The picked accent; null is the color set's own. */
+  readonly accentColor = this.themeService.accent;
 
   private readonly fields: { readonly [K in Field]: WritableSignal<AppPreferences[K]> } = {
     theme: this.themeService.mode,
@@ -139,6 +160,8 @@ export class Settings {
     defaultKeyType: this.defaultKeyType,
     terminalFontSize: this.terminalFontSize,
     keyFolder: this.keyFolder,
+    palette: this.themeService.palette,
+    accentColor: this.themeService.accent,
   };
   /** Last values the backend confirmed (until it answers, what the app started with). */
   private confirmed: AppPreferences = this.snapshot();
@@ -221,6 +244,20 @@ export class Settings {
     }
   }
 
+  setPalette(palette: Palette): void {
+    if (isPalette(palette)) {
+      this.write('palette', palette);
+    }
+  }
+
+  /** Upper case is accepted and saved lowercase; null goes back to the set's own accent. */
+  setAccentColor(color: string | null): void {
+    const value = color?.toLowerCase() ?? null;
+    if (value === null || isAccentColor(value)) {
+      this.write('accentColor', value);
+    }
+  }
+
   private write<K extends Field>(field: K, value: AppPreferences[K]): void {
     // A slider emits the same value on input and change; it is already shown or being saved.
     if (this.fields[field]() === value) {
@@ -276,6 +313,10 @@ export class Settings {
       this.themeService.apply(value as ThemeMode);
     } else if (field === 'language') {
       this.languageService.apply(value as LanguagePreference);
+    } else if (field === 'palette') {
+      this.themeService.applyPalette(value as Palette);
+    } else if (field === 'accentColor') {
+      this.themeService.applyAccent(value as string | null);
     } else {
       this.fields[field].set(value);
     }
@@ -288,6 +329,8 @@ export class Settings {
       defaultKeyType: this.defaultKeyType(),
       terminalFontSize: this.terminalFontSize(),
       keyFolder: this.keyFolder(),
+      palette: this.themeService.palette(),
+      accentColor: this.themeService.accent(),
     };
   }
 }

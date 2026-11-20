@@ -101,6 +101,8 @@ export class App {
     // is read where the current theme applies, after the theme attribute is rendered.
     afterRenderEffect(() => {
       this.effective();
+      this.theme.palette();
+      this.theme.accent();
       const color = getComputedStyle(this.root().nativeElement).getPropertyValue(CHROME_TOKEN);
       if (color.trim()) {
         this.themeColor.color = color.trim();

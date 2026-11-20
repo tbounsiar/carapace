@@ -38,7 +38,7 @@
 /* Same frame as the terminal view, so editor and terminal tabs read as one family. */
 .content {
   block-size: 100%;
-  border: 1px solid var(--tui-border-normal);
+  border: 1px solid var(--app-border-divider);
   border-radius: var(--tui-radius-m);
   background: var(--tui-background-base);
   overflow: hidden;

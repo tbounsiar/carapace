@@ -77,17 +77,17 @@ const theme = EditorView.theme({
   '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--tui-background-neutral-1)' },
   '.cm-activeLineGutter': { color: 'var(--tui-text-primary)' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground':
-    { backgroundColor: 'var(--tui-status-info-pale-hover)' },
+    { backgroundColor: 'var(--app-selection)' },
   '.cm-searchMatch': { backgroundColor: 'var(--tui-status-warning-pale)' },
   '.cm-searchMatch.cm-searchMatch-selected': {
-    backgroundColor: 'var(--tui-status-info-pale-hover)',
+    backgroundColor: 'var(--app-selection)',
   },
   '.cm-selectionMatch': { backgroundColor: 'var(--tui-background-neutral-1)' },
   '.cm-panels': {
     backgroundColor: 'var(--tui-background-base-alt)',
     color: 'var(--tui-text-primary)',
   },
-  '.cm-panels.cm-panels-bottom': { borderBlockStart: '1px solid var(--tui-border-normal)' },
+  '.cm-panels.cm-panels-bottom': { borderBlockStart: '1px solid var(--app-border-divider)' },
   '.cm-panel.cm-search': { font: 'var(--tui-typography-body-s)' },
   '.cm-textfield, .cm-button': {
     color: 'var(--tui-text-primary)',

@@ -59,6 +59,38 @@ export async function setThemeMode(mode: Mode): Promise<void> {
   }
 }
 
+export type Palette = 'default' | 'high-contrast' | 'pine' | 'plum';
+
+const shownPalette = () =>
+  browser.execute(() => document.documentElement.getAttribute('data-app-palette') ?? '');
+
+/** The color set cached by the app, like `carapace.theme` for the mode. */
+export const storedPalette = () =>
+  browser.execute((): string => {
+    try {
+      return localStorage.getItem('carapace.palette') ?? 'default';
+    } catch {
+      return 'default';
+    }
+  }) as Promise<Palette>;
+
+/**
+ * Picks a color set on the Settings page, which must be open; the app then caches it in
+ * `carapace.palette`, as the theme menu does for `carapace.theme`.
+ */
+export async function setPalette(palette: Palette): Promise<void> {
+  await browser.execute((p: string) => {
+    document
+      .querySelector<HTMLInputElement>(`[data-testid="settings-palette-${p}"] input`)
+      ?.click();
+  }, palette);
+  await browser.waitUntil(async () => (await shownPalette()) === palette, {
+    timeout: 5000,
+    timeoutMsg: `the ${palette} color set was not applied`,
+  });
+  await browser.waitUntil(async () => (await storedPalette()) === palette, { timeout: 5000 });
+}
+
 const selectMode = setThemeMode;
 
 const refocus = () =>

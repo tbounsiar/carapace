@@ -124,9 +124,12 @@ export class TerminalPanel {
       }
     });
     afterRenderEffect(() => {
+      // The accent changes the selection color, read from the tokens.
+      this.theme.accent();
       this.sessions.applyAppearance(
         this.host.nativeElement,
         this.theme.effective(),
+        this.theme.palette(),
         this.settings.terminalFontSize(),
       );
     });

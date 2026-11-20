@@ -9,6 +9,8 @@ const STORED: AppPreferences = {
   defaultKeyType: 'rsa4096',
   terminalFontSize: 16,
   keyFolder: null,
+  palette: 'plum',
+  accentColor: '#6b3fc0',
 };
 
 describe('AppSettings', () => {
@@ -37,6 +39,16 @@ describe('AppSettings', () => {
     expect(await service.update({ terminalFontSize: 16, keyFolder: null })).toEqual(STORED);
     expect(calls).toEqual([
       { cmd: 'update_app_settings', args: { patch: { terminalFontSize: 16, keyFolder: null } } },
+    ]);
+  });
+
+  it('sends the color set and the accent, null clearing it', async () => {
+    await service.update({ palette: 'high-contrast', accentColor: null });
+    expect(calls).toEqual([
+      {
+        cmd: 'update_app_settings',
+        args: { patch: { palette: 'high-contrast', accentColor: null } },
+      },
     ]);
   });
 

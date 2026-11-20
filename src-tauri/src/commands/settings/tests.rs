@@ -17,16 +17,16 @@ fn the_view_has_the_frontend_shape_and_defaults() {
     let (_d, s) = store();
     assert_eq!(
         serde_json::to_value(settings_in(&s).unwrap()).unwrap(),
-        json!({"theme": "system", "language": "system", "defaultKeyType": "ed25519", "terminalFontSize": 13, "keyFolder": null})
+        json!({"theme": "system", "language": "system", "palette": "default", "accentColor": null, "defaultKeyType": "ed25519", "terminalFontSize": 13, "keyFolder": null})
     );
     let v = update_in(
         &s,
-        &json!({"theme": "dark", "language": "fr", "defaultKeyType": "rsa4096", "terminalFontSize": 24, "keyFolder": folder()}),
+        &json!({"theme": "dark", "language": "fr", "palette": "high-contrast", "accentColor": "#A0B1C2", "defaultKeyType": "rsa4096", "terminalFontSize": 24, "keyFolder": folder()}),
     )
     .unwrap();
     assert_eq!(
         serde_json::to_value(v).unwrap(),
-        json!({"theme": "dark", "language": "fr", "defaultKeyType": "rsa4096", "terminalFontSize": 24, "keyFolder": folder()})
+        json!({"theme": "dark", "language": "fr", "palette": "high-contrast", "accentColor": "#a0b1c2", "defaultKeyType": "rsa4096", "terminalFontSize": 24, "keyFolder": folder()})
     );
     assert_eq!(settings_in(&s).unwrap().theme, ThemeMode::Dark);
     assert_eq!(settings_in(&s).unwrap().language, Language::Fr);
@@ -49,6 +49,94 @@ fn a_patch_changes_only_its_fields_and_null_clears_the_folder() {
 }
 
 #[test]
+fn the_accent_is_stored_lowercase_and_null_removes_it() {
+    let (d, s) = store();
+    let v = update_in(&s, &json!({"palette": "pine", "accentColor": "#FF00aa"})).unwrap();
+    assert_eq!(
+        (v.palette, v.accent_color.as_deref()),
+        (Palette::Pine, Some("#ff00aa"))
+    );
+    let raw = std::fs::read_to_string(d.path().join("settings.toml")).unwrap();
+    assert!(raw.contains("accent_color = \"#ff00aa\""), "{raw}");
+    assert!(raw.contains("palette = \"pine\""), "{raw}");
+    assert_eq!(
+        settings_in(&s).unwrap().accent_color.as_deref(),
+        Some("#ff00aa")
+    );
+
+    let v = update_in(&s, &json!({"accentColor": "#ff00AA"})).unwrap();
+    assert_eq!(v.accent_color.as_deref(), Some("#ff00aa"));
+    assert_eq!(
+        std::fs::read_to_string(d.path().join("settings.toml")).unwrap(),
+        raw
+    );
+
+    let v = update_in(&s, &json!({"accentColor": null})).unwrap();
+    assert_eq!(v.accent_color, None);
+    assert_eq!(v.palette, Palette::Pine);
+    let raw = std::fs::read_to_string(d.path().join("settings.toml")).unwrap();
+    assert!(!raw.contains("accent_color"), "{raw}");
+    let v = update_in(&s, &json!({"palette": "default"})).unwrap();
+    assert_eq!(v.palette, Palette::Default);
+    assert!(
+        std::fs::read_to_string(d.path().join("settings.toml"))
+            .unwrap()
+            .contains("palette = \"default\"")
+    );
+}
+
+#[test]
+fn values_from_a_newer_version_read_as_defaults_and_survive_other_changes() {
+    let (d, s) = store();
+    let mine = "palette = \"aurora\"\naccent_color = \"#ff00aa80\"\n";
+    std::fs::write(d.path().join("settings.toml"), mine).unwrap();
+    let v = settings_in(&s).unwrap();
+    assert_eq!((v.palette, v.accent_color), (Palette::Default, None));
+    update_in(&s, &json!({"theme": "dark", "accentColor": null})).unwrap();
+    let out = std::fs::read_to_string(d.path().join("settings.toml")).unwrap();
+    assert_eq!(out, format!("{mine}theme = \"dark\"\n"));
+    update_in(&s, &json!({"palette": "plum"})).unwrap();
+    let out = std::fs::read_to_string(d.path().join("settings.toml")).unwrap();
+    assert!(
+        out.starts_with("palette = \"plum\"\naccent_color = \"#ff00aa80\"\n"),
+        "{out}"
+    );
+}
+
+#[test]
+fn bad_palettes_and_accents_carry_their_keys_and_never_the_value() {
+    let (_d, s) = store();
+    for (bad, key, message) in [
+        (
+            json!({"palette": "secret-palette"}),
+            "errors.settings.palette",
+            "palette must be default, high-contrast, pine or plum",
+        ),
+        (
+            json!({"palette": null}),
+            "errors.settings.palette",
+            "palette must be default, high-contrast, pine or plum",
+        ),
+        (
+            json!({"accentColor": "#secret"}),
+            "errors.settings.accentColor",
+            "accentColor must be a #rrggbb color or null",
+        ),
+        (
+            json!({"accentColor": 7}),
+            "errors.settings.accentColor",
+            "accentColor must be a #rrggbb color or null",
+        ),
+    ] {
+        let e = update_in(&s, &bad).unwrap_err();
+        assert_eq!(e.code, "invalid_input", "{bad}");
+        assert_eq!(e.key, Some(key), "{bad}");
+        assert_eq!(e.message, message, "{bad}");
+        assert!(e.params.is_empty(), "{bad}");
+    }
+}
+
+#[test]
 fn every_bad_patch_is_invalid_input_and_writes_nothing() {
     let (d, s) = store();
     for bad in [
@@ -60,6 +148,25 @@ fn every_bad_patch_is_invalid_input_and_writes_nothing() {
         json!({"language": null}),
         json!({"language": 1}),
         json!({"theme": "dark", "language": "relative"}),
+        json!({"palette": "relative"}),
+        json!({"palette": "Pine"}),
+        json!({"palette": "high_contrast"}),
+        json!({"palette": null}),
+        json!({"palette": 1}),
+        json!({"palette": ["pine"]}),
+        json!({"accentColor": "#abc"}),
+        json!({"accentColor": "#aabbccdd"}),
+        json!({"accentColor": "aabbcc"}),
+        json!({"accentColor": "red"}),
+        json!({"accentColor": "relative"}),
+        json!({"accentColor": "#aabbcg"}),
+        json!({"accentColor": " #aabbcc"}),
+        json!({"accentColor": ""}),
+        json!({"accentColor": 11189196}),
+        json!({"accentColor": false}),
+        json!({"accentColor": {"hex": "#aabbcc"}}),
+        json!({"palette": "pine", "accentColor": "#abc"}),
+        json!({"accent_color": "#aabbcc"}),
         json!({"defaultKeyType": "rsa"}),
         json!({"defaultKeyType": "dsa"}),
         json!({"terminalFontSize": 9}),
@@ -95,7 +202,7 @@ fn the_legacy_import_skips_bad_values_and_runs_once() {
     .unwrap();
     assert_eq!(
         serde_json::to_value(&v).unwrap(),
-        json!({"theme": "dark", "language": "system", "defaultKeyType": "ed25519", "terminalFontSize": 18, "keyFolder": null})
+        json!({"theme": "dark", "language": "system", "palette": "default", "accentColor": null, "defaultKeyType": "ed25519", "terminalFontSize": 18, "keyFolder": null})
     );
     let raw = std::fs::read_to_string(d.path().join("settings.toml")).unwrap();
     assert!(raw.contains("legacy_imported = true"));
@@ -112,6 +219,19 @@ fn the_legacy_import_skips_bad_values_and_runs_once() {
     );
     let e = import_in(&s, &json!({"fontSize": 12})).unwrap_err();
     assert_eq!(e.code, "invalid_input");
+}
+
+#[test]
+fn the_legacy_import_treats_palette_and_accent_like_any_field() {
+    let (_d, s) = store();
+    let v = import_in(&s, &json!({"palette": "ocean", "accentColor": "#ABCDEF"})).unwrap();
+    assert_eq!(
+        (v.palette, v.accent_color.as_deref()),
+        (Palette::Default, Some("#abcdef"))
+    );
+    let (_d, s) = store();
+    let v = import_in(&s, &json!({"palette": "plum", "accentColor": "#abc"})).unwrap();
+    assert_eq!((v.palette, v.accent_color), (Palette::Plum, None));
 }
 
 #[test]

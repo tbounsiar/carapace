@@ -1,6 +1,7 @@
 import { TranslocoService } from '@jsverse/transloco';
 import { inject, Service, signal, type Signal } from '@angular/core';
 import { TuiNotificationService } from '@taiga-ui/core';
+import type { Palette } from '../../core/theme/palette';
 import type { EffectiveTheme } from '../../core/theme/theme';
 import { IpcError } from '../../core/ipc/ipc-error';
 import {
@@ -181,9 +182,14 @@ export class TerminalSessions {
   }
 
   /** `source` must sit inside the themed `tui-root` so the Taiga tokens resolve for `effective`. */
-  applyAppearance(source: Element, effective: EffectiveTheme, fontSize: number): void {
+  applyAppearance(
+    source: Element,
+    effective: EffectiveTheme,
+    palette: Palette,
+    fontSize: number,
+  ): void {
     this.appearance = {
-      theme: xtermTheme(source, effective),
+      theme: xtermTheme(source, effective, palette),
       fontFamily: xtermFont(source),
       fontSize,
     };
