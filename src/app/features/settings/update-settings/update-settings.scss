@@ -1,0 +1,45 @@
+:host {
+  display: contents;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  /* Lands below the navigation header (3rem, as in app.scss) and the compact subheader. */
+  scroll-margin-block-start: calc(3rem + var(--tui-height-m) + var(--tui-padding-l));
+}
+
+.legend {
+  padding: 0;
+  margin-block-end: 0.5rem;
+  font: var(--tui-typography-body-m);
+  font-weight: bold;
+}
+
+.links,
+.status-row,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem var(--tui-padding-l);
+}
+
+.version {
+  margin: 0;
+}
+
+.note {
+  margin: 0;
+  font: var(--tui-typography-body-s);
+  color: var(--tui-text-secondary);
+}
+
+.offer {
+  align-self: stretch;
+}

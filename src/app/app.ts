@@ -22,6 +22,7 @@ import { ThemeService } from './core/theme/theme';
 import { CurrentScope } from './shared/current-scope';
 import { suppressNativeContextMenu } from './shared/native-context-menu';
 import { trackLanguage, uiText } from './shared/ui-text';
+import { UpdateStore } from './features/updates/update-store';
 import { LocationBar } from './features/shell/location-bar/location-bar';
 import { ProjectSelect } from './features/shell/project-select/project-select';
 import { ThemeMenu } from './features/shell/theme-menu/theme-menu';
@@ -63,6 +64,7 @@ export class App {
   private readonly stripSlot = viewChild.required('tabStrip', { read: ViewContainerRef });
   private stripLoading = false;
   protected readonly edited = inject(EditedFiles);
+  protected readonly updates = inject(UpdateStore);
   /** "Edited files, 3 files, 1 needs attention". */
   protected readonly editedLabel = computed(() =>
     uiText('shell.aside.editedLabel', {

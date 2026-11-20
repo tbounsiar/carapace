@@ -11,6 +11,7 @@ use super::model::{
 };
 use super::store::ConfigError;
 use super::validate::is_local_absolute;
+use crate::updates::is_plain_version;
 
 pub const FONT_SIZE_MIN: u8 = 10;
 pub const FONT_SIZE_MAX: u8 = 24;
@@ -154,6 +155,14 @@ pub struct Settings {
     pub legacy_imported: bool,
     pub external_editor: Option<ExternalEditor>,
     pub analytics: Option<AnalyticsSettings>,
+    pub updates: UpdateSettings,
+}
+
+/// `[updates]`; each key is read on its own. `auto_check` absent means on.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UpdateSettings {
+    pub auto_check: Option<bool>,
+    pub skipped_version: Option<String>,
 }
 
 /// A change to the user preferences; `Some(None)` clears `accent_color` or `key_folder`.
@@ -350,6 +359,23 @@ pub(super) fn read(doc: &DocumentMut) -> Settings {
             .get("analytics")
             .and_then(Item::as_table_like)
             .map(analytics_of),
+        updates: root
+            .get("updates")
+            .and_then(Item::as_table_like)
+            .map(updates_of)
+            .unwrap_or_default(),
+    }
+}
+
+/// A skipped version that is not a plain version (a hand edit) reads as unset.
+fn updates_of(t: &dyn TableLike) -> UpdateSettings {
+    UpdateSettings {
+        auto_check: t.get("auto_check").and_then(Item::as_bool),
+        skipped_version: t
+            .get("skipped_version")
+            .and_then(Item::as_str)
+            .filter(|v| is_plain_version(v))
+            .map(str::to_owned),
     }
 }
 
@@ -489,6 +515,25 @@ pub(super) fn write(doc: &mut DocumentMut, before: &Settings, after: &Settings) 
                     put(t, "notice_seen", Some(e.notice_seen.into()));
                 }
             }
+        }
+    }
+    if before.updates != after.updates {
+        let (old, new) = (&before.updates, &after.updates);
+        if let Some(t) = table_at(root, "updates", false) {
+            if old.auto_check != new.auto_check {
+                put(t, "auto_check", new.auto_check.map(Value::from));
+            }
+            if old.skipped_version != new.skipped_version {
+                let v = new.skipped_version.as_deref().map(Value::from);
+                put(t, "skipped_version", v);
+            }
+        }
+        if root
+            .get("updates")
+            .and_then(Item::as_table_like)
+            .is_some_and(|t| t.is_empty())
+        {
+            root.remove("updates");
         }
     }
     let old = before.analytics.unwrap_or_default().categories;

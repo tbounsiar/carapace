@@ -360,6 +360,7 @@ async fn ask_pauses_the_job_and_applies_to_all() {
     for n in ["x", "y", "z"] {
         fs::write(w.lp(&format!("tree/{n}")), n).unwrap();
     }
+    assert!(!w.m.has_active());
     let ids = w
         .enqueue(
             Direction::Upload,
@@ -378,6 +379,10 @@ async fn ask_pauses_the_job_and_applies_to_all() {
     })
     .await;
     assert_eq!(running_count(&w.m), 0, "a waiting job gives its slot back");
+    assert!(
+        w.m.has_active(),
+        "a job waiting for an answer is still active"
+    );
 
     // A reloaded page subscribes again and gets the pending conflict.
     let (tx, mut rx2) = mpsc::unbounded_channel();

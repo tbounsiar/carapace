@@ -68,9 +68,16 @@
           iconStart="@tui.settings"
           routerLink="/settings"
           data-testid="settings"
+          [fragment]="updates.badge() ? 'updates' : undefined"
+          [attr.aria-label]="updates.badge() ? ('shell.aside.settingsUpdate' | transloco) : null"
           [attr.aria-current]="page() === '/settings' ? 'page' : null"
         >
-          {{ 'shell.pages.settings' | transloco }}
+          <span class="label">{{ 'shell.pages.settings' | transloco }}</span>
+          @if (updates.badge()) {
+            <span tuiBadge size="s" appearance="info" data-testid="settings-update-badge">
+              {{ 'shell.aside.updateBadge' | transloco }}
+            </span>
+          }
         </a>
       </footer>
     </aside>

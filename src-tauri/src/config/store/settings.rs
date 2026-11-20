@@ -152,6 +152,24 @@ impl ConfigStore {
         })
     }
 
+    /// Rewrites the file only when the value changes.
+    pub fn set_update_auto_check(&self, enabled: bool) -> Result<Settings, ConfigError> {
+        self.change_settings(OnCorrupt::BackUp, |s| {
+            let changed = s.updates.auto_check != Some(enabled);
+            s.updates.auto_check = Some(enabled);
+            (s.clone(), changed)
+        })
+    }
+
+    /// The version is validated by the caller.
+    pub fn set_skipped_version(&self, version: &str) -> Result<Settings, ConfigError> {
+        self.change_settings(OnCorrupt::BackUp, |s| {
+            let changed = s.updates.skipped_version.as_deref() != Some(version);
+            s.updates.skipped_version = Some(version.to_owned());
+            (s.clone(), changed)
+        })
+    }
+
     /// The patch is validated by the caller.
     pub fn update_settings(&self, patch: &SettingsPatch) -> Result<Settings, ConfigError> {
         self.change_settings(OnCorrupt::BackUp, |s| {

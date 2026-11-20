@@ -1,0 +1,16 @@
+{
+  "browserFailed": "the browser could not be opened",
+  "busy": "an update is already being downloaded or installed",
+  "cancelled": "the download was cancelled",
+  "installFailed": "the update could not be installed",
+  "invalidVersion": "the version is not valid",
+  "network": "could not reach the update server",
+  "noUpdate": "no update is available",
+  "notUploaded": "some edited files have changes that are not uploaded",
+  "nothingDownloaded": "no update has been downloaded",
+  "restartRequired": "restart Carapace to finish or retry the update",
+  "signature": "the update signature was refused; nothing was installed",
+  "unavailable": "no usable update information was found",
+  "unconfirmed": "transfers are running or editors have unsaved changes",
+  "unsupported": "on this system, updates are installed from the release page"
+}

@@ -58,6 +58,9 @@ windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem", "Win
 [target."cfg(unix)".dependencies]
 libc = "0.2.191"
 
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+
 [features]
 # Debug end-to-end builds only: the data file pickers return CARAPACE_E2E_PICKED_FILE.
 e2e-pickers = []

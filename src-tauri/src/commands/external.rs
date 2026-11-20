@@ -67,12 +67,16 @@ pub fn opener_of(cfg: Option<&ExternalEditor>) -> Opener {
 #[tauri::command]
 pub async fn open_external(
     edits: State<'_, ExternalEdits>,
+    exit: State<'_, crate::quit::ExitState>,
     connection_id: String,
     path: String,
     size: Option<u64>,
     confirm_large: Option<bool>,
     confirm_sensitive: Option<bool>,
 ) -> Res<EditedFile> {
+    if exit.shutting_down() {
+        return Err(crate::updates::UpdateError::RestartRequired.into());
+    }
     required("connectionId", &connection_id)?;
     check_path(&path)?;
     Ok(edits

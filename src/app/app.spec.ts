@@ -11,6 +11,7 @@ import { editedFile } from './core/ipc/external-edits.fixture';
 import { fakeConfig, project } from './core/ipc/config.fixture';
 import { SshService } from './core/ipc/ssh';
 import { ThemeService } from './core/theme/theme';
+import { UpdateStore } from './features/updates/update-store';
 import { TranslocoService } from '@jsverse/transloco';
 
 @Component({ template: '' })
@@ -134,5 +135,36 @@ describe('App', () => {
     expect(byId('aside-edited-files')?.getAttribute('aria-label')).toBe(
       'Fichiers édités, 1 fichier',
     );
+  });
+
+  it('badges Settings while an update is offered (not skipped) or ready, linking to #updates', async () => {
+    const fixture = await setup();
+    const store = TestBed.inject(UpdateStore);
+    const settings = () => byId('settings')!;
+    expect(byId('settings-update-badge')).toBeNull();
+    expect(settings().getAttribute('aria-label')).toBeNull();
+    store.state.set({
+      current: '0.2.0',
+      autoCheck: true,
+      skippedVersion: null,
+      lastCheck: null,
+      available: null,
+      downloaded: false,
+      installKind: 'inPlace',
+    });
+    store.offer.set({ version: '0.3.0', date: null });
+    store.phase.set('available');
+    await fixture.whenStable();
+    expect(byId('settings-update-badge')?.textContent?.trim()).toBe('Update');
+    expect(byId('settings-update-badge')?.getAttribute('data-appearance')).toBe('info');
+    expect(settings().getAttribute('href')).toBe('/settings#updates');
+    expect(settings().getAttribute('aria-label')).toBe('Settings, update available');
+    store.state.update((s) => s && { ...s, skippedVersion: '0.3.0' });
+    await fixture.whenStable();
+    expect(byId('settings-update-badge')).toBeNull();
+    expect(settings().getAttribute('href')).toBe('/settings');
+    store.phase.set('ready');
+    await fixture.whenStable();
+    expect(byId('settings-update-badge')).not.toBeNull();
   });
 });

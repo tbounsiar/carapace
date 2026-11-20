@@ -15,6 +15,7 @@ mod ssh;
 mod terminal;
 mod text;
 mod transfer;
+mod updates;
 mod vars;
 
 use std::sync::Arc;
@@ -35,7 +36,10 @@ fn logger<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
     let builder = Builder::default()
         .max_file_size(MAX_LOG_BYTES)
         .rotation_strategy(RotationStrategy::KeepSome(2))
-        .level_for("tauri_plugin_clipboard_manager", log::LevelFilter::Warn);
+        .level_for("tauri_plugin_clipboard_manager", log::LevelFilter::Warn)
+        // Its error lines quote the endpoint and parts of the server's answer; the app logs
+        // its own fixed messages instead.
+        .level_for("tauri_plugin_updater", log::LevelFilter::Off);
     if cfg!(debug_assertions) {
         builder.level(log::LevelFilter::Info).build()
     } else {
@@ -66,6 +70,7 @@ fn private_log_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             #[cfg(unix)]
@@ -88,6 +93,7 @@ pub fn run() {
             app.manage(terminal::TerminalManager::default());
             app.manage(sftp::SftpManager::default());
             app.manage(quit::QuitGuard::default());
+            app.manage(quit::ExitState::default());
             app.manage(data_transfer::pending::PendingImports::default());
             let home_dir = home.clone();
             let store = commands::secrets::config_store(home, &secrets);
@@ -126,6 +132,11 @@ pub fn run() {
             app.manage(secrets);
             app.manage(store);
             app.manage(analytics.clone());
+            app.manage(commands::updates::app_updates(&version));
+            // Dev and e2e builds have nothing to update and must not reach GitHub on their own.
+            if !cfg!(debug_assertions) {
+                commands::updates::start_auto_check(app.handle().clone());
+            }
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 loop {
@@ -163,6 +174,9 @@ pub fn run() {
             }
             if let Some(edits) = webview.try_state::<external::ExternalEdits>() {
                 edits.unsubscribe();
+            }
+            if let Some(updates) = webview.try_state::<commands::updates::AppUpdates>() {
+                updates.unsubscribe();
             }
             // The new page has no unsaved editor and has not subscribed yet.
             if let Some(guard) = webview.try_state::<quit::QuitGuard>() {
@@ -277,6 +291,15 @@ pub fn run() {
             commands::data_transfer::apply_import,
             commands::data_transfer::undo_import,
             commands::data_transfer::cancel_import,
+            commands::updates::update_state,
+            commands::updates::set_update_auto_check,
+            commands::updates::check_update,
+            commands::updates::subscribe_updates,
+            commands::updates::skip_update,
+            commands::updates::download_update,
+            commands::updates::cancel_update_download,
+            commands::updates::apply_update,
+            commands::updates::open_release_notes,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -291,18 +314,8 @@ pub fn run() {
             {
                 api.prevent_exit();
             }
-            if let RunEvent::Exit = event
-                && let Some(edits) = app.try_state::<external::ExternalEdits>()
-            {
-                edits.shutdown();
-            }
-            if let RunEvent::Exit = event
-                && let Some(analytics) = app.try_state::<analytics::Analytics>()
-            {
-                if let Some(store) = app.try_state::<config::ConfigStore>() {
-                    analytics.retry_save(|w| store.update_analytics(w));
-                }
-                analytics.shutdown();
+            if let RunEvent::Exit = event {
+                commands::app::exit_tasks(app);
             }
         });
 }

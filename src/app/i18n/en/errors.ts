@@ -11,6 +11,7 @@ import settings from './errors/settings.json';
 import ssh from './errors/ssh.json';
 import terminal from './errors/terminal.json';
 import transfer from './errors/transfer.json';
+import updates from './errors/updates.json';
 
 export default {
   analytics,
@@ -25,4 +26,5 @@ export default {
   ssh,
   terminal,
   transfer,
+  updates,
 };

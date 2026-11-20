@@ -1,0 +1,150 @@
+<div tuiTitle>
+  <span #heading class="heading" tabindex="-1" data-testid="update-notice-title">
+    {{ title() }}
+  </span>
+  @switch (phase()) {
+    @case ('available') {
+      <span tuiSubtitle>
+        {{ 'updates.notice.current' | transloco: { version: store.state()?.current } }}
+        <button
+          tuiLink
+          type="button"
+          iconEnd="@tui.external-link"
+          data-testid="update-notice-notes"
+          [textContent]="'updates.notice.notes' | transloco"
+          (click)="flow.openReleasePage()"
+        ></button>
+      </span>
+      @if (store.downloadOnly()) {
+        <span tuiSubtitle>{{ 'updates.notice.downloadOnly' | transloco }}</span>
+      }
+      <div class="actions">
+        @if (store.downloadOnly()) {
+          <button
+            tuiButton
+            type="button"
+            size="s"
+            appearance="primary"
+            iconEnd="@tui.external-link"
+            data-testid="update-notice-download"
+            (click)="flow.update()"
+          >
+            {{ 'updates.notice.download' | transloco }}
+          </button>
+        } @else {
+          <button
+            tuiButton
+            type="button"
+            size="s"
+            appearance="primary"
+            data-testid="update-notice-install"
+            (click)="flow.update()"
+          >
+            {{ 'updates.notice.update' | transloco }}
+          </button>
+        }
+        <button
+          tuiButton
+          type="button"
+          size="s"
+          appearance="flat"
+          data-testid="update-notice-later"
+          (click)="flow.later()"
+        >
+          {{ 'updates.notice.later' | transloco }}
+        </button>
+      </div>
+      <div>
+        <button
+          tuiLink
+          type="button"
+          appearance="action-grayscale"
+          data-testid="update-notice-skip"
+          [textContent]="'updates.notice.skip' | transloco"
+          (click)="flow.skip()"
+        ></button>
+      </div>
+    }
+    @case ('downloading') {
+      @if (store.progress()?.total; as total) {
+        <progress
+          tuiProgressBar
+          size="s"
+          data-testid="update-notice-progress"
+          [max]="total"
+          [value]="store.progress()?.downloaded ?? 0"
+          [attr.aria-label]="'updates.notice.progressLabel' | transloco"
+          [attr.aria-valuetext]="progressText()"
+        ></progress>
+      } @else {
+        <progress
+          tuiProgressBar
+          size="s"
+          data-testid="update-notice-progress"
+          [attr.aria-label]="'updates.notice.progressLabel' | transloco"
+          [attr.aria-valuetext]="progressText()"
+        ></progress>
+      }
+      <div class="row">
+        <span tuiSubtitle data-testid="update-notice-progress-text">{{ progressText() }}</span>
+        <button
+          tuiButton
+          type="button"
+          size="s"
+          appearance="flat"
+          data-testid="update-notice-cancel"
+          (click)="flow.cancel()"
+        >
+          {{ 'common.cancel' | transloco }}
+        </button>
+      </div>
+    }
+    @case ('verifying') {
+      <progress
+        tuiProgressBar
+        size="s"
+        data-testid="update-notice-progress"
+        [attr.aria-label]="'updates.notice.progressLabel' | transloco"
+      ></progress>
+      <span tuiSubtitle>{{ 'updates.notice.verifying' | transloco }}</span>
+    }
+    @case ('ready') {
+      <span tuiSubtitle class="lines" data-testid="update-notice-impact">
+        @for (line of impact(); track line.kind) {
+          <span [attr.data-impact]="line.kind">{{ line.text }}</span>
+        }
+      </span>
+      <div class="actions">
+        <button
+          tuiButton
+          type="button"
+          size="s"
+          appearance="primary"
+          data-testid="update-notice-restart"
+          (click)="flow.restartNow()"
+        >
+          {{ 'updates.notice.restart' | transloco }}
+        </button>
+        <button
+          tuiButton
+          type="button"
+          size="s"
+          appearance="flat"
+          data-testid="update-notice-later"
+          (click)="flow.later()"
+        >
+          {{ 'updates.notice.later' | transloco }}
+        </button>
+      </div>
+    }
+    @case ('installing') {
+      <progress
+        tuiProgressBar
+        size="s"
+        data-testid="update-notice-progress"
+        [attr.aria-label]="title()"
+      ></progress>
+      <span tuiSubtitle>{{ installingText | transloco }}</span>
+    }
+  }
+</div>

@@ -52,6 +52,11 @@ const NEXT_STEPS: Readonly<Record<IpcErrorCode, true>> = {
   import_malformed: true,
   import_invalid: true,
   import_secret_value: true,
+  update_unavailable: true,
+  signature_invalid: true,
+  install_failed: true,
+  nothing_downloaded: true,
+  restart_required: true,
   unknown: true,
 };
 

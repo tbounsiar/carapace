@@ -35,6 +35,25 @@ fn quit_now(app: &AppHandle) {
     }
 }
 
+/// Work done once the app is leaving: on `RunEvent::Exit`, and on Windows just before an update
+/// installer starts, since the updater ends the process there without that event.
+pub fn exit_tasks(app: &AppHandle) {
+    if let Some(exit) = app.try_state::<crate::quit::ExitState>()
+        && !exit.begin_tasks()
+    {
+        return;
+    }
+    if let Some(edits) = app.try_state::<ExternalEdits>() {
+        edits.shutdown();
+    }
+    if let Some(analytics) = app.try_state::<crate::analytics::Analytics>() {
+        if let Some(store) = app.try_state::<crate::config::ConfigStore>() {
+            analytics.retry_save(|w| store.update_analytics(w));
+        }
+        analytics.shutdown();
+    }
+}
+
 /// Applies the guard to a close or quit request; `true` keeps the app open.
 pub fn on_quit_request(app: &AppHandle) -> bool {
     let Some(guard) = app.try_state::<QuitGuard>() else {

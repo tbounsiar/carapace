@@ -81,6 +81,11 @@
       "import_malformed": "Export it again.",
       "import_invalid": "Fix the file or export it again.",
       "import_secret_value": "Remove the value from the file and set it in Variables instead.",
+      "update_unavailable": "Try again later, or download the new version from the release page.",
+      "signature_invalid": "Nothing was installed. Your current version keeps working.",
+      "install_failed": "Restart Carapace, then try again or install from the release page.",
+      "nothing_downloaded": "Download the update again.",
+      "restart_required": "Restart Carapace before you continue working.",
       "unknown": "Try again. Restart the app if it keeps happening."
     },
     "import": {

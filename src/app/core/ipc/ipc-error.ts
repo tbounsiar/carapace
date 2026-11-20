@@ -42,6 +42,11 @@ const KNOWN_CODES: readonly string[] = [
   'import_malformed',
   'import_invalid',
   'import_secret_value',
+  'update_unavailable',
+  'signature_invalid',
+  'install_failed',
+  'nothing_downloaded',
+  'restart_required',
 ];
 
 /** `message` is the English text; `key`/`params` translate it (see `textOf`). */

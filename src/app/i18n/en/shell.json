@@ -1,7 +1,9 @@
 {
   "aside": {
     "label": "Hosts",
-    "editedLabel": "Edited files, {count, plural, one {# file} other {# files}}{attention, plural, =0 {} one {, # needs attention} other {, # need attention}}"
+    "editedLabel": "Edited files, {count, plural, one {# file} other {# files}}{attention, plural, =0 {} one {, # needs attention} other {, # need attention}}",
+    "updateBadge": "Update",
+    "settingsUpdate": "Settings, update available"
   },
   "pages": {
     "globalVariables": "Global variables",

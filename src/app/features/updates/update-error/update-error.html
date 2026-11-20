@@ -1,0 +1,28 @@
+<span>{{ context.data.text }}</span>
+@switch (context.data.action) {
+  @case ('retry') {
+    <button
+      tuiButton
+      type="button"
+      size="s"
+      appearance="secondary"
+      data-testid="update-error-retry"
+      (click)="context.data.run()"
+    >
+      {{ 'common.retry' | transloco }}
+    </button>
+  }
+  @case ('releasePage') {
+    <button
+      tuiButton
+      type="button"
+      size="s"
+      appearance="secondary"
+      iconEnd="@tui.external-link"
+      data-testid="update-error-release-page"
+      (click)="context.data.run()"
+    >
+      {{ 'updates.error.releasePage' | transloco }}
+    </button>
+  }
+}

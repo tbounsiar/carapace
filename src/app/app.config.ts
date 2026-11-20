@@ -75,6 +75,9 @@ export const appConfig: ApplicationConfig = {
       void import('./features/analytics/consent-prompter').then(({ ConsentPrompter }) =>
         injector.get(ConsentPrompter).start(),
       );
+      void import('./features/updates/update-flow').then(({ UpdateFlow }) =>
+        injector.get(UpdateFlow).start(),
+      );
     }),
   ],
 };

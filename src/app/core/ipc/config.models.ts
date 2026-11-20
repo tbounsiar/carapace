@@ -132,7 +132,12 @@ export type CommandErrorCode =
   | 'import_version'
   | 'import_malformed'
   | 'import_invalid'
-  | 'import_secret_value';
+  | 'import_secret_value'
+  | 'update_unavailable'
+  | 'signature_invalid'
+  | 'install_failed'
+  | 'nothing_downloaded'
+  | 'restart_required';
 
 export type IpcErrorCode = CommandErrorCode | 'unknown';
 

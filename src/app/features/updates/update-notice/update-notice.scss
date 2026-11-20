@@ -1,0 +1,20 @@
+.heading {
+  overflow-wrap: break-word;
+}
+
+.actions,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.row {
+  justify-content: space-between;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+}

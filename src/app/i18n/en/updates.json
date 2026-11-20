@@ -1,0 +1,41 @@
+{
+  "notice": {
+    "availableTitle": "Carapace {version} is available",
+    "current": "You have {version}.",
+    "notes": "Release notes",
+    "update": "Update",
+    "later": "Later",
+    "skip": "Skip this version",
+    "download": "Download",
+    "downloadOnly": "This installation cannot update itself. Download the new package from the release page and install it.",
+    "downloadingTitle": "Downloading Carapace {version}",
+    "progress": "{done} of {total}",
+    "progressUnknown": "{done} downloaded",
+    "progressLabel": "Download progress",
+    "verifying": "Checking the signature…",
+    "readyTitle": "Carapace {version} is ready to install",
+    "impactConnections": "{count, plural, one {# open connection and its terminals will be closed.} other {# open connections and their terminals will be closed.}}",
+    "impactTransfers": "{count, plural, one {# transfer in progress will stop.} other {# transfers in progress will stop.}}",
+    "impactDialog": "The open dialog will be closed without saving.",
+    "restart": "Restart now",
+    "installingTitle": "Installing Carapace {version}…",
+    "installingWindows": "Carapace closes while the installer runs, then opens again.",
+    "installingOther": "Carapace restarts when the update is installed."
+  },
+  "error": {
+    "checkTitle": "Could not check for updates",
+    "downloadTitle": "Update not downloaded",
+    "signatureTitle": "Update refused",
+    "signature": "The downloaded update is not signed with Carapace's key, so it was not installed. Nothing on this computer changed.",
+    "installTitle": "Update not installed",
+    "keepsWorking": "Your current version keeps working.",
+    "releasePage": "Open release page",
+    "pageNotOpened": "Release page not opened",
+    "next": {
+      "network": "Check your internet connection and try again.",
+      "unsupported": "Download the new version from the release page.",
+      "not_found": "Check for updates again later.",
+      "browser": "Check that a default browser is set, then try again."
+    }
+  }
+}

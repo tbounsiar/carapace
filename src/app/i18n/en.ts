@@ -20,6 +20,7 @@ import shell from './en/shell.json';
 import sidebar from './en/sidebar.json';
 import terminal from './en/terminal.json';
 import transfers from './en/transfers.json';
+import updates from './en/updates.json';
 import variables from './en/variables.json';
 import welcome from './en/welcome.json';
 import workspace from './en/workspace.json';
@@ -46,6 +47,7 @@ export default {
   sidebar,
   terminal,
   transfers,
+  updates,
   variables,
   welcome,
   workspace,

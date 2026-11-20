@@ -115,7 +115,7 @@ Details in [docs/security.md](docs/security.md). Report vulnerabilities as descr
 
 ## Privacy
 
-Your hosts, credentials and files stay on your machine. Carapace sends anonymous usage data, which it shows you on first launch before anything is sent and which you can turn off category by category; see [PRIVACY.md](PRIVACY.md) for exactly what is and is never sent.
+Your hosts, credentials and files stay on your machine. Carapace sends anonymous usage data, which it shows you on first launch before anything is sent and which you can turn off category by category. It also checks GitHub for new releases once a day, which you can turn off. See [PRIVACY.md](PRIVACY.md) for exactly what is and is never sent.
 
 ## Where data lives
 

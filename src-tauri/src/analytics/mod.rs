@@ -19,7 +19,7 @@ pub use event::{
     Auth, CATALOGUE_VERSION, Category, Count, Counts, ErrorCode, Event, Files, GeneratedType,
     ImportedType, Outcome, Props, Scope, TestResult, Theme, Took, TransferDirection, changed_in,
 };
-pub use system::SystemProps;
+pub use system::{SystemProps, iso_utc};
 
 use crate::config::{AnalyticsSettings, CategoryChoice, CategoryChoices, Consent};
 use client::{Envelope, WireSystem};

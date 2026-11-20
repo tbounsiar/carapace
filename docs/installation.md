@@ -83,7 +83,13 @@ Without a provider, saving or using a stored secret fails with a message asking 
 
 ## Updating
 
-Download and install the new release over the old one. Your hosts, keys and settings are kept: they live in the data folder, not in the app.
+Carapace checks for a new release about 10 seconds after it starts, then once a day while it runs. When one exists, a notice offers **Update**, **Later** or **Skip this version**; nothing is installed until you choose **Update**. You can also check from **Settings > Updates** and turn the automatic check off there.
+
+**Update** downloads the new version, checks its signature and installs it, then Carapace restarts. A download whose signature does not match the key built into Carapace is refused. If terminals, file explorers or transfers are open, Carapace asks first; unsaved editors go through the usual "Quit with unsaved changes?" confirmation. On Windows the installer shows a small progress window and closes Carapace itself.
+
+Installs from the `.deb` and `.rpm` packages are not updated in place, because that would need your administrator password. The notice offers **Download** instead, which opens the release page; install the new package as described above.
+
+Versions before 0.3.0 have no update check: install 0.3.0 by hand once. You can always download and install a release over the old one. Your hosts, keys and settings are kept: they live in the data folder, not in the app.
 
 ## Removing all data
 

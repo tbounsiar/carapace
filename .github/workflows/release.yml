@@ -14,19 +14,42 @@ jobs:
   build:
     name: build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    # The signing secrets live in this environment, restricted to v* tags, so a manual run on a branch
+    # never sees them.
+    environment: ${{ github.ref_type == 'tag' && 'release' || null }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { name: windows-x64, os: windows-latest, target: x86_64-pc-windows-msvc, bundles: 'nsis,msi' }
+          - {
+              name: windows-x64,
+              os: windows-latest,
+              target: x86_64-pc-windows-msvc,
+              bundles: 'nsis,msi',
+            }
           # WiX cannot build ARM64 installers; NSIS can.
-          - { name: windows-arm64, os: windows-11-arm, target: aarch64-pc-windows-msvc, bundles: nsis }
+          - {
+              name: windows-arm64,
+              os: windows-11-arm,
+              target: aarch64-pc-windows-msvc,
+              bundles: nsis,
+            }
           - { name: macos-arm64, os: macos-latest, target: aarch64-apple-darwin, bundles: dmg }
           - { name: macos-x64, os: macos-latest, target: x86_64-apple-darwin, bundles: dmg }
           # The oldest supported Ubuntu keeps the AppImage and packages compatible with older glibc.
-          - { name: linux-x64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, bundles: 'appimage,deb,rpm' }
-          - { name: linux-arm64, os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, bundles: 'appimage,deb,rpm' }
+          - {
+              name: linux-x64,
+              os: ubuntu-22.04,
+              target: x86_64-unknown-linux-gnu,
+              bundles: 'appimage,deb,rpm',
+            }
+          - {
+              name: linux-arm64,
+              os: ubuntu-22.04-arm,
+              target: aarch64-unknown-linux-gnu,
+              bundles: 'appimage,deb,rpm',
+            }
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -54,7 +77,23 @@ jobs:
         env:
           # Compiled into the release build; forks and local builds have none and send no usage data.
           APTABASE_KEY: ${{ secrets.APTABASE_KEY }}
-        run: npm run tauri build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+        run: npm run tauri build -- --target ${{ matrix.target }} --no-bundle
+      # A separate step so that no npm package or build script ever runs with the signing key in its
+      # environment: bundling compiles nothing.
+      - name: Bundle
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra=()
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            extra=(--config '{"bundle":{"createUpdaterArtifacts":true}}')
+          elif [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "a tagged release needs TAURI_SIGNING_PRIVATE_KEY"; exit 1
+          fi
+          npm run tauri bundle -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} ${extra[@]+"${extra[@]}"}
       # Names without the version, so releases/latest/download/<name> always serves the latest build.
       - name: Collect installers
         shell: bash
@@ -64,12 +103,15 @@ jobs:
           b=src-tauri/target/${{ matrix.target }}/release/bundle
           n=carapace-${{ matrix.name }}
           mkdir out
-          for f in $b/nsis/*-setup.exe; do cp "$f" "out/$n-setup.exe"; done
-          for f in $b/msi/*.msi; do cp "$f" "out/$n.msi"; done
-          for f in $b/dmg/*.dmg; do cp "$f" "out/$n.dmg"; done
-          for f in $b/appimage/*.AppImage; do cp "$f" "out/$n.AppImage"; done
-          for f in $b/deb/*.deb; do cp "$f" "out/$n.deb"; done
-          for f in $b/rpm/*.rpm; do cp "$f" "out/$n.rpm"; done
+          # Each signature follows its file under the new name; macOS updates from the .app.tar.gz, not the .dmg.
+          take() { cp "$1" "out/$2"; [ ! -f "$1.sig" ] || cp "$1.sig" "out/$2.sig"; }
+          for f in $b/nsis/*-setup.exe; do take "$f" "$n-setup.exe"; done
+          for f in $b/msi/*.msi; do take "$f" "$n.msi"; done
+          for f in $b/dmg/*.dmg; do take "$f" "$n.dmg"; done
+          for f in $b/macos/*.app.tar.gz; do take "$f" "$n.app.tar.gz"; done
+          for f in $b/appimage/*.AppImage; do take "$f" "$n.AppImage"; done
+          for f in $b/deb/*.deb; do take "$f" "$n.deb"; done
+          for f in $b/rpm/*.rpm; do take "$f" "$n.rpm"; done
           ls -l out
           [ "$(ls out | wc -l)" -gt 0 ]
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -81,7 +123,7 @@ jobs:
   publish:
     needs: build
     # A failed target must not hold back the others; the release stays a draft until it is reviewed.
-    if: ${{ !cancelled() && github.ref_type == 'tag' }}
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref_type == 'tag' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -90,6 +132,19 @@ jobs:
         with:
           path: out
           merge-multiple: true
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          path: src
+          sparse-checkout: |
+            scripts
+            src-tauri/tauri.conf.json
+          sparse-checkout-cone-mode: false
+      # Built from the signatures that were produced, so a failed target is simply not offered. Each
+      # signature is checked against the public key the apps were built with, so a release that its
+      # own installs would refuse (or a placeholder key) fails here.
+      - name: Update manifest
+        run: node src/scripts/update-manifest.mjs out "$GITHUB_REF_NAME" "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME" src/src-tauri/tauri.conf.json > out/latest.json && cat out/latest.json
       - name: Checksums
         working-directory: out
         run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt

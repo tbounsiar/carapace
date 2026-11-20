@@ -325,6 +325,14 @@ impl TransferManager {
         lock(&self.inner).emit = None;
     }
 
+    /// Some job is queued, running or waiting for a conflict answer.
+    pub fn has_active(&self) -> bool {
+        lock(&self.inner)
+            .jobs
+            .iter()
+            .any(|j| !j.view.state.finished())
+    }
+
     #[cfg(test)]
     pub fn list(&self) -> Vec<TransferView> {
         lock(&self.inner)

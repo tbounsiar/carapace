@@ -91,6 +91,15 @@
     "allow-apply-import",
     "allow-undo-import",
     "allow-cancel-import",
+    "allow-update-state",
+    "allow-set-update-auto-check",
+    "allow-check-update",
+    "allow-subscribe-updates",
+    "allow-skip-update",
+    "allow-download-update",
+    "allow-cancel-update-download",
+    "allow-apply-update",
+    "allow-open-release-notes",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text"
   ]

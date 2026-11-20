@@ -1,0 +1,16 @@
+{
+  "browserFailed": "impossible d’ouvrir le navigateur",
+  "busy": "une mise à jour est déjà en cours de téléchargement ou d’installation",
+  "cancelled": "le téléchargement a été annulé",
+  "installFailed": "impossible d’installer la mise à jour",
+  "invalidVersion": "la version n’est pas valide",
+  "network": "impossible de joindre le serveur de mises à jour",
+  "noUpdate": "aucune mise à jour n’est disponible",
+  "notUploaded": "des fichiers modifiés ont des changements qui ne sont pas envoyés",
+  "nothingDownloaded": "aucune mise à jour n’a été téléchargée",
+  "restartRequired": "redémarrez Carapace pour terminer ou réessayer la mise à jour",
+  "signature": "la signature de la mise à jour a été refusée ; rien n’a été installé",
+  "unavailable": "aucune information de mise à jour utilisable n’a été trouvée",
+  "unconfirmed": "des transferts sont en cours ou des éditeurs ont des modifications non enregistrées",
+  "unsupported": "sur ce système, les mises à jour s’installent depuis la page de la version"
+}

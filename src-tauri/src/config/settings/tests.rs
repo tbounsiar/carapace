@@ -33,6 +33,10 @@ fn full() -> Settings {
                 crashes: granted(3),
             },
         }),
+        updates: UpdateSettings {
+            auto_check: Some(false),
+            skipped_version: Some("0.3.0".into()),
+        },
     }
 }
 
@@ -66,7 +70,8 @@ fn keys_are_snake_case() {
             "legacy_imported",
             "palette",
             "terminal_font_size",
-            "theme"
+            "theme",
+            "updates"
         ]
     );
     assert!(text.contains("palette = \"high-contrast\""), "{text}");
@@ -546,4 +551,89 @@ fn a_value_of_the_wrong_kind_is_replaced_when_set() {
     });
     write(&mut doc, &before, &after);
     assert_eq!(read(&parse_document(&doc.to_string()).unwrap()), after);
+}
+
+#[test]
+fn updates_are_read_key_by_key() {
+    let read = |text: &str| parse(text).unwrap().updates;
+    assert_eq!(read(""), UpdateSettings::default());
+    assert_eq!(
+        read(
+            "[updates]
+auto_check = false
+skipped_version = \"1.2.3-rc.1\"
+"
+        ),
+        UpdateSettings {
+            auto_check: Some(false),
+            skipped_version: Some("1.2.3-rc.1".into()),
+        }
+    );
+    for text in [
+        "updates = 3",
+        "[updates]
+auto_check = \"no\"
+skipped_version = 3",
+        "[updates]
+skipped_version = \"v1.2.3\"",
+        "[updates]
+skipped_version = \"1.2.3+meta\"",
+        "[updates]
+skipped_version = \"../x\"",
+    ] {
+        assert_eq!(read(text), UpdateSettings::default(), "{text}");
+    }
+    assert_eq!(
+        read(
+            "[updates]
+auto_check = true
+skipped_version = \"x\""
+        ),
+        UpdateSettings {
+            auto_check: Some(true),
+            skipped_version: None,
+        }
+    );
+}
+
+#[test]
+fn updates_writes_keep_what_the_app_could_not_read() {
+    let text = "[updates]
+# mine
+auto_check = \"no\"
+other = 1
+";
+    let mut doc = parse_document(text).unwrap();
+    let before = read(&doc);
+    let mut after = before.clone();
+    after.updates.skipped_version = Some("0.3.0".into());
+    write(&mut doc, &before, &after);
+    let out = doc.to_string();
+    assert!(
+        out.contains(
+            "# mine
+auto_check = \"no\""
+        ),
+        "{out}"
+    );
+    assert!(out.contains("other = 1"), "{out}");
+    assert!(out.contains("skipped_version = \"0.3.0\""), "{out}");
+    assert_eq!(parse(&out).unwrap().updates, after.updates);
+
+    let mut doc = parse_document(
+        "theme = \"dark\"
+[updates]
+auto_check = false
+",
+    )
+    .unwrap();
+    let before = read(&doc);
+    let mut after = before.clone();
+    after.updates.auto_check = None;
+    write(&mut doc, &before, &after);
+    assert_eq!(
+        doc.to_string(),
+        "theme = \"dark\"
+"
+    );
 }

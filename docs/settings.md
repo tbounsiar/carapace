@@ -60,6 +60,12 @@ The preview lists every change, the hosts with an open connection that are affec
 
 Your current data is backed up before every import (`backups/` in the data folder), and **Undo import** in the summary restores it. Secret values deleted by a Replace cannot be restored.
 
+## Updates
+
+Shows the installed version. **Check for updates automatically** is on by default: Carapace asks GitHub for the latest release about 10 seconds after it starts and once a day. **Check now** checks at once, even for a version you skipped. When an update is available, the section offers the same actions as the update notice. See [Updating](installation.md#updating).
+
+Development builds never check by themselves, and cannot install an update.
+
 ## Where settings are stored
 
 All settings on this page are stored in `settings.toml` in the [data folder](faq.md#where-is-my-data). It is a plain text file you can read, back up or edit by hand while Carapace is closed.

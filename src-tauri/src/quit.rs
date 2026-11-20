@@ -3,6 +3,7 @@
 //! A page that does not answer cannot keep the app open: a second request while one is pending
 //! asks the user directly with a native dialog.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -100,12 +101,40 @@ impl QuitGuard {
         inner.pending = false;
     }
 
+    /// The page has unsaved editors.
+    pub fn active(&self) -> bool {
+        self.lock().active
+    }
+
     /// A new page starts with no editors and no subscription.
     pub fn reset(&self) {
         let mut inner = self.lock();
         inner.active = false;
         inner.pending = false;
         inner.subscriber = None;
+    }
+}
+
+/// The exit work runs once, and an update that began leaving the app is remembered: if its
+/// installer then fails to start, the app keeps running with that work already done.
+#[derive(Default)]
+pub struct ExitState {
+    tasks_run: AtomicBool,
+    shutting_down: AtomicBool,
+}
+
+impl ExitState {
+    /// `true` the first time only.
+    pub fn begin_tasks(&self) -> bool {
+        !self.tasks_run.swap(true, Ordering::SeqCst)
+    }
+
+    pub fn shut_down(&self) {
+        self.shutting_down.store(true, Ordering::SeqCst);
+    }
+
+    pub fn shutting_down(&self) -> bool {
+        self.shutting_down.load(Ordering::SeqCst)
     }
 }
 
@@ -202,6 +231,25 @@ mod tests {
         guard.allow_quit();
         assert_eq!(guard.intercept(true), Decision::Proceed);
         assert_eq!(count.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn exit_tasks_run_once_and_shutting_down_sticks() {
+        let exit = ExitState::default();
+        assert!(!exit.shutting_down());
+        assert!(exit.begin_tasks());
+        assert!(!exit.begin_tasks());
+        exit.shut_down();
+        assert!(exit.shutting_down());
+        assert!(!exit.begin_tasks());
+    }
+
+    #[test]
+    fn active_reports_the_page_guard() {
+        let (guard, _) = guarded();
+        assert!(guard.active());
+        guard.set_active(false);
+        assert!(!guard.active());
     }
 
     #[test]

@@ -1,0 +1,241 @@
+<fieldset class="group" id="settings-updates" data-testid="settings-updates">
+  <legend class="legend">{{ 'settings.updates.title' | transloco }}</legend>
+  <div class="links">
+    <p class="version" data-testid="settings-updates-version">
+      {{ 'settings.updates.version' | transloco: { version: store.state()?.current ?? '' } }}
+    </p>
+    <button
+      tuiLink
+      type="button"
+      iconEnd="@tui.external-link"
+      data-testid="settings-updates-notes"
+      [textContent]="'updates.notice.notes' | transloco"
+      (click)="flow.openReleasePage()"
+    ></button>
+  </div>
+  <label tuiLabel>
+    <input
+      tuiSwitch
+      type="checkbox"
+      name="update-auto-check"
+      data-testid="settings-updates-auto"
+      aria-describedby="settings-updates-auto-note"
+      [formControl]="autoControl"
+    />
+    <span tuiTitle>
+      {{ 'settings.updates.auto' | transloco }}
+      <span tuiSubtitle id="settings-updates-auto-note" data-testid="settings-updates-auto-note">
+        {{ 'settings.updates.autoNote' | transloco }}
+      </span>
+    </span>
+  </label>
+  <div class="status-row">
+    <button
+      tuiButton
+      type="button"
+      size="s"
+      appearance="secondary"
+      data-testid="settings-updates-check"
+      [loading]="checking()"
+      [attr.aria-disabled]="checkBlocker() ? 'true' : null"
+      [tuiAppearanceState]="checkBlocker() ? 'disabled' : null"
+      [tuiHint]="checkBlocker()"
+      (click)="checkNow()"
+    >
+      {{ 'settings.updates.checkNow' | transloco }}
+    </button>
+    <p
+      class="note"
+      role="status"
+      data-testid="settings-updates-status"
+      [attr.data-state]="statusState()"
+    >
+      @switch (statusState()) {
+        @case ('checking') {
+          {{ 'settings.updates.checking' | transloco }}
+        }
+        @case ('upToDate') {
+          {{ 'settings.updates.upToDate' | transloco }}
+        }
+      }
+      @if (lastChecked(); as when) {
+        <span data-testid="settings-updates-last-checked">
+          {{ 'settings.updates.lastChecked' | transloco: { when } }}
+        </span>
+      }
+    </p>
+  </div>
+  @if (failure(); as failure) {
+    <div
+      tuiNotification
+      appearance="negative"
+      size="s"
+      data-testid="settings-updates-error"
+      [attr.data-kind]="failure.kind"
+      [icon]="failure.kind === 'signature' ? '@tui.shield-x' : ''"
+    >
+      <span tuiTitle>
+        {{ failure.title }}
+        <span tuiSubtitle>{{ failure.text }}</span>
+      </span>
+    </div>
+  }
+  @if (showOffer()) {
+    <div
+      tuiNotification
+      appearance="info"
+      size="s"
+      class="offer"
+      data-testid="settings-updates-offer"
+      [attr.data-phase]="store.phase()"
+    >
+      <div tuiTitle>
+        @switch (store.phase()) {
+          @case ('downloading') {
+            {{ 'updates.notice.downloadingTitle' | transloco: { version: store.offer()?.version } }}
+          }
+          @case ('verifying') {
+            {{ 'updates.notice.downloadingTitle' | transloco: { version: store.offer()?.version } }}
+          }
+          @case ('ready') {
+            {{ 'updates.notice.readyTitle' | transloco: { version: store.offer()?.version } }}
+          }
+          @case ('installing') {
+            {{ 'updates.notice.installingTitle' | transloco: { version: store.offer()?.version } }}
+          }
+          @default {
+            {{ 'updates.notice.availableTitle' | transloco: { version: store.offer()?.version } }}
+          }
+        }
+        @switch (store.phase()) {
+          @case ('downloading') {
+            @if (store.progress()?.total; as total) {
+              <progress
+                tuiProgressBar
+                size="s"
+                data-testid="settings-updates-progress"
+                [max]="total"
+                [value]="store.progress()?.downloaded ?? 0"
+                [attr.aria-label]="'updates.notice.progressLabel' | transloco"
+                [attr.aria-valuetext]="progressText()"
+              ></progress>
+            } @else {
+              <progress
+                tuiProgressBar
+                size="s"
+                data-testid="settings-updates-progress"
+                [attr.aria-label]="'updates.notice.progressLabel' | transloco"
+                [attr.aria-valuetext]="progressText()"
+              ></progress>
+            }
+            <span class="actions">
+              <span tuiSubtitle>{{ progressText() }}</span>
+              <button
+                tuiButton
+                type="button"
+                size="s"
+                appearance="flat"
+                data-testid="settings-updates-cancel"
+                (click)="flow.cancel()"
+              >
+                {{ 'common.cancel' | transloco }}
+              </button>
+            </span>
+          }
+          @case ('verifying') {
+            <progress
+              tuiProgressBar
+              size="s"
+              data-testid="settings-updates-progress"
+              [attr.aria-label]="'updates.notice.progressLabel' | transloco"
+            ></progress>
+            <span tuiSubtitle>{{ 'updates.notice.verifying' | transloco }}</span>
+          }
+          @case ('ready') {
+            @for (line of impact(); track line.kind) {
+              <span tuiSubtitle [attr.data-impact]="line.kind">{{ line.text }}</span>
+            }
+            <span class="actions">
+              <button
+                tuiButton
+                type="button"
+                size="s"
+                appearance="primary"
+                data-testid="settings-updates-restart"
+                (click)="flow.restartNow()"
+              >
+                {{ 'updates.notice.restart' | transloco }}
+              </button>
+            </span>
+          }
+          @case ('installing') {
+            <progress
+              tuiProgressBar
+              size="s"
+              data-testid="settings-updates-progress"
+              [attr.aria-label]="'updates.notice.progressLabel' | transloco"
+            ></progress>
+            <span tuiSubtitle>{{ installingText | transloco }}</span>
+          }
+          @default {
+            @if (store.skipped()) {
+              <span tuiSubtitle data-testid="settings-updates-skipped">
+                {{ 'settings.updates.skipped' | transloco }}
+              </span>
+            }
+            @if (store.downloadOnly()) {
+              <span tuiSubtitle>{{ 'updates.notice.downloadOnly' | transloco }}</span>
+            }
+            <span class="actions">
+              @if (store.downloadOnly()) {
+                <button
+                  tuiButton
+                  type="button"
+                  size="s"
+                  appearance="primary"
+                  iconEnd="@tui.external-link"
+                  data-testid="settings-updates-download"
+                  (click)="flow.update()"
+                >
+                  {{ 'updates.notice.download' | transloco }}
+                </button>
+              } @else {
+                <button
+                  tuiButton
+                  type="button"
+                  size="s"
+                  appearance="primary"
+                  data-testid="settings-updates-install"
+                  (click)="flow.update()"
+                >
+                  {{ 'updates.notice.update' | transloco }}
+                </button>
+              }
+              @if (!store.skipped()) {
+                <button
+                  tuiLink
+                  type="button"
+                  appearance="action-grayscale"
+                  data-testid="settings-updates-skip"
+                  [textContent]="'updates.notice.skip' | transloco"
+                  (click)="flow.skip()"
+                ></button>
+              }
+            </span>
+          }
+        }
+      </div>
+    </div>
+  }
+  @if (store.unsupported()) {
+    <div
+      tuiNotification
+      appearance="neutral"
+      size="s"
+      icon=""
+      data-testid="settings-updates-unavailable"
+    >
+      {{ 'settings.updates.unavailable' | transloco }}
+    </div>
+  }
+</fieldset>

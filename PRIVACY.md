@@ -1,6 +1,6 @@
 # Privacy
 
-Carapace is an SSH client: it handles your servers, credentials and files. It keeps all of that on your machine. The only thing it can send is anonymous usage data and crash reports, which you control category by category.
+Carapace is an SSH client: it handles your servers, credentials and files. It keeps all of that on your machine. The only thing it can send is anonymous usage data and crash reports, which you control category by category. It also checks GitHub for new releases, which you can turn off.
 
 ## Your data stays local
 
@@ -91,6 +91,10 @@ Crash reports are listed in **View recent events** as `crash` rows.
 ### Changes
 
 If a future version needs to send a new kind of data, this page is updated and Carapace asks again about the category that changed.
+
+## Update check
+
+Unless you turn it off in **Settings > Updates**, Carapace downloads `latest.json` from the project's GitHub releases about 10 seconds after it starts and once a day. The request carries no identifier and nothing about your hosts or usage. Like any web request, it reveals your public IP address to GitHub. The request names the update component (`tauri-plugin-updater` and its version), not your Carapace version or operating system. GitHub handles it under the [GitHub privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement). An update you choose to install is downloaded from GitHub the same way.
 
 ## Contact
 

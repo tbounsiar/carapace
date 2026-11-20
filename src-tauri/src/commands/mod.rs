@@ -13,3 +13,4 @@ pub mod sftp;
 pub mod ssh;
 pub mod terminal;
 pub mod transfer;
+pub mod updates;

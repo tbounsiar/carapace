@@ -7,6 +7,7 @@ use crate::secrets::SecretError;
 use crate::ssh::SshError;
 use crate::terminal::TerminalError;
 use crate::text::{Localized, Text};
+use crate::updates::UpdateError;
 use crate::vars::ResolveError;
 
 /// `{ code, message, key?, params? }`: `code` is the category the interface reacts to, `key` and
@@ -90,6 +91,12 @@ impl From<KeyError> for CommandError {
 
 impl From<SecretError> for CommandError {
     fn from(e: SecretError) -> Self {
+        Self::localized(e.code(), &e)
+    }
+}
+
+impl From<UpdateError> for CommandError {
+    fn from(e: UpdateError) -> Self {
         Self::localized(e.code(), &e)
     }
 }

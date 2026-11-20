@@ -1,0 +1,44 @@
+[[permission]]
+identifier = "allow-update-state"
+description = "Allows the update_state command."
+commands.allow = ["update_state"]
+
+[[permission]]
+identifier = "allow-set-update-auto-check"
+description = "Allows the set_update_auto_check command."
+commands.allow = ["set_update_auto_check"]
+
+[[permission]]
+identifier = "allow-check-update"
+description = "Allows the check_update command."
+commands.allow = ["check_update"]
+
+[[permission]]
+identifier = "allow-subscribe-updates"
+description = "Allows the subscribe_updates command."
+commands.allow = ["subscribe_updates"]
+
+[[permission]]
+identifier = "allow-skip-update"
+description = "Allows the skip_update command."
+commands.allow = ["skip_update"]
+
+[[permission]]
+identifier = "allow-download-update"
+description = "Allows the download_update command."
+commands.allow = ["download_update"]
+
+[[permission]]
+identifier = "allow-cancel-update-download"
+description = "Allows the cancel_update_download command."
+commands.allow = ["cancel_update_download"]
+
+[[permission]]
+identifier = "allow-apply-update"
+description = "Allows the apply_update command."
+commands.allow = ["apply_update"]
+
+[[permission]]
+identifier = "allow-open-release-notes"
+description = "Allows the open_release_notes command."
+commands.allow = ["open_release_notes"]

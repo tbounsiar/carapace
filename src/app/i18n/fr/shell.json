@@ -1,7 +1,9 @@
 {
   "aside": {
     "label": "Hôtes",
-    "editedLabel": "Fichiers édités, {count, plural, one {# fichier} other {# fichiers}}{attention, plural, =0 {} one {, # demande votre attention} other {, # demandent votre attention}}"
+    "editedLabel": "Fichiers édités, {count, plural, one {# fichier} other {# fichiers}}{attention, plural, =0 {} one {, # demande votre attention} other {, # demandent votre attention}}",
+    "updateBadge": "Mise à jour",
+    "settingsUpdate": "Paramètres, mise à jour disponible"
   },
   "pages": {
     "globalVariables": "Variables globales",

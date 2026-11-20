@@ -76,5 +76,18 @@
     "notAnEditor": "This program runs scripts or commands; it is not an editor. Pick your editor's program file.",
     "notRead": "Setting not read",
     "pickerError": "File picker not opened"
+  },
+  "updates": {
+    "title": "Updates",
+    "version": "Carapace {version}",
+    "auto": "Check for updates automatically",
+    "autoNote": "At launch and every 24 hours. GitHub sees your IP address, nothing about you or your hosts.",
+    "checkNow": "Check now",
+    "checking": "Checking…",
+    "upToDate": "Carapace is up to date.",
+    "lastChecked": "Last checked: {when}",
+    "skipped": "You skipped this version. It is not announced again.",
+    "unavailable": "This build does not check for updates.",
+    "busy": "An update is in progress."
   }
 }

@@ -57,6 +57,7 @@ pub const OWN_AREAS: &[&str] = &[
     "terminal",
     "text",
     "transfer",
+    "updates",
     "vars",
     "lib",
     "main",

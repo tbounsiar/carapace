@@ -14,6 +14,8 @@ pub use model::{
     ExternalEditor, Host, HostInput, KeyAlgorithm, KeyEntry, KeyOrigin, Node, Project, Variable,
     VariableKind, VariableScope,
 };
+#[cfg(test)]
+pub use settings::UpdateSettings;
 pub use settings::{
     DEFAULT_FONT_SIZE, FONT_SIZE_MAX, FONT_SIZE_MIN, KeyType, Language, Palette, Settings,
     SettingsPatch, ThemeMode, accent_color, check_key_folder, is_font_size,

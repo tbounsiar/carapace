@@ -56,6 +56,7 @@ import { notifyError } from '../../../shared/save-error';
 import { AccentField } from '../accent-field/accent-field';
 import { DataSettings } from '../data-settings/data-settings';
 import { ExternalEditorSettings } from '../external-editor-settings/external-editor-settings';
+import { UpdateSettings } from '../update-settings/update-settings';
 
 const THEME_OPTIONS: readonly { value: ThemeMode; label: string; icon: string }[] = [
   { value: 'system', label: 'settings.theme.system', icon: '@tui.monitor' },
@@ -102,6 +103,7 @@ const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
     TuiSwitch,
     TuiTitle,
     TranslocoPipe,
+    UpdateSettings,
   ],
   selector: 'app-settings-page',
   styleUrl: './settings-page.scss',
@@ -200,10 +202,12 @@ export class SettingsPage {
   private readonly fragment = toSignal(inject(ActivatedRoute).fragment);
 
   constructor() {
-    // The header theme menu links to #colors; the router does no anchor scrolling.
+    // The theme menu links to #colors and the aside badge to #updates; the router does no
+    // anchor scrolling.
     afterRenderEffect(() => {
-      if (this.fragment() === 'colors') {
-        document.getElementById('settings-colors')?.scrollIntoView({ block: 'start' });
+      const fragment = this.fragment();
+      if (fragment === 'colors' || fragment === 'updates') {
+        document.getElementById(`settings-${fragment}`)?.scrollIntoView({ block: 'start' });
       }
     });
     effect(() => {

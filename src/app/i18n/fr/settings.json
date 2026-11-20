@@ -76,5 +76,18 @@
     "notAnEditor": "Ce programme exécute des scripts ou des commandes ; ce n’est pas un éditeur. Choisissez le fichier programme de votre éditeur.",
     "notRead": "Réglage non lu",
     "pickerError": "Sélecteur de fichier non ouvert"
+  },
+  "updates": {
+    "title": "Mises à jour",
+    "version": "Carapace {version}",
+    "auto": "Rechercher les mises à jour automatiquement",
+    "autoNote": "Au démarrage puis toutes les 24 heures. GitHub voit votre adresse IP, rien sur vous ni vos hôtes.",
+    "checkNow": "Vérifier maintenant",
+    "checking": "Vérification…",
+    "upToDate": "Carapace est à jour.",
+    "lastChecked": "Dernière vérification : {when}",
+    "skipped": "Vous avez ignoré cette version. Elle ne vous sera plus annoncée.",
+    "unavailable": "Cette version de l’application ne recherche pas les mises à jour.",
+    "busy": "Une mise à jour est en cours."
   }
 }

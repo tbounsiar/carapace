@@ -81,6 +81,11 @@
       "import_malformed": "Exportez-le de nouveau.",
       "import_invalid": "Corrigez le fichier ou exportez-le de nouveau.",
       "import_secret_value": "Retirez la valeur du fichier et définissez-la plutôt dans Variables.",
+      "update_unavailable": "Réessayez plus tard, ou téléchargez la nouvelle version sur la page de la version.",
+      "signature_invalid": "Rien n’a été installé. Votre version actuelle continue de fonctionner.",
+      "install_failed": "Redémarrez Carapace, puis réessayez ou installez la mise à jour depuis la page de la version.",
+      "nothing_downloaded": "Téléchargez de nouveau la mise à jour.",
+      "restart_required": "Redémarrez Carapace avant de continuer à travailler.",
       "unknown": "Réessayez. Redémarrez l’application si le problème persiste."
     },
     "import": {
