@@ -19,6 +19,7 @@ Right-click in a terminal (or press the Menu key) for **Copy**, **Paste**, **Sel
 | Ctrl+Shift+C | Copy the selection |
 | Ctrl+Shift+V | Paste |
 | Ctrl+Shift+A | Select all |
+| Ctrl+Shift+R | Same as Ctrl+R: search the shell history |
 
 On macOS these are Cmd+C, Cmd+V and Cmd+A. Ctrl+C is not copy: the shell receives it, as an interrupt.
 

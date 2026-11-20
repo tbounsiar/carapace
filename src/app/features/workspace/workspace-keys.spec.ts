@@ -2,6 +2,7 @@ import {
   inTerminal,
   isTerminalMenuKey,
   isTerminalReserved,
+  shellKey,
   terminalKey,
   workspaceKey,
 } from './workspace-keys';
@@ -79,6 +80,26 @@ describe('workspaceKey', () => {
     expect(terminalKey(key({ key: 'a', metaKey: true }), true)).toBe('selectAll');
     expect(terminalKey(key({ key: 'C', ctrlKey: true, shiftKey: true }), true)).toBeNull();
     expect(isTerminalReserved(key({ key: 'c', ctrlKey: true }), true)).toBe(false);
+  });
+});
+
+describe('shellKey', () => {
+  const key = (init: KeyboardEventInit) => new KeyboardEvent('keydown', init);
+
+  it('maps Ctrl+Shift+R to the shell reverse search, on every system', () => {
+    const search = key({ key: 'R', ctrlKey: true, shiftKey: true });
+    expect(shellKey(search)).toBe('');
+    expect(isTerminalReserved(search, false)).toBe(true);
+    expect(isTerminalReserved(search, true)).toBe(true);
+  });
+
+  it('leaves Ctrl+R and other combos to xterm', () => {
+    const ctrlR = key({ key: 'r', ctrlKey: true });
+    expect(shellKey(ctrlR)).toBeNull();
+    expect(isTerminalReserved(ctrlR, false)).toBe(false);
+    expect(shellKey(key({ key: 'R', ctrlKey: true, shiftKey: true, altKey: true }))).toBeNull();
+    expect(shellKey(key({ key: 'R', metaKey: true, shiftKey: true }))).toBeNull();
+    expect(shellKey(key({ key: 'F', ctrlKey: true, shiftKey: true }))).toBeNull();
   });
 });
 

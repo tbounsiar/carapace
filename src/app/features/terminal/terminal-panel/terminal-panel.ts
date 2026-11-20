@@ -33,6 +33,7 @@ import {
   inTerminal,
   isTerminalMenuKey,
   onApple,
+  shellKey,
   terminalKey,
   type TerminalKey,
 } from '../../workspace/workspace-keys';
@@ -210,6 +211,12 @@ export class TerminalPanel {
       // Also stops the browser's own paste (Ctrl+Shift+V) and devtools (Ctrl+Shift+C) commands.
       event.preventDefault();
       this.run(key);
+      return;
+    }
+    const data = shellKey(event);
+    if (data) {
+      event.preventDefault();
+      this.xterm()?.input(data);
     }
   }
 

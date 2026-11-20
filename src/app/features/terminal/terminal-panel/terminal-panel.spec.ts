@@ -345,6 +345,16 @@ describe('TerminalPanel', () => {
       expect(ipc.write).not.toHaveBeenCalled();
     });
 
+    it('sends Ctrl+Shift+R to the shell as Ctrl+R and keeps the webview from reloading', async () => {
+      await render();
+      const reserved = factory.created[0].reserved!;
+      const search = await press({ key: 'R', ctrlKey: true, shiftKey: true });
+      expect(search.defaultPrevented).toBe(true);
+      expect(reserved(search)).toBe(true);
+      await settleHost();
+      expect(ipc.write).toHaveBeenCalledWith(expect.any(String), '');
+    });
+
     it('takes the keyboard into the menu; Escape closes it before xterm and refocuses', async () => {
       await render();
       await rightClick();

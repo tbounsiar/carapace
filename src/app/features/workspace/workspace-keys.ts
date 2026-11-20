@@ -55,6 +55,15 @@ export function terminalKey(event: KeyboardEvent, apple = onApple()): TerminalKe
   return combo ? (TERMINAL_KEYS[event.key.toLowerCase()] ?? null) : null;
 }
 
+/**
+ * Ctrl+Shift+R as the shell's Ctrl+R (reverse history search). xterm sends nothing for Ctrl+Shift
+ * letters, and the webview would reload the page on this one.
+ */
+export function shellKey(event: KeyboardEvent): string | null {
+  const combo = event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey;
+  return combo && event.key.toLowerCase() === 'r' ? '' : null;
+}
+
 /** The ContextMenu key alone; Shift+F10 stays the shell's (Midnight Commander, htop). */
 export function isTerminalMenuKey(event: KeyboardEvent): boolean {
   return (
@@ -68,7 +77,7 @@ export function isTerminalMenuKey(event: KeyboardEvent): boolean {
 
 /** Combos taken from xterm so the shell never receives them. */
 export function isTerminalReserved(event: KeyboardEvent, apple = onApple()): boolean {
-  if (terminalKey(event, apple) || isTerminalMenuKey(event)) {
+  if (terminalKey(event, apple) || shellKey(event) || isTerminalMenuKey(event)) {
     return true;
   }
   const key = workspaceKey(event);

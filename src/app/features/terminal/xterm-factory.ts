@@ -34,6 +34,8 @@ export interface XtermView {
    * endings as Enter.
    */
   paste(text: string): void;
+  /** Sends `data` to the shell as typed keys, unfiltered. */
+  input(data: string): void;
   /** Viewport point of the cursor cell's top-left corner, or null when it is scrolled out. */
   cursorPoint(): { x: number; y: number } | null;
   dispose(): void;
@@ -126,6 +128,10 @@ class Xterm implements XtermView {
 
   paste(text: string): void {
     this.terminal.paste(pasteSafe(text));
+  }
+
+  input(data: string): void {
+    this.terminal.input(data, true);
   }
 
   cursorPoint(): { x: number; y: number } | null {

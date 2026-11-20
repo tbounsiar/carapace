@@ -76,6 +76,10 @@ export class FakeXterm implements XtermView {
     this.pasted.push(text);
   }
 
+  input(data: string): void {
+    this.type(data);
+  }
+
   cursorPoint(): { x: number; y: number } | null {
     return this.cursor;
   }
