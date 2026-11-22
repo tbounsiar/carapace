@@ -8,6 +8,12 @@ Open **Settings** at the bottom of the sidebar. Changes apply right away; there 
 
 **System** (default) follows the light or dark setting of the operating system; **Light** and **Dark** force one. The sun / moon / monitor button in the header switches the theme too.
 
+## Colors
+
+**Colors** picks a set: **Default**, **High contrast** (strongest text, borders and focus), **Pine** or **Plum**. Each set has a light and a dark version; the theme picks which one shows, and terminals follow it.
+
+**Custom accent color** replaces the accent of the set: buttons, links, focus and selection. Status colors (errors, warnings, success) do not change. If the color would make text hard to read, Carapace makes it darker in light mode or lighter in dark mode and shows the adjusted value.
+
 ## Language
 
 Carapace is available in English, French, German, Spanish, Brazilian Portuguese and Simplified Chinese. **System** (default) follows the operating system's first language: German, Spanish, French, any Portuguese and Simplified Chinese use their translation; Traditional Chinese (Taiwan, Hong Kong, Macau) and every other language get English. Pick a language in the list to force it. The change applies at once, without a restart. Native dialogs (file pickers, the quit confirmation) use the chosen language for their titles and messages; the operating system still draws its own standard buttons and labels.
