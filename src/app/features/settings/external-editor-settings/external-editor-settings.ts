@@ -15,6 +15,7 @@ import { TuiSegmented, TuiSwitch } from '@taiga-ui/kit';
 import { type ExternalEditorSetting, ExternalEditsIpc } from '../../../core/ipc/external-edits';
 import { IpcError } from '../../../core/ipc/ipc-error';
 import { notifyError } from '../../../shared/save-error';
+import { failWith } from '../../project-tree/validators';
 
 type Mode = ExternalEditorSetting['mode'];
 
@@ -46,7 +47,19 @@ export class ExternalEditorSettings {
   protected readonly setting = signal<ExternalEditorSetting | null>(null);
   protected readonly picking = signal(false);
   /** Translation key of a picked app refused by the backend, shown under the path field. */
-  protected readonly appError = signal<string | null>(null);
+  private readonly appError = signal<string | null>(null);
+  /**
+   * The read-only path field. A refusal is its validation error, so Taiga's validator on
+   * `tuiInput` (which rewrites `aria-invalid` after each control event and on focusout) and the
+   * bound `tui-error` both report it.
+   */
+  protected readonly appPath = new FormControl('', {
+    nonNullable: true,
+    validators: () => {
+      const key = this.appError();
+      return key ? failWith(key) : null;
+    },
+  });
   protected readonly mode = new FormControl<Mode>(
     { value: 'system', disabled: true },
     { nonNullable: true },
@@ -103,12 +116,12 @@ export class ExternalEditorSettings {
     if (!current) {
       return;
     }
-    this.appError.set(null);
+    this.refuseApp(null);
     try {
       this.show(await this.ipc.setEditor({ ...current, ...change }));
     } catch (err) {
       if (err instanceof IpcError && err.code === 'app_not_editor') {
-        this.appError.set(NOT_AN_EDITOR);
+        this.refuseApp(NOT_AN_EDITOR);
       } else {
         notifyError(this.alerts, err, this.transloco.translate('settings.notSaved'));
       }
@@ -122,5 +135,16 @@ export class ExternalEditorSettings {
     this.notice.enable({ emitEvent: false });
     this.mode.setValue(setting.mode, { emitEvent: false });
     this.notice.setValue(!setting.noticeSeen, { emitEvent: false });
+    this.appPath.setValue(setting.appPath ?? '', { emitEvent: false });
+  }
+
+  private refuseApp(key: string | null): void {
+    this.appError.set(key);
+    this.appPath.updateValueAndValidity();
+    if (key) {
+      this.appPath.markAsTouched();
+    } else {
+      this.appPath.markAsUntouched();
+    }
   }
 }

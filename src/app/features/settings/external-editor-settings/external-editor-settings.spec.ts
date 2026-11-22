@@ -5,6 +5,7 @@ import { provideTaiga, TuiNotificationService, TuiRoot } from '@taiga-ui/core';
 import { TranslocoService } from '@jsverse/transloco';
 import { of } from 'rxjs';
 import type { ExternalEditorSetting } from '../../../core/ipc/external-edits';
+import { trackLanguage } from '../../../shared/ui-text';
 import { ExternalEditorSettings } from './external-editor-settings';
 
 @Component({
@@ -124,26 +125,64 @@ describe('ExternalEditorSettings', () => {
     expect(byId('settings-ext-path')).toBeNull();
   });
 
-  it('shows a refused app as a field error, not a toast', async () => {
+  async function refuse() {
     setting = { mode: 'custom', appPath: null, noticeSeen: true };
-    const { byId, stable } = await render();
+    const rendered = await render();
     saveError = { code: 'app_not_editor', message: 'cmd.exe runs or forwards files' };
     picked = '/usr/bin/sh';
-    byId('settings-ext-browse')!.click();
-    await stable();
-    await vi.waitFor(() => expect(byId('settings-ext-error')).not.toBeNull());
-    expect(byId('settings-ext-error')?.textContent).toContain(
+    rendered.byId('settings-ext-browse')!.click();
+    await rendered.stable();
+    const error = rendered.byId('settings-ext-error')!;
+    await vi.waitFor(() => expect(error.textContent).toContain('it is not an editor'));
+    return { ...rendered, error };
+  }
+
+  it('shows a refused app as a field error, not a toast', async () => {
+    const { byId, stable, error } = await refuse();
+    expect(error.textContent?.trim()).toBe(
       "This program runs scripts or commands; it is not an editor. Pick your editor's program file.",
     );
-    await vi.waitFor(() =>
-      expect(byId('settings-ext-path')!.getAttribute('aria-invalid')).toBe('true'),
-    );
+    const path = byId<HTMLInputElement>('settings-ext-path')!;
+    await vi.waitFor(() => expect(path.getAttribute('aria-invalid')).toBe('true'));
+    expect(error.id).not.toBe('');
+    expect(path.getAttribute('aria-describedby')).toBe(error.id);
+    expect(path.closest('tui-textfield')!.classList).toContain('tui-invalid');
     expect(alerts.open).not.toHaveBeenCalled();
     saveError = null;
     picked = '/usr/bin/code';
     byId('settings-ext-browse')!.click();
     await stable();
-    expect(byId('settings-ext-error')).toBeNull();
+    await vi.waitFor(() => expect(path.getAttribute('aria-invalid')).toBe('false'));
+    expect(error.textContent?.trim()).toBe('');
+    expect(path.closest('tui-textfield')!.classList).not.toContain('tui-invalid');
+  });
+
+  it('keeps a refused app invalid after the path field loses focus', async () => {
+    const { byId, stable } = await refuse();
+    const path = byId<HTMLInputElement>('settings-ext-path')!;
+    await vi.waitFor(() => expect(path.getAttribute('aria-invalid')).toBe('true'));
+    path.focus();
+    path.blur();
+    path.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    await stable();
+    expect(path.getAttribute('aria-invalid')).toBe('true');
+    expect(path.getAttribute('aria-describedby')).toBe(byId('settings-ext-error')!.id);
+  });
+
+  it('translates the refusal in every language', async () => {
+    const { stable, error } = await refuse();
+    const transloco = TestBed.inject(TranslocoService);
+    trackLanguage(transloco);
+    for (const lang of ['fr', 'de', 'es', 'pt-BR', 'zh-CN', 'en']) {
+      transloco.setActiveLang(lang);
+      await stable();
+      await vi.waitFor(() =>
+        expect(error.textContent?.trim()).toBe(
+          transloco.translate('settings.externalEditor.notAnEditor', {}, lang),
+        ),
+      );
+      expect(error.textContent).not.toContain('settings.externalEditor');
+    }
   });
 
   it('turns the notice off, and restores the switch when the save fails', async () => {

@@ -40,9 +40,7 @@
           [placeholder]="'settings.externalEditor.placeholder' | transloco"
           [attr.aria-label]="'settings.externalEditor.appLabel' | transloco"
           data-testid="settings-ext-path"
-          [attr.aria-invalid]="appError() ? true : null"
-          [attr.aria-describedby]="appError() ? 'settings-ext-error' : null"
-          [value]="path ?? ''"
+          [formControl]="appPath"
           [tuiHint]="path"
         />
       </tui-textfield>
@@ -68,13 +66,7 @@
         {{ 'settings.externalEditor.clear' | transloco }}
       </button>
     </div>
-    @if (appError(); as error) {
-      <tui-error
-        id="settings-ext-error"
-        data-testid="settings-ext-error"
-        [error]="error | transloco"
-      />
-    }
+    <tui-error data-testid="settings-ext-error" [formControl]="appPath" />
     @if (!path) {
       <p class="note">
         {{ 'settings.externalEditor.pickHint' | transloco }}
