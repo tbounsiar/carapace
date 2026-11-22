@@ -349,6 +349,16 @@ export async function testResult(timeout = 30000): Promise<TestResult> {
     },
     { timeout, timeoutMsg: 'the test never ended' },
   );
+  // The region is a tui-elastic-container (overflow hidden, animated height): until it has grown,
+  // WebDriver reports the clipped text as hidden and getText returns '' or a truncated detail.
+  await browser.waitUntil(
+    () =>
+      browser.execute((selector: string) => {
+        const el = document.querySelector(selector);
+        return !!el && el.scrollHeight <= el.clientHeight + 1;
+      }, tid('host-test-result')),
+    { timeout: 5000, timeoutMsg: 'the test result never finished growing' },
+  );
   const detail = byId('host-test-detail');
   return {
     result: (await region.getAttribute('data-result')) ?? '',
