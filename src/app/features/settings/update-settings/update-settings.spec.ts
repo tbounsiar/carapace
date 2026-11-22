@@ -158,6 +158,13 @@ describe('UpdateSettings', () => {
     );
     q('settings-updates-restart')!.click();
     expect(flow.restartNow).toHaveBeenCalled();
+    flow.impact.set({ connections: 0, transfers: 0, dialog: false });
+    await fixture.whenStable();
+    expect(el().querySelector('[data-impact="none"]')!.textContent).toContain(
+      'Nothing will be closed.',
+    );
+    expect(el().querySelector('[data-impact="connections"]')).toBeNull();
+    flow.impact.set({ connections: 1, transfers: 0, dialog: false });
   });
 
   it('errors are inline; a download error keeps the offer, a refusal replaces it', async () => {

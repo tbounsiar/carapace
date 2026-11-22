@@ -64,7 +64,7 @@ export function restartRequired(failure: UpdateFailure): boolean {
 }
 
 export interface ImpactLine {
-  readonly kind: 'connections' | 'transfers' | 'dialog';
+  readonly kind: 'connections' | 'transfers' | 'dialog' | 'none';
   readonly text: string;
 }
 
@@ -76,7 +76,7 @@ export function progressText(progress: UpdateProgress | null, locale: string): s
     : uiText('updates.notice.progressUnknown', { done });
 }
 
-/** Only the lines that apply, in the order connections, transfers, dialog. */
+/** The lines that apply, in the order connections, transfers, dialog; else "Nothing will be closed." */
 export function impactLines(impact: RestartImpact): ImpactLine[] {
   const lines: ImpactLine[] = [];
   if (impact.connections) {
@@ -94,5 +94,5 @@ export function impactLines(impact: RestartImpact): ImpactLine[] {
   if (impact.dialog) {
     lines.push({ kind: 'dialog', text: uiText('updates.notice.impactDialog') });
   }
-  return lines;
+  return lines.length ? lines : [{ kind: 'none', text: uiText('updates.notice.impactNone') }];
 }

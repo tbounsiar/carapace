@@ -452,6 +452,15 @@ describe('UpdateFlow', () => {
       await updating;
       expect(store.phase()).toBe('ready');
       expect(flow.impact().dialog).toBe(true);
+      // Closing the dialog empties the impact but never installs on its own.
+      none.set(true);
+      TestBed.tick();
+      await settle();
+      expect(flow.impact()).toEqual({ connections: 0, transfers: 0, dialog: false });
+      expect(store.phase()).toBe('ready');
+      expect(ipc.apply).not.toHaveBeenCalled();
+      await flow.restartNow();
+      expect(ipc.apply).toHaveBeenCalledWith(true);
     });
 
     it('unsaved changes go through the quit confirm with the connection and transfer lines', async () => {

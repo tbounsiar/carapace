@@ -1,5 +1,6 @@
 import { signal } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
+import { TranslocoService } from '@jsverse/transloco';
 import { provideTaiga } from '@taiga-ui/core';
 import type { UpdateState } from '../../../core/ipc/updates';
 import { type RestartImpact, UpdateFlow } from '../update-flow';
@@ -61,6 +62,8 @@ describe('UpdateNotice', () => {
     expect(el().dataset['state']).toBe('available');
     expect(el().dataset['mode']).toBe('inPlace');
     expect(text('update-notice-title')).toBe('Carapace 0.3.0 is available');
+    // The version never sits alone on a wrapped line.
+    expect(q('update-notice-title')!.textContent).toContain('Carapace 0.3.0');
     expect(el().textContent).toContain('You have 0.2.0.');
     q('update-notice-notes')!.click();
     q('update-notice-install')!.click();
@@ -84,7 +87,9 @@ describe('UpdateNotice', () => {
     expect(el().dataset['mode']).toBe('downloadOnly');
     expect(q('update-notice-install')).toBeNull();
     expect(q('update-notice-download')).not.toBeNull();
-    expect(el().textContent).toContain('This installation cannot update itself.');
+    expect(el().textContent).toContain(
+      'This installation cannot update itself. Install the new package from the release page.',
+    );
   });
 
   it('Downloading: bar with value and sizes, Cancel; unknown total is indeterminate', async () => {
@@ -130,6 +135,33 @@ describe('UpdateNotice', () => {
     ]);
     q('update-notice-restart')!.click();
     expect(flow.restartNow).toHaveBeenCalled();
+  });
+
+  it('Ready in French: a short Restart that keeps Later on the same row', async () => {
+    await render();
+    impact.set({ connections: 1, transfers: 0, dialog: false });
+    store.phase.set('ready');
+    TestBed.inject(TranslocoService).setActiveLang('fr');
+    await fixture.whenStable();
+    expect(q('update-notice-restart')!.textContent?.trim()).toBe('Redémarrer');
+    expect(q('update-notice-later')!.textContent?.trim()).toBe('Plus tard');
+    expect(q('update-notice-restart')!.parentElement).toBe(q('update-notice-later')!.parentElement);
+    expect(q('update-notice-title')!.textContent?.trim()).toBe(
+      'Carapace 0.3.0 est prêt à être installé',
+    );
+    TestBed.inject(TranslocoService).setActiveLang('en');
+  });
+
+  it('Ready with nothing left open says so instead of an empty body', async () => {
+    await render();
+    store.phase.set('ready');
+    await fixture.whenStable();
+    const lines = [...q('update-notice-impact')!.querySelectorAll('[data-impact]')];
+    expect(lines.map((l) => [l.getAttribute('data-impact'), l.textContent?.trim()])).toEqual([
+      ['none', 'Nothing will be closed.'],
+    ]);
+    expect(q('update-notice-restart')).not.toBeNull();
+    expect(q('update-notice-later')).not.toBeNull();
   });
 
   it('Installing: the platform line, no buttons', async () => {
