@@ -1,0 +1,90 @@
+{
+  "testing": "Testando {address}…",
+  "cancelled": "Teste cancelado.",
+  "connectedAs": "Conectado como {address}",
+  "duration": {
+    "ms": "{value} ms",
+    "s": "{value} s"
+  },
+  "auth": {
+    "agent": "Agente SSH",
+    "password": "Senha",
+    "passwordTyped": "Senha (digitada para este teste)",
+    "passwordFrom": "Senha de {ref}",
+    "passwordSaved": "Senha salva no chaveiro",
+    "key": "Arquivo de chave privada",
+    "keyTyped": "Arquivo de chave privada, frase secreta digitada para este teste",
+    "keyFrom": "Arquivo de chave privada, frase secreta de {ref}",
+    "keySaved": "Arquivo de chave privada, frase secreta salva"
+  },
+  "origin": {
+    "passwordVariable": "A senha veio de {ref}.",
+    "passwordStored": "A senha veio do chaveiro.",
+    "passphraseVariable": "A frase secreta veio de {ref}.",
+    "passphraseStored": "A frase secreta veio do chaveiro."
+  },
+  "failure": {
+    "network": {
+      "title": "Não foi possível acessar {host}",
+      "detail": "{detail}Verifique o nome do host, a porta e sua rede."
+    },
+    "timeout": {
+      "title": "Sem resposta de {host}",
+      "detail": "O servidor não respondeu em 15 segundos. Verifique o nome do host, a porta, uma VPN ou um firewall."
+    },
+    "passwordRejected": {
+      "title": "O servidor recusou a senha",
+      "detail": "Verifique o nome de usuário e depois a senha ou a variável secreta que ela usa."
+    },
+    "keyRefused": {
+      "title": "O servidor recusou a chave",
+      "detail": "Verifique se a chave pública dela está em {file} de {user} no servidor, ou escolha outra chave."
+    },
+    "agentRefused": {
+      "title": "O agente SSH não ofereceu nenhuma chave aceita",
+      "detail": "{detail}Verifique se o agente está em execução e contém uma chave autorizada no servidor."
+    },
+    "wrongPassphrase": {
+      "title": "Frase secreta incorreta para {path}",
+      "detail": "Verifique a variável secreta ou escolha “Solicitar ao conectar” e digite-a."
+    },
+    "hostKeyRejected": {
+      "title": "Chave do host não aceita",
+      "detail": "Teste novamente e aceite a chave se a impressão digital corresponder à fornecida pelo administrador do servidor."
+    },
+    "hostKeyChanged": {
+      "title": "A chave do host mudou",
+      "detail": "O servidor apresenta uma chave diferente da armazenada para {host}. Confirme-a com o administrador do servidor; para substituí-la, salve o host e conecte."
+    },
+    "hostKeyRevoked": {
+      "title": "A chave do host foi revogada",
+      "detail": "A chave apresentada por {host} está marcada como revogada em known_hosts. Entre em contato com o administrador do servidor."
+    },
+    "keyUnusable": {
+      "title": "Arquivo de chave inutilizável",
+      "detail": "{detail}Verifique o caminho da chave."
+    },
+    "knownHostsUnreadable": {
+      "title": "Não foi possível ler known_hosts"
+    },
+    "keyUnreadable": {
+      "title": "Não foi possível ler {path}",
+      "detail": "{detail}Verifique o caminho da chave ou escolha uma chave registrada."
+    },
+    "keychain": {
+      "title": "Chaveiro do sistema indisponível",
+      "detail": "Desbloqueie-o ou ative-o, ou escolha “Solicitar ao conectar”."
+    },
+    "missingVariables": {
+      "title": "Variáveis ausentes",
+      "detail": "{detail}Defina-as nas variáveis globais ou do projeto."
+    },
+    "busy": {
+      "title": "Há testes demais em execução",
+      "detail": "Aguarde um terminar e teste novamente."
+    },
+    "failed": {
+      "title": "Falha no teste"
+    }
+  }
+}

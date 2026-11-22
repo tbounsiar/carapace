@@ -1,0 +1,127 @@
+{
+  "page": {
+    "title": "Chaves SSH",
+    "subtitle": "Gere ou importe chaves privadas e depois implante a chave pública delas em um host. As chaves privadas nunca saem deste computador.",
+    "generate": "Gerar chave",
+    "import": "Importar chave",
+    "columns": {
+      "name": "Nome",
+      "type": "Tipo",
+      "fingerprint": "Impressão digital",
+      "comment": "Comentário",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "badges": {
+      "encrypted": "Criptografada",
+      "passphraseSaved": "Frase secreta salva",
+      "external": "Externa",
+      "customFolder": "Pasta personalizada"
+    },
+    "rowMenu": "Ações de {name}",
+    "menu": {
+      "copy": "Copiar chave pública",
+      "deploy": "Implantar no host…",
+      "forget": "Esquecer frase secreta"
+    },
+    "loadError": "Não foi possível carregar as chaves SSH",
+    "retry": "Tentar novamente",
+    "unavailable": "Chaves indisponíveis",
+    "empty": {
+      "title": "Nenhuma chave SSH ainda",
+      "text": "Gere uma nova chave Ed25519 ou importe uma chave privada que você já tenha."
+    }
+  },
+  "actions": {
+    "renameTitle": "Renomear chave",
+    "copied": "Chave pública copiada",
+    "copyFailed": "Falha ao copiar",
+    "noClipboard": "A área de transferência não está disponível.",
+    "forgotten": "Frase secreta esquecida",
+    "forgottenText": "A frase secreta de {name} não está mais salva.",
+    "notForgotten": "Frase secreta não esquecida",
+    "deleteTitle": "Excluir a chave “{name}”?",
+    "notDeleted": "Chave não excluída",
+    "deleteConflict": "O arquivo neste caminho não contém mais esta chave. Nada foi excluído.",
+    "deployTitle": "Implantar chave pública",
+    "deployFailed": "Falha na implantação",
+    "hostGone": "O host não existe mais.",
+    "restricted": "Chave restrita",
+    "restrictedText": "Chave presente com restrições (opções) em {host}; não alterada. Edite authorized_keys manualmente para permitir logins normais.",
+    "deployed": "Chave implantada",
+    "deployedText": "Chave adicionada a authorized_keys em {host}",
+    "nothingToDo": "Nada a fazer",
+    "presentText": "Chave já presente em {host}",
+    "hostNotUpdated": "Host não atualizado"
+  },
+  "fields": {
+    "name": "Nome",
+    "passphraseOptional": "Frase secreta (opcional)",
+    "rememberPassphrase": "Lembrar a frase secreta no chaveiro do sistema"
+  },
+  "delete": {
+    "text": "A chave é removida da lista e qualquer frase secreta salva é esquecida.",
+    "deleteFiles": "Excluir também os arquivos da chave",
+    "pubFile": "e {file}.pub.",
+    "managedNote": "Os servidores que confiam nesta chave não poderão mais ser acessados com ela.",
+    "sharedNote": "Outras ferramentas podem usar esta chave.",
+    "importedNote": "O arquivo continua onde está: ele foi importado, não gerado aqui."
+  },
+  "deploy": {
+    "intro": "Acrescenta a chave pública de {name} a {file} no host. Você se conecta antes, como de costume.",
+    "host": "Host",
+    "pickHost": "Escolha um host",
+    "noHosts": "Nenhum host ainda",
+    "useKey": "Usar esta chave para o host",
+    "useKeyNote": "Define a autenticação do host com esta chave ({path}).",
+    "submit": "Implantar"
+  },
+  "keygen": {
+    "type": "Tipo",
+    "typeNote": "Ed25519 é recomendado. RSA 4096 é mais lento, para servidores sem Ed25519.",
+    "folder": "Pasta",
+    "resetFolder": "Usar a pasta padrão",
+    "chooseFolder": "Escolher uma pasta",
+    "fileName": "Nome do arquivo",
+    "fileNameHint": "Letras, dígitos, “.”, “_” e “-”. A chave pública recebe o sufixo .pub.",
+    "savedAs": "Salva como {file} e {pub} nesta pasta.",
+    "folderWarning": "Outros usuários podem abrir esta pasta. O arquivo da chave privada continua legível só por você, mas eles talvez possam substituí-lo ou excluí-lo.",
+    "comment": "Comentário",
+    "confirm": "Confirmar frase secreta",
+    "rsaSlow": "Gerar uma chave RSA leva alguns segundos.",
+    "submit": "Gerar",
+    "folderMissing": "Esta pasta não existe. Crie-a ou escolha outra.",
+    "folderDenied": "O Carapace não consegue gravar nesta pasta. Escolha outra.",
+    "fileExists": "{file} ou {file}.pub já existe nesta pasta.",
+    "pickerFailed": "Seletor de pasta não aberto",
+    "notGenerated": "Chave não gerada"
+  },
+  "import": {
+    "path": "Caminho da chave privada",
+    "chooseFile": "Escolher um arquivo de chave",
+    "pathHint": "Uma chave privada OpenSSH. O arquivo não é copiado: ele continua onde está e é apenas registrado.",
+    "passphraseNote": "Necessária apenas para lembrar a frase secreta de uma chave criptografada.",
+    "submit": "Importar",
+    "pickerFailed": "Seletor de arquivo não aberto",
+    "notImported": "Chave não importada",
+    "wrongPassphrase": "Frase secreta incorreta"
+  },
+  "validation": {
+    "nameRequired": "O nome é obrigatório",
+    "nameMax": "O nome deve ter no máximo {max} caracteres",
+    "nameTaken": "Já existe uma chave com este nome",
+    "fileNameRequired": "O nome do arquivo é obrigatório",
+    "fileNameMax": "O nome do arquivo deve ter no máximo {max} caracteres",
+    "fileNameDot": "O nome do arquivo não pode começar com “.”",
+    "fileNameChars": "O nome do arquivo só pode conter letras, dígitos, “.”, “_” e “-”",
+    "commentMax": "O comentário deve ter no máximo {max} caracteres",
+    "commentLine": "O comentário deve ter uma única linha",
+    "passphraseMax": "A frase secreta deve ter no máximo {max} caracteres",
+    "mismatch": "As frases secretas não coincidem",
+    "pathRequired": "O caminho é obrigatório",
+    "networkPath": "Caminhos de rede não são suportados",
+    "pathAbsolute": "Use um caminho absoluto ou um que comece com ~/",
+    "folderRequired": "Escolha uma pasta para a chave.",
+    "folderAbsolute": "Use um caminho completo ou um que comece com ~/."
+  }
+}

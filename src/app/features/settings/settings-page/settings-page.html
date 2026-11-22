@@ -79,26 +79,70 @@
   </fieldset>
 
   <fieldset class="group" data-testid="settings-language">
-    <legend class="legend">{{ 'settings.language.title' | transloco }}</legend>
-    <tui-segmented size="s" [(activeItemIndex)]="languageIndex">
-      @for (option of languageOptions(); track option.value) {
-        <label [attr.data-testid]="'settings-language-' + option.value" [lang]="option.lang">
-          <input
-            type="radio"
-            name="language"
-            [value]="option.value"
-            [formControl]="languageControl"
-          />
-          @if (option.name) {
-            {{ option.name }}
-          } @else {
-            {{ 'settings.language.system' | transloco: { name: systemLanguageName() } }}
+    <legend class="legend" id="settings-language-label">
+      {{ 'settings.language.title' | transloco }}
+    </legend>
+    <tui-textfield
+      tuiChevron
+      tuiTextfieldSize="s"
+      class="language"
+      [content]="languageContent"
+      [stringify]="languageText()"
+      [tuiTextfieldCleaner]="false"
+    >
+      <input
+        tuiSelect
+        aria-labelledby="settings-language-label"
+        data-testid="settings-language-select"
+        [lang]="languageLang()"
+        [formControl]="languageControl"
+      />
+      <tui-data-list *tuiDropdown size="s">
+        <tui-opt-group>
+          <button
+            tuiOption
+            type="button"
+            value="system"
+            data-testid="settings-language-system"
+            [lang]="systemLabel().uiLang"
+          >
+            <span><ng-container *ngTemplateOutlet="systemText" /></span>
+          </button>
+        </tui-opt-group>
+        <hr />
+        <tui-opt-group>
+          @for (option of languageOptions; track option.value) {
+            <button
+              tuiOption
+              type="button"
+              [value]="option.value"
+              [attr.data-testid]="'settings-language-' + option.value"
+              [lang]="option.value"
+            >
+              <span class="app-cjk">{{ option.name }}</span>
+            </button>
           }
-        </label>
-      }
-    </tui-segmented>
+        </tui-opt-group>
+      </tui-data-list>
+    </tui-textfield>
     <p class="note">{{ 'settings.language.note' | transloco }}</p>
   </fieldset>
+
+  <ng-template #systemText>
+    {{ systemLabel().before
+    }}<span class="app-cjk" [lang]="systemLabel().lang">{{ systemLabel().name }}</span
+    >{{ systemLabel().after }}
+  </ng-template>
+
+  <ng-template #languageContent let-value>
+    <span class="language-value" [lang]="langOf(value)">
+      @if (value === 'system') {
+        <ng-container *ngTemplateOutlet="systemText" />
+      } @else {
+        <span class="app-cjk">{{ nameOf(value) }}</span>
+      }
+    </span>
+  </ng-template>
 
   <fieldset class="group">
     <legend class="legend">{{ 'settings.keyType.title' | transloco }}</legend>

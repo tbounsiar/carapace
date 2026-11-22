@@ -1,6 +1,29 @@
 :root {
   /* Taiga ships no monospace token; technical text (hostnames, fingerprints, paths) uses this one. */
   --app-font-mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+  /*
+   * Simplified Chinese faces, used only for Chinese text: without them the OS may draw Han
+   * characters with a Japanese font. Latin text keeps Manrope.
+   */
+  --app-font-cjk-sc:
+    'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    'Source Han Sans SC', 'WenQuanYi Micro Hei';
+}
+
+/* Overrides Taiga's family tokens on :root, where its typography tokens are resolved. */
+:root:lang(zh) {
+  /* Chinese glyphs become unreadable below 12 px; Taiga's 11 px size moves up one step. */
+  --tui-typography-ui-2xs: var(--tui-typography-ui-xs);
+  --tui-typography-family-text: 'Manrope', var(--app-font-cjk-sc), system-ui, sans-serif;
+  --tui-typography-family-display: 'Manrope', var(--app-font-cjk-sc), system-ui, sans-serif;
+  --app-font-mono:
+    ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, 'Noto Sans Mono CJK SC',
+    var(--app-font-cjk-sc), monospace;
+}
+
+/* Chinese text inside another UI language (the 简体中文 option): the tokens above do not apply. */
+.app-cjk:lang(zh) {
+  font-family: 'Manrope', var(--app-font-cjk-sc), system-ui, sans-serif;
 }
 
 /* Created by TerminalSessions outside any component view, so it can't be styled from the panel. */

@@ -1,0 +1,93 @@
+{
+  "theme": {
+    "title": "主题",
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色",
+    "note": "“跟随系统”使用操作系统的浅色或深色设置。"
+  },
+  "colors": {
+    "title": "颜色",
+    "default": "默认",
+    "defaultNote": "标准外观，文字清晰易读",
+    "highContrast": "高对比度",
+    "highContrastNote": "文字、边框和焦点最醒目",
+    "pine": "松绿",
+    "pineNote": "灰绿色背景，青色强调色",
+    "plum": "梅紫",
+    "plumNote": "灰紫色背景，紫色强调色",
+    "note": "每套颜色都有浅色和深色版本；由“主题”决定显示哪一个。终端也会随之变化。"
+  },
+  "accent": {
+    "title": "自定义强调色",
+    "note": "按钮、链接、焦点和选中项。状态颜色不变。",
+    "label": "强调色",
+    "light": "浅色 {hex}",
+    "dark": "深色 {hex}",
+    "adjustedBoth": "已在浅色模式下调暗、在深色模式下调亮，以保持文字清晰易读。",
+    "adjustedLight": "已在浅色模式下调暗，以保持文字清晰易读。",
+    "adjustedDark": "已在深色模式下调亮，以保持文字清晰易读。"
+  },
+  "language": {
+    "title": "语言",
+    "system": "跟随系统（{name}）",
+    "note": "“跟随系统”使用操作系统的语言。"
+  },
+  "title": "设置",
+  "subtitle": "此应用在此电脑上的偏好设置。更改会立即生效。",
+  "notSaved": "设置未保存",
+  "keyType": {
+    "title": "默认密钥类型",
+    "note": "生成密钥时预先选中。推荐使用 Ed25519。"
+  },
+  "fontSize": {
+    "title": "终端字体大小",
+    "valueText": "{size} 像素",
+    "note": "从 {min} 到 {max} px。打开的终端会立即更新。"
+  },
+  "privacy": {
+    "title": "隐私",
+    "doNotTrack": "已关闭，因为此电脑上设置了 DO_NOT_TRACK。不会发送任何内容。",
+    "readError": "无法读取此设置。请重启应用。",
+    "events": "查看最近的事件",
+    "eventsTitle": "最近的使用事件",
+    "unavailable": "此版本不发送使用数据。更改仍会保存。"
+  },
+  "data": {
+    "title": "数据",
+    "nothing": "还没有可导出的内容。",
+    "note": "将项目、主机、集合和变量导出到文件，或导入文件。密码和其他机密从不包含在内。应用设置不包含在内。",
+    "export": "导出…",
+    "import": "导入…"
+  },
+  "externalEditor": {
+    "title": "外部编辑器",
+    "system": "系统默认",
+    "custom": "自定义应用",
+    "customNote": "文件用此应用打开；文件是它唯一的参数。",
+    "systemNote": "文件用系统为该类型设置的应用打开。脚本和程序永远不会被运行：如需编辑它们，请选择自定义应用。",
+    "placeholder": "未选择应用",
+    "appLabel": "编辑器应用",
+    "browse": "浏览…",
+    "clear": "清除",
+    "pickHint": "请选择编辑器的程序文件。在此之前，文件将用系统默认应用打开。",
+    "copyNote": "编辑期间，文件的副本存储在此电脑上，停止编辑时删除。",
+    "notice": "在 Carapace 外部打开文件前显示提示",
+    "notAnEditor": "此程序会运行脚本或命令；它不是编辑器。请选择编辑器的程序文件。",
+    "notRead": "设置未读取",
+    "pickerError": "文件选择器未打开"
+  },
+  "updates": {
+    "title": "更新",
+    "version": "Carapace {version}",
+    "auto": "自动检查更新",
+    "autoNote": "启动时及每 24 小时检查一次。GitHub 能看到您的 IP 地址，但看不到关于您或您的主机的任何信息。",
+    "checkNow": "立即检查",
+    "checking": "正在检查…",
+    "upToDate": "Carapace 已是最新版本。",
+    "lastChecked": "上次检查：{when}",
+    "skipped": "您已跳过此版本。不会再提示该版本。",
+    "unavailable": "此版本不检查更新。",
+    "busy": "正在进行更新。"
+  }
+}

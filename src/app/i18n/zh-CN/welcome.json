@@ -1,0 +1,31 @@
+{
+  "loadError": "无法加载主机",
+  "retry": "重试",
+  "title": "主页",
+  "noHosts": "还没有主机",
+  "empty": {
+    "title": "这里还没有内容",
+    "text": "将主机归入项目以便它们共享变量，或直接添加主机。"
+  },
+  "newProject": "新建项目",
+  "addHost": "添加主机",
+  "newHost": "新建主机",
+  "newCollection": "新建集合",
+  "importFile": "从文件导入",
+  "actions": "主页操作",
+  "search": "搜索主机和项目",
+  "noMatch": {
+    "title": "没有与“{query}”匹配的主机或项目",
+    "text": "搜索范围包括主机名、地址和集合名。",
+    "clear": "清除搜索"
+  },
+  "noneConnected": {
+    "title": "没有已连接的主机",
+    "text": "从主机卡片或侧边栏连接主机。",
+    "showAll": "全部显示"
+  },
+  "projects": "项目",
+  "connections": "{count, plural, other {# 个打开的连接}}",
+  "export": "导出…",
+  "import": "导入…"
+}

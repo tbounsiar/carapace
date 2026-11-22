@@ -1,0 +1,58 @@
+{
+  "view": {
+    "upload": "Upload",
+    "download": "Download",
+    "queued": "In Warteschlange",
+    "waiting": "Wartet auf Entscheidung",
+    "done": "{skipped, plural, =0 {Fertig} other {Fertig · # übersprungen}}",
+    "cancelled": "{skipped, plural, =0 {Abgebrochen} other {Abgebrochen · # übersprungen}}",
+    "failed": "Fehlgeschlagen: {message}",
+    "unexpected": "Unerwarteter Fehler",
+    "bytesOf": "{done} von {total}",
+    "filesOf": "{done} von {total} Dateien"
+  },
+  "panel": {
+    "toggle": "Übertragungen",
+    "status": "Übertragungsstatus",
+    "running": "{count, plural, other {# aktiv}}",
+    "waiting": "{count, plural, other {# wartend}}",
+    "queued": "{count, plural, other {# in Warteschlange}}",
+    "done": "{count, plural, other {# fertig}}",
+    "failed": "{count, plural, other {# fehlgeschlagen}}",
+    "clear": "Abgeschlossene entfernen",
+    "list": "Übertragungen",
+    "progress": "Fortschritt von {name}",
+    "cancel": "{name} abbrechen",
+    "empty": "Noch keine Übertragungen. Wählen Sie Dateien aus und verwenden Sie „Hochladen“ oder „Herunterladen“, oder ziehen Sie sie in den anderen Bereich."
+  },
+  "menu": {
+    "retry": "Wiederholen",
+    "showRemote": "Im entfernten Bereich anzeigen",
+    "showLocal": "Im lokalen Bereich anzeigen",
+    "notConnected": "Verbinden Sie sich zuerst mit dem Remote-Host",
+    "label": "Übertragungsaktionen für {name}"
+  },
+  "conflict": {
+    "title": "Datei existiert bereits",
+    "exists": "{name} existiert bereits im Zielordner.",
+    "destination": "Ziel",
+    "existing": "Vorhanden",
+    "incoming": "Eingehend",
+    "unknown": "Unbekannt",
+    "applyToAll": "Auf alle verbleibenden Konflikte dieser Übertragung anwenden",
+    "overwrite": "Überschreiben",
+    "skip": "Überspringen",
+    "keepBoth": "Beide behalten"
+  },
+  "queue": {
+    "unavailable": "Übertragungen nicht verfügbar",
+    "notStarted": "Übertragung nicht gestartet",
+    "notCancelled": "Übertragung nicht abgebrochen",
+    "notCleared": "Abgeschlossene Übertragungen nicht entfernt",
+    "answerNotSent": "Antwort auf den Konflikt nicht gesendet",
+    "failedOneTitle": "Übertragung fehlgeschlagen",
+    "failedOne": "{name}: {reason}",
+    "failedManyTitle": "{count, plural, one {# Übertragung fehlgeschlagen} other {# Übertragungen fehlgeschlagen}}",
+    "failedMany": "{count, plural, one {{names} und # weitere.} other {{names} und # weitere.}}"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "stats": {
+    "hosts": "{count, plural, one {# host} other {# hosts}}",
+    "noHosts": "Nenhum host ainda",
+    "collections": "{count, plural, one {# coleção} other {# coleções}}",
+    "connected": "{count, plural, one {# conectado} other {# conectados}}",
+    "projects": "{count, plural, one {# projeto} other {# projetos}}"
+  },
+  "count": "{visible} de {total, plural, one {# host} other {# hosts}}",
+  "card": {
+    "actions": "Ações",
+    "actionsFor": "Ações de {name}",
+    "terminal": "Terminal",
+    "openTerminal": "Abrir terminal em {name}",
+    "files": "Arquivos",
+    "browseFiles": "Navegar nos arquivos de {name}",
+    "connect": "Conectar",
+    "connectHost": "Conectar {name}",
+    "missing": "Variáveis não definidas: {names}",
+    "move": "Mover para…",
+    "disconnect": "Desconectar"
+  },
+  "toolbar": {
+    "search": "Pesquisar hosts",
+    "show": "Mostrar",
+    "all": "Todos",
+    "connected": "Conectados"
+  }
+}

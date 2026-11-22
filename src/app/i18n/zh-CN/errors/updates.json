@@ -1,0 +1,16 @@
+{
+  "browserFailed": "无法打开浏览器",
+  "busy": "已有更新正在下载或安装",
+  "cancelled": "下载已取消",
+  "installFailed": "无法安装更新",
+  "invalidVersion": "版本无效",
+  "network": "无法访问更新服务器",
+  "noUpdate": "没有可用的更新",
+  "notUploaded": "部分已编辑的文件有未上传的更改",
+  "nothingDownloaded": "尚未下载任何更新",
+  "restartRequired": "请重启 Carapace 以完成或重试更新",
+  "signature": "更新签名被拒绝；未安装任何内容",
+  "unavailable": "未找到可用的更新信息",
+  "unconfirmed": "有传输正在进行，或编辑器中有未保存的更改",
+  "unsupported": "在此系统上，更新需从发布页面安装"
+}

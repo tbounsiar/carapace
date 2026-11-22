@@ -1,0 +1,32 @@
+{
+  "panel": {
+    "lost": "Verbindung verloren.",
+    "ended": "Sitzung beendet.",
+    "endedWith": "Sitzung beendet. {reason}",
+    "reasons": {
+      "exited": "Die Shell wurde beendet.",
+      "closed": "Das Terminal wurde geschlossen.",
+      "connectionLost": "Die Verbindung wurde unterbrochen."
+    },
+    "reopen": "Erneut öffnen"
+  },
+  "sessions": {
+    "loadFailed": "Die Terminalkomponente konnte nicht geladen werden. Starten Sie die App neu und versuchen Sie es erneut.",
+    "notOpened": "Terminal nicht geöffnet",
+    "notClosed": "Terminal nicht geschlossen",
+    "inputLost": "Terminaleingabe verloren"
+  },
+  "menu": {
+    "label": "Terminalaktionen",
+    "copy": "Kopieren",
+    "paste": "Einfügen",
+    "selectAll": "Alles auswählen",
+    "clear": "Verlauf löschen",
+    "noSelection": "Kein Text ausgewählt",
+    "sessionEnded": "Sitzung beendet",
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "copyFailedText": "Die Zwischenablage ist nicht verfügbar.",
+    "pasteFailed": "Einfügen fehlgeschlagen",
+    "pasteFailedText": "Die Zwischenablage konnte nicht gelesen werden. Versuchen Sie Umschalt+Einfg."
+  }
+}

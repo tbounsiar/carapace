@@ -64,10 +64,12 @@ export async function waitForApp(): Promise<void> {
   await waitLanguage();
 }
 
+const LANGUAGES = ['en', 'fr', 'de', 'es', 'pt-BR', 'zh-CN'];
+
 function savedLanguage(): string | null {
   try {
     const language = readSettings()?.['language'];
-    return language === 'en' || language === 'fr' ? language : null;
+    return typeof language === 'string' && LANGUAGES.includes(language) ? language : null;
   } catch {
     return null;
   }

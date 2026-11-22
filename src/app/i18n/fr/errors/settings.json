@@ -5,7 +5,7 @@
   "keyFolderInvalid": "Le chemin du dossier des clés n’est pas valide",
   "keyFolderNotLocal": "Le dossier des clés doit être un chemin local complet, ou commencer par ~/",
   "keyFolderSpaces": "Le dossier des clés doit être un chemin sans espaces au début ni à la fin",
-  "language": "language doit valoir system, en ou fr",
+  "language": "language doit valoir system, en, fr, de, es, pt-BR ou zh-CN",
   "notAnObject": "Les préférences doivent être un objet",
   "palette": "palette doit valoir default, high-contrast, pine ou plum",
   "terminalFontSize": "terminalFontSize doit être un nombre entier de {min} à {max}",

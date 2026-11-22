@@ -42,7 +42,7 @@ In the host dialog, choose **Private key file** and either type the path or use 
 
 ## Deploy a public key
 
-**Deploy to host...** in a key's **…** menu appends its public key to `~/.ssh/authorized_keys` on a host, so you can log in with the key afterwards.
+**Deploy to host…** in a key's **…** menu appends its public key to `~/.ssh/authorized_keys` on a host, so you can log in with the key afterwards.
 
 1. Choose the **Host**. Carapace connects first, as usual (for example with the password).
 2. Leave **Use this key for the host** ticked to switch the host's authentication to this key.

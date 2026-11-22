@@ -1,0 +1,38 @@
+{
+  "notFound": {
+    "title": "未找到项目",
+    "text": "它可能已被删除。",
+    "home": "前往主页"
+  },
+  "placeholderTitle": "项目",
+  "newHost": "新建主机",
+  "actions": "项目操作",
+  "tabs": "项目",
+  "hosts": "主机",
+  "variables": "变量",
+  "loadError": "无法加载主机",
+  "retry": "重试",
+  "menu": {
+    "newCollection": "新建集合",
+    "export": "导出项目…"
+  },
+  "empty": {
+    "title": "此项目为空",
+    "text": "在此添加主机，或创建集合对主机进行分组。",
+    "newCollection": "新建集合"
+  },
+  "noHosts": {
+    "title": "还没有主机",
+    "text": "在顶层或某个集合中添加主机。"
+  },
+  "noMatch": {
+    "title": "没有与“{query}”匹配的主机",
+    "text": "搜索范围包括主机名、地址和集合名。",
+    "clear": "清除搜索"
+  },
+  "noneConnected": {
+    "title": "没有已连接的主机",
+    "text": "从主机卡片或侧边栏连接主机。",
+    "showAll": "全部显示"
+  }
+}

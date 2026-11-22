@@ -1,0 +1,8 @@
+{
+  "missingVariables": "缺少变量",
+  "connectionFailed": "连接失败",
+  "disconnectFailed": "断开连接失败",
+  "keyReplaced": "主机密钥已替换",
+  "keyReplacedText": "已替换存储的密钥。请重新连接以继续。",
+  "keyNotReplaced": "主机密钥未替换"
+}

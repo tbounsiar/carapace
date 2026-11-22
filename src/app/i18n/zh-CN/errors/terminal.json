@@ -1,0 +1,15 @@
+{
+  "busy": "终端暂时不接受输入",
+  "channelRefused": "服务器不允许在此连接上再打开会话",
+  "network": "无法在该主机上打开 shell",
+  "notConnected": "该主机未连接",
+  "notFound": "未找到终端",
+  "ptyRefused": "该主机拒绝分配终端（pty）",
+  "required": "{name} 为必填项",
+  "sessionRejected": "该主机拒绝为终端打开会话",
+  "shellRefused": "该主机拒绝启动 shell",
+  "size": "cols 必须为 1 到 {cols}，rows 必须为 1 到 {rows}",
+  "timeout": "打开终端时，该主机未及时响应",
+  "tooMany": "一个连接最多只能打开 {max} 个终端",
+  "writeTooLarge": "每次调用的数据最多 {max} 字节"
+}

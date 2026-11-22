@@ -1,0 +1,18 @@
+{
+  "deleteRefused": "拒绝删除 {path}",
+  "deleteRoot": "拒绝删除根目录",
+  "homeUnreadable": "无法访问主目录",
+  "interrupted": "文件操作被中断",
+  "nameBackslash": "名称不能包含 \\",
+  "nameTrailing": "名称不能以点或空格结尾",
+  "nameWindowsChars": "名称不能包含 < > : \" | ? 或 *",
+  "notDirectory": "{path} 不是目录",
+  "notLocal": "{path} 不是本地路径",
+  "pathControl": "路径不能包含控制字符",
+  "pathNotUnicode": "路径不是有效的 Unicode",
+  "pathRelative": "本地路径必须是绝对路径",
+  "pathRequired": "路径为必填项",
+  "pathTooLong": "路径过长",
+  "renameRoot": "无法重命名根目录",
+  "reservedName": "{name} 是保留名称"
+}

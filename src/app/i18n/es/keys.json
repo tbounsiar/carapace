@@ -1,0 +1,127 @@
+{
+  "page": {
+    "title": "Claves SSH",
+    "subtitle": "Genera o importa claves privadas y luego implementa su clave pública en un host. Las claves privadas nunca salen de este equipo.",
+    "generate": "Generar clave",
+    "import": "Importar clave",
+    "columns": {
+      "name": "Nombre",
+      "type": "Tipo",
+      "fingerprint": "Huella digital",
+      "comment": "Comentario",
+      "status": "Estado",
+      "actions": "Acciones"
+    },
+    "badges": {
+      "encrypted": "Cifrada",
+      "passphraseSaved": "Frase guardada",
+      "external": "Externa",
+      "customFolder": "Carpeta propia"
+    },
+    "rowMenu": "Acciones de {name}",
+    "menu": {
+      "copy": "Copiar la clave pública",
+      "deploy": "Implementar en un host…",
+      "forget": "Olvidar la frase de contraseña"
+    },
+    "loadError": "No se pudieron cargar las claves SSH",
+    "retry": "Reintentar",
+    "unavailable": "Claves no disponibles",
+    "empty": {
+      "title": "Aún no hay claves SSH",
+      "text": "Genera una nueva clave Ed25519 o importa una clave privada que ya tengas."
+    }
+  },
+  "actions": {
+    "renameTitle": "Cambiar el nombre de la clave",
+    "copied": "Clave pública copiada",
+    "copyFailed": "Error al copiar",
+    "noClipboard": "El portapapeles no está disponible.",
+    "forgotten": "Frase de contraseña olvidada",
+    "forgottenText": "La frase de contraseña de {name} ya no está guardada.",
+    "notForgotten": "Frase de contraseña no olvidada",
+    "deleteTitle": "¿Eliminar la clave “{name}”?",
+    "notDeleted": "Clave no eliminada",
+    "deleteConflict": "El archivo de esta ruta ya no contiene esta clave. No se eliminó nada.",
+    "deployTitle": "Implementar la clave pública",
+    "deployFailed": "Error al implementar",
+    "hostGone": "El host ya no existe.",
+    "restricted": "Clave restringida",
+    "restrictedText": "La clave está presente con restricciones (opciones) en {host}; no se modificó. Edita authorized_keys a mano para permitir inicios de sesión normales.",
+    "deployed": "Clave implementada",
+    "deployedText": "Clave agregada a authorized_keys en {host}",
+    "nothingToDo": "No hay nada que hacer",
+    "presentText": "La clave ya está presente en {host}",
+    "hostNotUpdated": "Host no actualizado"
+  },
+  "fields": {
+    "name": "Nombre",
+    "passphraseOptional": "Frase de contraseña (opcional)",
+    "rememberPassphrase": "Recordar la frase de contraseña en el llavero del sistema"
+  },
+  "delete": {
+    "text": "La clave se quita de la lista y se olvida la frase de contraseña guardada, si la hay.",
+    "deleteFiles": "Eliminar también los archivos de la clave",
+    "pubFile": "y {file}.pub.",
+    "managedNote": "Ya no se podrá acceder con esta clave a los servidores que confían en ella.",
+    "sharedNote": "Puede que otras herramientas usen esta clave.",
+    "importedNote": "El archivo se queda donde está: se importó, no se generó aquí."
+  },
+  "deploy": {
+    "intro": "Agrega la clave pública de {name} a {file} en el host. Primero te conectas, como de costumbre.",
+    "host": "Host",
+    "pickHost": "Elige un host",
+    "noHosts": "Aún no hay hosts",
+    "useKey": "Usar esta clave para el host",
+    "useKeyNote": "Configura la autenticación del host con esta clave ({path}).",
+    "submit": "Implementar"
+  },
+  "keygen": {
+    "type": "Tipo",
+    "typeNote": "Se recomienda Ed25519. RSA 4096 es más lento, para servidores sin Ed25519.",
+    "folder": "Carpeta",
+    "resetFolder": "Usar la carpeta predeterminada",
+    "chooseFolder": "Elegir una carpeta",
+    "fileName": "Nombre de archivo",
+    "fileNameHint": "Letras, dígitos, “.”, “_” y “-”. La clave pública lleva el sufijo .pub.",
+    "savedAs": "Se guarda como {file} y {pub} en esta carpeta.",
+    "folderWarning": "Otros usuarios pueden abrir esta carpeta. Solo tú puedes leer el archivo de la clave privada, pero puede que ellos puedan reemplazarlo o eliminarlo.",
+    "comment": "Comentario",
+    "confirm": "Confirmar la frase de contraseña",
+    "rsaSlow": "Generar una clave RSA tarda unos segundos.",
+    "submit": "Generar",
+    "folderMissing": "Esta carpeta no existe. Créala o elige otra.",
+    "folderDenied": "Carapace no puede escribir en esta carpeta. Elige otra.",
+    "fileExists": "{file} o {file}.pub ya existe en esta carpeta.",
+    "pickerFailed": "Selector de carpetas no abierto",
+    "notGenerated": "Clave no generada"
+  },
+  "import": {
+    "path": "Ruta de la clave privada",
+    "chooseFile": "Elegir un archivo de clave",
+    "pathHint": "Una clave privada OpenSSH. El archivo no se copia: se queda donde está y solo se registra.",
+    "passphraseNote": "Solo hace falta para recordar la frase de contraseña de una clave cifrada.",
+    "submit": "Importar",
+    "pickerFailed": "Selector de archivos no abierto",
+    "notImported": "Clave no importada",
+    "wrongPassphrase": "Frase de contraseña incorrecta"
+  },
+  "validation": {
+    "nameRequired": "El nombre es obligatorio",
+    "nameMax": "El nombre debe tener como máximo {max} caracteres",
+    "nameTaken": "Ya existe una clave con este nombre",
+    "fileNameRequired": "El nombre de archivo es obligatorio",
+    "fileNameMax": "El nombre de archivo debe tener como máximo {max} caracteres",
+    "fileNameDot": "El nombre de archivo no debe empezar por “.”",
+    "fileNameChars": "El nombre de archivo solo puede contener letras, dígitos, “.”, “_” y “-”",
+    "commentMax": "El comentario debe tener como máximo {max} caracteres",
+    "commentLine": "El comentario debe ocupar una sola línea",
+    "passphraseMax": "La frase de contraseña debe tener como máximo {max} caracteres",
+    "mismatch": "Las frases de contraseña no coinciden",
+    "pathRequired": "La ruta es obligatoria",
+    "networkPath": "No se admiten rutas de red",
+    "pathAbsolute": "Usa una ruta absoluta o una que empiece por ~/",
+    "folderRequired": "Elige una carpeta para la clave.",
+    "folderAbsolute": "Usa una ruta completa o una que empiece por ~/."
+  }
+}

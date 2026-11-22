@@ -1,0 +1,14 @@
+{
+  "accentColor": "accentColor muss eine #rrggbb-Farbe oder null sein",
+  "defaultKeyType": "defaultKeyType muss ed25519 oder rsa4096 sein",
+  "keyFolder": "keyFolder muss ein Pfad oder null sein",
+  "keyFolderInvalid": "der Pfad des Schlüsselordners ist ungültig",
+  "keyFolderNotLocal": "der Schlüsselordner muss ein vollständiger lokaler Pfad sein oder mit ~/ beginnen",
+  "keyFolderSpaces": "der Schlüsselordner muss ein Pfad ohne Leerzeichen am Anfang oder Ende sein",
+  "language": "language muss system, en, fr, de, es, pt-BR oder zh-CN sein",
+  "notAnObject": "die Einstellungen müssen ein Objekt sein",
+  "palette": "palette muss default, high-contrast, pine oder plum sein",
+  "terminalFontSize": "terminalFontSize muss eine ganze Zahl von {min} bis {max} sein",
+  "theme": "theme muss system, light oder dark sein",
+  "unknownSetting": "unbekannte Einstellung"
+}

@@ -1,0 +1,175 @@
+{
+  "pickerBusy": "Ein anderer Dateidialog ist geöffnet. Schließen Sie ihn zuerst.",
+  "reloadError": "Daten nicht neu geladen",
+  "global": "global",
+  "and": "{head} und {last}",
+  "andMore": "{names} und {count} weitere",
+  "count": {
+    "project": "{count, plural, one {# Projekt} other {# Projekte}}",
+    "collection": "{count, plural, one {# Sammlung} other {# Sammlungen}}",
+    "host": "{count, plural, one {# Host} other {# Hosts}}",
+    "variable": "{count, plural, one {# Variable} other {# Variablen}}",
+    "key": "{count, plural, one {# SSH-Schlüssel} other {# SSH-Schlüssel}}",
+    "globalVariable": "{count, plural, one {# globale Variable} other {# globale Variablen}}",
+    "secretValue": "{count, plural, one {# Wert einer geheimen Variable} other {# Werte geheimer Variablen}}"
+  },
+  "kinds": {
+    "project": "Projekte",
+    "collection": "Sammlungen",
+    "host": "Hosts",
+    "variable": "Variablen",
+    "key": "SSH-Schlüssel"
+  },
+  "columns": {
+    "added": "Neu",
+    "updated": "Aktualisiert",
+    "unchanged": "Unverändert",
+    "skipped": "Übersprungen",
+    "removed": "Gelöscht",
+    "copied": "Kopiert"
+  },
+  "strategy": {
+    "merge": "Zusammenführen",
+    "replace": "Ersetzen",
+    "duplicate": "Beide behalten"
+  },
+  "badge": {
+    "update": "Aktualisiert",
+    "copy": "Kopiert",
+    "rename": "Umbenannt",
+    "remove": "Gelöscht",
+    "skip": "Übersprungen"
+  },
+  "replaceNote": {
+    "project": "{name} genau wie in der Datei machen",
+    "home": "Start und globale Variablen genau wie in der Datei machen",
+    "all": "Alle Ihre Daten genau wie in der Datei machen"
+  },
+  "scope": {
+    "project": "Projekt „{name}“",
+    "home": "Start",
+    "all": "Alles"
+  },
+  "summary": {
+    "added": "{list} hinzugefügt",
+    "copied": "{list} kopiert",
+    "updated": "{list} aktualisiert",
+    "removed": "{list} gelöscht",
+    "registered": "{list} registriert",
+    "sentence": "{text}.",
+    "nothing": "Nichts wurde geändert.",
+    "undoneTitle": "Import rückgängig gemacht",
+    "undoneText": "Ihre Daten sind wieder wie vor dem Import.",
+    "completeTitle": "Import abgeschlossen",
+    "disconnected": "Getrennt",
+    "secretsTitle": "Festzulegende Secrets",
+    "backup": "Sicherung:",
+    "undo": "Import rückgängig machen",
+    "done": "Fertig",
+    "lostHint": "Stellt Ihre Daten wie vor dem Import wieder her. Gelöschte geheime Werte können nicht wiederhergestellt werden.",
+    "undoError": "Der Import konnte nicht rückgängig gemacht werden. Ihre Daten von vor dem Import befinden sich in {name} im Carapace-Ordner.",
+    "openProjectVariables": "Variablen von {name} öffnen",
+    "openGlobalVariables": "Globale Variablen öffnen",
+    "secretLine": "{name} ({scope}) – {count, plural, one {# Host} other {# Hosts}}"
+  },
+  "confirm": {
+    "deleted": "{list} {form, select, ms {wird} fs {wird} other {werden}} zusammen mit den gespeicherten Passwörtern von diesem Computer gelöscht.",
+    "secretsDeleted": "Geheime Werte und gespeicherte Passwörter werden von diesem Computer gelöscht.",
+    "connections": "{count, plural, one {# offene Verbindung wird geschlossen.} other {# offene Verbindungen werden geschlossen.}}",
+    "backup": "Eine Sicherung Ihrer Daten wird aufbewahrt."
+  },
+  "deletedSecrets": {
+    "savedPasswords": "die gespeicherten Passwörter von {count, plural, one {# Host} other {# Hosts}}",
+    "replace": "„Ersetzen“ löscht {list} von diesem Computer.",
+    "other": "Dieser Import löscht {list} von diesem Computer."
+  },
+  "secretsSent": {
+    "line": "{host} sendet {variable} an {to}",
+    "lineFrom": "{host} sendet {variable} an {to} statt an {from}",
+    "more": "und {count} weitere"
+  },
+  "needsSecret": {
+    "line": "{name} ({scope}) – verwendet von {count, plural, one {# Host} other {# Hosts}}"
+  },
+  "undefined": {
+    "part": "{name} (verwendet von {count, plural, one {# Host} other {# Hosts}})",
+    "line": "Nirgends definiert: {list}."
+  },
+  "detail": {
+    "authRef": "{auth} {ref}",
+    "authKey": "{auth} {path}",
+    "authKeyPassphrase": "{auth} {path}, Passphrase {ref}",
+    "global": "Global",
+    "address": "Adresse: {from} → {to}",
+    "location": "Wird von {from} nach {to} verschoben",
+    "name": "Umbenannt: {from} → {to}",
+    "value": "Wert: {from} → {to}",
+    "auth": "Authentifizierung: {from} → {to}",
+    "kind": "Art: {from} → {to}",
+    "sameId": "Gleiche ID",
+    "sameName": "Gleicher Name wie {kind, select, project {ein Projekt} collection {eine Sammlung} host {ein Host} variable {eine Variable} other {ein SSH-Schlüssel}} hier",
+    "keptSecret": "Bleibt auf diesem Computer geheim",
+    "becomesSecret": "Wird geheim, ohne Wert",
+    "variableExists": "Übersprungen: Eine Variable mit diesem Namen existiert hier",
+    "outsideHome": "Schlüsseldatei außerhalb Ihres Benutzerordners. Fügen Sie sie unter „SSH-Schlüssel“ manuell hinzu.",
+    "outsideHomePath": "Schlüsseldatei außerhalb Ihres Benutzerordners: {path}. Fügen Sie sie unter „SSH-Schlüssel“ manuell hinzu.",
+    "keyMissing": "Schlüsseldatei auf diesem Computer nicht gefunden",
+    "keyMissingPath": "Schlüsseldatei auf diesem Computer nicht gefunden: {path}",
+    "keyMismatch": "Schlüsseldatei stimmt nicht überein",
+    "keyMismatchAlgorithm": "Schlüsseldatei stimmt nicht überein ({algorithm})",
+    "deleted": "Von diesem Computer gelöscht",
+    "redirects": "Ändert die Adresse von {count, plural, one {# Host} other {# Hosts}}: {names}"
+  },
+  "workspace": {
+    "tabs": "{count, plural, one {# offener Tab wird geschlossen.} other {# offene Tabs werden geschlossen.}}",
+    "unsaved": "Nicht gespeicherte Änderungen in {names} gehen verloren."
+  },
+  "export": {
+    "title": "Daten exportieren",
+    "toast": "Exportiert nach {file}",
+    "empty": "Noch leer",
+    "legend": "Was soll exportiert werden?",
+    "all": "Alles",
+    "allNote": "Projekte, Start, globale Variablen, SSH-Schlüssel",
+    "home": "Start",
+    "homeNote": "Hosts außerhalb von Projekten, globale Variablen, SSH-Schlüssel",
+    "project": "Ein Projekt",
+    "projectNote": "Ein Projekt mit seinen Variablen",
+    "noProjects": "Noch keine Projekte",
+    "projectLabel": "Projekt",
+    "includeShared": "Die globalen Variablen und SSH-Schlüssel einbeziehen, die seine Hosts verwenden",
+    "notIncluded": "Nicht enthalten",
+    "notIncludedText": "Passwörter und Passphrasen (auch gespeicherte), Werte geheimer Variablen und Schlüsseldateien. Geheime Variablen werden mit ihrem Namen exportiert: Legen Sie ihre Werte nach dem Import fest. Die Datei listet Ihre Hosts und Benutzernamen auf; teilen Sie sie nur mit Personen, die diese sehen dürfen.",
+    "error": "Datei nicht gespeichert",
+    "submit": "Exportieren…"
+  },
+  "import": {
+    "title": "Daten importieren",
+    "exported": "exportiert am {date}",
+    "chooseAnother": "Andere Datei wählen",
+    "legend": "Wenn ein Element hier bereits existiert",
+    "mergeNote": "Neue Elemente hinzufügen, übereinstimmende aktualisieren, den Rest behalten",
+    "duplicateNote": "Übereinstimmende Elemente als Kopien importieren",
+    "blocking": "Dieser Import ist mit „{strategy}“ nicht möglich: {reasons}.",
+    "nothing": "Nichts zu importieren: Dieser Computer enthält bereits alles aus der Datei.",
+    "caption": "Was sich ändert",
+    "item": "Element",
+    "details": "Details ({count})",
+    "more": "und {count} weitere",
+    "connectionsTitle": "{count, plural, one {# verbundener Host ist betroffen} other {# verbundene Hosts sind betroffen}}",
+    "tabsTitle": "Offene Tabs sind betroffen",
+    "connectionsBody": "{names} {count, plural, one {wird gelöscht oder in ein anderes Projekt verschoben. Die Verbindung wird getrennt.} other {werden gelöscht oder in ein anderes Projekt verschoben. Ihre Verbindungen werden getrennt.}}",
+    "secretsTitle": "Nach dem Import festzulegende Secrets",
+    "variablesTitle": "Zu definierende Variablen",
+    "askedWhenConnecting": "Sie werden beim Verbinden danach gefragt, bis Sie sie unter „Variablen“ festlegen.",
+    "refreshed": "Ihre Daten haben sich seit dieser Vorschau geändert. Die Vorschau wurde aktualisiert.",
+    "secretsWarning": "Gespeicherte Secrets gehen an neue Server",
+    "trust": "Ich vertraue diesen Servern",
+    "backupNote": "Zuerst wird eine Sicherung Ihrer aktuellen Daten gespeichert.",
+    "submit": "Importieren",
+    "submitReplace": "Ersetzen…",
+    "expired": "Diese Vorschau ist abgelaufen. Wählen Sie die Datei erneut.",
+    "confirmTitle": "Daten ersetzen?",
+    "confirmYes": "Ersetzen"
+  }
+}

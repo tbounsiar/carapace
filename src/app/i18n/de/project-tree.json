@@ -1,0 +1,129 @@
+{
+  "topLevel": "{scope} (oberste Ebene)",
+  "counts": {
+    "collections": "{count, plural, one {# Sammlung} other {# Sammlungen}}",
+    "hosts": "{count, plural, one {# Host} other {# Hosts}}",
+    "both": "{collections, plural, one {# Sammlung} other {# Sammlungen}} und {hosts, plural, one {# Host} other {# Hosts}}"
+  },
+  "validation": {
+    "required": "„{label}“ ist erforderlich",
+    "maxLength": "„{label}“ darf höchstens {max} Zeichen lang sein",
+    "noWhitespace": "„{label}“ darf keine Leerzeichen enthalten",
+    "hostnameChars": "Der Hostname darf nur Buchstaben, Ziffern, „.“, „-“ und „:“ enthalten",
+    "portRequired": "Der Port ist erforderlich",
+    "portRange": "Der Port muss zwischen 1 und 65535 liegen",
+    "invalidReference": "„{reference}“ ist kein gültiger Variablenverweis; schreiben Sie $$ für ein literales $",
+    "portTemplate": "Der Port muss aus Ziffern oder einer einzelnen Variable wie {example} bestehen",
+    "secretReference": "„{label}“ muss ein Verweis auf eine geheime Variable wie {example} sein",
+    "keyPathRequired": "Der Schlüsselpfad ist erforderlich",
+    "networkPath": "Netzwerkpfade werden nicht unterstützt",
+    "publicKey": "Dies ist ein öffentlicher Schlüssel. Wählen Sie die Datei ohne .pub.",
+    "absolutePath": "Verwenden Sie einen absoluten Pfad oder einen, der mit ~/ beginnt"
+  },
+  "nameDialog": {
+    "name": "Name"
+  },
+  "hostDialog": {
+    "location": "In: {location}",
+    "note": "Felder akzeptieren Variablen wie {example}; schreiben Sie {escape} für ein literales {dollar}.",
+    "fields": {
+      "name": "Name",
+      "hostname": "Hostname",
+      "port": "Port",
+      "username": "Benutzername",
+      "keyPath": "Schlüsselpfad",
+      "password": "Passwort",
+      "passphrase": "Passphrase"
+    },
+    "authentication": "Authentifizierung",
+    "pickKey": "Registrierten Schlüssel wählen",
+    "noKeys": "Noch keine registrierten Schlüssel",
+    "browseKey": "Schlüsseldatei wählen",
+    "noKeysList": "Keine registrierten Schlüssel. Fügen Sie unter „SSH-Schlüssel“ einen hinzu.",
+    "notRegistered": "Nicht unter „SSH-Schlüssel“. Registrieren Sie ihn, um seine Passphrase zu speichern und ihn zu verteilen.",
+    "register": "Diesen Schlüssel registrieren",
+    "ask": "Beim Verbinden fragen",
+    "passphraseHint": "Nur für einen verschlüsselten Schlüssel. Wählen Sie eine geheime Variable (definiert in den Projektvariablen oder den globalen Variablen) oder lassen Sie sich bei Bedarf fragen.",
+    "passwordHint": "Wählen Sie eine geheime Variable (definiert in den Projektvariablen oder den globalen Variablen) oder lassen Sie sich beim Verbinden fragen.",
+    "missing": "Fehlende Variablen: {names}",
+    "resolves": "Wird aufgelöst zu {address}",
+    "blocker": {
+      "projectGone": "Dieses Projekt existiert nicht mehr.",
+      "missing": "Definieren Sie die fehlenden Variablen, um die Verbindung zu testen.",
+      "invalid": "Korrigieren Sie die markierten Felder, um die Verbindung zu testen."
+    },
+    "test": "Verbindung testen",
+    "cancelTest": "Test abbrechen",
+    "pickerFailed": "Dateiauswahl nicht geöffnet",
+    "importKey": "Schlüssel importieren",
+    "keyRegistered": "Schlüssel registriert",
+    "replace": {
+      "label": "Vorlage ersetzen?",
+      "content": "Der Schlüsselpfad verwendet {refs}. Durch diese Datei ersetzen? Der Host folgt der Variable dann nicht mehr.",
+      "yes": "Ersetzen",
+      "no": "Vorlage behalten"
+    }
+  },
+  "moveDialog": {
+    "filter": "Orte filtern",
+    "locations": "Orte",
+    "noMatch": "Kein Ort entspricht „{query}“.",
+    "current": "(aktueller Ort)",
+    "move": "Verschieben"
+  },
+  "move": {
+    "title": "„{name}“ verschieben",
+    "moved": "„{name}“ nach {destination} verschoben",
+    "undone": "Verschieben rückgängig gemacht",
+    "undo": "Rückgängig",
+    "hostFailed": "Host nicht verschoben",
+    "collectionFailed": "Sammlung nicht verschoben",
+    "renameFirst": "{message}. Benennen Sie zuerst eines davon um.",
+    "warning": {
+      "title": {
+        "out": "Verschieben aus dem Projekt",
+        "other": "Verschieben in ein anderes Projekt",
+        "into": "Verschieben in ein Projekt"
+      },
+      "question": {
+        "out": "Aus dem Projekt verschieben?",
+        "other": "In ein anderes Projekt verschieben?",
+        "into": "In ein Projekt verschieben?"
+      },
+      "hostToProject": "{name} verwendet dann die Variablen von {project}. Seine offenen Verbindungen werden geschlossen und seine gespeicherten Passwörter vergessen.",
+      "hostToHome": "{name} verwendet dann nur globale Variablen. Seine offenen Verbindungen werden geschlossen und seine gespeicherten Passwörter vergessen.",
+      "collectionToProject": "{count, plural, one {Der Host} other {Die # Hosts}} in {name} {count, plural, one {verwendet} other {verwenden}} dann die Variablen von {project}. {count, plural, one {Seine offenen Verbindungen werden geschlossen und seine gespeicherten Passwörter vergessen.} other {Ihre offenen Verbindungen werden geschlossen und ihre gespeicherten Passwörter vergessen.}}",
+      "collectionToHome": "{count, plural, one {Der Host} other {Die # Hosts}} in {name} {count, plural, one {verwendet} other {verwenden}} dann nur globale Variablen. {count, plural, one {Seine offenen Verbindungen werden geschlossen und seine gespeicherten Passwörter vergessen.} other {Ihre offenen Verbindungen werden geschlossen und ihre gespeicherten Passwörter vergessen.}}",
+      "missing": "Nicht definiert in {scope}: {names}."
+    }
+  },
+  "actions": {
+    "newProject": "Neues Projekt",
+    "renameProject": "Projekt umbenennen",
+    "newCollection": "Neue Sammlung",
+    "renameCollection": "Sammlung umbenennen",
+    "newHost": "Neuer Host",
+    "editHost": "Host bearbeiten",
+    "collectionPlaceholder": "Backend",
+    "collectionConflict": "Hier existiert bereits eine Sammlung mit diesem Namen.",
+    "deleteProject": {
+      "label": "Projekt löschen?",
+      "full": "„{name}“ enthält {content}. Der gesamte Inhalt wird gelöscht, mit seinen Variablen und gespeicherten Passwörtern. Offene Verbindungen werden geschlossen. Dies kann nicht rückgängig gemacht werden.",
+      "empty": "„{name}“ ist leer. Es wird mit seinen Variablen gelöscht. Dies kann nicht rückgängig gemacht werden.",
+      "failed": "Projekt nicht gelöscht"
+    },
+    "deleteCollection": {
+      "label": "Sammlung löschen?",
+      "full": "„{name}“ enthält {content}. Alles wird gelöscht, mit den gespeicherten Passwörtern. Offene Verbindungen zu diesen Hosts werden geschlossen. Dies kann nicht rückgängig gemacht werden. Um die Hosts zu behalten, verschieben Sie sie zuerst.",
+      "empty": "„{name}“ ist leer.",
+      "failed": "Sammlung nicht gelöscht"
+    },
+    "deleteHost": {
+      "label": "Host löschen?",
+      "content": "„{name}“ und seine gespeicherten Passwörter werden gelöscht. Offene Verbindungen zu diesem Host werden geschlossen.",
+      "failed": "Host nicht gelöscht"
+    },
+    "tabs": "{count, plural, one {# offener Tab wird} other {# offene Tabs werden}} geschlossen.",
+    "unsaved": "Nicht gespeicherte Änderungen in {names} gehen verloren."
+  }
+}

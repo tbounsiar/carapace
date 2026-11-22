@@ -1,5 +1,5 @@
 {
-  "testing": "Testing {address}...",
+  "testing": "Testing {address}…",
   "cancelled": "Test cancelled.",
   "connectedAs": "Connected as {address}",
   "duration": {

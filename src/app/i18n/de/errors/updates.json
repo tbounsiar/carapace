@@ -1,0 +1,16 @@
+{
+  "browserFailed": "der Browser konnte nicht geöffnet werden",
+  "busy": "ein Update wird bereits heruntergeladen oder installiert",
+  "cancelled": "der Download wurde abgebrochen",
+  "installFailed": "das Update konnte nicht installiert werden",
+  "invalidVersion": "die Version ist ungültig",
+  "network": "der Update-Server ist nicht erreichbar",
+  "noUpdate": "kein Update verfügbar",
+  "notUploaded": "einige bearbeitete Dateien haben Änderungen, die nicht hochgeladen sind",
+  "nothingDownloaded": "es wurde kein Update heruntergeladen",
+  "restartRequired": "starten Sie Carapace neu, um das Update abzuschließen oder erneut zu versuchen",
+  "signature": "die Signatur des Updates wurde abgelehnt; es wurde nichts installiert",
+  "unavailable": "es wurden keine verwendbaren Update-Informationen gefunden",
+  "unconfirmed": "Übertragungen laufen oder Editoren haben nicht gespeicherte Änderungen",
+  "unsupported": "auf diesem System werden Updates über die Release-Seite installiert"
+}

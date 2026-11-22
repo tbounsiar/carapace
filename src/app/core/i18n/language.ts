@@ -3,34 +3,75 @@ import { TranslocoService } from '@jsverse/transloco';
 import { TuiLanguageSwitcherService } from '@taiga-ui/i18n';
 import { firstValueFrom } from 'rxjs';
 
-export type LanguagePreference = 'system' | 'en' | 'fr';
-export type AppLanguage = 'en' | 'fr';
+/** Interface languages in picker order: by their own name, Latin script first, CJK last. */
+export const APP_LANGUAGES = ['de', 'en', 'es', 'fr', 'pt-BR', 'zh-CN'] as const;
+
+export type AppLanguage = (typeof APP_LANGUAGES)[number];
+export type LanguagePreference = 'system' | AppLanguage;
 
 export const LANGUAGE_CACHE = 'carapace.language';
 
 /** Each language named in itself, so users find theirs in a UI they cannot read. */
 export const LANGUAGE_NAMES: Readonly<Record<AppLanguage, string>> = {
+  de: 'Deutsch',
   en: 'English',
+  es: 'Español',
   fr: 'Français',
+  'pt-BR': 'Português do Brasil',
+  'zh-CN': '简体中文',
 };
 
-const TAIGA_LANGUAGES: Readonly<Record<AppLanguage, string>> = {
+export const TAIGA_LANGUAGES: Readonly<Record<AppLanguage, string>> = {
+  de: 'german',
   en: 'english',
+  es: 'spanish',
   fr: 'french',
+  'pt-BR': 'portuguese',
+  'zh-CN': 'chinese',
 };
 
 const LOCALES: Readonly<Record<AppLanguage, string>> = {
+  de: 'de-DE',
   en: 'en-US',
+  es: 'es-ES',
   fr: 'fr-FR',
+  'pt-BR': 'pt-BR',
+  'zh-CN': 'zh-CN',
 };
 
-/** The `Intl` locale of an interface language; anything but French is English. */
+export function isAppLanguage(value: unknown): value is AppLanguage {
+  return (APP_LANGUAGES as readonly unknown[]).includes(value);
+}
+
+/** The `Intl` locale of an interface language; an unknown code is English. */
 export function localeOf(language: string): string {
-  return LOCALES[language === 'fr' ? 'fr' : 'en'];
+  return LOCALES[isAppLanguage(language) ? language : 'en'];
 }
 
 export function isLanguagePreference(value: unknown): value is LanguagePreference {
-  return value === 'system' || value === 'en' || value === 'fr';
+  return value === 'system' || isAppLanguage(value);
+}
+
+/**
+ * The spec's `system` rule, the same as `native_text.rs` `from_locale` so the page and the native
+ * dialogs agree. The primary subtag is compared whole: `frr` is North Frisian, `zha` Zhuang.
+ * Traditional Chinese gets English, not Simplified.
+ */
+export function resolveLocale(locale: string | null | undefined): AppLanguage {
+  const tag = (locale ?? '').split(/[.@]/)[0].toLowerCase();
+  const [primary, second] = tag.split(/[-_]/);
+  switch (primary) {
+    case 'fr':
+    case 'de':
+    case 'es':
+      return primary;
+    case 'pt':
+      return 'pt-BR';
+    case 'zh':
+      return ['hant', 'cht', 'tw', 'hk', 'mo'].includes(second ?? '') ? 'en' : 'zh-CN';
+    default:
+      return 'en';
+  }
 }
 
 export function readCachedLanguage(): LanguagePreference | null {
@@ -42,11 +83,11 @@ export function readCachedLanguage(): LanguagePreference | null {
   }
 }
 
+/** Only the first OS language counts, as in Rust, which reads a single locale. */
 export function systemLanguage(
   nav: Pick<Navigator, 'languages' | 'language'> = navigator,
 ): AppLanguage {
-  const first = nav.languages?.[0] ?? nav.language ?? '';
-  return first.toLowerCase().startsWith('fr') ? 'fr' : 'en';
+  return resolveLocale(nav.languages?.[0] ?? nav.language);
 }
 
 /** Taiga's switcher reads localStorage in its constructor and throws where storage is blocked. */

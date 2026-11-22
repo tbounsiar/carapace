@@ -8,11 +8,15 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@jsverse/transloco';
+import type { TuiStringHandler } from '@taiga-ui/cdk';
 import {
+  TuiDataList,
   TuiDialogService,
+  TuiDropdown,
   TuiError,
   TuiGroup,
   TuiIcon,
@@ -22,9 +26,10 @@ import {
   TuiNotificationService,
   TuiRadio,
   TuiSlider,
+  TuiTextfield,
   TuiTitle,
 } from '@taiga-ui/core';
-import { TuiBlock, TuiSegmented, TuiSwitch } from '@taiga-ui/kit';
+import { TuiBlock, TuiChevron, TuiSegmented, TuiSelect, TuiSwitch } from '@taiga-ui/kit';
 import { TuiForm, TuiHeader } from '@taiga-ui/layout';
 import { PolymorpheusComponent } from '@taiga-ui/polymorpheus';
 import {
@@ -33,6 +38,7 @@ import {
   type AnalyticsCategory,
 } from '../../../core/ipc/analytics';
 import {
+  APP_LANGUAGES,
   type AppLanguage,
   LANGUAGE_NAMES,
   type LanguagePreference,
@@ -75,7 +81,7 @@ const PALETTE_OPTIONS: readonly { value: Palette; label: string; note: string }[
   { value: 'plum', label: 'settings.colors.plum', note: 'settings.colors.plumNote' },
 ];
 
-const LANGUAGE_VALUES: readonly LanguagePreference[] = ['system', 'en', 'fr'];
+const NAME_MARK = '';
 
 const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
   { value: 'ed25519', label: 'Ed25519' },
@@ -87,9 +93,13 @@ const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
     AccentField,
     DataSettings,
     ExternalEditorSettings,
+    NgTemplateOutlet,
     ReactiveFormsModule,
     TuiError,
     TuiBlock,
+    TuiChevron,
+    TuiDataList,
+    TuiDropdown,
     TuiForm,
     TuiGroup,
     TuiHeader,
@@ -99,8 +109,10 @@ const KEY_TYPE_OPTIONS: readonly { value: KeyType; label: string }[] = [
     TuiNotification,
     TuiRadio,
     TuiSegmented,
+    TuiSelect,
     TuiSlider,
     TuiSwitch,
+    TuiTextfield,
     TuiTitle,
     TranslocoPipe,
     UpdateSettings,
@@ -121,15 +133,29 @@ export class SettingsPage {
   protected readonly paletteOptions = PALETTE_OPTIONS;
   protected readonly variants = ['light', 'dark'] as const;
   protected readonly keyTypeOptions = KEY_TYPE_OPTIONS;
-  /** `lang` of each option: English and Français in their own language, System in the UI's. */
-  protected readonly languageOptions = computed(() =>
-    LANGUAGE_VALUES.map((value) => ({
-      value,
-      lang: (value === 'system' ? this.language.active() : value) satisfies AppLanguage,
-      name: value === 'system' ? null : LANGUAGE_NAMES[value],
-    })),
-  );
-  protected readonly systemLanguageName = computed(() => LANGUAGE_NAMES[this.language.system()]);
+  /** Always the native names, whatever the UI language. */
+  protected readonly languageOptions = APP_LANGUAGES.map((value) => ({
+    value,
+    name: LANGUAGE_NAMES[value],
+  }));
+  private readonly translation = toSignal(this.transloco.selectTranslation());
+  /**
+   * "System (<name>)" cut around the name, so the name can carry the language it is written in
+   * while the rest follows the UI.
+   */
+  protected readonly systemLabel = computed(() => {
+    this.translation();
+    const marked = this.transloco.translate('settings.language.system', { name: NAME_MARK });
+    const [before = '', after = ''] = marked.split(NAME_MARK);
+    const lang = this.language.system();
+    return { before, after, lang, name: LANGUAGE_NAMES[lang], uiLang: this.language.active() };
+  });
+  protected readonly languageLang = computed(() => this.langOf(this.settings.language()));
+  protected readonly languageText = computed<TuiStringHandler<LanguagePreference>>(() => {
+    const system = this.systemLabel();
+    return (value) =>
+      value === 'system' ? system.before + system.name + system.after : this.nameOf(value);
+  });
   protected readonly fontSizeMin = FONT_SIZE_MIN;
   protected readonly fontSizeMax = FONT_SIZE_MAX;
 
@@ -162,7 +188,6 @@ export class SettingsPage {
     nonNullable: true,
   });
   protected readonly themeIndex = signal(0);
-  protected readonly languageIndex = signal(0);
   protected readonly keyTypeIndex = signal(0);
 
   protected readonly analyticsState = this.analytics.current;
@@ -229,7 +254,6 @@ export class SettingsPage {
     effect(() => {
       const language = this.settings.language();
       this.languageControl.setValue(language, { emitEvent: false });
-      this.languageIndex.set(LANGUAGE_VALUES.indexOf(language));
     });
     effect(() => {
       const type = this.settings.defaultKeyType();
@@ -275,6 +299,15 @@ export class SettingsPage {
         .pipe(takeUntilDestroyed())
         .subscribe((granted) => void this.setCategory(category, granted));
     }
+  }
+
+  protected nameOf(value: LanguagePreference): string {
+    return value === 'system' ? '' : LANGUAGE_NAMES[value];
+  }
+
+  /** The closed field's `lang`: System is written in the UI language, the others in their own. */
+  protected langOf(value: LanguagePreference): AppLanguage {
+    return value === 'system' ? this.language.active() : value;
   }
 
   protected paletteFocusIn(palette: Palette, event: FocusEvent): void {

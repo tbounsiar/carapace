@@ -1,0 +1,31 @@
+{
+  "loadError": "Hosts konnten nicht geladen werden",
+  "retry": "Erneut versuchen",
+  "title": "Start",
+  "noHosts": "Noch keine Hosts",
+  "empty": {
+    "title": "Noch nichts hier",
+    "text": "Gruppieren Sie Hosts in einem Projekt, damit sie Variablen teilen, oder fügen Sie direkt einen Host hinzu."
+  },
+  "newProject": "Neues Projekt",
+  "addHost": "Host hinzufügen",
+  "newHost": "Neuer Host",
+  "newCollection": "Neue Sammlung",
+  "importFile": "Aus einer Datei importieren",
+  "actions": "Aktionen für Start",
+  "search": "Hosts und Projekte suchen",
+  "noMatch": {
+    "title": "Kein Host und kein Projekt entspricht „{query}“",
+    "text": "Die Suche berücksichtigt Hostnamen, Adressen und Sammlungsnamen.",
+    "clear": "Suche löschen"
+  },
+  "noneConnected": {
+    "title": "Keine verbundenen Hosts",
+    "text": "Verbinden Sie einen Host über seine Karte oder die Seitenleiste.",
+    "showAll": "Alle anzeigen"
+  },
+  "projects": "Projekte",
+  "connections": "{count, plural, one {# offene Verbindung} other {# offene Verbindungen}}",
+  "export": "Exportieren…",
+  "import": "Importieren…"
+}

@@ -1,0 +1,50 @@
+{
+  "tab": {
+    "terminal": "Terminal {n}",
+    "files": "Arquivos",
+    "unknownHost": "Host desconhecido",
+    "unknownProject": "Projeto desconhecido",
+    "modified": "modificado",
+    "readOnly": "somente leitura"
+  },
+  "status": {
+    "connecting": "Conectando…",
+    "connected": "Conectado",
+    "lost": "Conexão perdida",
+    "disconnected": "Desconectado",
+    "ended": "Sessão encerrada",
+    "loading": "Carregando…",
+    "saving": "Salvando…"
+  },
+  "strip": {
+    "label": "Abas abertas",
+    "close": "Fechar {title}",
+    "newTerminal": "Novo terminal",
+    "newOn": "Novo terminal em {host} (Ctrl+Shift+T)",
+    "newHere": "Novo terminal neste host (Ctrl+Shift+T)",
+    "selectFirst": "Selecione uma aba primeiro",
+    "more": "Mais ({count})",
+    "hidden": "Abas ocultas"
+  },
+  "menu": {
+    "newTerminal": "Novo terminal",
+    "openFiles": "Navegar nos arquivos",
+    "openExternal": "Abrir no editor externo",
+    "saveFirst": "Salve suas alterações primeiro",
+    "closeOthers": "Fechar as outras abas",
+    "closeHost": "Fechar abas de {host}",
+    "connect": "Conectar {host}",
+    "disconnect": "Desconectar {host}",
+    "hostPage": "Ir para a página do host"
+  },
+  "unsaved": {
+    "names": "{more, plural, other {{shown} e mais #}}",
+    "closeTitle": "Fechar abas com alterações não salvas?",
+    "closeContent": "Alterações não salvas em {names}.",
+    "closeYes": "Fechar sem salvar",
+    "quitTitle": "Sair com alterações não salvas?",
+    "quitUnsaved": "Não salvo no Carapace: {names}",
+    "quitNotUploaded": "Não enviado do seu editor: {names}",
+    "quitYes": "Sair sem salvar"
+  }
+}

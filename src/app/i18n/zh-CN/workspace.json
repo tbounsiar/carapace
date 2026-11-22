@@ -1,0 +1,50 @@
+{
+  "tab": {
+    "terminal": "终端 {n}",
+    "files": "文件",
+    "unknownHost": "未知主机",
+    "unknownProject": "未知项目",
+    "modified": "已修改",
+    "readOnly": "只读"
+  },
+  "status": {
+    "connecting": "正在连接…",
+    "connected": "已连接",
+    "lost": "连接已丢失",
+    "disconnected": "已断开",
+    "ended": "会话已结束",
+    "loading": "正在加载…",
+    "saving": "正在保存…"
+  },
+  "strip": {
+    "label": "打开的标签页",
+    "close": "关闭 {title}",
+    "newTerminal": "新建终端",
+    "newOn": "在 {host} 上新建终端（Ctrl+Shift+T）",
+    "newHere": "在此主机上新建终端（Ctrl+Shift+T）",
+    "selectFirst": "请先选择一个标签页",
+    "more": "更多（{count}）",
+    "hidden": "隐藏的标签页"
+  },
+  "menu": {
+    "newTerminal": "新建终端",
+    "openFiles": "浏览文件",
+    "openExternal": "在外部编辑器中打开",
+    "saveFirst": "请先保存您的更改",
+    "closeOthers": "关闭其他标签页",
+    "closeHost": "关闭 {host} 的标签页",
+    "connect": "连接 {host}",
+    "disconnect": "断开 {host} 的连接",
+    "hostPage": "前往主机页面"
+  },
+  "unsaved": {
+    "names": "{more, plural, other {{shown} 等另外 # 项}}",
+    "closeTitle": "关闭包含未保存更改的标签页？",
+    "closeContent": "{names} 中有未保存的更改。",
+    "closeYes": "关闭且不保存",
+    "quitTitle": "有未保存的更改，仍要退出？",
+    "quitUnsaved": "在 Carapace 中未保存：{names}",
+    "quitNotUploaded": "未从您的编辑器上传：{names}",
+    "quitYes": "退出且不保存"
+  }
+}

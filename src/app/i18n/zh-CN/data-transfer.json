@@ -1,0 +1,175 @@
+{
+  "pickerBusy": "另一个文件对话框已打开。请先关闭它。",
+  "reloadError": "数据未重新加载",
+  "global": "全局",
+  "and": "{head} 和 {last}",
+  "andMore": "{names} 等另外 {count} 项",
+  "count": {
+    "project": "{count, plural, other {# 个项目}}",
+    "collection": "{count, plural, other {# 个集合}}",
+    "host": "{count, plural, other {# 个主机}}",
+    "variable": "{count, plural, other {# 个变量}}",
+    "key": "{count, plural, other {# 个 SSH 密钥}}",
+    "globalVariable": "{count, plural, other {# 个全局变量}}",
+    "secretValue": "{count, plural, other {# 个机密变量值}}"
+  },
+  "kinds": {
+    "project": "项目",
+    "collection": "集合",
+    "host": "主机",
+    "variable": "变量",
+    "key": "SSH 密钥"
+  },
+  "columns": {
+    "added": "新增",
+    "updated": "已更新",
+    "unchanged": "未更改",
+    "skipped": "已跳过",
+    "removed": "已删除",
+    "copied": "已复制"
+  },
+  "strategy": {
+    "merge": "合并",
+    "replace": "替换",
+    "duplicate": "保留两者"
+  },
+  "badge": {
+    "update": "已更新",
+    "copy": "已复制",
+    "rename": "已重命名",
+    "remove": "已删除",
+    "skip": "已跳过"
+  },
+  "replaceNote": {
+    "project": "使 {name} 与文件完全一致",
+    "home": "使主页和全局变量与文件完全一致",
+    "all": "使您的所有数据与文件完全一致"
+  },
+  "scope": {
+    "project": "项目“{name}”",
+    "home": "主页",
+    "all": "全部"
+  },
+  "summary": {
+    "added": "已添加 {list}",
+    "copied": "已复制 {list}",
+    "updated": "已更新 {list}",
+    "removed": "已删除 {list}",
+    "registered": "已登记 {list}",
+    "sentence": "{text}。",
+    "nothing": "没有任何更改。",
+    "undoneTitle": "已撤销导入",
+    "undoneText": "您的数据已恢复到导入之前的状态。",
+    "completeTitle": "导入完成",
+    "disconnected": "已断开",
+    "secretsTitle": "需要设置的机密",
+    "backup": "备份：",
+    "undo": "撤销导入",
+    "done": "完成",
+    "lostHint": "将您的数据恢复到导入之前的状态。已删除的机密值无法恢复。",
+    "undoError": "无法撤销导入。导入之前的数据保存在 Carapace 文件夹中的 {name} 里。",
+    "openProjectVariables": "打开 {name} 的变量",
+    "openGlobalVariables": "打开全局变量",
+    "secretLine": "{name}（{scope}）— {count, plural, other {# 个主机}}"
+  },
+  "confirm": {
+    "deleted": "{list} 将从此电脑中删除，连同{form, select, ms {其} fs {其} other {它们的}}已保存的密码。",
+    "secretsDeleted": "机密值和已保存的密码将从此电脑中删除。",
+    "connections": "{count, plural, other {# 个打开的连接将被关闭。}}",
+    "backup": "将保留一份数据备份。"
+  },
+  "deletedSecrets": {
+    "savedPasswords": "{count, plural, other {# 个主机}}的已保存密码",
+    "replace": "“替换”会从此电脑中删除 {list}。",
+    "other": "此导入会从此电脑中删除 {list}。"
+  },
+  "secretsSent": {
+    "line": "{host} 将把 {variable} 发送到 {to}",
+    "lineFrom": "{host} 将把 {variable} 发送到 {to}，而不是 {from}",
+    "more": "以及另外 {count} 项"
+  },
+  "needsSecret": {
+    "line": "{name}（{scope}）— 被 {count, plural, other {# 个主机}}使用"
+  },
+  "undefined": {
+    "part": "{name}（被 {count, plural, other {# 个主机}}使用）",
+    "line": "未在任何位置定义：{list}。"
+  },
+  "detail": {
+    "authRef": "{auth} {ref}",
+    "authKey": "{auth} {path}",
+    "authKeyPassphrase": "{auth} {path}，密码短语 {ref}",
+    "global": "全局",
+    "address": "地址：{from} → {to}",
+    "location": "从 {from} 移动到 {to}",
+    "name": "已重命名：{from} → {to}",
+    "value": "值：{from} → {to}",
+    "auth": "认证：{from} → {to}",
+    "kind": "类型：{from} → {to}",
+    "sameId": "ID 相同",
+    "sameName": "与此处的{kind, select, project {某个项目} collection {某个集合} host {某个主机} variable {某个变量} other {某个 SSH 密钥}}同名",
+    "keptSecret": "在此电脑上保留为机密",
+    "becomesSecret": "变为机密，无值",
+    "variableExists": "已跳过：此处已存在同名变量",
+    "outsideHome": "密钥文件不在您的主文件夹中。请在“SSH 密钥”中手动添加。",
+    "outsideHomePath": "密钥文件不在您的主文件夹中：{path}。请在“SSH 密钥”中手动添加。",
+    "keyMissing": "在此电脑上未找到密钥文件",
+    "keyMissingPath": "在此电脑上未找到密钥文件：{path}",
+    "keyMismatch": "密钥文件不匹配",
+    "keyMismatchAlgorithm": "密钥文件不匹配（{algorithm}）",
+    "deleted": "已从此电脑中删除",
+    "redirects": "更改 {count, plural, other {# 个主机}}的地址：{names}"
+  },
+  "workspace": {
+    "tabs": "{count, plural, other {# 个打开的标签页将被关闭。}}",
+    "unsaved": "{names} 中未保存的更改将会丢失。"
+  },
+  "export": {
+    "title": "导出数据",
+    "toast": "已导出到 {file}",
+    "empty": "其中还没有内容",
+    "legend": "要导出的内容",
+    "all": "全部",
+    "allNote": "项目、主页、全局变量、SSH 密钥",
+    "home": "主页",
+    "homeNote": "项目之外的主机、全局变量、SSH 密钥",
+    "project": "一个项目",
+    "projectNote": "一个项目及其变量",
+    "noProjects": "还没有项目",
+    "projectLabel": "项目",
+    "includeShared": "包含其主机使用的全局变量和 SSH 密钥",
+    "notIncluded": "不包含",
+    "notIncludedText": "密码和密码短语（包括已保存的）、机密变量的值以及密钥文件。机密变量只按名称导出：导入后请设置它们的值。该文件会列出您的主机和用户名；请只与可以看到这些信息的人分享。",
+    "error": "文件未保存",
+    "submit": "导出…"
+  },
+  "import": {
+    "title": "导入数据",
+    "exported": "导出于 {date}",
+    "chooseAnother": "选择其他文件",
+    "legend": "如果此处已存在某项",
+    "mergeNote": "添加新项，更新匹配项，保留其余项",
+    "duplicateNote": "将匹配项作为副本导入",
+    "blocking": "无法以“{strategy}”方式执行此导入：{reasons}。",
+    "nothing": "无需导入：此电脑已包含文件中的所有内容。",
+    "caption": "更改内容",
+    "item": "项",
+    "details": "详细信息（{count}）",
+    "more": "以及另外 {count} 项",
+    "connectionsTitle": "{count, plural, other {# 个已连接的主机受到影响}}",
+    "tabsTitle": "打开的标签页受到影响",
+    "connectionsBody": "{names} {count, plural, other {将被删除或移动到其他项目，并会断开连接。}}",
+    "secretsTitle": "导入后需要设置的机密",
+    "variablesTitle": "需要定义的变量",
+    "askedWhenConnecting": "在“变量”中设置之前，每次连接时都会询问。",
+    "refreshed": "您的数据在此预览之后发生了更改。预览已更新。",
+    "secretsWarning": "已保存的机密将发送到新的服务器",
+    "trust": "我信任这些服务器",
+    "backupNote": "会先保存当前数据的备份。",
+    "submit": "导入",
+    "submitReplace": "替换…",
+    "expired": "此预览已过期。请重新选择文件。",
+    "confirmTitle": "替换数据？",
+    "confirmYes": "替换"
+  }
+}

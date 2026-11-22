@@ -1,0 +1,39 @@
+{
+  "connect": "连接",
+  "disconnect": "断开连接",
+  "status": "状态",
+  "auth": "认证",
+  "askedWhenConnecting": "连接时询问",
+  "missing": "缺少变量：{names}",
+  "forget": {
+    "password": "忘记已保存的密码",
+    "passphrase": "忘记已保存的密码短语"
+  },
+  "forgotten": {
+    "title": "已忘记保存的机密",
+    "password": "已删除为此主机保存的密码。",
+    "passphrase": "已删除为此主机保存的密码短语。"
+  },
+  "notForgotten": "未能忘记保存的机密",
+  "notFound": {
+    "title": "未找到主机",
+    "text": "它可能已被删除。请在侧边栏中选择其他主机。",
+    "home": "前往主页"
+  },
+  "tabs": {
+    "title": "打开的标签页",
+    "modified": "已修改",
+    "aria": {
+      "plain": "{label} — {status}",
+      "modified": "{label} — {status}，已修改",
+      "readOnly": "{label} — {status}，只读",
+      "modifiedReadOnly": "{label} — {status}，已修改，只读"
+    },
+    "empty": {
+      "title": "没有打开的标签页",
+      "text": "打开此主机的终端或文件。如有需要，会先进行连接。"
+    },
+    "newTerminal": "新建终端",
+    "files": "文件"
+  }
+}

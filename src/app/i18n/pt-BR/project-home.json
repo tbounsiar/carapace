@@ -1,0 +1,38 @@
+{
+  "notFound": {
+    "title": "Projeto não encontrado",
+    "text": "Talvez tenha sido excluído.",
+    "home": "Ir para Início"
+  },
+  "placeholderTitle": "Projeto",
+  "newHost": "Novo host",
+  "actions": "Ações do projeto",
+  "tabs": "Projeto",
+  "hosts": "Hosts",
+  "variables": "Variáveis",
+  "loadError": "Não foi possível carregar os hosts",
+  "retry": "Tentar novamente",
+  "menu": {
+    "newCollection": "Nova coleção",
+    "export": "Exportar projeto…"
+  },
+  "empty": {
+    "title": "Este projeto está vazio",
+    "text": "Adicione hosts aqui ou crie coleções para agrupá-los.",
+    "newCollection": "Nova coleção"
+  },
+  "noHosts": {
+    "title": "Nenhum host ainda",
+    "text": "Adicione um host no nível superior ou em uma das coleções."
+  },
+  "noMatch": {
+    "title": "Nenhum host corresponde a “{query}”",
+    "text": "A pesquisa considera nomes de host, endereços e nomes de coleção.",
+    "clear": "Limpar pesquisa"
+  },
+  "noneConnected": {
+    "title": "Nenhum host conectado",
+    "text": "Conecte um host pelo cartão dele ou pela barra lateral.",
+    "showAll": "Mostrar todos"
+  }
+}

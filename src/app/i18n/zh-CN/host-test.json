@@ -1,0 +1,90 @@
+{
+  "testing": "正在测试 {address}…",
+  "cancelled": "测试已取消。",
+  "connectedAs": "已作为 {address} 连接",
+  "duration": {
+    "ms": "{value} ms",
+    "s": "{value} s"
+  },
+  "auth": {
+    "agent": "SSH 代理",
+    "password": "密码",
+    "passwordTyped": "密码（为本次测试输入）",
+    "passwordFrom": "来自 {ref} 的密码",
+    "passwordSaved": "保存在钥匙串中的密码",
+    "key": "私钥文件",
+    "keyTyped": "私钥文件，为本次测试输入的密码短语",
+    "keyFrom": "私钥文件，来自 {ref} 的密码短语",
+    "keySaved": "私钥文件，已保存的密码短语"
+  },
+  "origin": {
+    "passwordVariable": "密码来自 {ref}。",
+    "passwordStored": "密码来自钥匙串。",
+    "passphraseVariable": "密码短语来自 {ref}。",
+    "passphraseStored": "密码短语来自钥匙串。"
+  },
+  "failure": {
+    "network": {
+      "title": "无法访问 {host}",
+      "detail": "{detail}请检查主机名、端口和网络。"
+    },
+    "timeout": {
+      "title": "{host} 没有响应",
+      "detail": "服务器在 15 秒内没有响应。请检查主机名、端口、VPN 或防火墙。"
+    },
+    "passwordRejected": {
+      "title": "服务器拒绝了该密码",
+      "detail": "请检查用户名，然后检查密码或其使用的机密变量。"
+    },
+    "keyRefused": {
+      "title": "服务器拒绝了该密钥",
+      "detail": "请检查其公钥是否在服务器上 {user} 的 {file} 中，或选择其他密钥。"
+    },
+    "agentRefused": {
+      "title": "SSH 代理未提供被接受的密钥",
+      "detail": "{detail}请检查代理是否正在运行，并持有服务器已授权的密钥。"
+    },
+    "wrongPassphrase": {
+      "title": "{path} 的密码短语错误",
+      "detail": "请检查机密变量，或选择“连接时询问”并输入密码短语。"
+    },
+    "hostKeyRejected": {
+      "title": "主机密钥未被接受",
+      "detail": "请重新测试，如果指纹与从服务器管理员处获得的指纹一致，请接受该密钥。"
+    },
+    "hostKeyChanged": {
+      "title": "主机密钥已更改",
+      "detail": "服务器提供的密钥与为 {host} 存储的密钥不同。请与服务器管理员确认；如需替换，请保存主机并连接。"
+    },
+    "hostKeyRevoked": {
+      "title": "主机密钥已被吊销",
+      "detail": "{host} 提供的密钥在 known_hosts 中被标记为已吊销。请联系服务器管理员。"
+    },
+    "keyUnusable": {
+      "title": "密钥文件不可用",
+      "detail": "{detail}请检查密钥路径。"
+    },
+    "knownHostsUnreadable": {
+      "title": "无法读取 known_hosts"
+    },
+    "keyUnreadable": {
+      "title": "无法读取 {path}",
+      "detail": "{detail}请检查密钥路径，或选择已登记的密钥。"
+    },
+    "keychain": {
+      "title": "系统钥匙串不可用",
+      "detail": "请解锁或启用它，或选择“连接时询问”。"
+    },
+    "missingVariables": {
+      "title": "缺少变量",
+      "detail": "{detail}请在全局变量或项目变量中定义它们。"
+    },
+    "busy": {
+      "title": "正在运行的测试过多",
+      "detail": "请等待其中一个完成，然后重新测试。"
+    },
+    "failed": {
+      "title": "测试失败"
+    }
+  }
+}

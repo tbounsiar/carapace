@@ -10,15 +10,33 @@ import {
 } from '@angular/core';
 import { provideTransloco, TRANSLOCO_TRANSPILER } from '@jsverse/transloco';
 import { IcuTranspiler } from './core/i18n/icu-transpiler';
-import { tuiLanguageSwitcher } from '@taiga-ui/i18n';
+import { type TuiLanguageLoader, tuiLanguageSwitcher } from '@taiga-ui/i18n';
 import { provideRouter, withComponentInputBinding, withRouterConfig } from '@angular/router';
 import { routes } from './app.routes';
 import { ConnectionEvents } from './core/ipc/connection-events';
 import { EditedFiles } from './core/ipc/edited-files';
 import { Settings } from './core/settings/settings';
 import { provideOpenDialogs } from './shared/open-dialogs';
-import { LanguageService } from './core/i18n/language';
+import { APP_LANGUAGES, LanguageService } from './core/i18n/language';
 import { TranslocoBundleLoader } from './core/i18n/transloco-loader';
+
+// One literal import per language: a template-literal import would bundle all of Taiga's languages.
+const taigaLanguage: TuiLanguageLoader = (language) => {
+  switch (language) {
+    case 'french':
+      return import('@taiga-ui/i18n/languages/french');
+    case 'german':
+      return import('@taiga-ui/i18n/languages/german');
+    case 'spanish':
+      return import('@taiga-ui/i18n/languages/spanish');
+    case 'portuguese':
+      return import('@taiga-ui/i18n/languages/portuguese');
+    case 'chinese':
+      return import('@taiga-ui/i18n/languages/chinese');
+    default:
+      return import('@taiga-ui/i18n/languages/english');
+  }
+};
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -34,14 +52,10 @@ export const appConfig: ApplicationConfig = {
     tuiSwitchOptionsProvider({
       appearance: ({ checked }) => (checked ? 'primary' : 'outline-grayscale'),
     }),
-    tuiLanguageSwitcher((language) =>
-      language === 'french'
-        ? import('@taiga-ui/i18n/languages/french')
-        : import('@taiga-ui/i18n/languages/english'),
-    ),
+    tuiLanguageSwitcher(taigaLanguage),
     provideTransloco({
       config: {
-        availableLangs: ['en', 'fr'],
+        availableLangs: [...APP_LANGUAGES],
         defaultLang: 'en',
         fallbackLang: 'en',
         reRenderOnLangChange: true,

@@ -104,7 +104,7 @@ fn each_field_falls_back_on_its_own() {
     let s = parse(
         r##"
 theme = "blue"
-language = "de"
+language = "ja"
 palette = "solarized"
 accent_color = "#abc"
 default_key_type = "rsa4096"
@@ -144,7 +144,16 @@ legacy_imported = "yes"
         ("language = \"en\"", Some(Language::En)),
         ("language = \"fr\"", Some(Language::Fr)),
         ("language = \"system\"", Some(Language::System)),
+        ("language = \"de\"", Some(Language::De)),
+        ("language = \"es\"", Some(Language::Es)),
+        ("language = \"pt-BR\"", Some(Language::PtBr)),
+        ("language = \"zh-CN\"", Some(Language::ZhCn)),
         ("language = \"FR\"", None),
+        ("language = \"pt-br\"", None),
+        ("language = \"pt\"", None),
+        ("language = \"zh_CN\"", None),
+        ("language = \"zh-TW\"", None),
+        ("language = \"ja\"", None),
         ("language = \"fr-FR\"", None),
         ("language = 1", None),
         ("[language]\nvalue = \"fr\"", None),

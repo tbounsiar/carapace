@@ -1,0 +1,23 @@
+{
+  "appFailed": "die Editor-App konnte nicht gestartet werden",
+  "appNotEditor": "{app} führt Dateien aus oder leitet sie weiter, statt sie zu bearbeiten; wählen Sie einen Editor",
+  "appNotFound": "die Editor-App wurde nicht gefunden: {app}",
+  "appPathInvalid": "die Editor-App muss ein absoluter Pfad auf diesem Computer sein",
+  "blockedType": "{name} würde von Ihrem System ausgeführt, nicht geöffnet",
+  "hostChanged": "{path} wurde von einem anderen Server geöffnet; es wurde nichts gesendet",
+  "hostGone": "der Host von {path} existiert nicht mehr",
+  "hostKeyUnknown": "der Host-Schlüssel dieser Verbindung ist unbekannt; verbinden Sie sich erneut",
+  "largeFile": "{name} ist {size} Byte groß; bestätigen Sie, um die Datei herunterzuladen",
+  "local": "die lokale Kopie konnte nicht gelesen oder geschrieben werden",
+  "noConflict": "{path} steht nicht in Konflikt",
+  "notRecovered": "nur eine wiederhergestellte Datei kann verworfen werden",
+  "notRegular": "{path} ist keine reguläre Datei",
+  "notUploaded": "die Änderungen an {path} wurden nicht hochgeladen",
+  "pathInvalid": "der Pfad ist ungültig",
+  "pathNotFile": "der Pfad muss eine Datei bezeichnen",
+  "pickerBusy": "eine Dateiauswahl ist bereits geöffnet",
+  "required": "{name} ist erforderlich (höchstens {max} Zeichen)",
+  "sensitive": "{name} kann Secrets enthalten; bestätigen Sie, um die Datei auf diesen Computer zu kopieren",
+  "tooLarge": "{name} ist zu groß zum Bearbeiten (max. 1 GiB)",
+  "unknownId": "bearbeitete Datei nicht gefunden"
+}

@@ -1,0 +1,127 @@
+{
+  "page": {
+    "title": "SSH 密钥",
+    "subtitle": "生成或导入私钥，然后将其公钥部署到主机。私钥永远不会离开此电脑。",
+    "generate": "生成密钥",
+    "import": "导入密钥",
+    "columns": {
+      "name": "名称",
+      "type": "类型",
+      "fingerprint": "指纹",
+      "comment": "注释",
+      "status": "状态",
+      "actions": "操作"
+    },
+    "badges": {
+      "encrypted": "已加密",
+      "passphraseSaved": "已保存密码短语",
+      "external": "外部",
+      "customFolder": "自定义文件夹"
+    },
+    "rowMenu": "{name} 的操作",
+    "menu": {
+      "copy": "复制公钥",
+      "deploy": "部署到主机…",
+      "forget": "忘记密码短语"
+    },
+    "loadError": "无法加载 SSH 密钥",
+    "retry": "重试",
+    "unavailable": "密钥不可用",
+    "empty": {
+      "title": "还没有 SSH 密钥",
+      "text": "生成新的 Ed25519 密钥，或导入已有的私钥。"
+    }
+  },
+  "actions": {
+    "renameTitle": "重命名密钥",
+    "copied": "已复制公钥",
+    "copyFailed": "复制失败",
+    "noClipboard": "剪贴板不可用。",
+    "forgotten": "已忘记密码短语",
+    "forgottenText": "{name} 的密码短语已不再保存。",
+    "notForgotten": "未能忘记密码短语",
+    "deleteTitle": "删除密钥“{name}”？",
+    "notDeleted": "密钥未删除",
+    "deleteConflict": "此路径下的文件已不再是该密钥。未删除任何内容。",
+    "deployTitle": "部署公钥",
+    "deployFailed": "部署失败",
+    "hostGone": "该主机已不存在。",
+    "restricted": "密钥受限",
+    "restrictedText": "{host} 上已存在带限制（选项）的该密钥；未作更改。如需允许正常登录，请手动编辑 authorized_keys。",
+    "deployed": "密钥已部署",
+    "deployedText": "已将密钥添加到 {host} 上的 authorized_keys",
+    "nothingToDo": "无需操作",
+    "presentText": "{host} 上已存在该密钥",
+    "hostNotUpdated": "主机未更新"
+  },
+  "fields": {
+    "name": "名称",
+    "passphraseOptional": "密码短语（可选）",
+    "rememberPassphrase": "在系统钥匙串中记住密码短语"
+  },
+  "delete": {
+    "text": "该密钥将从列表中移除，已保存的密码短语也会被忘记。",
+    "deleteFiles": "同时删除密钥文件",
+    "pubFile": "以及 {file}.pub。",
+    "managedNote": "信任此密钥的服务器将无法再用它访问。",
+    "sharedNote": "其他工具可能正在使用此密钥。",
+    "importedNote": "该文件保留在原位置：它是导入的，而不是在此生成的。"
+  },
+  "deploy": {
+    "intro": "将 {name} 的公钥追加到主机上的 {file}。会照常先进行连接。",
+    "host": "主机",
+    "pickHost": "选择主机",
+    "noHosts": "还没有主机",
+    "useKey": "将此密钥用于该主机",
+    "useKeyNote": "将该主机的认证方式设为此密钥（{path}）。",
+    "submit": "部署"
+  },
+  "keygen": {
+    "type": "类型",
+    "typeNote": "推荐使用 Ed25519。RSA 4096 速度较慢，适用于不支持 Ed25519 的服务器。",
+    "folder": "文件夹",
+    "resetFolder": "使用默认文件夹",
+    "chooseFolder": "选择文件夹",
+    "fileName": "文件名",
+    "fileNameHint": "字母、数字、“.”、“_”和“-”。公钥会加上 .pub 后缀。",
+    "savedAs": "在此文件夹中保存为 {file} 和 {pub}。",
+    "folderWarning": "其他用户可以打开此文件夹。私钥文件仍只有您可以读取，但他们可能可以替换或删除它。",
+    "comment": "注释",
+    "confirm": "确认密码短语",
+    "rsaSlow": "生成 RSA 密钥需要几秒钟。",
+    "submit": "生成",
+    "folderMissing": "此文件夹不存在。请创建它，或选择其他文件夹。",
+    "folderDenied": "Carapace 无法写入此文件夹。请选择其他文件夹。",
+    "fileExists": "此文件夹中已存在 {file} 或 {file}.pub。",
+    "pickerFailed": "文件夹选择器未打开",
+    "notGenerated": "密钥未生成"
+  },
+  "import": {
+    "path": "私钥路径",
+    "chooseFile": "选择密钥文件",
+    "pathHint": "OpenSSH 私钥。该文件不会被复制：它保留在原位置，仅被登记。",
+    "passphraseNote": "仅在需要记住已加密密钥的密码短语时填写。",
+    "submit": "导入",
+    "pickerFailed": "文件选择器未打开",
+    "notImported": "密钥未导入",
+    "wrongPassphrase": "密码短语错误"
+  },
+  "validation": {
+    "nameRequired": "名称为必填项",
+    "nameMax": "名称最多 {max} 个字符",
+    "nameTaken": "已存在同名密钥",
+    "fileNameRequired": "文件名为必填项",
+    "fileNameMax": "文件名最多 {max} 个字符",
+    "fileNameDot": "文件名不能以“.”开头",
+    "fileNameChars": "文件名只能包含字母、数字、“.”、“_”和“-”",
+    "commentMax": "注释最多 {max} 个字符",
+    "commentLine": "注释必须为单行",
+    "passphraseMax": "密码短语最多 {max} 个字符",
+    "mismatch": "两次输入的密码短语不一致",
+    "pathRequired": "路径为必填项",
+    "networkPath": "不支持网络路径",
+    "pathAbsolute": "请使用绝对路径或以 ~/ 开头的路径",
+    "folderRequired": "请为密钥选择文件夹。",
+    "folderAbsolute": "请使用完整路径，或以 ~/ 开头的路径。"
+  }
+}

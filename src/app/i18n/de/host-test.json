@@ -1,0 +1,90 @@
+{
+  "testing": "{address} wird getestet…",
+  "cancelled": "Test abgebrochen.",
+  "connectedAs": "Verbunden als {address}",
+  "duration": {
+    "ms": "{value} ms",
+    "s": "{value} s"
+  },
+  "auth": {
+    "agent": "SSH-Agent",
+    "password": "Passwort",
+    "passwordTyped": "Passwort (für diesen Test eingegeben)",
+    "passwordFrom": "Passwort aus {ref}",
+    "passwordSaved": "Im Schlüsselbund gespeichertes Passwort",
+    "key": "Private Schlüsseldatei",
+    "keyTyped": "Private Schlüsseldatei, Passphrase für diesen Test eingegeben",
+    "keyFrom": "Private Schlüsseldatei, Passphrase aus {ref}",
+    "keySaved": "Private Schlüsseldatei, gespeicherte Passphrase"
+  },
+  "origin": {
+    "passwordVariable": "Das Passwort stammt aus {ref}.",
+    "passwordStored": "Das Passwort stammt aus dem Schlüsselbund.",
+    "passphraseVariable": "Die Passphrase stammt aus {ref}.",
+    "passphraseStored": "Die Passphrase stammt aus dem Schlüsselbund."
+  },
+  "failure": {
+    "network": {
+      "title": "{host} ist nicht erreichbar",
+      "detail": "{detail}Prüfen Sie den Hostnamen, den Port und Ihr Netzwerk."
+    },
+    "timeout": {
+      "title": "Keine Antwort von {host}",
+      "detail": "Der Server hat nicht innerhalb von 15 Sekunden geantwortet. Prüfen Sie den Hostnamen, den Port, ein VPN oder eine Firewall."
+    },
+    "passwordRejected": {
+      "title": "Der Server hat das Passwort abgelehnt",
+      "detail": "Prüfen Sie den Benutzernamen, dann das Passwort oder die geheime Variable, die es verwendet."
+    },
+    "keyRefused": {
+      "title": "Der Server hat den Schlüssel abgelehnt",
+      "detail": "Prüfen Sie, ob sein öffentlicher Schlüssel in {file} von {user} auf dem Server steht, oder wählen Sie einen anderen Schlüssel."
+    },
+    "agentRefused": {
+      "title": "Der SSH-Agent hat keinen akzeptierten Schlüssel angeboten",
+      "detail": "{detail}Prüfen Sie, ob der Agent läuft und einen auf dem Server autorisierten Schlüssel enthält."
+    },
+    "wrongPassphrase": {
+      "title": "Falsche Passphrase für {path}",
+      "detail": "Prüfen Sie die geheime Variable oder wählen Sie „Beim Verbinden fragen“ und geben Sie sie ein."
+    },
+    "hostKeyRejected": {
+      "title": "Host-Schlüssel nicht akzeptiert",
+      "detail": "Testen Sie erneut und akzeptieren Sie den Schlüssel, wenn der Fingerabdruck mit dem des Serveradministrators übereinstimmt."
+    },
+    "hostKeyChanged": {
+      "title": "Der Host-Schlüssel hat sich geändert",
+      "detail": "Der Server legt einen anderen Schlüssel vor als den für {host} gespeicherten. Bestätigen Sie ihn mit dem Serveradministrator; um ihn zu ersetzen, speichern Sie den Host und verbinden Sie sich."
+    },
+    "hostKeyRevoked": {
+      "title": "Der Host-Schlüssel ist widerrufen",
+      "detail": "Der von {host} vorgelegte Schlüssel ist in known_hosts als widerrufen markiert. Wenden Sie sich an den Serveradministrator."
+    },
+    "keyUnusable": {
+      "title": "Schlüsseldatei nicht verwendbar",
+      "detail": "{detail}Prüfen Sie den Schlüsselpfad."
+    },
+    "knownHostsUnreadable": {
+      "title": "known_hosts konnte nicht gelesen werden"
+    },
+    "keyUnreadable": {
+      "title": "{path} konnte nicht gelesen werden",
+      "detail": "{detail}Prüfen Sie den Schlüsselpfad oder wählen Sie einen registrierten Schlüssel."
+    },
+    "keychain": {
+      "title": "Systemschlüsselbund nicht verfügbar",
+      "detail": "Entsperren oder aktivieren Sie ihn oder wählen Sie „Beim Verbinden fragen“."
+    },
+    "missingVariables": {
+      "title": "Fehlende Variablen",
+      "detail": "{detail}Definieren Sie sie in den globalen oder den Projektvariablen."
+    },
+    "busy": {
+      "title": "Zu viele Tests laufen",
+      "detail": "Warten Sie, bis einer abgeschlossen ist, und testen Sie dann erneut."
+    },
+    "failed": {
+      "title": "Test fehlgeschlagen"
+    }
+  }
+}

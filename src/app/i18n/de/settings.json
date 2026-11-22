@@ -1,0 +1,93 @@
+{
+  "theme": {
+    "title": "Design",
+    "system": "System",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "note": "„System“ folgt der hellen oder dunklen Einstellung des Betriebssystems."
+  },
+  "colors": {
+    "title": "Farben",
+    "default": "Standard",
+    "defaultNote": "Standardaussehen mit gut lesbarem Text",
+    "highContrast": "Hoher Kontrast",
+    "highContrastNote": "Kräftigster Text, Rahmen und Fokus",
+    "pine": "Kiefer",
+    "pineNote": "Grüngraue Flächen, petrolfarbener Akzent",
+    "plum": "Pflaume",
+    "plumNote": "Violettgraue Flächen, lila Akzent",
+    "note": "Jede Palette hat eine helle und eine dunkle Version; „Design“ bestimmt, welche angezeigt wird. Terminals folgen ebenfalls."
+  },
+  "accent": {
+    "title": "Eigene Akzentfarbe",
+    "note": "Schaltflächen, Links, Fokus und Auswahl. Statusfarben ändern sich nicht.",
+    "label": "Akzentfarbe",
+    "light": "Hell {hex}",
+    "dark": "Dunkel {hex}",
+    "adjustedBoth": "Im hellen Modus abgedunkelt und im dunklen Modus aufgehellt, damit Text lesbar bleibt.",
+    "adjustedLight": "Im hellen Modus abgedunkelt, damit Text lesbar bleibt.",
+    "adjustedDark": "Im dunklen Modus aufgehellt, damit Text lesbar bleibt."
+  },
+  "language": {
+    "title": "Sprache",
+    "system": "System ({name})",
+    "note": "„System“ folgt der Sprache des Betriebssystems."
+  },
+  "title": "Einstellungen",
+  "subtitle": "Einstellungen dieser App auf diesem Computer. Änderungen gelten sofort.",
+  "notSaved": "Einstellung nicht gespeichert",
+  "keyType": {
+    "title": "Standard-Schlüsseltyp",
+    "note": "Vorausgewählt, wenn Sie einen Schlüssel erzeugen. Ed25519 wird empfohlen."
+  },
+  "fontSize": {
+    "title": "Schriftgröße im Terminal",
+    "valueText": "{size} Pixel",
+    "note": "Von {min} bis {max} px. Offene Terminals werden sofort aktualisiert."
+  },
+  "privacy": {
+    "title": "Datenschutz",
+    "doNotTrack": "Deaktiviert, da DO_NOT_TRACK auf diesem Computer gesetzt ist. Es wird nichts gesendet.",
+    "readError": "Diese Einstellung konnte nicht gelesen werden. Starten Sie die App neu.",
+    "events": "Letzte Ereignisse anzeigen",
+    "eventsTitle": "Letzte Nutzungsereignisse",
+    "unavailable": "Dieser Build sendet keine Nutzungsdaten. Änderungen werden trotzdem gespeichert."
+  },
+  "data": {
+    "title": "Daten",
+    "nothing": "Noch nichts zu exportieren.",
+    "note": "Exportieren Sie Projekte, Hosts, Sammlungen und Variablen in eine Datei oder importieren Sie eine. Passwörter und andere Secrets sind nie enthalten. App-Einstellungen sind nicht enthalten.",
+    "export": "Exportieren…",
+    "import": "Importieren…"
+  },
+  "externalEditor": {
+    "title": "Externer Editor",
+    "system": "Systemstandard",
+    "custom": "Eigene App",
+    "customNote": "Dateien werden mit dieser App geöffnet; die Datei ist ihr einziges Argument.",
+    "systemNote": "Dateien werden mit der App geöffnet, die Ihr System für ihren Typ verwendet. Skripte und Programme werden nie ausgeführt: Wählen Sie eine eigene App, um sie zu bearbeiten.",
+    "placeholder": "Keine App gewählt",
+    "appLabel": "Editor-App",
+    "browse": "Durchsuchen…",
+    "clear": "Leeren",
+    "pickHint": "Wählen Sie die Programmdatei des Editors. Bis dahin werden Dateien mit der Standard-App des Systems geöffnet.",
+    "copyNote": "Während Sie bearbeiten, wird eine Kopie der Datei auf diesem Computer gespeichert und gelöscht, wenn Sie die Bearbeitung beenden.",
+    "notice": "Vor dem Öffnen einer Datei außerhalb von Carapace einen Hinweis anzeigen",
+    "notAnEditor": "Dieses Programm führt Skripte oder Befehle aus; es ist kein Editor. Wählen Sie die Programmdatei Ihres Editors.",
+    "notRead": "Einstellung nicht gelesen",
+    "pickerError": "Dateiauswahl nicht geöffnet"
+  },
+  "updates": {
+    "title": "Updates",
+    "version": "Carapace {version}",
+    "auto": "Automatisch nach Updates suchen",
+    "autoNote": "Beim Start und alle 24 Stunden. GitHub sieht Ihre IP-Adresse, aber nichts über Sie oder Ihre Hosts.",
+    "checkNow": "Jetzt prüfen",
+    "checking": "Wird geprüft…",
+    "upToDate": "Carapace ist auf dem neuesten Stand.",
+    "lastChecked": "Zuletzt geprüft: {when}",
+    "skipped": "Sie haben diese Version übersprungen. Sie wird nicht erneut angekündigt.",
+    "unavailable": "Dieser Build sucht nicht nach Updates.",
+    "busy": "Ein Update läuft."
+  }
+}

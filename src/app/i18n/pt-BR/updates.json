@@ -1,0 +1,42 @@
+{
+  "notice": {
+    "availableTitle": "Carapace {version} disponível",
+    "current": "Você tem a {version}.",
+    "notes": "Notas da versão",
+    "update": "Atualizar",
+    "later": "Mais tarde",
+    "skip": "Pular esta versão",
+    "download": "Baixar",
+    "downloadOnly": "Esta instalação não consegue se atualizar sozinha. Instale o novo pacote pela página de lançamento.",
+    "downloadingTitle": "Baixando o Carapace {version}",
+    "progress": "{done} de {total}",
+    "progressUnknown": "{done} baixados",
+    "progressLabel": "Progresso do download",
+    "verifying": "Verificando a assinatura…",
+    "readyTitle": "Carapace {version} pronto para instalar",
+    "impactConnections": "{count, plural, one {# conexão aberta e os terminais dela serão fechados.} other {# conexões abertas e os terminais delas serão fechados.}}",
+    "impactTransfers": "{count, plural, one {# transferência em andamento será interrompida.} other {# transferências em andamento serão interrompidas.}}",
+    "impactDialog": "A caixa de diálogo aberta será fechada sem salvar.",
+    "impactNone": "Nada será fechado.",
+    "restart": "Reiniciar agora",
+    "installingTitle": "Instalando o Carapace {version}…",
+    "installingWindows": "O Carapace fecha enquanto o instalador é executado e depois abre de novo.",
+    "installingOther": "O Carapace reinicia quando a atualização for instalada."
+  },
+  "error": {
+    "checkTitle": "Não foi possível verificar atualizações",
+    "downloadTitle": "Atualização não baixada",
+    "signatureTitle": "Atualização recusada",
+    "signature": "A atualização baixada não está assinada com a chave do Carapace, por isso não foi instalada. Nada mudou neste computador.",
+    "installTitle": "Atualização não instalada",
+    "keepsWorking": "Sua versão atual continua funcionando.",
+    "releasePage": "Abrir página de lançamento",
+    "pageNotOpened": "Página de lançamento não aberta",
+    "next": {
+      "network": "Verifique sua conexão com a internet e tente novamente.",
+      "unsupported": "Baixe a nova versão na página de lançamento.",
+      "not_found": "Verifique atualizações novamente mais tarde.",
+      "browser": "Verifique se há um navegador padrão definido e tente novamente."
+    }
+  }
+}

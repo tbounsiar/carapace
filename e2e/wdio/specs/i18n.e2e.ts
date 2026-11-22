@@ -47,6 +47,12 @@ async function openSettings(): Promise<void> {
   await byId('settings-title').waitForDisplayed({ timeout: 10000 });
 }
 
+/** The language field is a select: its options exist only while it is open. */
+async function chooseLanguage(code: string): Promise<void> {
+  await clickId('settings-language-select');
+  await clickId(`settings-language-${code}`);
+}
+
 async function waitDialog(expected: string): Promise<void> {
   await $('tui-dialog').waitForDisplayed({ timeout: 10000 });
   await waitText(dialogText, expected, 'the dialog');
@@ -66,7 +72,7 @@ describe('Interface language', () => {
     // Other spec files run after this one in the same webview profile.
     if ((await pageLanguage()) !== 'en') {
       await openSettings();
-      await clickId('settings-language-en');
+      await chooseLanguage('en');
       await waitLanguage('en');
     }
   });
@@ -82,7 +88,7 @@ describe('Interface language', () => {
       (window as unknown as { e2eNoReload?: boolean }).e2eNoReload = true;
     });
 
-    await clickId('settings-language-fr');
+    await chooseLanguage('fr');
     await browser.waitUntil(async () => (await textOf('settings-title')) === 'Paramètres', {
       timeout: 2000,
       timeoutMsg: 'the settings title did not change right away',
@@ -189,8 +195,36 @@ describe('Interface language', () => {
     await shot('i18n-11-after-restart');
   });
 
+  it('switches to German', async () => {
+    await chooseLanguage('de');
+    await browser.waitUntil(async () => (await textOf('settings-title')) === 'Einstellungen', {
+      timeout: 2000,
+      timeoutMsg: 'the settings title did not change to German right away',
+    });
+    expect(await pageLanguage()).toBe('de');
+    await waitSavedLanguage('de');
+    expect(await textOf('settings')).toBe('Einstellungen');
+    expect(await textOf('ssh-keys')).toBe('SSH-Schlüssel');
+    await waitText(() => textOf('settings-language'), 'Sprache', 'the language group');
+    await shot('i18n-12-settings-de');
+  });
+
+  it('switches to Simplified Chinese', async () => {
+    await chooseLanguage('zh-CN');
+    await browser.waitUntil(async () => (await textOf('settings-title')) === '设置', {
+      timeout: 2000,
+      timeoutMsg: 'the settings title did not change to Chinese right away',
+    });
+    expect(await pageLanguage()).toBe('zh-CN');
+    await waitSavedLanguage('zh-CN');
+    expect(await textOf('settings')).toBe('设置');
+    expect(await textOf('ssh-keys')).toBe('SSH 密钥');
+    await waitText(() => textOf('settings-language'), '语言', 'the language group');
+    await shot('i18n-13-settings-zh-CN');
+  });
+
   it('switches back to English', async () => {
-    await clickId('settings-language-en');
+    await chooseLanguage('en');
     await browser.waitUntil(async () => (await textOf('settings-title')) === 'Settings', {
       timeout: 2000,
       timeoutMsg: 'the settings title did not change back right away',

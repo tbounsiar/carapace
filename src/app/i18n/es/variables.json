@@ -1,0 +1,57 @@
+{
+  "editor": {
+    "table": "Variables",
+    "name": "Nombre",
+    "type": "Tipo",
+    "value": "Valor",
+    "remove": "Quitar",
+    "namePlaceholder": "nombre",
+    "valuePlaceholder": "valor",
+    "nameOf": "Nombre de la variable {index}",
+    "typeOf": "Tipo de la variable {index}",
+    "secretOf": "Valor secreto de la variable {index}",
+    "valueOf": "Valor de la variable {index}",
+    "removeRow": "Quitar la variable {index}",
+    "setReplace": "Definido. Escribe para reemplazarlo",
+    "notSet": "Sin definir",
+    "set": "Definido",
+    "kinds": {
+      "plain": "Normal",
+      "secret": "Secreta"
+    },
+    "empty": "Aún no hay variables. Agrega una para usarla en los campos del host como {example}.",
+    "rowError": "Fila {row}, {field}: {message}",
+    "fields": {
+      "name": "nombre",
+      "value": "valor"
+    },
+    "renameWarning": "Cambiar el nombre de un secreto descarta su valor guardado: {names}. Vuelve a escribir el valor o conserva el nombre anterior.",
+    "add": "Agregar variable",
+    "saveFailed": "Variables no guardadas"
+  },
+  "validation": {
+    "nameRequired": "El nombre es obligatorio",
+    "namePattern": "Usa letras, dígitos, “_”, “.” o “-”, empezando por una letra o “_” (máx. 64)",
+    "duplicate": "Este nombre ya se usa en este ámbito",
+    "valueMax": "El valor debe tener como máximo {max} caracteres",
+    "secretLabel": "Valor secreto"
+  },
+  "page": {
+    "notFound": {
+      "title": "Proyecto no encontrado",
+      "text": "Puede que se haya eliminado. Elige otro proyecto en la barra lateral.",
+      "back": "Volver al inicio"
+    },
+    "projectWins": "Los campos del host las usan como {example}. Las variables del proyecto tienen prioridad sobre las globales.",
+    "globalOverride": "Los campos del host las usan como {example}. Los proyectos pueden redefinirlas.",
+    "projectTitle": "{name}: variables",
+    "globalTitle": "Variables globales",
+    "projectSection": "Variables del proyecto",
+    "discard": {
+      "label": "¿Descartar los cambios sin guardar?",
+      "content": "Tus cambios en estas variables no están guardados.",
+      "yes": "Descartar",
+      "no": "Seguir editando"
+    }
+  }
+}

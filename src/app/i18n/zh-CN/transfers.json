@@ -1,0 +1,58 @@
+{
+  "view": {
+    "upload": "上传",
+    "download": "下载",
+    "queued": "排队中",
+    "waiting": "等待决定",
+    "done": "{skipped, plural, =0 {完成} other {完成 · 跳过 #}}",
+    "cancelled": "{skipped, plural, =0 {已取消} other {已取消 · 跳过 #}}",
+    "failed": "失败：{message}",
+    "unexpected": "意外错误",
+    "bytesOf": "{done} / {total}",
+    "filesOf": "{done} / {total} 个文件"
+  },
+  "panel": {
+    "toggle": "传输",
+    "status": "传输状态",
+    "running": "{count, plural, other {# 个进行中}}",
+    "waiting": "{count, plural, other {# 个等待中}}",
+    "queued": "{count, plural, other {# 个排队中}}",
+    "done": "{count, plural, other {# 个已完成}}",
+    "failed": "{count, plural, other {# 个失败}}",
+    "clear": "清除已完成",
+    "list": "传输",
+    "progress": "{name} 的进度",
+    "cancel": "取消 {name}",
+    "empty": "还没有传输。选择文件后使用“上传”或“下载”，或将文件拖到另一个窗格。"
+  },
+  "menu": {
+    "retry": "重试",
+    "showRemote": "在远程窗格中显示",
+    "showLocal": "在本地窗格中显示",
+    "notConnected": "请先连接远程",
+    "label": "{name} 的传输操作"
+  },
+  "conflict": {
+    "title": "文件已存在",
+    "exists": "目标文件夹中已存在 {name}。",
+    "destination": "目标",
+    "existing": "现有",
+    "incoming": "传入",
+    "unknown": "未知",
+    "applyToAll": "应用于此传输中所有剩余的冲突",
+    "overwrite": "覆盖",
+    "skip": "跳过",
+    "keepBoth": "保留两者"
+  },
+  "queue": {
+    "unavailable": "传输不可用",
+    "notStarted": "传输未开始",
+    "notCancelled": "传输未取消",
+    "notCleared": "已完成的传输未清除",
+    "answerNotSent": "冲突处理选择未发送",
+    "failedOneTitle": "传输失败",
+    "failedOne": "{name}：{reason}",
+    "failedManyTitle": "{count, plural, other {# 个传输失败}}",
+    "failedMany": "{count, plural, other {{names} 等另外 # 项。}}"
+  }
+}

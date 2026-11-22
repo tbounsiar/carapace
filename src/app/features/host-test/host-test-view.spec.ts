@@ -51,7 +51,7 @@ describe('host test copy', () => {
   it('shows the address being tested in mono', () => {
     const view = testingView(draft(key));
     expect(view.state).toBe('testing');
-    expect(join(view.title)).toBe('Testing carapace@127.0.0.1:2223...');
+    expect(join(view.title)).toBe('Testing carapace@127.0.0.1:2223…');
     expect(view.title.find((p) => p.mono)?.text).toBe('carapace@127.0.0.1:2223');
   });
 

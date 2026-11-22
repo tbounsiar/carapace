@@ -1,0 +1,39 @@
+{
+  "connect": "Conectar",
+  "disconnect": "Desconectar",
+  "status": "Status",
+  "auth": "Autenticação",
+  "askedWhenConnecting": "solicitada ao conectar",
+  "missing": "Variáveis ausentes: {names}",
+  "forget": {
+    "password": "Esquecer senha salva",
+    "passphrase": "Esquecer frase secreta salva"
+  },
+  "forgotten": {
+    "title": "Segredo salvo esquecido",
+    "password": "A senha salva para este host foi removida.",
+    "passphrase": "A frase secreta salva para este host foi removida."
+  },
+  "notForgotten": "Segredo salvo não esquecido",
+  "notFound": {
+    "title": "Host não encontrado",
+    "text": "Talvez tenha sido excluído. Escolha outro host na barra lateral.",
+    "home": "Ir para Início"
+  },
+  "tabs": {
+    "title": "Abas abertas",
+    "modified": "Modificado",
+    "aria": {
+      "plain": "{label} — {status}",
+      "modified": "{label} — {status}, modificado",
+      "readOnly": "{label} — {status}, somente leitura",
+      "modifiedReadOnly": "{label} — {status}, modificado, somente leitura"
+    },
+    "empty": {
+      "title": "Nenhuma aba aberta",
+      "text": "Abra um terminal ou os arquivos deste host. Ele se conecta antes, se necessário."
+    },
+    "newTerminal": "Novo terminal",
+    "files": "Arquivos"
+  }
+}

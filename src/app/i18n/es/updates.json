@@ -1,0 +1,42 @@
+{
+  "notice": {
+    "availableTitle": "Carapace {version} está disponible",
+    "current": "Tienes la versión {version}.",
+    "notes": "Notas de la versión",
+    "update": "Actualizar",
+    "later": "Más tarde",
+    "skip": "Omitir esta versión",
+    "download": "Descargar",
+    "downloadOnly": "Esta instalación no puede actualizarse sola. Instala el nuevo paquete desde la página de la versión.",
+    "downloadingTitle": "Descargando Carapace {version}",
+    "progress": "{done} de {total}",
+    "progressUnknown": "{done} descargados",
+    "progressLabel": "Progreso de la descarga",
+    "verifying": "Comprobando la firma…",
+    "readyTitle": "Carapace {version} está listo para instalarse",
+    "impactConnections": "{count, plural, one {Se cerrarán # conexión abierta y sus terminales.} other {Se cerrarán # conexiones abiertas y sus terminales.}}",
+    "impactTransfers": "{count, plural, one {Se detendrá # transferencia en curso.} other {Se detendrán # transferencias en curso.}}",
+    "impactDialog": "El cuadro de diálogo abierto se cerrará sin guardar.",
+    "impactNone": "No se cerrará nada.",
+    "restart": "Reiniciar ahora",
+    "installingTitle": "Instalando Carapace {version}…",
+    "installingWindows": "Carapace se cierra mientras se ejecuta el instalador y luego se vuelve a abrir.",
+    "installingOther": "Carapace se reinicia cuando la actualización está instalada."
+  },
+  "error": {
+    "checkTitle": "No se pudieron buscar actualizaciones",
+    "downloadTitle": "Actualización no descargada",
+    "signatureTitle": "Actualización rechazada",
+    "signature": "La actualización descargada no está firmada con la clave de Carapace, por lo que no se instaló. No cambió nada en este equipo.",
+    "installTitle": "Actualización no instalada",
+    "keepsWorking": "Tu versión actual sigue funcionando.",
+    "releasePage": "Abrir la página de la versión",
+    "pageNotOpened": "Página de la versión no abierta",
+    "next": {
+      "network": "Revisa tu conexión a internet y vuelve a intentarlo.",
+      "unsupported": "Descarga la nueva versión desde la página de la versión.",
+      "not_found": "Vuelve a buscar actualizaciones más tarde.",
+      "browser": "Comprueba que haya un navegador predeterminado y vuelve a intentarlo."
+    }
+  }
+}

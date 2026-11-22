@@ -1,0 +1,57 @@
+{
+  "editor": {
+    "table": "Variáveis",
+    "name": "Nome",
+    "type": "Tipo",
+    "value": "Valor",
+    "remove": "Remover",
+    "namePlaceholder": "nome",
+    "valuePlaceholder": "valor",
+    "nameOf": "Nome da variável {index}",
+    "typeOf": "Tipo da variável {index}",
+    "secretOf": "Valor secreto da variável {index}",
+    "valueOf": "Valor da variável {index}",
+    "removeRow": "Remover variável {index}",
+    "setReplace": "Definido. Digite para substituir",
+    "notSet": "Não definido",
+    "set": "Definido",
+    "kinds": {
+      "plain": "Comum",
+      "secret": "Secreta"
+    },
+    "empty": "Nenhuma variável ainda. Adicione uma para usá-la nos campos do host como {example}.",
+    "rowError": "Linha {row}, {field}: {message}",
+    "fields": {
+      "name": "nome",
+      "value": "valor"
+    },
+    "renameWarning": "Renomear um segredo descarta o valor armazenado: {names}. Digite o valor novamente ou mantenha o nome antigo.",
+    "add": "Adicionar variável",
+    "saveFailed": "Variáveis não salvas"
+  },
+  "validation": {
+    "nameRequired": "O nome é obrigatório",
+    "namePattern": "Use letras, dígitos, “_”, “.” ou “-”, começando com uma letra ou “_” (máx. 64)",
+    "duplicate": "Este nome já é usado neste escopo",
+    "valueMax": "O valor deve ter no máximo {max} caracteres",
+    "secretLabel": "Valor secreto"
+  },
+  "page": {
+    "notFound": {
+      "title": "Projeto não encontrado",
+      "text": "Talvez tenha sido excluído. Escolha outro projeto na barra lateral.",
+      "back": "Voltar ao início"
+    },
+    "projectWins": "Os campos do host as usam como {example}. As variáveis do projeto têm prioridade sobre as globais.",
+    "globalOverride": "Os campos do host as usam como {example}. Os projetos podem substituí-las.",
+    "projectTitle": "{name}: variáveis",
+    "globalTitle": "Variáveis globais",
+    "projectSection": "Variáveis do projeto",
+    "discard": {
+      "label": "Descartar alterações não salvas?",
+      "content": "Suas alterações nestas variáveis não foram salvas.",
+      "yes": "Descartar",
+      "no": "Continuar editando"
+    }
+  }
+}

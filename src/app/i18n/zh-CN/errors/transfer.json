@@ -1,0 +1,14 @@
+{
+  "interrupted": "无法访问该传输",
+  "localInterrupted": "无法访问该本地文件操作",
+  "localRoot": "无法传输根目录",
+  "noFreeName": "{name} 没有可用的名称",
+  "notDirectory": "{path} 不是目录",
+  "notFound": "未找到该传输",
+  "notWaiting": "该传输并未在等待此决定",
+  "queueFull": "传输队列过大，无法处理",
+  "remoteRoot": "无法传输 /",
+  "required": "{name} 为必填项",
+  "sourceCount": "一次传输包含 1 到 {max} 个源",
+  "tempNameTooLong": "{name} 过长，无法通过临时文件写入"
+}

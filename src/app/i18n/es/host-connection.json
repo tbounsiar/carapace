@@ -1,0 +1,8 @@
+{
+  "missingVariables": "Faltan variables",
+  "connectionFailed": "Error de conexión",
+  "disconnectFailed": "Error al desconectar",
+  "keyReplaced": "Clave del host reemplazada",
+  "keyReplacedText": "Se reemplazó la clave guardada. Vuelve a conectarte para continuar.",
+  "keyNotReplaced": "Clave del host no reemplazada"
+}

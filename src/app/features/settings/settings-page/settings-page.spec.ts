@@ -380,61 +380,113 @@ describe('SettingsPage', () => {
     const label = (el: HTMLElement, id: string) =>
       el.querySelector<HTMLElement>(`[data-testid="${id}"]`)!;
 
-    it('sits right after Theme with the three options', async () => {
+    const select = (el: HTMLElement) => label(el, 'settings-language-select') as HTMLInputElement;
+    const option = (id: string) =>
+      document.body.querySelector<HTMLButtonElement>(`[data-testid="settings-language-${id}"]`);
+    const open = async (fixture: { whenStable(): Promise<unknown> }, el: HTMLElement) => {
+      select(el).click();
+      await settle(fixture);
+    };
+    const pick = async (
+      fixture: { whenStable(): Promise<unknown> },
+      el: HTMLElement,
+      id: string,
+    ) => {
+      await open(fixture, el);
+      option(id)!.click();
+      await settle(fixture);
+    };
+
+    it('sits right after Colors as a select labelled by the legend', async () => {
       const { el } = await setup();
       const group = label(el, 'settings-language');
       expect(group.tagName).toBe('FIELDSET');
-      expect(group.querySelector('legend')?.textContent?.trim()).toBe('Language');
+      const legend = group.querySelector('legend')!;
+      expect(legend.textContent?.trim()).toBe('Language');
       expect(group.previousElementSibling?.querySelector('legend')?.textContent?.trim()).toBe(
         'Colors',
       );
-      const texts = ['system', 'en', 'fr'].map((v) => {
-        const option = label(el, `settings-language-${v}`);
-        return [option.textContent?.trim(), option.getAttribute('lang')];
-      });
+      const input = select(el);
+      expect(input.getAttribute('aria-labelledby')).toBe(legend.id);
+      expect(input.value).toBe('System (English)');
+      expect(input.getAttribute('lang')).toBe('en');
+      expect(group.querySelector('.language-value')?.textContent?.trim()).toBe('System (English)');
+      expect(group.textContent).toContain('System follows the language of the operating system.');
+      expect(option('system')).toBeNull();
+    });
+
+    it('lists System, then the six languages by their own names', async () => {
+      const { fixture, el } = await setup();
+      await open(fixture, el);
+      const ids = ['system', 'de', 'en', 'es', 'fr', 'pt-BR', 'zh-CN'];
+      const texts = ids.map((id) => [option(id)?.textContent?.trim(), option(id)?.lang]);
       expect(texts).toEqual([
         ['System (English)', 'en'],
+        ['Deutsch', 'de'],
         ['English', 'en'],
+        ['Español', 'es'],
         ['Français', 'fr'],
+        ['Português do Brasil', 'pt-BR'],
+        ['简体中文', 'zh-CN'],
       ]);
-      expect(group.textContent).toContain('System follows the language of the operating system.');
+      // System sits in its own group, so a divider separates it from the languages.
+      const groups = [...document.body.querySelectorAll('tui-opt-group')];
+      expect(groups.map((g) => g.querySelectorAll('[tuiOption]').length)).toEqual([1, 6]);
+      expect(option('zh-CN')!.querySelector('.app-cjk')).not.toBeNull();
     });
 
     it('switches the page to French at once and saves the preference', async () => {
-      const { fixture, el, radio } = await setup();
-      expect(radio('settings-language-system').checked).toBe(true);
-      radio('settings-language-fr').click();
-      await settle(fixture);
+      const { fixture, el } = await setup();
+      await pick(fixture, el, 'fr');
       expect(prefSaves()).toEqual([{ patch: { language: 'fr' } }]);
       expect(localStorage.getItem('carapace.language')).toBe('fr');
       expect(document.documentElement.lang).toBe('fr');
-      expect(radio('settings-language-fr').checked).toBe(true);
+      expect(select(el).value).toBe('Français');
+      expect(select(el).getAttribute('lang')).toBe('fr');
       expect(label(el, 'settings-language').querySelector('legend')?.textContent?.trim()).toBe(
         'Langue',
       );
       expect(label(el, 'settings-theme-light').textContent?.trim()).toBe('Clair');
-      expect(label(el, 'settings-language-system').textContent?.trim()).toBe('Système (English)');
-      expect(label(el, 'settings-language-system').getAttribute('lang')).toBe('fr');
-      expect(label(el, 'settings-language-en').textContent?.trim()).toBe('English');
       expect(label(el, 'settings-title').textContent?.trim()).toBe('Paramètres');
       expect(el.textContent).toContain('Taille de police du terminal');
       expect(el.textContent).toContain('Nombre de lancements');
       expect(label(el, 'settings-data').textContent?.trim()).toBe('Données');
+      await open(fixture, el);
+      expect(option('system')?.textContent?.trim()).toBe('Système (English)');
+      expect(option('system')?.lang).toBe('fr');
+      expect(option('system')?.querySelector<HTMLElement>('span[lang]')?.lang).toBe('en');
+      expect(option('en')?.textContent?.trim()).toBe('English');
+    });
+
+    it('switches to German and Chinese', async () => {
+      const { fixture, el } = await setup();
+      await pick(fixture, el, 'de');
+      expect(prefSaves()).toEqual([{ patch: { language: 'de' } }]);
+      expect(document.documentElement.lang).toBe('de');
+      expect(label(el, 'settings-title').textContent?.trim()).toBe('Einstellungen');
+      await pick(fixture, el, 'zh-CN');
+      expect(document.documentElement.lang).toBe('zh-CN');
+      expect(label(el, 'settings-language').querySelector('legend')?.textContent?.trim()).toBe(
+        '语言',
+      );
+      expect(select(el).value).toBe('简体中文');
+      await open(fixture, el);
+      expect(option('system')?.textContent?.trim()).toBe('跟随系统（English）');
     });
 
     it('names the system language as the OS reports it', async () => {
       vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['fr-FR']);
       const { el } = await setup();
-      expect(label(el, 'settings-language-system').textContent?.trim()).toBe('Système (Français)');
+      expect(select(el).value).toBe('Système (Français)');
+      expect(select(el).getAttribute('lang')).toBe('fr');
     });
 
     it('shows the previous language again when the save fails', async () => {
       prefsFail = true;
-      const { fixture, radio } = await setup();
-      radio('settings-language-fr').click();
-      await settle(fixture);
+      const { fixture, el } = await setup();
+      await pick(fixture, el, 'fr');
       expect(TestBed.inject(LanguageService).preference()).toBe('system');
-      expect(radio('settings-language-system').checked).toBe(true);
+      expect(select(el).value).toBe('System (English)');
       expect(document.documentElement.lang).toBe('en');
       expect(document.body.textContent).toContain('Setting not saved');
     });

@@ -4,6 +4,8 @@
 
 ### Features
 
+- German, Spanish, Brazilian Portuguese and Simplified Chinese interface, next to English and French. The language setting is now a list. With **System**, Traditional Chinese systems get English.
+
 - Carapace checks GitHub for a new release after it starts and once a day, and offers it with **Update**, **Later** or **Skip this version**. Updates are signed and checked before they are installed; nothing is installed without your choice. **Settings > Updates** shows the version, checks on demand and turns the automatic check off. `.deb` and `.rpm` installs get a link to the release page instead of an in-place update.
 
 ## 0.2.0 (2026-11-07)

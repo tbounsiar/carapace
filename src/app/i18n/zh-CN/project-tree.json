@@ -1,0 +1,129 @@
+{
+  "topLevel": "{scope}（顶层）",
+  "counts": {
+    "collections": "{count, plural, other {# 个集合}}",
+    "hosts": "{count, plural, other {# 个主机}}",
+    "both": "{collections, plural, other {# 个集合}}和 {hosts, plural, other {# 个主机}}"
+  },
+  "validation": {
+    "required": "{label}为必填项",
+    "maxLength": "{label}最多 {max} 个字符",
+    "noWhitespace": "{label}不能包含空白字符",
+    "hostnameChars": "主机名只能包含字母、数字、“.”、“-”和“:”",
+    "portRequired": "端口为必填项",
+    "portRange": "端口必须在 1 到 65535 之间",
+    "invalidReference": "“{reference}”不是有效的变量引用；如需字面量 $，请写 $$",
+    "portTemplate": "端口必须是数字或单个变量，例如 {example}",
+    "secretReference": "{label}必须是机密变量引用，例如 {example}",
+    "keyPathRequired": "密钥路径为必填项",
+    "networkPath": "不支持网络路径",
+    "publicKey": "这是公钥。请选择不带 .pub 的文件。",
+    "absolutePath": "请使用绝对路径或以 ~/ 开头的路径"
+  },
+  "nameDialog": {
+    "name": "名称"
+  },
+  "hostDialog": {
+    "location": "位于：{location}",
+    "note": "字段可以使用变量，例如 {example}；如需字面量 {dollar}，请写 {escape}。",
+    "fields": {
+      "name": "名称",
+      "hostname": "主机名",
+      "port": "端口",
+      "username": "用户名",
+      "keyPath": "密钥路径",
+      "password": "密码",
+      "passphrase": "密码短语"
+    },
+    "authentication": "认证",
+    "pickKey": "选择已登记的密钥",
+    "noKeys": "还没有已登记的密钥",
+    "browseKey": "选择密钥文件",
+    "noKeysList": "没有已登记的密钥。请在“SSH 密钥”中添加。",
+    "notRegistered": "不在“SSH 密钥”中。登记后可记住其密码短语并部署它。",
+    "register": "登记此密钥",
+    "ask": "连接时询问",
+    "passphraseHint": "仅适用于已加密的密钥。选择一个机密变量（在项目变量或全局变量中定义），或在需要时询问。",
+    "passwordHint": "选择一个机密变量（在项目变量或全局变量中定义），或在连接时询问。",
+    "missing": "缺少：{names}",
+    "resolves": "解析为 {address}",
+    "blocker": {
+      "projectGone": "此项目已不存在。",
+      "missing": "请定义缺少的变量以测试连接。",
+      "invalid": "请修正突出显示的字段以测试连接。"
+    },
+    "test": "测试连接",
+    "cancelTest": "取消测试",
+    "pickerFailed": "文件选择器未打开",
+    "importKey": "导入密钥",
+    "keyRegistered": "密钥已登记",
+    "replace": {
+      "label": "替换模板？",
+      "content": "密钥路径使用了 {refs}。要用此文件替换吗？该主机将不再跟随该变量。",
+      "yes": "替换",
+      "no": "保留模板"
+    }
+  },
+  "moveDialog": {
+    "filter": "筛选位置",
+    "locations": "位置",
+    "noMatch": "没有与“{query}”匹配的位置。",
+    "current": "（当前位置）",
+    "move": "移动"
+  },
+  "move": {
+    "title": "移动“{name}”",
+    "moved": "已将“{name}”移动到 {destination}",
+    "undone": "已撤销移动",
+    "undo": "撤销",
+    "hostFailed": "主机未移动",
+    "collectionFailed": "集合未移动",
+    "renameFirst": "{message}。请先重命名其中一个。",
+    "warning": {
+      "title": {
+        "out": "移出项目",
+        "other": "移动到其他项目",
+        "into": "移入项目"
+      },
+      "question": {
+        "out": "移出项目？",
+        "other": "移动到其他项目？",
+        "into": "移入项目？"
+      },
+      "hostToProject": "{name} 将使用 {project} 的变量。其打开的连接将被关闭，已保存的密码将被忘记。",
+      "hostToHome": "{name} 将只使用全局变量。其打开的连接将被关闭，已保存的密码将被忘记。",
+      "collectionToProject": "{name} 中的 {count, plural, other {# 个主机}}将使用 {project} 的变量。它们打开的连接将被关闭，已保存的密码将被忘记。",
+      "collectionToHome": "{name} 中的 {count, plural, other {# 个主机}}将只使用全局变量。它们打开的连接将被关闭，已保存的密码将被忘记。",
+      "missing": "未在 {scope} 中定义：{names}。"
+    }
+  },
+  "actions": {
+    "newProject": "新建项目",
+    "renameProject": "重命名项目",
+    "newCollection": "新建集合",
+    "renameCollection": "重命名集合",
+    "newHost": "新建主机",
+    "editHost": "编辑主机",
+    "collectionPlaceholder": "后端",
+    "collectionConflict": "此处已存在同名集合。",
+    "deleteProject": {
+      "label": "删除项目？",
+      "full": "“{name}”包含 {content}。其中的所有内容都将被删除，连同其变量和已保存的密码。打开的连接将被关闭。此操作无法撤销。",
+      "empty": "“{name}”为空。它将连同其变量一起被删除。此操作无法撤销。",
+      "failed": "项目未删除"
+    },
+    "deleteCollection": {
+      "label": "删除集合？",
+      "full": "“{name}”包含 {content}。它们都将被删除，连同其已保存的密码。到这些主机的打开连接将被关闭。此操作无法撤销。如需保留这些主机，请先将它们移出。",
+      "empty": "“{name}”为空。",
+      "failed": "集合未删除"
+    },
+    "deleteHost": {
+      "label": "删除主机？",
+      "content": "“{name}”及其已保存的密码将被删除。到它的打开连接将被关闭。",
+      "failed": "主机未删除"
+    },
+    "tabs": "{count, plural, other {# 个打开的标签页}}将被关闭。",
+    "unsaved": "{names} 中未保存的更改将会丢失。"
+  }
+}

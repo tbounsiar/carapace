@@ -1,0 +1,42 @@
+{
+  "notice": {
+    "availableTitle": "Carapace {version} ist verfügbar",
+    "current": "Sie haben Version {version}.",
+    "notes": "Versionshinweise",
+    "update": "Aktualisieren",
+    "later": "Später",
+    "skip": "Diese Version überspringen",
+    "download": "Herunterladen",
+    "downloadOnly": "Diese Installation kann sich nicht selbst aktualisieren. Installieren Sie das neue Paket von der Release-Seite.",
+    "downloadingTitle": "Carapace {version} wird heruntergeladen",
+    "progress": "{done} von {total}",
+    "progressUnknown": "{done} heruntergeladen",
+    "progressLabel": "Downloadfortschritt",
+    "verifying": "Signatur wird geprüft…",
+    "readyTitle": "Carapace {version} ist bereit zur Installation",
+    "impactConnections": "{count, plural, one {# offene Verbindung und ihre Terminals werden geschlossen.} other {# offene Verbindungen und ihre Terminals werden geschlossen.}}",
+    "impactTransfers": "{count, plural, one {# laufende Übertragung wird abgebrochen.} other {# laufende Übertragungen werden abgebrochen.}}",
+    "impactDialog": "Der geöffnete Dialog wird ohne Speichern geschlossen.",
+    "impactNone": "Es wird nichts geschlossen.",
+    "restart": "Jetzt neu starten",
+    "installingTitle": "Carapace {version} wird installiert…",
+    "installingWindows": "Carapace wird geschlossen, während das Installationsprogramm läuft, und dann wieder geöffnet.",
+    "installingOther": "Carapace startet neu, sobald das Update installiert ist."
+  },
+  "error": {
+    "checkTitle": "Suche nach Updates fehlgeschlagen",
+    "downloadTitle": "Update nicht heruntergeladen",
+    "signatureTitle": "Update abgelehnt",
+    "signature": "Das heruntergeladene Update ist nicht mit dem Schlüssel von Carapace signiert und wurde daher nicht installiert. Auf diesem Computer wurde nichts geändert.",
+    "installTitle": "Update nicht installiert",
+    "keepsWorking": "Ihre aktuelle Version funktioniert weiter.",
+    "releasePage": "Release-Seite öffnen",
+    "pageNotOpened": "Release-Seite nicht geöffnet",
+    "next": {
+      "network": "Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
+      "unsupported": "Laden Sie die neue Version von der Release-Seite herunter.",
+      "not_found": "Suchen Sie später erneut nach Updates.",
+      "browser": "Prüfen Sie, ob ein Standardbrowser festgelegt ist, und versuchen Sie es dann erneut."
+    }
+  }
+}

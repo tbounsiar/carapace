@@ -1,0 +1,50 @@
+{
+  "tab": {
+    "terminal": "Terminal {n}",
+    "files": "Dateien",
+    "unknownHost": "Unbekannter Host",
+    "unknownProject": "Unbekanntes Projekt",
+    "modified": "geändert",
+    "readOnly": "schreibgeschützt"
+  },
+  "status": {
+    "connecting": "Verbindung wird hergestellt…",
+    "connected": "Verbunden",
+    "lost": "Verbindung verloren",
+    "disconnected": "Getrennt",
+    "ended": "Sitzung beendet",
+    "loading": "Wird geladen…",
+    "saving": "Wird gespeichert…"
+  },
+  "strip": {
+    "label": "Offene Tabs",
+    "close": "{title} schließen",
+    "newTerminal": "Neues Terminal",
+    "newOn": "Neues Terminal auf {host} (Strg+Umschalt+T)",
+    "newHere": "Neues Terminal auf diesem Host (Strg+Umschalt+T)",
+    "selectFirst": "Wählen Sie zuerst einen Tab",
+    "more": "Mehr ({count})",
+    "hidden": "Ausgeblendete Tabs"
+  },
+  "menu": {
+    "newTerminal": "Neues Terminal",
+    "openFiles": "Dateien durchsuchen",
+    "openExternal": "In externem Editor öffnen",
+    "saveFirst": "Speichern Sie zuerst Ihre Änderungen",
+    "closeOthers": "Andere Tabs schließen",
+    "closeHost": "Tabs von {host} schließen",
+    "connect": "{host} verbinden",
+    "disconnect": "{host} trennen",
+    "hostPage": "Zur Host-Seite wechseln"
+  },
+  "unsaved": {
+    "names": "{more, plural, other {{shown} und # weitere}}",
+    "closeTitle": "Tabs mit nicht gespeicherten Änderungen schließen?",
+    "closeContent": "Nicht gespeicherte Änderungen in {names}.",
+    "closeYes": "Ohne Speichern schließen",
+    "quitTitle": "Mit nicht gespeicherten Änderungen beenden?",
+    "quitUnsaved": "Nicht gespeichert in Carapace: {names}",
+    "quitNotUploaded": "Nicht aus Ihrem Editor hochgeladen: {names}",
+    "quitYes": "Ohne Speichern beenden"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "categories": {
+    "launch": {
+      "title": "Anzahl der Starts",
+      "note": "Ein Ereignis beim Start von Carapace."
+    },
+    "features": {
+      "title": "Funktionsnutzung",
+      "note": "Genutzte Terminals, Dateien, Übertragungen, Schlüssel und Variablen; Umfang der Einrichtung als Bereiche."
+    },
+    "connections": {
+      "title": "Verbindungsergebnisse",
+      "note": "Ob Verbindungen und Tests gelingen: Authentifizierungsart, Fehlercode, Dauer als Bereich."
+    },
+    "crashes": {
+      "title": "Absturzberichte",
+      "note": "Wenn Carapace abstürzt: Art des Absturzes, Bereich der App und, im eigenen Code, die Quellzeile. Keine Meldungen oder Pfade."
+    }
+  },
+  "common": {
+    "lead": "Mit jedem Ereignis gesendet:",
+    "text": "App-Version, Betriebssystem und dessen Version, Sprache und eine zufällige ID, die sich bei jedem Start ändert. Land und Region werden aus der Verbindung abgeleitet; die IP-Adresse wird nicht gespeichert."
+  },
+  "never": {
+    "lead": "Niemals gesendet:",
+    "text": "Hostnamen, Adressen, Benutzernamen, Dateinamen, Schlüssel, Passwörter oder irgendetwas, das Sie eingeben."
+  },
+  "unsavedDenial": "Für diese Sitzung deaktiviert. Die Einstellung konnte nicht gespeichert werden; Carapace versucht es erneut.",
+  "linkNotOpened": "Link nicht geöffnet",
+  "notSaved": "Einstellung nicht gespeichert",
+  "howItWorks": "So funktionieren die Nutzungsdaten",
+  "consent": {
+    "title": "Anonyme Nutzungsdaten",
+    "intro": "Carapace sendet anonyme Nutzungsdaten, um zu entscheiden, was verbessert werden soll. Vor dem Speichern wird nichts gesendet. Deaktivieren Sie alles, was Sie nicht teilen möchten, hier oder jederzeit in den Einstellungen.",
+    "reask": "Was Carapace senden kann, hat sich geändert. Prüfen Sie, was als „Neu“ markiert ist.",
+    "new": "Neu",
+    "save": "Auswahl speichern"
+  },
+  "events": {
+    "keyless": "Dieser Build sendet keine Nutzungsdaten. Dies sind die Ereignisse, die er senden würde.",
+    "readError": "Die Ereignisse konnten nicht gelesen werden. Starten Sie die App neu.",
+    "systemTitle": "Mit jedem Ereignis gesendet",
+    "appVersion": "App-Version",
+    "os": "Betriebssystem",
+    "language": "Sprache",
+    "sdkVersion": "SDK-Version",
+    "sessionId": "Sitzungs-ID",
+    "sessionNote": "Zufällig, bei jedem Start neu, nicht mit Ihnen verknüpft.",
+    "countryNote": "Land und Region werden nicht gesendet: Der Analysedienst leitet sie aus der Verbindung ab.",
+    "sessionTitle": "Diese Sitzung (im Speicher gehalten, beim Beenden gelöscht)",
+    "empty": "In dieser Sitzung wurde nichts gesendet.",
+    "doNotTrack": "DO_NOT_TRACK ist auf diesem Computer gesetzt.",
+    "allOff": "Nutzungsdaten sind deaktiviert.",
+    "time": "Zeit",
+    "event": "Ereignis",
+    "properties": "Eigenschaften",
+    "previousLaunch": "Vorheriger Start",
+    "none": "Keine",
+    "crashNote": "Absturzberichte enthalten die App-Version und das Betriebssystem, aber nicht die Sprache, und verwenden eine eigene zufällige ID, sodass sie nicht mit den anderen Ereignissen dieser Liste verknüpft werden können."
+  }
+}

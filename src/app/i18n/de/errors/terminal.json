@@ -1,0 +1,15 @@
+{
+  "busy": "das Terminal nimmt gerade keine Eingaben an",
+  "channelRefused": "der Server erlaubt auf dieser Verbindung keine weiteren Sitzungen",
+  "network": "auf dem Host konnte keine Shell geöffnet werden",
+  "notConnected": "der Host ist nicht verbunden",
+  "notFound": "Terminal nicht gefunden",
+  "ptyRefused": "der Host hat die Zuweisung eines Terminals (pty) abgelehnt",
+  "required": "{name} ist erforderlich",
+  "sessionRejected": "der Host hat das Öffnen einer Sitzung für das Terminal abgelehnt",
+  "shellRefused": "der Host hat das Starten einer Shell abgelehnt",
+  "size": "cols muss zwischen 1 und {cols} und rows zwischen 1 und {rows} liegen",
+  "timeout": "der Host hat beim Öffnen des Terminals nicht rechtzeitig geantwortet",
+  "tooMany": "höchstens {max} Terminals können auf einer Verbindung geöffnet sein",
+  "writeTooLarge": "data darf höchstens {max} Byte pro Aufruf umfassen"
+}

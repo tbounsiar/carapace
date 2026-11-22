@@ -1,0 +1,16 @@
+{
+  "browserFailed": "não foi possível abrir o navegador",
+  "busy": "uma atualização já está sendo baixada ou instalada",
+  "cancelled": "o download foi cancelado",
+  "installFailed": "não foi possível instalar a atualização",
+  "invalidVersion": "a versão não é válida",
+  "network": "não foi possível acessar o servidor de atualizações",
+  "noUpdate": "nenhuma atualização disponível",
+  "notUploaded": "alguns arquivos editados têm alterações que não foram enviadas",
+  "nothingDownloaded": "nenhuma atualização foi baixada",
+  "restartRequired": "reinicie o Carapace para concluir ou repetir a atualização",
+  "signature": "a assinatura da atualização foi recusada; nada foi instalado",
+  "unavailable": "nenhuma informação de atualização utilizável foi encontrada",
+  "unconfirmed": "há transferências em andamento ou editores com alterações não salvas",
+  "unsupported": "neste sistema, as atualizações são instaladas pela página de lançamento"
+}

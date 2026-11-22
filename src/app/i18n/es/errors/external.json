@@ -1,0 +1,23 @@
+{
+  "appFailed": "no se pudo iniciar la aplicación de edición",
+  "appNotEditor": "{app} ejecuta o reenvía los archivos en lugar de editarlos; elige un editor",
+  "appNotFound": "no se encontró la aplicación de edición: {app}",
+  "appPathInvalid": "la aplicación de edición debe ser una ruta absoluta en este equipo",
+  "blockedType": "tu sistema ejecutaría {name} en lugar de abrirlo",
+  "hostChanged": "{path} se abrió desde otro servidor; no se envió nada",
+  "hostGone": "el host de {path} ya no existe",
+  "hostKeyUnknown": "la clave del host de esta conexión es desconocida; vuelve a conectarte",
+  "largeFile": "{name} ocupa {size} bytes; confirma para descargarlo",
+  "local": "no se pudo leer ni escribir la copia local",
+  "noConflict": "{path} no está en conflicto",
+  "notRecovered": "solo se puede descartar un archivo recuperado",
+  "notRegular": "{path} no es un archivo normal",
+  "notUploaded": "los cambios en {path} no se subieron",
+  "pathInvalid": "la ruta no es válida",
+  "pathNotFile": "la ruta debe indicar un archivo",
+  "pickerBusy": "ya hay un selector de archivos abierto",
+  "required": "se requiere {name} (como máximo {max} caracteres)",
+  "sensitive": "{name} puede contener secretos; confirma para copiarlo a este equipo",
+  "tooLarge": "{name} es demasiado grande para editarlo (máx. 1 GiB)",
+  "unknownId": "no se encontró el archivo editado"
+}

@@ -1,0 +1,61 @@
+{
+  "categories": {
+    "launch": {
+      "title": "启动次数",
+      "note": "Carapace 每次启动时发送一个事件。"
+    },
+    "features": {
+      "title": "功能使用情况",
+      "note": "使用了哪些终端、文件、传输、密钥和变量功能；配置规模以区间表示。"
+    },
+    "connections": {
+      "title": "连接结果",
+      "note": "连接和测试是否成功：认证类型、错误代码、耗时（以区间表示）。"
+    },
+    "crashes": {
+      "title": "崩溃报告",
+      "note": "如果 Carapace 崩溃：崩溃类型、应用区域，以及在其自身代码中的源代码行。不含消息或路径。"
+    }
+  },
+  "common": {
+    "lead": "随每个事件发送：",
+    "text": "应用版本、操作系统及其版本、语言，以及每次启动都会变化的随机 ID。国家和地区根据连接推断；不保留 IP 地址。"
+  },
+  "never": {
+    "lead": "从不发送：",
+    "text": "主机名、地址、用户名、文件名、密钥、密码或您输入的任何内容。"
+  },
+  "unsavedDenial": "本次会话中已关闭。无法保存该设置；Carapace 会再次尝试。",
+  "linkNotOpened": "链接未打开",
+  "notSaved": "设置未保存",
+  "howItWorks": "使用数据的工作方式",
+  "consent": {
+    "title": "匿名使用数据",
+    "intro": "Carapace 会发送匿名使用数据，以帮助决定改进方向。保存之前不会发送任何内容。可以关闭任何不想分享的项目，在此处或随时在“设置”中操作。",
+    "reask": "Carapace 可以发送的内容已更改。请查看标记为“新”的项目。",
+    "new": "新",
+    "save": "保存选择"
+  },
+  "events": {
+    "keyless": "此版本不发送使用数据。以下是它本会发送的事件。",
+    "readError": "无法读取事件。请重启应用。",
+    "systemTitle": "随每个事件发送",
+    "appVersion": "应用版本",
+    "os": "操作系统",
+    "language": "语言",
+    "sdkVersion": "SDK 版本",
+    "sessionId": "会话 ID",
+    "sessionNote": "随机生成，每次启动都会更新，与您本人无关联。",
+    "countryNote": "不发送国家和地区：分析服务会根据连接推断它们。",
+    "sessionTitle": "本次会话（保存在内存中，退出时清除）",
+    "empty": "本次会话中未发送任何内容。",
+    "doNotTrack": "此电脑上已设置 DO_NOT_TRACK。",
+    "allOff": "使用数据已关闭。",
+    "time": "时间",
+    "event": "事件",
+    "properties": "属性",
+    "previousLaunch": "上次启动",
+    "none": "无",
+    "crashNote": "崩溃报告包含应用版本和操作系统，但不包含语言，并使用其自己的随机 ID，因此无法与此列表中的其他事件关联。"
+  }
+}

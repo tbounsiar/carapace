@@ -1,0 +1,39 @@
+{
+  "aside": {
+    "label": "主机",
+    "editedLabel": "已编辑的文件，{count, plural, other {# 个文件}}{attention, plural, =0 {} other {，# 个需要处理}}",
+    "updateBadge": "更新",
+    "settingsUpdate": "设置，有可用更新"
+  },
+  "pages": {
+    "globalVariables": "全局变量",
+    "sshKeys": "SSH 密钥",
+    "settings": "设置",
+    "editedFiles": "已编辑的文件"
+  },
+  "locationBar": {
+    "projectNotFound": "未找到项目",
+    "hostNotFound": "未找到主机",
+    "variables": "变量",
+    "actions": "操作",
+    "actionsFor": "{name} 的操作",
+    "stopAll": "全部停止",
+    "moveTo": "移动到…",
+    "deleteHost": "删除主机"
+  },
+  "projectSelect": {
+    "label": "项目：{name}",
+    "menu": "项目",
+    "openConnections": "{count, plural, other {# 个打开的连接}}",
+    "variables": "项目变量",
+    "newProject": "新建项目…"
+  },
+  "themeMenu": {
+    "hint": "主题",
+    "label": "主题：{mode}",
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色",
+    "colors": "颜色…"
+  }
+}

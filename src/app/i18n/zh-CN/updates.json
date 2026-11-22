@@ -1,0 +1,42 @@
+{
+  "notice": {
+    "availableTitle": "Carapace {version} 现已推出",
+    "current": "您的版本是 {version}。",
+    "notes": "发行说明",
+    "update": "更新",
+    "later": "稍后",
+    "skip": "跳过此版本",
+    "download": "下载",
+    "downloadOnly": "此安装无法自行更新。请从发布页面安装新的安装包。",
+    "downloadingTitle": "正在下载 Carapace {version}",
+    "progress": "{done} / {total}",
+    "progressUnknown": "已下载 {done}",
+    "progressLabel": "下载进度",
+    "verifying": "正在检查签名…",
+    "readyTitle": "Carapace {version} 已可安装",
+    "impactConnections": "{count, plural, other {# 个打开的连接及其终端将被关闭。}}",
+    "impactTransfers": "{count, plural, other {# 个正在进行的传输将会停止。}}",
+    "impactDialog": "打开的对话框将被关闭且不保存。",
+    "impactNone": "不会关闭任何内容。",
+    "restart": "立即重启",
+    "installingTitle": "正在安装 Carapace {version}…",
+    "installingWindows": "安装程序运行期间 Carapace 会关闭，之后会重新打开。",
+    "installingOther": "更新安装完成后 Carapace 会重启。"
+  },
+  "error": {
+    "checkTitle": "无法检查更新",
+    "downloadTitle": "更新未下载",
+    "signatureTitle": "更新被拒绝",
+    "signature": "下载的更新未使用 Carapace 的密钥签名，因此未安装。此电脑上的任何内容都未更改。",
+    "installTitle": "更新未安装",
+    "keepsWorking": "当前版本仍可正常使用。",
+    "releasePage": "打开发布页面",
+    "pageNotOpened": "发布页面未打开",
+    "next": {
+      "network": "请检查网络连接，然后重试。",
+      "unsupported": "请从发布页面下载新版本。",
+      "not_found": "请稍后再检查更新。",
+      "browser": "请检查是否已设置默认浏览器，然后重试。"
+    }
+  }
+}

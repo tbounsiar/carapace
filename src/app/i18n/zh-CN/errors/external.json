@@ -1,0 +1,23 @@
+{
+  "appFailed": "无法启动编辑器应用",
+  "appNotEditor": "{app} 会运行或转发文件，而不是编辑文件；请选择编辑器",
+  "appNotFound": "未找到编辑器应用：{app}",
+  "appPathInvalid": "编辑器应用必须是此电脑上的绝对路径",
+  "blockedType": "您的系统会运行而不是打开 {name}",
+  "hostChanged": "{path} 是从另一台服务器打开的；未发送任何内容",
+  "hostGone": "{path} 的主机已不存在",
+  "hostKeyUnknown": "此连接的主机密钥未知；请重新连接",
+  "largeFile": "{name} 大小为 {size} 字节；请确认下载",
+  "local": "无法读取或写入本地副本",
+  "noConflict": "{path} 没有冲突",
+  "notRecovered": "只能放弃已恢复的文件",
+  "notRegular": "{path} 不是普通文件",
+  "notUploaded": "对 {path} 的更改未上传",
+  "pathInvalid": "路径无效",
+  "pathNotFile": "路径必须指向文件",
+  "pickerBusy": "已有一个文件选择器处于打开状态",
+  "required": "{name} 为必填项（最多 {max} 个字符）",
+  "sensitive": "{name} 可能包含机密；请确认将其复制到此电脑",
+  "tooLarge": "{name} 过大，无法编辑（最大 1 GiB）",
+  "unknownId": "未找到已编辑的文件"
+}

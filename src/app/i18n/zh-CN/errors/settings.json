@@ -1,0 +1,14 @@
+{
+  "accentColor": "accentColor 必须是 #rrggbb 颜色或 null",
+  "defaultKeyType": "defaultKeyType 必须是 ed25519 或 rsa4096",
+  "keyFolder": "keyFolder 必须是路径或 null",
+  "keyFolderInvalid": "密钥文件夹路径无效",
+  "keyFolderNotLocal": "密钥文件夹必须是完整的本地路径，或以 ~/ 开头的路径",
+  "keyFolderSpaces": "密钥文件夹路径的首尾不能有空格",
+  "language": "language 必须是 system、en、fr、de、es、pt-BR 或 zh-CN",
+  "notAnObject": "设置必须是一个对象",
+  "palette": "palette 必须是 default、high-contrast、pine 或 plum",
+  "terminalFontSize": "terminalFontSize 必须是 {min} 到 {max} 之间的整数",
+  "theme": "theme 必须是 system、light 或 dark",
+  "unknownSetting": "未知设置"
+}

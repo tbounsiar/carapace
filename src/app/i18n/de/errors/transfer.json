@@ -1,0 +1,14 @@
+{
+  "interrupted": "auf die Übertragung konnte nicht zugegriffen werden",
+  "localInterrupted": "auf den lokalen Dateivorgang konnte nicht zugegriffen werden",
+  "localRoot": "ein Stammverzeichnis kann nicht übertragen werden",
+  "noFreeName": "kein freier Name für {name}",
+  "notDirectory": "{path} ist kein Ordner",
+  "notFound": "die Übertragung wurde nicht gefunden",
+  "notWaiting": "die Übertragung wartet nicht auf diese Entscheidung",
+  "queueFull": "die Übertragungswarteschlange ist zu groß zur Verarbeitung",
+  "remoteRoot": "/ kann nicht übertragen werden",
+  "required": "{name} ist erforderlich",
+  "sourceCount": "eine Übertragung umfasst 1 bis {max} Quellen",
+  "tempNameTooLong": "{name} ist zu lang, um über eine temporäre Datei geschrieben zu werden"
+}

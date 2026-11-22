@@ -1,0 +1,14 @@
+{
+  "interrupted": "não foi possível acessar a transferência",
+  "localInterrupted": "não foi possível acessar a operação de arquivo local",
+  "localRoot": "não é possível transferir uma raiz",
+  "noFreeName": "nenhum nome livre para {name}",
+  "notDirectory": "{path} não é um diretório",
+  "notFound": "a transferência não foi encontrada",
+  "notWaiting": "a transferência não está aguardando esta decisão",
+  "queueFull": "a fila de transferências é grande demais para processar",
+  "remoteRoot": "não é possível transferir /",
+  "required": "{name} é obrigatório",
+  "sourceCount": "uma transferência aceita de 1 a {max} origens",
+  "tempNameTooLong": "{name} é longo demais para ser gravado por meio de um arquivo temporário"
+}

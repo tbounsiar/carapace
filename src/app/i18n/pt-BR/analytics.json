@@ -1,0 +1,61 @@
+{
+  "categories": {
+    "launch": {
+      "title": "Contagem de inicializações",
+      "note": "Um evento quando o Carapace é iniciado."
+    },
+    "features": {
+      "title": "Uso de recursos",
+      "note": "Terminais, arquivos, transferências, chaves e variáveis usados; tamanhos da configuração em faixas."
+    },
+    "connections": {
+      "title": "Resultados de conexão",
+      "note": "Se as conexões e os testes funcionam: tipo de autenticação, código de erro, tempo em faixas."
+    },
+    "crashes": {
+      "title": "Relatórios de falhas",
+      "note": "Se o Carapace falhar: tipo de falha, área do app e, no código do próprio app, a linha de origem. Nenhuma mensagem ou caminho."
+    }
+  },
+  "common": {
+    "lead": "Enviado com cada evento:",
+    "text": "versão do app, sistema operacional e versão, idioma e um ID aleatório que muda a cada inicialização. País e região são deduzidos da conexão; o IP não é guardado."
+  },
+  "never": {
+    "lead": "Nunca enviado:",
+    "text": "nomes de host, endereços, nomes de usuário, nomes de arquivo, chaves, senhas ou qualquer coisa que você digitar."
+  },
+  "unsavedDenial": "Desativado nesta sessão. Não foi possível salvar a configuração; o Carapace tentará novamente.",
+  "linkNotOpened": "Link não aberto",
+  "notSaved": "Configuração não salva",
+  "howItWorks": "Como funciona a análise de uso",
+  "consent": {
+    "title": "Dados de uso anônimos",
+    "intro": "O Carapace envia dados de uso anônimos para ajudar a decidir o que melhorar. Nada é enviado antes de você salvar. Desative o que não quiser compartilhar, aqui ou a qualquer momento em Configurações.",
+    "reask": "O que o Carapace pode enviar mudou. Confira o que está marcado como Novo.",
+    "new": "Novo",
+    "save": "Salvar escolhas"
+  },
+  "events": {
+    "keyless": "Esta versão não envia dados de uso. Estes são os eventos que ela enviaria.",
+    "readError": "Não foi possível ler os eventos. Reinicie o app.",
+    "systemTitle": "Enviado com cada evento",
+    "appVersion": "Versão do app",
+    "os": "Sistema operacional",
+    "language": "Idioma",
+    "sdkVersion": "Versão do SDK",
+    "sessionId": "ID da sessão",
+    "sessionNote": "Aleatório, novo a cada inicialização, não vinculado a você.",
+    "countryNote": "O país e a região não são enviados: o serviço de análise os deduz da conexão.",
+    "sessionTitle": "Esta sessão (mantida na memória, apagada ao sair)",
+    "empty": "Nada enviado nesta sessão.",
+    "doNotTrack": "DO_NOT_TRACK está definido neste computador.",
+    "allOff": "Os dados de uso estão desativados.",
+    "time": "Hora",
+    "event": "Evento",
+    "properties": "Propriedades",
+    "previousLaunch": "Inicialização anterior",
+    "none": "Nenhuma",
+    "crashNote": "Os relatórios de falhas incluem a versão do app e o sistema operacional, mas não o idioma, e usam um ID aleatório próprio para que não possam ser vinculados aos outros eventos desta lista."
+  }
+}

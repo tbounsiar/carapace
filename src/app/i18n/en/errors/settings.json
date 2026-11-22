@@ -5,7 +5,7 @@
   "keyFolderInvalid": "the key folder path is invalid",
   "keyFolderNotLocal": "the key folder must be a full local path, or one starting with ~/",
   "keyFolderSpaces": "the key folder must be a path without surrounding spaces",
-  "language": "language must be system, en or fr",
+  "language": "language must be system, en, fr, de, es, pt-BR or zh-CN",
   "notAnObject": "the settings must be an object",
   "palette": "palette must be default, high-contrast, pine or plum",
   "terminalFontSize": "terminalFontSize must be a whole number from {min} to {max}",

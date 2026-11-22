@@ -1,0 +1,32 @@
+{
+  "panel": {
+    "lost": "连接已丢失。",
+    "ended": "会话已结束。",
+    "endedWith": "会话已结束。{reason}",
+    "reasons": {
+      "exited": "shell 已退出。",
+      "closed": "终端已关闭。",
+      "connectionLost": "连接已丢失。"
+    },
+    "reopen": "重新打开"
+  },
+  "sessions": {
+    "loadFailed": "无法加载终端组件。请重启应用后重试。",
+    "notOpened": "终端未打开",
+    "notClosed": "终端未关闭",
+    "inputLost": "终端输入丢失"
+  },
+  "menu": {
+    "label": "终端操作",
+    "copy": "复制",
+    "paste": "粘贴",
+    "selectAll": "全选",
+    "clear": "清除回滚缓冲区",
+    "noSelection": "未选择文本",
+    "sessionEnded": "会话已结束",
+    "copyFailed": "复制失败",
+    "copyFailedText": "剪贴板不可用。",
+    "pasteFailed": "粘贴失败",
+    "pasteFailedText": "无法读取剪贴板。请尝试 Shift+Insert。"
+  }
+}

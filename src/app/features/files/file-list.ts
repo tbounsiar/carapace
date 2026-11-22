@@ -52,13 +52,18 @@ export function visibleEntries(entries: readonly FileEntry[], showHidden: boolea
 const UNITS = {
   en: ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB'],
   fr: ['o', 'Ko', 'Mo', 'Go', 'To', 'Po', 'Eo'],
+  other: ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB'],
 } as const;
 
-/** Binary multiples in both languages; French uses the units French systems show (Ko, Mo...). */
+/**
+ * Binary multiples in every language, with the units each language's systems show: French Ko, Mo...,
+ * German, Spanish, Portuguese and Chinese KB, MB...; English keeps KiB, MiB like its fixed copy.
+ */
 export function formatSize(bytes: number | null, locale = 'en-US'): string {
   if (bytes === null) return '';
-  const french = locale.startsWith('fr');
-  const units = french ? UNITS.fr : UNITS.en;
+  const primary = locale.split('-')[0].toLowerCase();
+  const english = primary === 'en';
+  const units = english ? UNITS.en : primary === 'fr' ? UNITS.fr : UNITS.other;
   let value = bytes;
   let unit = 0;
   while (value >= 1024 && unit < units.length - 1) {
@@ -71,7 +76,7 @@ export function formatSize(bytes: number | null, locale = 'en-US'): string {
     maximumFractionDigits: digits,
     useGrouping: false,
   }).format(value);
-  return `${number}${french ? ' ' : ' '}${units[unit]}`;
+  return `${number}${english ? ' ' : ' '}${units[unit]}`;
 }
 
 export function formatModified(seconds: number | null, locale = 'en-US'): string {

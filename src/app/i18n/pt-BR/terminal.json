@@ -1,0 +1,32 @@
+{
+  "panel": {
+    "lost": "Conexão perdida.",
+    "ended": "Sessão encerrada.",
+    "endedWith": "Sessão encerrada. {reason}",
+    "reasons": {
+      "exited": "O shell foi encerrado.",
+      "closed": "O terminal foi fechado.",
+      "connectionLost": "A conexão foi perdida."
+    },
+    "reopen": "Reabrir"
+  },
+  "sessions": {
+    "loadFailed": "Não foi possível carregar o componente do terminal. Reinicie o app e tente novamente.",
+    "notOpened": "Terminal não aberto",
+    "notClosed": "Terminal não fechado",
+    "inputLost": "Entrada do terminal perdida"
+  },
+  "menu": {
+    "label": "Ações do terminal",
+    "copy": "Copiar",
+    "paste": "Colar",
+    "selectAll": "Selecionar tudo",
+    "clear": "Limpar histórico de rolagem",
+    "noSelection": "Nenhum texto selecionado",
+    "sessionEnded": "Sessão encerrada",
+    "copyFailed": "Falha ao copiar",
+    "copyFailedText": "A área de transferência não está disponível.",
+    "pasteFailed": "Falha ao colar",
+    "pasteFailedText": "Não foi possível ler a área de transferência. Tente Shift+Insert."
+  }
+}

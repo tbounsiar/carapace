@@ -1,0 +1,23 @@
+{
+  "appFailed": "não foi possível iniciar o app editor",
+  "appNotEditor": "{app} executa ou repassa os arquivos em vez de editá-los; escolha um editor",
+  "appNotFound": "o app editor não foi encontrado: {app}",
+  "appPathInvalid": "o app editor deve ser um caminho absoluto neste computador",
+  "blockedType": "{name} seria executado, não aberto, pelo seu sistema",
+  "hostChanged": "{path} foi aberto a partir de outro servidor; nada foi enviado",
+  "hostGone": "o host de {path} não existe mais",
+  "hostKeyUnknown": "a chave do host desta conexão é desconhecida; conecte novamente",
+  "largeFile": "{name} tem {size} bytes; confirme para baixá-lo",
+  "local": "não foi possível ler ou gravar a cópia local",
+  "noConflict": "{path} não está em conflito",
+  "notRecovered": "só é possível descartar um arquivo recuperado",
+  "notRegular": "{path} não é um arquivo comum",
+  "notUploaded": "as alterações em {path} não foram enviadas",
+  "pathInvalid": "o caminho é inválido",
+  "pathNotFile": "o caminho deve indicar um arquivo",
+  "pickerBusy": "um seletor de arquivo já está aberto",
+  "required": "{name} é obrigatório (no máximo {max} caracteres)",
+  "sensitive": "{name} pode conter segredos; confirme para copiá-lo para este computador",
+  "tooLarge": "{name} é grande demais para editar (máx. 1 GiB)",
+  "unknownId": "arquivo editado não encontrado"
+}

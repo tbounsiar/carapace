@@ -1,0 +1,61 @@
+{
+  "categories": {
+    "launch": {
+      "title": "Número de inicios",
+      "note": "Un evento cuando Carapace se inicia."
+    },
+    "features": {
+      "title": "Uso de funciones",
+      "note": "Terminales, archivos, transferencias, claves y variables usados; tamaños de configuración por rangos."
+    },
+    "connections": {
+      "title": "Resultados de conexión",
+      "note": "Si las conexiones y las pruebas funcionan: tipo de autenticación, código de error, tiempo por rangos."
+    },
+    "crashes": {
+      "title": "Informes de fallos",
+      "note": "Si Carapace falla: tipo de fallo, parte de la aplicación y, en su propio código, la línea de origen. Ni mensajes ni rutas."
+    }
+  },
+  "common": {
+    "lead": "Se envía con cada evento:",
+    "text": "versión de la aplicación, sistema operativo y su versión, idioma y un identificador aleatorio que cambia en cada inicio. El país y la región se deducen de la conexión; la IP no se guarda."
+  },
+  "never": {
+    "lead": "Nunca se envía:",
+    "text": "nombres de host, direcciones, nombres de usuario, nombres de archivo, claves, contraseñas ni nada de lo que escribas."
+  },
+  "unsavedDenial": "Desactivado en esta sesión. No se pudo guardar la configuración; Carapace lo volverá a intentar.",
+  "linkNotOpened": "Enlace no abierto",
+  "notSaved": "Configuración no guardada",
+  "howItWorks": "Cómo funcionan las estadísticas",
+  "consent": {
+    "title": "Datos de uso anónimos",
+    "intro": "Carapace envía datos de uso anónimos para ayudar a decidir qué mejorar. No se envía nada antes de que guardes. Desactiva lo que no quieras compartir, aquí o en cualquier momento en Configuración.",
+    "reask": "Lo que Carapace puede enviar ha cambiado. Revisa lo marcado como Nuevo.",
+    "new": "Nuevo",
+    "save": "Guardar opciones"
+  },
+  "events": {
+    "keyless": "Esta compilación no envía datos de uso. Estos son los eventos que enviaría.",
+    "readError": "No se pudieron leer los eventos. Reinicia la aplicación.",
+    "systemTitle": "Se envía con cada evento",
+    "appVersion": "Versión de la aplicación",
+    "os": "Sistema operativo",
+    "language": "Idioma",
+    "sdkVersion": "Versión del SDK",
+    "sessionId": "ID de sesión",
+    "sessionNote": "Aleatorio, nuevo en cada inicio, no vinculado a ti.",
+    "countryNote": "El país y la región no se envían: el servicio de estadísticas los deduce de la conexión.",
+    "sessionTitle": "Esta sesión (en memoria, se borra al salir)",
+    "empty": "No se ha enviado nada en esta sesión.",
+    "doNotTrack": "DO_NOT_TRACK está definido en este equipo.",
+    "allOff": "Los datos de uso están desactivados.",
+    "time": "Hora",
+    "event": "Evento",
+    "properties": "Propiedades",
+    "previousLaunch": "Inicio anterior",
+    "none": "Ninguno",
+    "crashNote": "Los informes de fallos incluyen la versión de la aplicación y el sistema operativo, pero no el idioma, y usan su propio identificador aleatorio, por lo que no se pueden vincular con los demás eventos de esta lista."
+  }
+}

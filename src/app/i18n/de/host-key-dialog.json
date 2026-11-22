@@ -1,0 +1,19 @@
+{
+  "host": "Host",
+  "algorithm": "Algorithmus",
+  "fingerprint": "Fingerabdruck",
+  "unknown": {
+    "title": "Unbekannter Host-Schlüssel",
+    "warning": "Die Echtheit von {host} kann nicht festgestellt werden. Vergleichen Sie den Fingerabdruck vor dem Verbinden mit einem, den Sie vom Serveradministrator erhalten haben.",
+    "reject": "Ablehnen",
+    "acceptConnect": "Akzeptieren und verbinden",
+    "acceptTest": "Akzeptieren und testen"
+  },
+  "changed": {
+    "title": "Der Host-Schlüssel hat sich geändert",
+    "warning": "Der von {host} vorgelegte Schlüssel stimmt nicht mit dem gespeicherten überein. Möglicherweise fängt jemand die Verbindung ab (Man-in-the-Middle), oder der Server wurde neu installiert. Die Verbindung wurde nicht hergestellt.",
+    "known": "Bekannt",
+    "presented": "Vorgelegt",
+    "replace": "Gespeicherten Schlüssel ersetzen"
+  }
+}

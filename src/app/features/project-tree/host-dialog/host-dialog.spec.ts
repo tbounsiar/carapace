@@ -503,7 +503,7 @@ describe('HostDialog', () => {
       expect(button(el).getAttribute('data-testing')).toBe('true');
       expect(button(el).getAttribute('aria-disabled')).toBeNull();
       expect(region(el).getAttribute('data-result')).toBe('testing');
-      expect(title(el)).toBe('Testing carapace@127.0.0.1:2223...');
+      expect(title(el)).toBe('Testing carapace@127.0.0.1:2223…');
       expect(region(el).querySelector('tui-loader')).not.toBeNull();
     });
 

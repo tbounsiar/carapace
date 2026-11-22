@@ -1,0 +1,39 @@
+{
+  "connect": "Conectar",
+  "disconnect": "Desconectar",
+  "status": "Estado",
+  "auth": "Autenticación",
+  "askedWhenConnecting": "se pide al conectar",
+  "missing": "Faltan variables: {names}",
+  "forget": {
+    "password": "Olvidar la contraseña guardada",
+    "passphrase": "Olvidar la frase de contraseña guardada"
+  },
+  "forgotten": {
+    "title": "Secreto guardado olvidado",
+    "password": "Se quitó la contraseña guardada para este host.",
+    "passphrase": "Se quitó la frase de contraseña guardada para este host."
+  },
+  "notForgotten": "Secreto guardado no olvidado",
+  "notFound": {
+    "title": "Host no encontrado",
+    "text": "Puede que se haya eliminado. Elige otro host en la barra lateral.",
+    "home": "Ir a Inicio"
+  },
+  "tabs": {
+    "title": "Pestañas abiertas",
+    "modified": "Modificado",
+    "aria": {
+      "plain": "{label} — {status}",
+      "modified": "{label} — {status}, modificado",
+      "readOnly": "{label} — {status}, solo lectura",
+      "modifiedReadOnly": "{label} — {status}, modificado, solo lectura"
+    },
+    "empty": {
+      "title": "No hay pestañas abiertas",
+      "text": "Abre un terminal o los archivos de este host. Primero se conecta si hace falta."
+    },
+    "newTerminal": "Nuevo terminal",
+    "files": "Archivos"
+  }
+}

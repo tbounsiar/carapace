@@ -1,0 +1,39 @@
+{
+  "aside": {
+    "label": "Hosts",
+    "editedLabel": "Archivos editados, {count, plural, one {# archivo} other {# archivos}}{attention, plural, =0 {} one {, # requiere atención} other {, # requieren atención}}",
+    "updateBadge": "Actualizar",
+    "settingsUpdate": "Configuración, actualización disponible"
+  },
+  "pages": {
+    "globalVariables": "Variables globales",
+    "sshKeys": "Claves SSH",
+    "settings": "Configuración",
+    "editedFiles": "Archivos editados"
+  },
+  "locationBar": {
+    "projectNotFound": "Proyecto no encontrado",
+    "hostNotFound": "Host no encontrado",
+    "variables": "Variables",
+    "actions": "Acciones",
+    "actionsFor": "Acciones de {name}",
+    "stopAll": "Detener todo",
+    "moveTo": "Mover a…",
+    "deleteHost": "Eliminar host"
+  },
+  "projectSelect": {
+    "label": "Proyecto: {name}",
+    "menu": "Proyectos",
+    "openConnections": "{count, plural, one {# conexión abierta} other {# conexiones abiertas}}",
+    "variables": "Variables del proyecto",
+    "newProject": "Nuevo proyecto…"
+  },
+  "themeMenu": {
+    "hint": "Tema",
+    "label": "Tema: {mode}",
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "colors": "Colores…"
+  }
+}

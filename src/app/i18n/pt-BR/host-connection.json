@@ -1,0 +1,8 @@
+{
+  "missingVariables": "Variáveis ausentes",
+  "connectionFailed": "Falha na conexão",
+  "disconnectFailed": "Falha ao desconectar",
+  "keyReplaced": "Chave do host substituída",
+  "keyReplacedText": "A chave armazenada foi substituída. Conecte novamente para continuar.",
+  "keyNotReplaced": "Chave do host não substituída"
+}

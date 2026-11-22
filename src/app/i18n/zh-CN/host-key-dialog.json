@@ -1,0 +1,19 @@
+{
+  "host": "主机",
+  "algorithm": "算法",
+  "fingerprint": "指纹",
+  "unknown": {
+    "title": "未知的主机密钥",
+    "warning": "无法确认 {host} 的真实性。连接前，请将此指纹与从服务器管理员处获得的指纹进行比对。",
+    "reject": "拒绝",
+    "acceptConnect": "接受并连接",
+    "acceptTest": "接受并测试"
+  },
+  "changed": {
+    "title": "主机密钥已更改",
+    "warning": "{host} 提供的密钥与存储的密钥不匹配。可能有人正在拦截连接（中间人攻击），或者服务器已重新安装。连接未建立。",
+    "known": "已知",
+    "presented": "提供的",
+    "replace": "替换存储的密钥"
+  }
+}

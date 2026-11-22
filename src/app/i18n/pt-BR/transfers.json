@@ -1,0 +1,58 @@
+{
+  "view": {
+    "upload": "Envio",
+    "download": "Download",
+    "queued": "Na fila",
+    "waiting": "Aguardando uma decisão",
+    "done": "{skipped, plural, =0 {Concluído} one {Concluído · # ignorado} other {Concluído · # ignorados}}",
+    "cancelled": "{skipped, plural, =0 {Cancelado} one {Cancelado · # ignorado} other {Cancelado · # ignorados}}",
+    "failed": "Falhou: {message}",
+    "unexpected": "Erro inesperado",
+    "bytesOf": "{done} de {total}",
+    "filesOf": "{done} de {total} arquivos"
+  },
+  "panel": {
+    "toggle": "Transferências",
+    "status": "Status das transferências",
+    "running": "{count, plural, other {# em andamento}}",
+    "waiting": "{count, plural, other {# aguardando}}",
+    "queued": "{count, plural, other {# na fila}}",
+    "done": "{count, plural, one {# concluída} other {# concluídas}}",
+    "failed": "{count, plural, one {# com falha} other {# com falha}}",
+    "clear": "Limpar concluídas",
+    "list": "Transferências",
+    "progress": "Progresso de {name}",
+    "cancel": "Cancelar {name}",
+    "empty": "Nenhuma transferência ainda. Selecione arquivos e use Enviar ou Baixar, ou arraste-os para o outro painel."
+  },
+  "menu": {
+    "retry": "Tentar novamente",
+    "showRemote": "Mostrar no painel Remoto",
+    "showLocal": "Mostrar no painel Local",
+    "notConnected": "Conecte-se ao remoto primeiro",
+    "label": "Ações de transferência de {name}"
+  },
+  "conflict": {
+    "title": "O arquivo já existe",
+    "exists": "{name} já existe na pasta de destino.",
+    "destination": "Destino",
+    "existing": "Existente",
+    "incoming": "Recebido",
+    "unknown": "Desconhecido",
+    "applyToAll": "Aplicar a todos os conflitos restantes desta transferência",
+    "overwrite": "Sobrescrever",
+    "skip": "Ignorar",
+    "keepBoth": "Manter ambos"
+  },
+  "queue": {
+    "unavailable": "Transferências indisponíveis",
+    "notStarted": "Transferência não iniciada",
+    "notCancelled": "Transferência não cancelada",
+    "notCleared": "Transferências concluídas não limpas",
+    "answerNotSent": "Resposta ao conflito não enviada",
+    "failedOneTitle": "Falha na transferência",
+    "failedOne": "{name}: {reason}",
+    "failedManyTitle": "{count, plural, one {# transferência falhou} other {# transferências falharam}}",
+    "failedMany": "{count, plural, other {{names} e mais #.}}"
+  }
+}

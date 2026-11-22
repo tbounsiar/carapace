@@ -1,0 +1,32 @@
+{
+  "panel": {
+    "lost": "Conexión perdida.",
+    "ended": "Sesión finalizada.",
+    "endedWith": "Sesión finalizada. {reason}",
+    "reasons": {
+      "exited": "El shell terminó.",
+      "closed": "Se cerró el terminal.",
+      "connectionLost": "Se perdió la conexión."
+    },
+    "reopen": "Volver a abrir"
+  },
+  "sessions": {
+    "loadFailed": "No se pudo cargar el componente del terminal. Reinicia la aplicación y vuelve a intentarlo.",
+    "notOpened": "Terminal no abierto",
+    "notClosed": "Terminal no cerrado",
+    "inputLost": "Entrada del terminal perdida"
+  },
+  "menu": {
+    "label": "Acciones del terminal",
+    "copy": "Copiar",
+    "paste": "Pegar",
+    "selectAll": "Seleccionar todo",
+    "clear": "Borrar el historial",
+    "noSelection": "No hay texto seleccionado",
+    "sessionEnded": "Sesión finalizada",
+    "copyFailed": "Error al copiar",
+    "copyFailedText": "El portapapeles no está disponible.",
+    "pasteFailed": "Error al pegar",
+    "pasteFailedText": "No se pudo leer el portapapeles. Prueba con Mayús+Insert."
+  }
+}

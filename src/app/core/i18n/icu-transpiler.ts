@@ -2,6 +2,7 @@ import { Service } from '@angular/core';
 import type { TranslocoTranspiler, TranspileParams } from '@jsverse/transloco';
 import { IntlMessageFormat } from 'intl-messageformat';
 import { type MessageFormatElement, TYPE } from '@formatjs/icu-messageformat-parser';
+import { localeOf } from './language';
 
 /** Arguments that select a plural branch; the others are shown as given (no digit grouping). */
 function pluralArguments(
@@ -38,7 +39,7 @@ export class IcuTranspiler implements TranslocoTranspiler {
   private readonly cache = new Map<string, Compiled>();
 
   onLangChanged(lang: string): void {
-    this.locale = lang === 'fr' ? 'fr-FR' : 'en-US';
+    this.locale = localeOf(lang);
     this.cache.clear();
   }
 

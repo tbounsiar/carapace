@@ -1,0 +1,29 @@
+{
+  "stats": {
+    "hosts": "{count, plural, other {# 个主机}}",
+    "noHosts": "还没有主机",
+    "collections": "{count, plural, other {# 个集合}}",
+    "connected": "{count} 个已连接",
+    "projects": "{count, plural, other {# 个项目}}"
+  },
+  "count": "{visible} / {total, plural, other {# 个主机}}",
+  "card": {
+    "actions": "操作",
+    "actionsFor": "{name} 的操作",
+    "terminal": "终端",
+    "openTerminal": "在 {name} 上打开终端",
+    "files": "文件",
+    "browseFiles": "浏览 {name} 上的文件",
+    "connect": "连接",
+    "connectHost": "连接 {name}",
+    "missing": "缺少：{names}",
+    "move": "移动到…",
+    "disconnect": "断开连接"
+  },
+  "toolbar": {
+    "search": "搜索主机",
+    "show": "显示",
+    "all": "全部",
+    "connected": "已连接"
+  }
+}

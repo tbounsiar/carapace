@@ -1,0 +1,18 @@
+{
+  "deleteRefused": "se rechaza eliminar {path}",
+  "deleteRoot": "se rechaza eliminar una raíz",
+  "homeUnreadable": "no se pudo acceder a la carpeta personal",
+  "interrupted": "se interrumpió la operación con archivos",
+  "nameBackslash": "el nombre no debe contener \\",
+  "nameTrailing": "el nombre no debe terminar en punto ni en espacio",
+  "nameWindowsChars": "el nombre no debe contener < > : \" | ? ni *",
+  "notDirectory": "{path} no es un directorio",
+  "notLocal": "{path} no es una ruta local",
+  "pathControl": "la ruta no debe contener caracteres de control",
+  "pathNotUnicode": "la ruta no es Unicode válido",
+  "pathRelative": "la ruta local debe ser absoluta",
+  "pathRequired": "la ruta es obligatoria",
+  "pathTooLong": "la ruta es demasiado larga",
+  "renameRoot": "no se puede cambiar el nombre de una raíz",
+  "reservedName": "{name} es un nombre reservado"
+}

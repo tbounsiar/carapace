@@ -20,6 +20,21 @@ describe('IcuTranspiler', () => {
     expect(run(t, '{count, plural, one {# host} other {# hosts}}', { count: 0 })).toBe('0 hosts');
   });
 
+  it('formats with the locale of each new language', () => {
+    const t = new IcuTranspiler();
+    t.onLangChanged('de');
+    expect(run(t, '{count, plural, one {# Host} other {# Hosts}}', { count: 0 })).toBe('0 Hosts');
+    expect(run(t, '{count, plural, one {# Host} other {# Hosts}}', { count: 1500 })).toBe(
+      '1.500 Hosts',
+    );
+    t.onLangChanged('pt-BR');
+    expect(run(t, '{count, plural, one {# host} other {# hosts}}', { count: 0 })).toBe('0 host');
+    t.onLangChanged('es');
+    expect(run(t, '{count, plural, one {# host} other {# hosts}}', { count: 0 })).toBe('0 hosts');
+    t.onLangChanged('zh-CN');
+    expect(run(t, '{count, plural, other {# 个主机}}', { count: 1500 })).toBe('1,500 个主机');
+  });
+
   it('selects and leaves angle brackets alone', () => {
     const t = new IcuTranspiler();
     expect(run(t, '{what, select, host {Host} other {Item}} <b>', { what: 'host' })).toBe(

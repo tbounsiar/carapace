@@ -1,0 +1,18 @@
+{
+  "deleteRefused": "exclusão de {path} recusada",
+  "deleteRoot": "exclusão de uma raiz recusada",
+  "homeUnreadable": "não foi possível acessar a pasta pessoal",
+  "interrupted": "a operação de arquivo foi interrompida",
+  "nameBackslash": "o nome não pode conter \\",
+  "nameTrailing": "o nome não pode terminar com um ponto ou um espaço",
+  "nameWindowsChars": "o nome não pode conter < > : \" | ? nem *",
+  "notDirectory": "{path} não é um diretório",
+  "notLocal": "{path} não é um caminho local",
+  "pathControl": "o caminho não pode conter caracteres de controle",
+  "pathNotUnicode": "o caminho não é Unicode válido",
+  "pathRelative": "o caminho local deve ser absoluto",
+  "pathRequired": "o caminho é obrigatório",
+  "pathTooLong": "o caminho é longo demais",
+  "renameRoot": "não é possível renomear uma raiz",
+  "reservedName": "{name} é um nome reservado"
+}

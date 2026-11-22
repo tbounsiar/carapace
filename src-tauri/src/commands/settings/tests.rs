@@ -143,8 +143,13 @@ fn every_bad_patch_is_invalid_input_and_writes_nothing() {
         json!({"theme": "blue"}),
         json!({"theme": null}),
         json!({"theme": 1}),
-        json!({"language": "de"}),
+        json!({"language": "DE"}),
         json!({"language": "FR"}),
+        json!({"language": "pt-br"}),
+        json!({"language": "pt_BR"}),
+        json!({"language": "pt"}),
+        json!({"language": "zh"}),
+        json!({"language": "zh-TW"}),
         json!({"language": null}),
         json!({"language": 1}),
         json!({"theme": "dark", "language": "relative"}),
@@ -322,11 +327,29 @@ fn update_app_settings_and_analytics_keep_the_users_comments() {
 }
 
 #[test]
+fn every_language_travels_as_its_stored_code() {
+    let (d, s) = store();
+    for code in ["en", "fr", "de", "es", "pt-BR", "zh-CN", "system"] {
+        let v = update_in(&s, &json!({ "language": code })).unwrap();
+        assert_eq!(serde_json::to_value(v).unwrap()["language"], code);
+        assert_eq!(
+            serde_json::to_value(settings_in(&s).unwrap()).unwrap()["language"],
+            code
+        );
+        let raw = std::fs::read_to_string(d.path().join("settings.toml")).unwrap();
+        assert!(raw.contains(&format!("language = \"{code}\"")), "{raw}");
+    }
+}
+
+#[test]
 fn a_bad_language_names_the_allowed_values_only() {
     let (_d, s) = store();
     let e = update_in(&s, &json!({"language": "klingon"})).unwrap_err();
     assert_eq!(e.code, "invalid_input");
-    assert_eq!(e.message, "language must be system, en or fr");
+    assert_eq!(
+        e.message,
+        "language must be system, en, fr, de, es, pt-BR or zh-CN"
+    );
 }
 
 #[test]

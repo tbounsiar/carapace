@@ -1,0 +1,50 @@
+{
+  "tab": {
+    "terminal": "Terminal {n}",
+    "files": "Archivos",
+    "unknownHost": "Host desconocido",
+    "unknownProject": "Proyecto desconocido",
+    "modified": "modificado",
+    "readOnly": "solo lectura"
+  },
+  "status": {
+    "connecting": "Conectando…",
+    "connected": "Conectado",
+    "lost": "Conexión perdida",
+    "disconnected": "Desconectado",
+    "ended": "Sesión finalizada",
+    "loading": "Cargando…",
+    "saving": "Guardando…"
+  },
+  "strip": {
+    "label": "Pestañas abiertas",
+    "close": "Cerrar {title}",
+    "newTerminal": "Nuevo terminal",
+    "newOn": "Nuevo terminal en {host} (Ctrl+Mayús+T)",
+    "newHere": "Nuevo terminal en este host (Ctrl+Mayús+T)",
+    "selectFirst": "Selecciona primero una pestaña",
+    "more": "Más ({count})",
+    "hidden": "Pestañas ocultas"
+  },
+  "menu": {
+    "newTerminal": "Nuevo terminal",
+    "openFiles": "Explorar archivos",
+    "openExternal": "Abrir en un editor externo",
+    "saveFirst": "Guarda primero tus cambios",
+    "closeOthers": "Cerrar las demás pestañas",
+    "closeHost": "Cerrar las pestañas de {host}",
+    "connect": "Conectar {host}",
+    "disconnect": "Desconectar {host}",
+    "hostPage": "Ir a la página del host"
+  },
+  "unsaved": {
+    "names": "{more, plural, other {{shown} y # más}}",
+    "closeTitle": "¿Cerrar pestañas con cambios sin guardar?",
+    "closeContent": "Cambios sin guardar en {names}.",
+    "closeYes": "Cerrar sin guardar",
+    "quitTitle": "¿Salir con cambios sin guardar?",
+    "quitUnsaved": "Sin guardar en Carapace: {names}",
+    "quitNotUploaded": "No subidos desde tu editor: {names}",
+    "quitYes": "Salir sin guardar"
+  }
+}

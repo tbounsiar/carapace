@@ -74,7 +74,7 @@ pub(crate) fn parse_patch(value: &Value, skip_invalid: bool) -> Res<SettingsPatc
                 .ok_or_else(|| {
                     invalid(text!(
                         "errors.settings.language",
-                        "language must be system, en or fr"
+                        "language must be system, en, fr, de, es, pt-BR or zh-CN"
                     ))
                 }),
             "palette" => v

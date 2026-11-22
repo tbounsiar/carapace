@@ -102,6 +102,15 @@ describe('formatSize', () => {
     expect(formatSize(300 * 1024 ** 3, 'fr-FR')).toBe('300\u00a0Go');
     expect(formatSize(2 * 1024 ** 4, 'fr-FR')).toBe('2,0\u00a0To');
   });
+
+  it('uses KB, MB... and the locale number in German, Spanish, Portuguese and Chinese', () => {
+    expect(formatSize(1023, 'de-DE')).toBe('1023\u00a0B');
+    expect(formatSize(1536, 'de-DE')).toBe('1,5\u00a0KB');
+    expect(formatSize(5 * 1024 ** 2, 'es-ES')).toBe('5,0\u00a0MB');
+    expect(formatSize(300 * 1024 ** 3, 'pt-BR')).toBe('300\u00a0GB');
+    expect(formatSize(1536, 'zh-CN')).toBe('1.5\u00a0KB');
+    expect(formatSize(2 * 1024 ** 4, 'zh-CN')).toBe('2.0\u00a0TB');
+  });
 });
 
 describe('formatModified', () => {

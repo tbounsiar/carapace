@@ -1,0 +1,93 @@
+{
+  "theme": {
+    "title": "Tema",
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Escuro",
+    "note": "“Sistema” segue a configuração clara ou escura do sistema operacional."
+  },
+  "colors": {
+    "title": "Cores",
+    "default": "Padrão",
+    "defaultNote": "Visual padrão com texto legível",
+    "highContrast": "Alto contraste",
+    "highContrastNote": "Texto, bordas e foco mais fortes",
+    "pine": "Pinho",
+    "pineNote": "Superfícies verde-acinzentadas, destaque azul-petróleo",
+    "plum": "Ameixa",
+    "plumNote": "Superfícies violeta-acinzentadas, destaque roxo",
+    "note": "Cada conjunto tem uma versão clara e uma escura; “Tema” escolhe qual aparece. Os terminais também acompanham."
+  },
+  "accent": {
+    "title": "Cor de destaque personalizada",
+    "note": "Botões, links, foco e seleção. As cores de status não mudam.",
+    "label": "Cor de destaque",
+    "light": "Claro {hex}",
+    "dark": "Escuro {hex}",
+    "adjustedBoth": "Escurecida no modo claro e clareada no modo escuro para manter o texto legível.",
+    "adjustedLight": "Escurecida no modo claro para manter o texto legível.",
+    "adjustedDark": "Clareada no modo escuro para manter o texto legível."
+  },
+  "language": {
+    "title": "Idioma",
+    "system": "Sistema ({name})",
+    "note": "“Sistema” segue o idioma do sistema operacional."
+  },
+  "title": "Configurações",
+  "subtitle": "Preferências deste app neste computador. As alterações são aplicadas na hora.",
+  "notSaved": "Configuração não salva",
+  "keyType": {
+    "title": "Tipo de chave padrão",
+    "note": "Pré-selecionado ao gerar uma chave. Ed25519 é recomendado."
+  },
+  "fontSize": {
+    "title": "Tamanho da fonte do terminal",
+    "valueText": "{size} pixels",
+    "note": "De {min} a {max} px. Os terminais abertos são atualizados imediatamente."
+  },
+  "privacy": {
+    "title": "Privacidade",
+    "doNotTrack": "Desativado porque DO_NOT_TRACK está definido neste computador. Nada é enviado.",
+    "readError": "Não foi possível ler esta configuração. Reinicie o app.",
+    "events": "Ver eventos recentes",
+    "eventsTitle": "Eventos de uso recentes",
+    "unavailable": "Esta versão não envia dados de uso. As alterações ainda são salvas."
+  },
+  "data": {
+    "title": "Dados",
+    "nothing": "Nada a exportar ainda.",
+    "note": "Exporte projetos, hosts, coleções e variáveis para um arquivo, ou importe um. Senhas e outros segredos nunca são incluídos. As configurações do app não são incluídas.",
+    "export": "Exportar…",
+    "import": "Importar…"
+  },
+  "externalEditor": {
+    "title": "Editor externo",
+    "system": "Padrão do sistema",
+    "custom": "App personalizado",
+    "customNote": "Os arquivos abrem com este app; o arquivo é seu único argumento.",
+    "systemNote": "Os arquivos abrem com o app que seu sistema usa para o tipo deles. Scripts e programas nunca são executados: escolha um app personalizado para editá-los.",
+    "placeholder": "Nenhum app escolhido",
+    "appLabel": "App editor",
+    "browse": "Procurar…",
+    "clear": "Limpar",
+    "pickHint": "Escolha o arquivo de programa do editor. Até lá, os arquivos abrem com o app padrão do sistema.",
+    "copyNote": "Enquanto você edita, uma cópia do arquivo fica armazenada neste computador e é excluída quando você para de editar.",
+    "notice": "Mostrar um aviso antes de abrir um arquivo fora do Carapace",
+    "notAnEditor": "Este programa executa scripts ou comandos; não é um editor. Escolha o arquivo de programa do seu editor.",
+    "notRead": "Configuração não lida",
+    "pickerError": "Seletor de arquivo não aberto"
+  },
+  "updates": {
+    "title": "Atualizações",
+    "version": "Carapace {version}",
+    "auto": "Verificar atualizações automaticamente",
+    "autoNote": "Ao iniciar e a cada 24 horas. O GitHub vê seu endereço IP, nada sobre você ou seus hosts.",
+    "checkNow": "Verificar agora",
+    "checking": "Verificando…",
+    "upToDate": "O Carapace está atualizado.",
+    "lastChecked": "Última verificação: {when}",
+    "skipped": "Você pulou esta versão. Ela não será anunciada novamente.",
+    "unavailable": "Esta versão não verifica atualizações.",
+    "busy": "Uma atualização está em andamento."
+  }
+}

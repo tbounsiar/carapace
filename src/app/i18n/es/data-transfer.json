@@ -1,0 +1,175 @@
+{
+  "pickerBusy": "Hay otro cuadro de diálogo de archivos abierto. Ciérralo primero.",
+  "reloadError": "Datos no recargados",
+  "global": "global",
+  "and": "{head} y {last}",
+  "andMore": "{names} y {count} más",
+  "count": {
+    "project": "{count, plural, one {# proyecto} other {# proyectos}}",
+    "collection": "{count, plural, one {# colección} other {# colecciones}}",
+    "host": "{count, plural, one {# host} other {# hosts}}",
+    "variable": "{count, plural, one {# variable} other {# variables}}",
+    "key": "{count, plural, one {# clave SSH} other {# claves SSH}}",
+    "globalVariable": "{count, plural, one {# variable global} other {# variables globales}}",
+    "secretValue": "{count, plural, one {# valor de variable secreta} other {# valores de variables secretas}}"
+  },
+  "kinds": {
+    "project": "Proyectos",
+    "collection": "Colecciones",
+    "host": "Hosts",
+    "variable": "Variables",
+    "key": "Claves SSH"
+  },
+  "columns": {
+    "added": "Nuevos",
+    "updated": "Actualizados",
+    "unchanged": "Sin cambios",
+    "skipped": "Omitidos",
+    "removed": "Eliminados",
+    "copied": "Copiados"
+  },
+  "strategy": {
+    "merge": "Combinar",
+    "replace": "Reemplazar",
+    "duplicate": "Conservar ambos"
+  },
+  "badge": {
+    "update": "{gender, select, f {Actualizada} other {Actualizado}}",
+    "copy": "{gender, select, f {Copiada} other {Copiado}}",
+    "rename": "{gender, select, f {Renombrada} other {Renombrado}}",
+    "remove": "{gender, select, f {Eliminada} other {Eliminado}}",
+    "skip": "{gender, select, f {Omitida} other {Omitido}}"
+  },
+  "replaceNote": {
+    "project": "Dejar {name} exactamente como en el archivo",
+    "home": "Dejar Inicio y las variables globales exactamente como en el archivo",
+    "all": "Dejar todos tus datos exactamente como en el archivo"
+  },
+  "scope": {
+    "project": "Proyecto “{name}”",
+    "home": "Inicio",
+    "all": "Todo"
+  },
+  "summary": {
+    "added": "{list} {form, select, ms {agregado} fs {agregada} mp {agregados} other {agregadas}}",
+    "copied": "{list} {form, select, ms {copiado} fs {copiada} mp {copiados} other {copiadas}}",
+    "updated": "{list} {form, select, ms {actualizado} fs {actualizada} mp {actualizados} other {actualizadas}}",
+    "removed": "{list} {form, select, ms {eliminado} fs {eliminada} mp {eliminados} other {eliminadas}}",
+    "registered": "{list} {form, select, ms {registrado} fs {registrada} mp {registrados} other {registradas}}",
+    "sentence": "{text}.",
+    "nothing": "No cambió nada.",
+    "undoneTitle": "Importación deshecha",
+    "undoneText": "Tus datos están como antes de la importación.",
+    "completeTitle": "Importación completada",
+    "disconnected": "Desconectados",
+    "secretsTitle": "Secretos por definir",
+    "backup": "Copia de seguridad:",
+    "undo": "Deshacer importación",
+    "done": "Listo",
+    "lostHint": "Restaura tus datos como estaban antes de la importación. Los valores secretos eliminados no se pueden restaurar.",
+    "undoError": "No se pudo deshacer la importación. Tus datos anteriores a la importación están en {name}, en la carpeta de Carapace.",
+    "openProjectVariables": "Abrir las variables de {name}",
+    "openGlobalVariables": "Abrir las variables globales",
+    "secretLine": "{name} ({scope}) — {count, plural, one {# host} other {# hosts}}"
+  },
+  "confirm": {
+    "deleted": "{list} {form, select, ms {se eliminará} fs {se eliminará} other {se eliminarán}} de este equipo, con sus contraseñas guardadas.",
+    "secretsDeleted": "Los valores secretos y las contraseñas guardadas se eliminarán de este equipo.",
+    "connections": "{count, plural, one {Se cierra # conexión abierta.} other {Se cierran # conexiones abiertas.}}",
+    "backup": "Se conserva una copia de seguridad de tus datos."
+  },
+  "deletedSecrets": {
+    "savedPasswords": "las contraseñas guardadas de {count, plural, one {# host} other {# hosts}}",
+    "replace": "Reemplazar elimina {list} de este equipo.",
+    "other": "Esta importación elimina {list} de este equipo."
+  },
+  "secretsSent": {
+    "line": "{host} enviará {variable} a {to}",
+    "lineFrom": "{host} enviará {variable} a {to} en lugar de a {from}",
+    "more": "y {count} más"
+  },
+  "needsSecret": {
+    "line": "{name} ({scope}) — usada por {count, plural, one {# host} other {# hosts}}"
+  },
+  "undefined": {
+    "part": "{name} (usada por {count, plural, one {# host} other {# hosts}})",
+    "line": "No definidas en ningún lugar: {list}."
+  },
+  "detail": {
+    "authRef": "{auth} {ref}",
+    "authKey": "{auth} {path}",
+    "authKeyPassphrase": "{auth} {path}, frase de contraseña {ref}",
+    "global": "Global",
+    "address": "Dirección: {from} → {to}",
+    "location": "Se mueve de {from} a {to}",
+    "name": "Nuevo nombre: {from} → {to}",
+    "value": "Valor: {from} → {to}",
+    "auth": "Autenticación: {from} → {to}",
+    "kind": "Tipo: {from} → {to}",
+    "sameId": "Mismo id",
+    "sameName": "Mismo nombre que {kind, select, project {un proyecto} collection {una colección} host {un host} variable {una variable} other {una clave SSH}} existente aquí",
+    "keptSecret": "Se mantiene como secreta en este equipo",
+    "becomesSecret": "Pasa a ser secreta, sin valor",
+    "variableExists": "Omitida: aquí existe una variable con este nombre",
+    "outsideHome": "Archivo de clave fuera de tu carpeta personal. Agrégalo a mano en Claves SSH.",
+    "outsideHomePath": "Archivo de clave fuera de tu carpeta personal: {path}. Agrégalo a mano en Claves SSH.",
+    "keyMissing": "Archivo de clave no encontrado en este equipo",
+    "keyMissingPath": "Archivo de clave no encontrado en este equipo: {path}",
+    "keyMismatch": "El archivo de clave no coincide",
+    "keyMismatchAlgorithm": "El archivo de clave no coincide ({algorithm})",
+    "deleted": "{gender, select, f {Eliminada} other {Eliminado}} de este equipo",
+    "redirects": "Cambia la dirección de {count, plural, one {# host} other {# hosts}}: {names}"
+  },
+  "workspace": {
+    "tabs": "{count, plural, one {Se cerrará # pestaña abierta.} other {Se cerrarán # pestañas abiertas.}}",
+    "unsaved": "Se perderán los cambios sin guardar de {names}."
+  },
+  "export": {
+    "title": "Exportar datos",
+    "toast": "Exportado a {file}",
+    "empty": "Aún no hay nada",
+    "legend": "Qué exportar",
+    "all": "Todo",
+    "allNote": "Proyectos, Inicio, variables globales, claves SSH",
+    "home": "Inicio",
+    "homeNote": "Hosts fuera de proyectos, variables globales, claves SSH",
+    "project": "Un proyecto",
+    "projectNote": "Un proyecto con sus variables",
+    "noProjects": "Aún no hay proyectos",
+    "projectLabel": "Proyecto",
+    "includeShared": "Incluir las variables globales y las claves SSH que usan sus hosts",
+    "notIncluded": "No incluido",
+    "notIncludedText": "Contraseñas y frases de contraseña (incluidas las guardadas), valores de variables secretas y archivos de clave. Las variables secretas se exportan por nombre: define sus valores después de importar. El archivo enumera tus hosts y nombres de usuario; compártelo solo con personas que puedan verlos.",
+    "error": "Archivo no guardado",
+    "submit": "Exportar…"
+  },
+  "import": {
+    "title": "Importar datos",
+    "exported": "exportado el {date}",
+    "chooseAnother": "Elegir otro archivo",
+    "legend": "Si un elemento ya existe aquí",
+    "mergeNote": "Agregar los nuevos, actualizar los coincidentes, conservar el resto",
+    "duplicateNote": "Importar los elementos coincidentes como copias",
+    "blocking": "Esta importación no se puede hacer con “{strategy}”: {reasons}.",
+    "nothing": "Nada que importar: este equipo ya tiene todo lo que hay en el archivo.",
+    "caption": "Qué cambia",
+    "item": "Elemento",
+    "details": "Detalles ({count})",
+    "more": "y {count} más",
+    "connectionsTitle": "{count, plural, one {# host conectado se ve afectado} other {# hosts conectados se ven afectados}}",
+    "tabsTitle": "Hay pestañas abiertas afectadas",
+    "connectionsBody": "{names} {count, plural, one {se elimina o se mueve a otro proyecto. Se desconecta.} other {se eliminan o se mueven a otro proyecto. Se desconectan.}}",
+    "secretsTitle": "Secretos por definir después de importar",
+    "variablesTitle": "Variables por definir",
+    "askedWhenConnecting": "Se te pedirán al conectar hasta que los definas en Variables.",
+    "refreshed": "Tus datos cambiaron desde esta vista previa. La vista previa se actualizó.",
+    "secretsWarning": "Los secretos guardados irán a servidores nuevos",
+    "trust": "Confío en estos servidores",
+    "backupNote": "Primero se guarda una copia de seguridad de tus datos actuales.",
+    "submit": "Importar",
+    "submitReplace": "Reemplazar…",
+    "expired": "Esta vista previa caducó. Vuelve a elegir el archivo.",
+    "confirmTitle": "¿Reemplazar los datos?",
+    "confirmYes": "Reemplazar"
+  }
+}

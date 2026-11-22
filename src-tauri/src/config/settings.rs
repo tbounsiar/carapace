@@ -51,20 +51,45 @@ impl ThemeMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
 pub enum Language {
     #[default]
+    #[serde(rename = "system")]
     System,
+    #[serde(rename = "en")]
     En,
+    #[serde(rename = "fr")]
     Fr,
+    #[serde(rename = "de")]
+    De,
+    #[serde(rename = "es")]
+    Es,
+    #[serde(rename = "pt-BR")]
+    PtBr,
+    #[serde(rename = "zh-CN")]
+    ZhCn,
 }
 
 impl Language {
+    #[cfg(test)]
+    pub const ALL: [Language; 7] = [
+        Self::System,
+        Self::En,
+        Self::Fr,
+        Self::De,
+        Self::Es,
+        Self::PtBr,
+        Self::ZhCn,
+    ];
+
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
             "system" => Some(Self::System),
             "en" => Some(Self::En),
             "fr" => Some(Self::Fr),
+            "de" => Some(Self::De),
+            "es" => Some(Self::Es),
+            "pt-BR" => Some(Self::PtBr),
+            "zh-CN" => Some(Self::ZhCn),
             _ => None,
         }
     }
@@ -74,6 +99,10 @@ impl Language {
             Self::System => "system",
             Self::En => "en",
             Self::Fr => "fr",
+            Self::De => "de",
+            Self::Es => "es",
+            Self::PtBr => "pt-BR",
+            Self::ZhCn => "zh-CN",
         }
     }
 }

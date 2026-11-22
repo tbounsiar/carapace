@@ -1,0 +1,93 @@
+{
+  "theme": {
+    "title": "Tema",
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "note": "“Sistema” sigue el modo claro u oscuro del sistema operativo."
+  },
+  "colors": {
+    "title": "Colores",
+    "default": "Predeterminado",
+    "defaultNote": "Aspecto estándar con texto legible",
+    "highContrast": "Contraste alto",
+    "highContrastNote": "Texto, bordes y foco más marcados",
+    "pine": "Pino",
+    "pineNote": "Superficies gris verdoso, acento verde azulado",
+    "plum": "Ciruela",
+    "plumNote": "Superficies gris violáceo, acento morado",
+    "note": "Cada conjunto tiene una versión clara y otra oscura; “Tema” elige cuál se muestra. Los terminales también la siguen."
+  },
+  "accent": {
+    "title": "Color de acento personalizado",
+    "note": "Botones, enlaces, foco y selección. Los colores de estado no cambian.",
+    "label": "Color de acento",
+    "light": "Claro {hex}",
+    "dark": "Oscuro {hex}",
+    "adjustedBoth": "Más oscuro en modo claro y más claro en modo oscuro para que el texto siga siendo legible.",
+    "adjustedLight": "Más oscuro en modo claro para que el texto siga siendo legible.",
+    "adjustedDark": "Más claro en modo oscuro para que el texto siga siendo legible."
+  },
+  "language": {
+    "title": "Idioma",
+    "system": "Sistema ({name})",
+    "note": "“Sistema” sigue el idioma del sistema operativo."
+  },
+  "title": "Configuración",
+  "subtitle": "Preferencias de esta aplicación en este equipo. Los cambios se aplican al instante.",
+  "notSaved": "Configuración no guardada",
+  "keyType": {
+    "title": "Tipo de clave predeterminado",
+    "note": "Preseleccionado al generar una clave. Se recomienda Ed25519."
+  },
+  "fontSize": {
+    "title": "Tamaño de fuente del terminal",
+    "valueText": "{size} píxeles",
+    "note": "De {min} a {max} px. Los terminales abiertos se actualizan al instante."
+  },
+  "privacy": {
+    "title": "Privacidad",
+    "doNotTrack": "Desactivado porque DO_NOT_TRACK está definido en este equipo. No se envía nada.",
+    "readError": "No se pudo leer esta configuración. Reinicia la aplicación.",
+    "events": "Ver eventos recientes",
+    "eventsTitle": "Eventos de uso recientes",
+    "unavailable": "Esta compilación no envía datos de uso. Los cambios se guardan igualmente."
+  },
+  "data": {
+    "title": "Datos",
+    "nothing": "Aún no hay nada que exportar.",
+    "note": "Exporta proyectos, hosts, colecciones y variables a un archivo, o importa uno. Las contraseñas y otros secretos nunca se incluyen. La configuración de la aplicación no se incluye.",
+    "export": "Exportar…",
+    "import": "Importar…"
+  },
+  "externalEditor": {
+    "title": "Editor externo",
+    "system": "Predeterminado del sistema",
+    "custom": "Aplicación personalizada",
+    "customNote": "Los archivos se abren con esta aplicación; el archivo es su único argumento.",
+    "systemNote": "Los archivos se abren con la aplicación que tu sistema usa para su tipo. Los scripts y programas nunca se ejecutan: elige una aplicación personalizada para editarlos.",
+    "placeholder": "Ninguna aplicación elegida",
+    "appLabel": "Aplicación de edición",
+    "browse": "Examinar…",
+    "clear": "Quitar",
+    "pickHint": "Elige el archivo de programa del editor. Mientras tanto, los archivos se abren con la aplicación predeterminada del sistema.",
+    "copyNote": "Mientras editas, se guarda una copia del archivo en este equipo, que se elimina cuando dejas de editar.",
+    "notice": "Mostrar un aviso antes de abrir un archivo fuera de Carapace",
+    "notAnEditor": "Este programa ejecuta scripts o comandos; no es un editor. Elige el archivo de programa de tu editor.",
+    "notRead": "Configuración no leída",
+    "pickerError": "Selector de archivos no abierto"
+  },
+  "updates": {
+    "title": "Actualizaciones",
+    "version": "Carapace {version}",
+    "auto": "Buscar actualizaciones automáticamente",
+    "autoNote": "Al iniciar y cada 24 horas. GitHub ve tu dirección IP, nada sobre ti ni tus hosts.",
+    "checkNow": "Buscar ahora",
+    "checking": "Buscando…",
+    "upToDate": "Carapace está actualizado.",
+    "lastChecked": "Última comprobación: {when}",
+    "skipped": "Omitiste esta versión. No se volverá a anunciar.",
+    "unavailable": "Esta compilación no busca actualizaciones.",
+    "busy": "Hay una actualización en curso."
+  }
+}

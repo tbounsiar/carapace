@@ -1,0 +1,38 @@
+{
+  "notFound": {
+    "title": "Projekt nicht gefunden",
+    "text": "Es wurde möglicherweise gelöscht.",
+    "home": "Zu Start wechseln"
+  },
+  "placeholderTitle": "Projekt",
+  "newHost": "Neuer Host",
+  "actions": "Projektaktionen",
+  "tabs": "Projekt",
+  "hosts": "Hosts",
+  "variables": "Variablen",
+  "loadError": "Hosts konnten nicht geladen werden",
+  "retry": "Erneut versuchen",
+  "menu": {
+    "newCollection": "Neue Sammlung",
+    "export": "Projekt exportieren…"
+  },
+  "empty": {
+    "title": "Dieses Projekt ist leer",
+    "text": "Fügen Sie hier Hosts hinzu oder erstellen Sie Sammlungen, um sie zu gruppieren.",
+    "newCollection": "Neue Sammlung"
+  },
+  "noHosts": {
+    "title": "Noch keine Hosts",
+    "text": "Fügen Sie einen Host auf oberster Ebene oder in einer der Sammlungen hinzu."
+  },
+  "noMatch": {
+    "title": "Kein Host entspricht „{query}“",
+    "text": "Die Suche berücksichtigt Hostnamen, Adressen und Sammlungsnamen.",
+    "clear": "Suche löschen"
+  },
+  "noneConnected": {
+    "title": "Keine verbundenen Hosts",
+    "text": "Verbinden Sie einen Host über seine Karte oder die Seitenleiste.",
+    "showAll": "Alle anzeigen"
+  }
+}

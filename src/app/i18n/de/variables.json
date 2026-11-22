@@ -1,0 +1,57 @@
+{
+  "editor": {
+    "table": "Variablen",
+    "name": "Name",
+    "type": "Typ",
+    "value": "Wert",
+    "remove": "Entfernen",
+    "namePlaceholder": "Name",
+    "valuePlaceholder": "Wert",
+    "nameOf": "Name der Variable {index}",
+    "typeOf": "Typ der Variable {index}",
+    "secretOf": "Geheimer Wert der Variable {index}",
+    "valueOf": "Wert der Variable {index}",
+    "removeRow": "Variable {index} entfernen",
+    "setReplace": "Festgelegt. Zum Ersetzen tippen",
+    "notSet": "Nicht festgelegt",
+    "set": "Festgelegt",
+    "kinds": {
+      "plain": "Einfach",
+      "secret": "Geheim"
+    },
+    "empty": "Noch keine Variablen. Fügen Sie eine hinzu, um sie in Host-Feldern als {example} zu verwenden.",
+    "rowError": "Zeile {row}, {field}: {message}",
+    "fields": {
+      "name": "Name",
+      "value": "Wert"
+    },
+    "renameWarning": "Beim Umbenennen eines Secrets geht sein gespeicherter Wert verloren: {names}. Geben Sie den Wert erneut ein oder behalten Sie den alten Namen.",
+    "add": "Variable hinzufügen",
+    "saveFailed": "Variablen nicht gespeichert"
+  },
+  "validation": {
+    "nameRequired": "Der Name ist erforderlich",
+    "namePattern": "Verwenden Sie Buchstaben, Ziffern, „_“, „.“ oder „-“, beginnend mit einem Buchstaben oder „_“ (max. 64)",
+    "duplicate": "Dieser Name wird in diesem Bereich bereits verwendet",
+    "valueMax": "Der Wert darf höchstens {max} Zeichen lang sein",
+    "secretLabel": "Geheimer Wert"
+  },
+  "page": {
+    "notFound": {
+      "title": "Projekt nicht gefunden",
+      "text": "Es wurde möglicherweise gelöscht. Wählen Sie in der Seitenleiste ein anderes Projekt.",
+      "back": "Zurück zum Start"
+    },
+    "projectWins": "Host-Felder verwenden sie als {example}. Projektvariablen haben Vorrang vor globalen.",
+    "globalOverride": "Host-Felder verwenden sie als {example}. Projekte können sie überschreiben.",
+    "projectTitle": "{name}: Variablen",
+    "globalTitle": "Globale Variablen",
+    "projectSection": "Projektvariablen",
+    "discard": {
+      "label": "Nicht gespeicherte Änderungen verwerfen?",
+      "content": "Ihre Änderungen an diesen Variablen sind nicht gespeichert.",
+      "yes": "Verwerfen",
+      "no": "Weiter bearbeiten"
+    }
+  }
+}

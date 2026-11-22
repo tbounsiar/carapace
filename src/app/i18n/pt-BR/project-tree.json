@@ -1,0 +1,129 @@
+{
+  "topLevel": "{scope} (nível superior)",
+  "counts": {
+    "collections": "{count, plural, one {# coleção} other {# coleções}}",
+    "hosts": "{count, plural, one {# host} other {# hosts}}",
+    "both": "{collections, plural, one {# coleção} other {# coleções}} e {hosts, plural, one {# host} other {# hosts}}"
+  },
+  "validation": {
+    "required": "O campo {label} é obrigatório",
+    "maxLength": "O campo {label} deve ter no máximo {max} caracteres",
+    "noWhitespace": "O campo {label} não pode conter espaços",
+    "hostnameChars": "O nome do host só pode conter letras, dígitos, “.”, “-” e “:”",
+    "portRequired": "A porta é obrigatória",
+    "portRange": "A porta deve estar entre 1 e 65535",
+    "invalidReference": "“{reference}” não é uma referência de variável válida; escreva $$ para um $ literal",
+    "portTemplate": "A porta deve ter apenas dígitos ou uma única variável como {example}",
+    "secretReference": "O campo {label} deve ser uma referência a uma variável secreta como {example}",
+    "keyPathRequired": "O caminho da chave é obrigatório",
+    "networkPath": "Caminhos de rede não são suportados",
+    "publicKey": "Esta é uma chave pública. Escolha o arquivo sem .pub.",
+    "absolutePath": "Use um caminho absoluto ou um que comece com ~/"
+  },
+  "nameDialog": {
+    "name": "Nome"
+  },
+  "hostDialog": {
+    "location": "Em: {location}",
+    "note": "Os campos aceitam variáveis como {example}; escreva {escape} para um {dollar} literal.",
+    "fields": {
+      "name": "Nome",
+      "hostname": "Nome do host",
+      "port": "Porta",
+      "username": "Nome de usuário",
+      "keyPath": "Caminho da chave",
+      "password": "Senha",
+      "passphrase": "Frase secreta"
+    },
+    "authentication": "Autenticação",
+    "pickKey": "Escolher uma chave registrada",
+    "noKeys": "Nenhuma chave registrada ainda",
+    "browseKey": "Escolher um arquivo de chave",
+    "noKeysList": "Nenhuma chave registrada. Adicione uma em Chaves SSH.",
+    "notRegistered": "Não está em Chaves SSH. Registre-a para lembrar a frase secreta e implantá-la.",
+    "register": "Registrar esta chave",
+    "ask": "Solicitar ao conectar",
+    "passphraseHint": "Somente para uma chave criptografada. Escolha uma variável secreta (definida em Variáveis do projeto ou Variáveis globais) ou deixe que ela seja solicitada quando necessário.",
+    "passwordHint": "Escolha uma variável secreta (definida em Variáveis do projeto ou Variáveis globais) ou deixe que ela seja solicitada ao conectar.",
+    "missing": "Variáveis não definidas: {names}",
+    "resolves": "Resolve para {address}",
+    "blocker": {
+      "projectGone": "Este projeto não existe mais.",
+      "missing": "Defina as variáveis ausentes para testar a conexão.",
+      "invalid": "Corrija os campos destacados para testar a conexão."
+    },
+    "test": "Testar conexão",
+    "cancelTest": "Cancelar teste",
+    "pickerFailed": "Seletor de arquivo não aberto",
+    "importKey": "Importar chave",
+    "keyRegistered": "Chave registrada",
+    "replace": {
+      "label": "Substituir o modelo?",
+      "content": "O caminho da chave usa {refs}. Substituí-lo por este arquivo? O host deixará de seguir a variável.",
+      "yes": "Substituir",
+      "no": "Manter modelo"
+    }
+  },
+  "moveDialog": {
+    "filter": "Filtrar locais",
+    "locations": "Locais",
+    "noMatch": "Nenhum local corresponde a “{query}”.",
+    "current": "(local atual)",
+    "move": "Mover"
+  },
+  "move": {
+    "title": "Mover “{name}”",
+    "moved": "{kind, select, collection {“{name}” movida para {destination}} other {“{name}” movido para {destination}}}",
+    "undone": "Movimentação desfeita",
+    "undo": "Desfazer",
+    "hostFailed": "Host não movido",
+    "collectionFailed": "Coleção não movida",
+    "renameFirst": "{message}. Renomeie um deles primeiro.",
+    "warning": {
+      "title": {
+        "out": "Saindo do projeto",
+        "other": "Indo para outro projeto",
+        "into": "Entrando em um projeto"
+      },
+      "question": {
+        "out": "Mover para fora do projeto?",
+        "other": "Mover para outro projeto?",
+        "into": "Mover para um projeto?"
+      },
+      "hostToProject": "{name} usará as variáveis de {project}. As conexões abertas dele serão fechadas e as senhas salvas dele serão esquecidas.",
+      "hostToHome": "{name} usará somente as variáveis globais. As conexões abertas dele serão fechadas e as senhas salvas dele serão esquecidas.",
+      "collectionToProject": "{count, plural, one {O # host} other {Os # hosts}} em {name} {count, plural, one {usará as variáveis de {project}. As conexões abertas dele serão fechadas e as senhas salvas dele serão esquecidas.} other {usarão as variáveis de {project}. As conexões abertas deles serão fechadas e as senhas salvas deles serão esquecidas.}}",
+      "collectionToHome": "{count, plural, one {O # host} other {Os # hosts}} em {name} {count, plural, one {usará somente as variáveis globais. As conexões abertas dele serão fechadas e as senhas salvas dele serão esquecidas.} other {usarão somente as variáveis globais. As conexões abertas deles serão fechadas e as senhas salvas deles serão esquecidas.}}",
+      "missing": "Não definidas em {scope}: {names}."
+    }
+  },
+  "actions": {
+    "newProject": "Novo projeto",
+    "renameProject": "Renomear projeto",
+    "newCollection": "Nova coleção",
+    "renameCollection": "Renomear coleção",
+    "newHost": "Novo host",
+    "editHost": "Editar host",
+    "collectionPlaceholder": "Backend",
+    "collectionConflict": "Já existe uma coleção com este nome aqui.",
+    "deleteProject": {
+      "label": "Excluir projeto?",
+      "full": "“{name}” contém {content}. Tudo o que há nele será excluído, com as variáveis e as senhas salvas. As conexões abertas serão fechadas. Não é possível desfazer.",
+      "empty": "“{name}” está vazio. Ele será excluído com as variáveis dele. Não é possível desfazer.",
+      "failed": "Projeto não excluído"
+    },
+    "deleteCollection": {
+      "label": "Excluir coleção?",
+      "full": "“{name}” contém {content}. Tudo será excluído, com as senhas salvas. As conexões abertas com esses hosts serão fechadas. Não é possível desfazer. Para manter os hosts, mova-os para fora antes.",
+      "empty": "“{name}” está vazia.",
+      "failed": "Coleção não excluída"
+    },
+    "deleteHost": {
+      "label": "Excluir host?",
+      "content": "“{name}” e as senhas salvas dele serão excluídos. As conexões abertas com ele serão fechadas.",
+      "failed": "Host não excluído"
+    },
+    "tabs": "{count, plural, one {# aba aberta será fechada.} other {# abas abertas serão fechadas.}}",
+    "unsaved": "As alterações não salvas em {names} serão perdidas."
+  }
+}

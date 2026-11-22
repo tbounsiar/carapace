@@ -1,0 +1,19 @@
+{
+  "host": "Host",
+  "algorithm": "Algoritmo",
+  "fingerprint": "Impressão digital",
+  "unknown": {
+    "title": "Chave do host desconhecida",
+    "warning": "Não é possível confirmar a autenticidade de {host}. Compare a impressão digital com uma obtida do administrador do servidor antes de conectar.",
+    "reject": "Recusar",
+    "acceptConnect": "Aceitar e conectar",
+    "acceptTest": "Aceitar e testar"
+  },
+  "changed": {
+    "title": "A chave do host mudou",
+    "warning": "A chave apresentada por {host} não corresponde à armazenada. Alguém pode estar interceptando a conexão (man-in-the-middle), ou o servidor foi reinstalado. A conexão não foi feita.",
+    "known": "Conhecida",
+    "presented": "Apresentada",
+    "replace": "Substituir chave armazenada"
+  }
+}

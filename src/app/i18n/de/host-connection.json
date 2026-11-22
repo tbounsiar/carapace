@@ -1,0 +1,8 @@
+{
+  "missingVariables": "Fehlende Variablen",
+  "connectionFailed": "Verbindung fehlgeschlagen",
+  "disconnectFailed": "Trennen fehlgeschlagen",
+  "keyReplaced": "Host-Schlüssel ersetzt",
+  "keyReplacedText": "Der gespeicherte Schlüssel wurde ersetzt. Verbinden Sie sich erneut, um fortzufahren.",
+  "keyNotReplaced": "Host-Schlüssel nicht ersetzt"
+}

@@ -1,0 +1,39 @@
+{
+  "connect": "Verbinden",
+  "disconnect": "Trennen",
+  "status": "Status",
+  "auth": "Authentifizierung",
+  "askedWhenConnecting": "wird beim Verbinden abgefragt",
+  "missing": "Fehlende Variablen: {names}",
+  "forget": {
+    "password": "Gespeichertes Passwort vergessen",
+    "passphrase": "Gespeicherte Passphrase vergessen"
+  },
+  "forgotten": {
+    "title": "Gespeichertes Secret vergessen",
+    "password": "Das für diesen Host gespeicherte Passwort wurde entfernt.",
+    "passphrase": "Die für diesen Host gespeicherte Passphrase wurde entfernt."
+  },
+  "notForgotten": "Gespeichertes Secret nicht vergessen",
+  "notFound": {
+    "title": "Host nicht gefunden",
+    "text": "Er wurde möglicherweise gelöscht. Wählen Sie in der Seitenleiste einen anderen Host.",
+    "home": "Zu Start wechseln"
+  },
+  "tabs": {
+    "title": "Offene Tabs",
+    "modified": "Geändert",
+    "aria": {
+      "plain": "{label} – {status}",
+      "modified": "{label} – {status}, geändert",
+      "readOnly": "{label} – {status}, schreibgeschützt",
+      "modifiedReadOnly": "{label} – {status}, geändert, schreibgeschützt"
+    },
+    "empty": {
+      "title": "Keine offenen Tabs",
+      "text": "Öffnen Sie ein Terminal oder die Dateien dieses Hosts. Falls nötig, wird zuerst eine Verbindung hergestellt."
+    },
+    "newTerminal": "Neues Terminal",
+    "files": "Dateien"
+  }
+}

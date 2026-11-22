@@ -1,0 +1,14 @@
+{
+  "accentColor": "accentColor debe ser un color #rrggbb o null",
+  "defaultKeyType": "defaultKeyType debe ser ed25519 o rsa4096",
+  "keyFolder": "keyFolder debe ser una ruta o null",
+  "keyFolderInvalid": "la ruta de la carpeta de claves no es válida",
+  "keyFolderNotLocal": "la carpeta de claves debe ser una ruta local completa o empezar por ~/",
+  "keyFolderSpaces": "la carpeta de claves debe ser una ruta sin espacios al principio ni al final",
+  "language": "language debe ser system, en, fr, de, es, pt-BR o zh-CN",
+  "notAnObject": "la configuración debe ser un objeto",
+  "palette": "palette debe ser default, high-contrast, pine o plum",
+  "terminalFontSize": "terminalFontSize debe ser un número entero de {min} a {max}",
+  "theme": "theme debe ser system, light o dark",
+  "unknownSetting": "configuración desconocida"
+}

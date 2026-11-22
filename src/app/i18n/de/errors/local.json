@@ -1,0 +1,18 @@
+{
+  "deleteRefused": "{path} wird nicht gelöscht",
+  "deleteRoot": "ein Stammverzeichnis wird nicht gelöscht",
+  "homeUnreadable": "auf das Benutzerverzeichnis konnte nicht zugegriffen werden",
+  "interrupted": "der Dateivorgang wurde unterbrochen",
+  "nameBackslash": "der Name darf kein \\ enthalten",
+  "nameTrailing": "der Name darf nicht mit einem Punkt oder Leerzeichen enden",
+  "nameWindowsChars": "der Name darf keines der Zeichen < > : \" | ? oder * enthalten",
+  "notDirectory": "{path} ist kein Ordner",
+  "notLocal": "{path} ist kein lokaler Pfad",
+  "pathControl": "der Pfad darf keine Steuerzeichen enthalten",
+  "pathNotUnicode": "der Pfad ist kein gültiges Unicode",
+  "pathRelative": "der lokale Pfad muss absolut sein",
+  "pathRequired": "der Pfad ist erforderlich",
+  "pathTooLong": "der Pfad ist zu lang",
+  "renameRoot": "ein Stammverzeichnis kann nicht umbenannt werden",
+  "reservedName": "{name} ist ein reservierter Name"
+}

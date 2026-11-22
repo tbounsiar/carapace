@@ -1,0 +1,57 @@
+{
+  "editor": {
+    "table": "变量",
+    "name": "名称",
+    "type": "类型",
+    "value": "值",
+    "remove": "移除",
+    "namePlaceholder": "名称",
+    "valuePlaceholder": "值",
+    "nameOf": "变量 {index} 的名称",
+    "typeOf": "变量 {index} 的类型",
+    "secretOf": "变量 {index} 的机密值",
+    "valueOf": "变量 {index} 的值",
+    "removeRow": "移除变量 {index}",
+    "setReplace": "已设置。输入以替换",
+    "notSet": "未设置",
+    "set": "已设置",
+    "kinds": {
+      "plain": "普通",
+      "secret": "机密"
+    },
+    "empty": "还没有变量。添加一个后，即可在主机字段中以 {example} 的形式使用。",
+    "rowError": "第 {row} 行，{field}：{message}",
+    "fields": {
+      "name": "名称",
+      "value": "值"
+    },
+    "renameWarning": "重命名机密变量会丢弃其存储的值：{names}。请重新输入值，或保留原名称。",
+    "add": "添加变量",
+    "saveFailed": "变量未保存"
+  },
+  "validation": {
+    "nameRequired": "名称为必填项",
+    "namePattern": "请使用字母、数字、“_”、“.”或“-”，并以字母或“_”开头（最多 64 个字符）",
+    "duplicate": "此名称已在此范围内使用",
+    "valueMax": "值最多 {max} 个字符",
+    "secretLabel": "机密值"
+  },
+  "page": {
+    "notFound": {
+      "title": "未找到项目",
+      "text": "它可能已被删除。请在侧边栏中选择其他项目。",
+      "back": "返回起始页"
+    },
+    "projectWins": "主机字段以 {example} 的形式使用它们。项目变量优先于全局变量。",
+    "globalOverride": "主机字段以 {example} 的形式使用它们。项目可以覆盖它们。",
+    "projectTitle": "{name}：变量",
+    "globalTitle": "全局变量",
+    "projectSection": "项目变量",
+    "discard": {
+      "label": "放弃未保存的更改？",
+      "content": "您对这些变量的更改尚未保存。",
+      "yes": "放弃",
+      "no": "继续编辑"
+    }
+  }
+}

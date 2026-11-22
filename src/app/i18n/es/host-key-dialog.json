@@ -1,0 +1,19 @@
+{
+  "host": "Host",
+  "algorithm": "Algoritmo",
+  "fingerprint": "Huella digital",
+  "unknown": {
+    "title": "Clave de host desconocida",
+    "warning": "No se puede comprobar la autenticidad de {host}. Compara la huella digital con la que te haya dado el administrador del servidor antes de conectarte.",
+    "reject": "Rechazar",
+    "acceptConnect": "Aceptar y conectar",
+    "acceptTest": "Aceptar y probar"
+  },
+  "changed": {
+    "title": "La clave del host ha cambiado",
+    "warning": "La clave que presenta {host} no coincide con la guardada. Puede que alguien esté interceptando la conexión (ataque de intermediario) o que se haya reinstalado el servidor. No se realizó la conexión.",
+    "known": "Conocida",
+    "presented": "Presentada",
+    "replace": "Reemplazar la clave guardada"
+  }
+}

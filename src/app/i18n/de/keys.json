@@ -1,0 +1,127 @@
+{
+  "page": {
+    "title": "SSH-Schlüssel",
+    "subtitle": "Erzeugen oder importieren Sie private Schlüssel und verteilen Sie dann deren öffentlichen Schlüssel auf einen Host. Private Schlüssel verlassen diesen Computer nie.",
+    "generate": "Schlüssel erzeugen",
+    "import": "Schlüssel importieren",
+    "columns": {
+      "name": "Name",
+      "type": "Typ",
+      "fingerprint": "Fingerabdruck",
+      "comment": "Kommentar",
+      "status": "Status",
+      "actions": "Aktionen"
+    },
+    "badges": {
+      "encrypted": "Verschlüsselt",
+      "passphraseSaved": "Passphrase gespeichert",
+      "external": "Extern",
+      "customFolder": "Eigener Ordner"
+    },
+    "rowMenu": "Aktionen für {name}",
+    "menu": {
+      "copy": "Öffentlichen Schlüssel kopieren",
+      "deploy": "Auf Host verteilen…",
+      "forget": "Passphrase vergessen"
+    },
+    "loadError": "SSH-Schlüssel konnten nicht geladen werden",
+    "retry": "Erneut versuchen",
+    "unavailable": "Schlüssel nicht verfügbar",
+    "empty": {
+      "title": "Noch keine SSH-Schlüssel",
+      "text": "Erzeugen Sie einen neuen Ed25519-Schlüssel oder importieren Sie einen vorhandenen privaten Schlüssel."
+    }
+  },
+  "actions": {
+    "renameTitle": "Schlüssel umbenennen",
+    "copied": "Öffentlicher Schlüssel kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "noClipboard": "Die Zwischenablage ist nicht verfügbar.",
+    "forgotten": "Passphrase vergessen",
+    "forgottenText": "Die Passphrase von {name} ist nicht mehr gespeichert.",
+    "notForgotten": "Passphrase nicht vergessen",
+    "deleteTitle": "Schlüssel „{name}“ löschen?",
+    "notDeleted": "Schlüssel nicht gelöscht",
+    "deleteConflict": "Die Datei unter diesem Pfad enthält diesen Schlüssel nicht mehr. Es wurde nichts gelöscht.",
+    "deployTitle": "Öffentlichen Schlüssel verteilen",
+    "deployFailed": "Verteilen fehlgeschlagen",
+    "hostGone": "Der Host existiert nicht mehr.",
+    "restricted": "Schlüssel eingeschränkt",
+    "restrictedText": "Schlüssel auf {host} mit Einschränkungen (Optionen) vorhanden; nicht geändert. Bearbeiten Sie authorized_keys manuell, um normale Anmeldungen zu erlauben.",
+    "deployed": "Schlüssel verteilt",
+    "deployedText": "Schlüssel zu authorized_keys auf {host} hinzugefügt",
+    "nothingToDo": "Nichts zu tun",
+    "presentText": "Schlüssel bereits auf {host} vorhanden",
+    "hostNotUpdated": "Host nicht aktualisiert"
+  },
+  "fields": {
+    "name": "Name",
+    "passphraseOptional": "Passphrase (optional)",
+    "rememberPassphrase": "Passphrase im Systemschlüsselbund speichern"
+  },
+  "delete": {
+    "text": "Der Schlüssel wird aus der Liste entfernt und eine gespeicherte Passphrase wird vergessen.",
+    "deleteFiles": "Auch die Schlüsseldateien löschen",
+    "pubFile": "und {file}.pub.",
+    "managedNote": "Server, die diesem Schlüssel vertrauen, sind damit nicht mehr erreichbar.",
+    "sharedNote": "Andere Programme verwenden diesen Schlüssel möglicherweise.",
+    "importedNote": "Die Datei bleibt, wo sie ist: Sie wurde importiert, nicht hier erzeugt."
+  },
+  "deploy": {
+    "intro": "Hängt den öffentlichen Schlüssel von {name} an {file} auf dem Host an. Sie verbinden sich wie gewohnt zuerst.",
+    "host": "Host",
+    "pickHost": "Host wählen",
+    "noHosts": "Noch keine Hosts",
+    "useKey": "Diesen Schlüssel für den Host verwenden",
+    "useKeyNote": "Stellt die Authentifizierung des Hosts auf diesen Schlüssel um ({path}).",
+    "submit": "Verteilen"
+  },
+  "keygen": {
+    "type": "Typ",
+    "typeNote": "Ed25519 wird empfohlen. RSA 4096 ist langsamer, für Server ohne Ed25519.",
+    "folder": "Ordner",
+    "resetFolder": "Standardordner verwenden",
+    "chooseFolder": "Ordner wählen",
+    "fileName": "Dateiname",
+    "fileNameHint": "Buchstaben, Ziffern, „.“, „_“ und „-“. Der öffentliche Schlüssel erhält die Endung .pub.",
+    "savedAs": "Gespeichert als {file} und {pub} in diesem Ordner.",
+    "folderWarning": "Andere Benutzer können diesen Ordner öffnen. Die private Schlüsseldatei bleibt nur für Sie lesbar, aber sie könnten sie ersetzen oder löschen.",
+    "comment": "Kommentar",
+    "confirm": "Passphrase bestätigen",
+    "rsaSlow": "Das Erzeugen eines RSA-Schlüssels dauert einige Sekunden.",
+    "submit": "Erzeugen",
+    "folderMissing": "Dieser Ordner existiert nicht. Erstellen Sie ihn oder wählen Sie einen anderen.",
+    "folderDenied": "Carapace kann nicht in diesen Ordner schreiben. Wählen Sie einen anderen.",
+    "fileExists": "{file} oder {file}.pub existiert bereits in diesem Ordner.",
+    "pickerFailed": "Ordnerauswahl nicht geöffnet",
+    "notGenerated": "Schlüssel nicht erzeugt"
+  },
+  "import": {
+    "path": "Pfad des privaten Schlüssels",
+    "chooseFile": "Schlüsseldatei wählen",
+    "pathHint": "Ein privater OpenSSH-Schlüssel. Die Datei wird nicht kopiert: Sie bleibt, wo sie ist, und wird nur registriert.",
+    "passphraseNote": "Nur nötig, um die Passphrase eines verschlüsselten Schlüssels zu speichern.",
+    "submit": "Importieren",
+    "pickerFailed": "Dateiauswahl nicht geöffnet",
+    "notImported": "Schlüssel nicht importiert",
+    "wrongPassphrase": "Falsche Passphrase"
+  },
+  "validation": {
+    "nameRequired": "Der Name ist erforderlich",
+    "nameMax": "Der Name darf höchstens {max} Zeichen lang sein",
+    "nameTaken": "Ein Schlüssel mit diesem Namen existiert bereits",
+    "fileNameRequired": "Der Dateiname ist erforderlich",
+    "fileNameMax": "Der Dateiname darf höchstens {max} Zeichen lang sein",
+    "fileNameDot": "Der Dateiname darf nicht mit „.“ beginnen",
+    "fileNameChars": "Der Dateiname darf nur Buchstaben, Ziffern, „.“, „_“ und „-“ enthalten",
+    "commentMax": "Der Kommentar darf höchstens {max} Zeichen lang sein",
+    "commentLine": "Der Kommentar muss einzeilig sein",
+    "passphraseMax": "Die Passphrase darf höchstens {max} Zeichen lang sein",
+    "mismatch": "Die Passphrasen stimmen nicht überein",
+    "pathRequired": "Der Pfad ist erforderlich",
+    "networkPath": "Netzwerkpfade werden nicht unterstützt",
+    "pathAbsolute": "Verwenden Sie einen absoluten Pfad oder einen, der mit ~/ beginnt",
+    "folderRequired": "Wählen Sie einen Ordner für den Schlüssel.",
+    "folderAbsolute": "Verwenden Sie einen vollständigen Pfad oder einen, der mit ~/ beginnt."
+  }
+}

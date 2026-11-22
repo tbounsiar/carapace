@@ -21,7 +21,7 @@
     "rowMenu": "Actions for {name}",
     "menu": {
       "copy": "Copy public key",
-      "deploy": "Deploy to host...",
+      "deploy": "Deploy to host…",
       "forget": "Forget passphrase"
     },
     "loadError": "SSH keys could not be loaded",
